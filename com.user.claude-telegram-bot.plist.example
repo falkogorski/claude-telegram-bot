@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.user.claude-telegram-bot</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/jakuna/Projects/claude-telegram-bot/run.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/jakuna/Projects/claude-telegram-bot</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- launchd-Sessions erben die Shell-Env NICHT. ANTHROPIC_API_KEY und ggf.
+       ANTHROPIC_BASE_URL hier explizit setzen, sonst startet der SDK-Subprozess
+       ohne Credentials. Werte aus `env | grep ANTHROPIC` übernehmen. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>ANTHROPIC_API_KEY</key>
+    <string>__HIER_DEINEN_KEY__</string>
+    <!-- Optional, nur wenn du eine custom Base-URL nutzt:
+    <key>ANTHROPIC_BASE_URL</key>
+    <string>__HIER_DEINE_URL__</string>
+    -->
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/jakuna/Projects/claude-telegram-bot/logs/bot.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/jakuna/Projects/claude-telegram-bot/logs/bot.err.log</string>
+
+  <!-- Crash-Loop-Schutz: bei wiederholten Crashes mindestens 30s warten -->
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+</dict>
+</plist>

@@ -170,7 +170,11 @@ cd ~/Projects/claude-telegram-bot && grep ALLOWED_USER_IDS .env
 
 **„Connection refused" / „401" / „403" beim Tool-Use**
 → `ANTHROPIC_API_KEY` fehlt oder ist ungültig im Bot-Prozess. Bei launchd:
-Plist anpassen (siehe oben).
+Plist anpassen (siehe oben). Der Bot erkennt 401-Auth-Fehler inzwischen, zeigt
+statt der rohen SDK-Meldung einen Hinweis (`🔑 Authentifizierung fehlgeschlagen`)
+und verwirft die kaputte Session automatisch — nach dem Fix reicht eine neue
+Nachricht, kein `/reset` nötig. Schneller Gegentest ohne Bot: `claude -p "hallo"`
+im selben Kontext (User/Env), in dem der Bot läuft.
 
 **Permission-Buttons reagieren nicht**
 → Telegram-Callback-Query schlägt fehl. Logs prüfen, ggf. Bot neustarten. Kann

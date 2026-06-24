@@ -111,6 +111,39 @@ async def send_chunked(bot, chat_id: int, text: str, **kwargs) -> None:
         text = text[cut:].lstrip("\n")
 
 
+def is_auth_error(exc: Exception) -> bool:
+    """True if an exception looks like an Anthropic auth/credentials failure.
+
+    These bubble up from the Claude Code subprocess the Agent SDK spawns — not
+    from this bot — so the only reliable signal is the message text.
+    """
+    msg = str(exc).lower()
+    needles = (
+        "401",
+        "invalid authentication",
+        "invalid x-api-key",
+        "authentication_error",
+        "failed to authenticate",
+        "could not resolve authentication",
+        "oauth token has expired",
+    )
+    return any(n in msg for n in needles)
+
+
+AUTH_HELP = (
+    "🔑 *Authentifizierung fehlgeschlagen* (401)\n\n"
+    "Der Claude-Subprozess kann sich nicht bei der Anthropic-API anmelden — "
+    "das liegt an den Credentials, nicht am Bot.\n\n"
+    "*So behebst du es:*\n"
+    "• `ANTHROPIC_API_KEY` im Bot-Prozess prüfen (bei launchd: im Plist unter "
+    "`EnvironmentVariables`, nicht nur in der Shell).\n"
+    "• Oder per Subscription: einmal `claude login` ausführen — und sicherstellen, "
+    "dass kein *ungültiger* `ANTHROPIC_API_KEY` gesetzt ist, der OAuth überschreibt.\n"
+    "• Test ohne Bot: `claude -p \"hallo\"` im selben Kontext.\n\n"
+    "Die kaputte Session wurde verworfen — nach dem Fix einfach neue Nachricht schicken."
+)
+
+
 def format_tool_call(tool_name: str, tool_input: dict[str, Any]) -> str:
     """Pretty-print a tool call for the permission prompt."""
     if tool_name == "Bash":
@@ -354,6 +387,15 @@ async def process_user_text(update: Update, text: str) -> None:
             await sess.client.query(text)
             await stream_response(sess, update.effective_chat.id)
         except Exception as e:
+            if is_auth_error(e):
+                log.error("authentication failure for user_id=%s: %s", user_id, e)
+                await send_chunked(
+                    sess.bot, sess.chat_id, AUTH_HELP, parse_mode=ParseMode.MARKDOWN
+                )
+                # Session is wedged on bad credentials — drop it so the next
+                # message (after the user fixes auth) builds a fresh one.
+                await close_session(user_id)
+                return
             log.exception("error processing message")
             await send_chunked(sess.bot, sess.chat_id, f"❌ Error: {e}")
 

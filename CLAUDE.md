@@ -31,3 +31,6 @@ Nutzers laufen zu lassen.
 - **Ein Schritt pro Nachricht**, klar nummeriert. Kein `nano`/Hand-Editieren von
   Konfigdateien (zu fehleranfällig) — lieber per Befehl (`PlistBuddy` etc.).
 - **Secrets nie in den Chat posten lassen** — vorher klipp und klar sagen.
+- **Shell ist `zsh`:** KEINE `#`-Kommentarzeilen in Befehlsblöcken — zsh führt
+  `#` interaktiv als Befehl aus („command not found: #"). Nur reine Befehle
+  geben, Erklärungen außerhalb des Code-Blocks.

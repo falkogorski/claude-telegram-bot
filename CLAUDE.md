@@ -21,3 +21,13 @@ Nutzers laufen zu lassen.
   NICHT `ANTHROPIC_API_KEY`.**
 - Bei jeder Änderung an Auth/Modell/Diensten zuerst prüfen: „Kostet das extra?
   Aus welchem Topf?" → wenn API-Topf: **vorher fragen.**
+
+## Zusammenarbeit / Workflow (macOS, nicht-technischer Nutzer)
+
+- **`pbpaste`-Befehle (Token/Key aus Zwischenablage):** Reihenfolge IMMER klar
+  mitansagen → (1) Befehl ins Terminal einfügen **ohne** Enter, (2) **dann** den
+  Token/Key kopieren (Doppelklick → `Cmd-C`), (3) **dann** Enter. Sonst
+  überschreibt der eingefügte Befehl den Token in der Zwischenablage.
+- **Ein Schritt pro Nachricht**, klar nummeriert. Kein `nano`/Hand-Editieren von
+  Konfigdateien (zu fehleranfällig) — lieber per Befehl (`PlistBuddy` etc.).
+- **Secrets nie in den Chat posten lassen** — vorher klipp und klar sagen.

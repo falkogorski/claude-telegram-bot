@@ -34,3 +34,12 @@ Nutzers laufen zu lassen.
 - **Shell ist `zsh`:** KEINE `#`-Kommentarzeilen in Befehlsblöcken — zsh führt
   `#` interaktiv als Befehl aus („command not found: #"). Nur reine Befehle
   geben, Erklärungen außerhalb des Code-Blocks.
+
+## Bot-Verhalten (bei Migration in `bot.py` einbauen)
+
+- Der Telegram-Bot darf **nicht annehmen, in welchem Kontext der Nutzer gerade
+  sitzt** (z. B. „schön, dich am Desktop zu sehen"). Der Nutzer ist parallel an
+  mehreren Geräten/Sitzungen; eine solche Annahme ist irreführend. Begrüßungen
+  und Antworten **neutral** halten. Umsetzung: kurzer Zusatz im System-Prompt
+  des Bots (`bot.py`, `ClaudeAgentOptions`), z. B. „Du bist ein Telegram-Bot;
+  nimm nicht an, wo oder an welchem Gerät der Nutzer sitzt."

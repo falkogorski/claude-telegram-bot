@@ -35,6 +35,20 @@ Nutzers laufen zu lassen.
   `#` interaktiv als Befehl aus („command not found: #"). Nur reine Befehle
   geben, Erklärungen außerhalb des Code-Blocks.
 
+## Remote-/Mobil-Weiterführung von Sitzungen (WICHTIG)
+
+- Nutzer startet oft Prozesse, die Berechtigungen/Bestätigungen brauchen, muss
+  dann weg → Prozesse stocken. Ziel: Sitzungen/Prozesse **von unterwegs
+  fortsetzen** und **Freigaben erteilen** können.
+- **Bereits möglich:** (a) Aufgaben, die **über den Telegram-Bot** laufen,
+  schicken Permission-Prompts als Inline-Buttons (Allow/Deny/Always allow) aufs
+  Handy — „Always allow <Tool>" verhindert wiederholtes Nachfragen. (b)
+  Claude-Code-**Web**-Sitzungen lassen sich über die **Claude-App** (iPhone)
+  fortsetzen — auch diese hier.
+- **Wunsch (größere Sache, ggf. Migration):** Permission-Freigaben **beliebiger**
+  Sitzungen gebündelt in den Telegram-Bot leiten, mit Sitzungs-Kennung, sodass
+  alles per Telegram-Button freigegeben werden kann.
+
 ## Bot-Verhalten (bei Migration in `bot.py` einbauen)
 
 - Der Telegram-Bot darf **nicht annehmen, in welchem Kontext der Nutzer gerade

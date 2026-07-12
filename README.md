@@ -111,9 +111,10 @@ mkdir -p ~/Projects/claude-telegram-bot/logs
 cp ~/Projects/claude-telegram-bot/com.user.claude-telegram-bot.plist.example \
    ~/Library/LaunchAgents/com.user.claude-telegram-bot.plist
 
-# In der kopierten Datei den Platzhalter `__HIER_DEINEN_KEY__` durch den echten
-# ANTHROPIC_API_KEY ersetzen (Wert aus `env | grep ANTHROPIC` übernehmen).
-# Falls du auch ANTHROPIC_BASE_URL nutzt, den auskommentierten Block aktivieren.
+# In der kopierten Datei die Platzhalter ersetzen: HOME-Pfad und den Abo-Token
+# (erzeugen mit `claude setup-token`, beginnt mit sk-ant-oat…).
+# KOSTENREGEL: NIEMALS ANTHROPIC_API_KEY eintragen — der rechnet extra über die
+# bezahlte API ab statt über das Abo (Details in CLAUDE.md).
 
 # Laden + starten
 launchctl load ~/Library/LaunchAgents/com.user.claude-telegram-bot.plist
@@ -131,9 +132,10 @@ Zum Stoppen / Entladen:
 launchctl unload ~/Library/LaunchAgents/com.user.claude-telegram-bot.plist
 ```
 
-**Wichtig:** launchd-Sessions erben die Shell-Env **nicht** — `ANTHROPIC_API_KEY`
-(und ggf. `ANTHROPIC_BASE_URL`) müssen im Plist explizit unter
-`EnvironmentVariables` stehen, sonst startet der SDK-Subprozess ohne Credentials.
+**Wichtig:** launchd-Sessions erben die Shell-Env **nicht** —
+`CLAUDE_CODE_OAUTH_TOKEN` (und `HOME`) müssen im Plist explizit unter
+`EnvironmentVariables` stehen, sonst startet der SDK-Subprozess ohne Credentials
+(Symptom: „401 Invalid authentication credentials" bei jeder Bot-Anfrage).
 
 ---
 
@@ -143,7 +145,8 @@ Wenn der Mac nicht 24/7 läuft, ist ein VPS oder Raspberry Pi sinnvoll. Dafür
 braucht's:
 
 1. **Python 3.10+** und `pip install -r requirements.txt` auf dem Host.
-2. **`ANTHROPIC_API_KEY`** (gleicher Key wie lokal).
+2. **`CLAUDE_CODE_OAUTH_TOKEN`** (Abo-Token via `claude setup-token` — NICHT
+   `ANTHROPIC_API_KEY`, siehe Kostenregel in CLAUDE.md).
 3. **`CLAUDE_WORKDIR`** auf einen Pfad auf dem Server zeigen lassen — nicht
    automatisch dein Mac-Home. Optional: SSHFS/Syncthing wenn du Mac-Dateien
    bearbeiten willst.
@@ -169,12 +172,16 @@ cd ~/Projects/claude-telegram-bot && grep ALLOWED_USER_IDS .env
 `rejected message from user_id=…`. Diese ID in `.env` eintragen.
 
 **„Connection refused" / „401" / „403" beim Tool-Use**
-→ `ANTHROPIC_API_KEY` fehlt oder ist ungültig im Bot-Prozess. Bei launchd:
-Plist anpassen (siehe oben). Der Bot erkennt 401-Auth-Fehler inzwischen, zeigt
-statt der rohen SDK-Meldung einen Hinweis (`🔑 Authentifizierung fehlgeschlagen`)
-und verwirft die kaputte Session automatisch — nach dem Fix reicht eine neue
-Nachricht, kein `/reset` nötig. Schneller Gegentest ohne Bot: `claude -p "hallo"`
-im selben Kontext (User/Env), in dem der Bot läuft.
+→ `CLAUDE_CODE_OAUTH_TOKEN` fehlt / ist abgelaufen im Bot-Prozess, oder ein
+(ungültiger) `ANTHROPIC_API_KEY` überschreibt ihn. Bei launchd/systemd: Env des
+Dienstes anpassen (siehe oben). Fix: neuen Abo-Token via `claude setup-token`
+erzeugen und eintragen; sicherstellen, dass NIRGENDS ein `ANTHROPIC_API_KEY`
+gesetzt ist (hätte Vorrang und würde zudem extra kosten). Der Bot erkennt
+401-Auth-Fehler, zeigt statt der rohen SDK-Meldung einen Hinweis
+(`🔑 Authentifizierung fehlgeschlagen`) und verwirft die kaputte Session
+automatisch — nach dem Fix reicht eine neue Nachricht, kein `/reset` nötig.
+Schneller Gegentest ohne Bot: `claude -p "hallo"` im selben Kontext (User/Env),
+in dem der Bot läuft.
 
 **Permission-Buttons reagieren nicht**
 → Telegram-Callback-Query schlägt fehl. Logs prüfen, ggf. Bot neustarten. Kann

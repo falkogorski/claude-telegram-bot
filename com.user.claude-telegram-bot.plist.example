@@ -20,19 +20,18 @@
   <key>KeepAlive</key>
   <true/>
 
-  <!-- launchd-Sessions erben die Shell-Env NICHT. ANTHROPIC_API_KEY und ggf.
-       ANTHROPIC_BASE_URL hier explizit setzen, sonst startet der SDK-Subprozess
-       ohne Credentials. Werte aus `env | grep ANTHROPIC` übernehmen. -->
+  <!-- launchd-Sessions erben die Shell-Env NICHT — Credentials hier explizit
+       setzen, sonst startet der SDK-Subprozess ohne Auth (401).
+       KOSTENREGEL (s. CLAUDE.md): Abo-Token verwenden (claude setup-token),
+       NIEMALS ANTHROPIC_API_KEY — der würde jede Nutzung extra abrechnen. -->
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    <key>ANTHROPIC_API_KEY</key>
-    <string>__HIER_DEINEN_KEY__</string>
-    <!-- Optional, nur wenn du eine custom Base-URL nutzt:
-    <key>ANTHROPIC_BASE_URL</key>
-    <string>__HIER_DEINE_URL__</string>
-    -->
+    <key>HOME</key>
+    <string>__DEIN_HOME_z.B._/Users/jakuna__</string>
+    <key>CLAUDE_CODE_OAUTH_TOKEN</key>
+    <string>__HIER_DEIN_ABO_TOKEN_sk-ant-oat…__</string>
   </dict>
 
   <key>StandardOutPath</key>

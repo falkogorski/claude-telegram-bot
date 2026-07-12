@@ -132,13 +132,14 @@ def is_auth_error(exc: Exception) -> bool:
 
 AUTH_HELP = (
     "🔑 *Authentifizierung fehlgeschlagen* (401)\n\n"
-    "Der Claude-Subprozess kann sich nicht bei der Anthropic-API anmelden — "
+    "Der Claude-Subprozess kann sich nicht bei Anthropic anmelden — "
     "das liegt an den Credentials, nicht am Bot.\n\n"
-    "*So behebst du es:*\n"
-    "• `ANTHROPIC_API_KEY` im Bot-Prozess prüfen (bei launchd: im Plist unter "
-    "`EnvironmentVariables`, nicht nur in der Shell).\n"
-    "• Oder per Subscription: einmal `claude login` ausführen — und sicherstellen, "
-    "dass kein *ungültiger* `ANTHROPIC_API_KEY` gesetzt ist, der OAuth überschreibt.\n"
+    "*So behebst du es (Abo-Auth, kostenfrei):*\n"
+    "• Neuen Abo-Token erzeugen: `claude setup-token` — und als "
+    "`CLAUDE_CODE_OAUTH_TOKEN` in die Dienst-Umgebung eintragen "
+    "(launchd-Plist bzw. systemd-EnvironmentFile, nicht nur in die Shell).\n"
+    "• Sicherstellen, dass NIRGENDS ein `ANTHROPIC_API_KEY` gesetzt ist — "
+    "der hätte Vorrang und würde zudem extra kosten (💰 Kostenregel!).\n"
     "• Test ohne Bot: `claude -p \"hallo\"` im selben Kontext.\n\n"
     "Die kaputte Session wurde verworfen — nach dem Fix einfach neue Nachricht schicken."
 )

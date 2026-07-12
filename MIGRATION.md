@@ -90,7 +90,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 ### 0.7 Mac-Backtest des vorbereiteten Stands
 - **Status:** OFFEN
-- **Akzeptanzkriterium:** Bot läuft vom vorbereiteten Branch einmal manuell am Mac (launchd/Guardian währenddessen gestoppt!): Text, `/status`, `/reset`, Voice, Permission-Buttons — alles wie gewohnt. Danach Mac zurück auf Produktivstand bis zum Umschalten.
+- **Akzeptanzkriterium:** Bot läuft vom vorbereiteten Branch einmal manuell am Mac (launchd/Guardian währenddessen gestoppt!): Text, `/status`, `/reset`, Voice, Permission-Buttons — alles wie gewohnt. Danach Mac zurück auf Produktivstand bis zum Umschalten. **Der Punkt ist erst grün, wenn launchd + Guardian wieder GELADEN sind und `pgrep -fl bot.py` genau eine laufende Instanz zeigt** — ein gestoppter Wächter darf NIE über das Test-Fenster hinaus bestehen bleiben (Vorfall 2026-07-12: Bot blieb nach unterbrochenem Backtest down, weil der Guardian planmäßig aus war und niemand neu lud).
 - **Test:** Die fünf genannten Interaktionen einzeln in Telegram.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —

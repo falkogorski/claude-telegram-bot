@@ -2,15 +2,22 @@
 
 ## 🗺️ MIGRATION — Status & Drehbuch
 
-- **Das verbindliche Drehbuch ist `MIGRATION.md`** (Phasen 0–8 + Anhänge).
-  Bei der Umsetzung strikt daran halten; jeder Schritt hat „Erwartete
-  Ausgabe" — weicht sie ab: STOPP, Nutzer fragen.
-- **Entscheidungen E1–E4 sind vom Nutzer bestätigt** (Kasten in MIGRATION.md):
-  E1 VPS vorhanden · E2 Voice bleibt, als Phase 6 · E3 Sonnet-Standard,
-  automatische Modellwahl als Anhang A.1 · E4 Approval-Hub nach Migration.
-- **Leitprinzip:** Erst Funktions-Parität auf dem Server (inkl. Voice), dann
-  Optimierungen laut Backlog **Anhang A** (u. a. automatische Modellwahl je
-  Aufgabe Haiku/Sonnet/Opus/Fable). Backlog nicht verlieren!
+- **Das verbindliche Drehbuch ist `MIGRATION.md` (MASTER, zusammengeführt
+  2026-07-12):** die 11-Phasen-Struktur aus der Telegram-Sitzung (Netcup-VPS,
+  Status/Akzeptanz/Test/Adam-Bestätigung pro Punkt, sequenziell) + Phase 0
+  (Code-/Repo-Vorbereitung), Anhang D (Ausführungsbefehle) und
+  Kostenregel-Wächter aus dieser Sitzung. Die Repo-Version ist die Hoheits-
+  Fassung; die Telegram-Sitzung übernimmt sie als Arbeitsdokument (Punkt 0.8).
+- **Entscheidungen E1–E4 bestätigt** (Kasten in MIGRATION.md). **⚠️ OFFEN:
+  F1 (Punkt 2.6)** — „Bot nur noch über LiteLLM" würde Claude-Verkehr vom Abo
+  auf die bezahlte API verlagern UND den Agent-Modus brechen; Vorschlag:
+  LiteLLM nur für Neben-Inferenzen, Agent bleibt am Abo-SDK. Vor Phase 2 klären!
+- Wichtigste Stolperfallen: echte bot.py (~2000+ Zeilen) noch NICHT im Repo
+  (Punkt 0.1, KRITISCH — Repo-Version ist veraltet); iCloud-Log-Pfad existiert
+  auf Linux nicht (0.5); nie zwei Bot-Instanzen parallel; Webhook-Setzen (1.9)
+  IST der Umschaltmoment; Auth NUR per Abo-Token (Kostenregel unten).
+- Erledigt vorab: 401-Handling-Referenz + Abo-Token-first-Doku auf Branch
+  `claude/telegram-bot-auth-401-g6yqrr`.
 - Wichtigste Stolperfallen (Details im Drehbuch): echte bot.py (~2000+ Zeilen)
   liegt noch NICHT im Repo (Phase 0.1); iCloud-Log-Pfad existiert auf Linux
   nicht (Phase 1.3); nie zwei Bot-Instanzen parallel (Telegram-Conflict);

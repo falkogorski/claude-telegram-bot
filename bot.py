@@ -120,7 +120,7 @@ def _usage_today() -> dict:
 
 # ---------- memory loader ----------
 
-_MEMORY_DIR = Path.home() / ".claude/projects/-Users-jakuna/memory"
+_MEMORY_DIR = Path(os.environ.get("CLAUDE_MEMORY_DIR") or str(Path.home() / ".claude/projects/-Users-jakuna/memory"))
 _MEMORY_CACHE: str | None = None
 _MEMORY_MTIME: float = 0.0
 
@@ -169,7 +169,7 @@ ALLOWED_USER_IDS = {
     if uid.strip()
 }
 WORKDIR = Path(os.environ.get("CLAUDE_WORKDIR") or str(Path.home())).expanduser()
-_DEFAULT_LOG_DIR = Path.home() / "Library/Mobile Documents/com~apple~CloudDocs/Claude-Logs"
+_DEFAULT_LOG_DIR = Path.home() / "claude-logs"  # VPS-tauglicher Fallback; Mac kann CONVERSATION_LOG_DIR auf iCloud zeigen
 LOG_DIR = Path(os.environ.get("CONVERSATION_LOG_DIR") or str(_DEFAULT_LOG_DIR))
 TELEGRAM_MSG_LIMIT = 4000  # actual is 4096; leave headroom for formatting
 VOICE_LANGUAGE = os.environ.get("VOICE_LANGUAGE") or "de"
@@ -178,7 +178,7 @@ TTS_CHUNK_CHARS = 4000  # max. Zeichen pro Sprachnachricht (PDF-Vorlesen etc.)
 TTS_SYNC_CHUNK = 1024  # max. Zeichen pro Text-Chunk wenn TTS-Sync-Modus aktiv
 _RESTART_REASON_FILE = Path.home() / ".claude/bot-restart-reason.txt"
 UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR") or str(Path.home() / "Downloads" / "claude-uploads"))
-DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "opus")
+DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")
 # Kurznamen → vollständige Modell-IDs, die das SDK versteht
 _MODEL_ALIASES: dict[str, str] = {
     "opus":   "claude-opus-4-7",
@@ -235,6 +235,38 @@ _EFFORT_IDS: dict[str, str | None] = {
     _BTN_EFFORT_MAX: "max",
     _BTN_EFFORT_MAX_ACTIVE: "max",
 }
+
+
+# ---------- auth-error helper ----------
+
+def is_auth_error(exc: Exception) -> bool:
+    """True wenn eine Exception nach einem Anthropic-Auth-/Credentials-Fehler aussieht.
+    Der Claude-Subprozess bubbles die Fehler als Text hoch — zuverlässigster Indikator."""
+    msg = str(exc).lower()
+    needles = (
+        "401",
+        "invalid authentication",
+        "invalid x-api-key",
+        "authentication_error",
+        "failed to authenticate",
+        "could not resolve authentication",
+        "oauth token has expired",
+    )
+    return any(n in msg for n in needles)
+
+
+AUTH_HELP = (
+    "🔑 *Authentifizierung fehlgeschlagen* (401)\n\n"
+    "Der Claude-Subprozess kann sich nicht bei Anthropic anmelden — "
+    "das liegt an den Credentials, nicht am Bot.\n\n"
+    "*So behebst du es (Abo-Auth, kostenfrei):*\n"
+    "• Neuen Abo-Token erzeugen: `claude setup-token` — als "
+    "`CLAUDE_CODE_OAUTH_TOKEN` in das systemd-EnvironmentFile (oder die launchd-Plist) eintragen.\n"
+    "• Prüfen, dass NIRGENDS ein `ANTHROPIC_API_KEY` gesetzt ist — "
+    "der hätte Vorrang und kostet extra (💰 Kostenregel!).\n"
+    "• Test ohne Bot: `claude -p \"hallo\"` im selben Kontext.\n\n"
+    "Die kaputte Session wurde verworfen — nach dem Fix einfach eine neue Nachricht schicken."
+)
 
 
 def _main_keyboard(tts_on: bool, model: str, effort: str | None = None) -> ReplyKeyboardMarkup:
@@ -590,6 +622,14 @@ async def _run_job(user_id: int, job: QueuedJob) -> None:
         except Exception as e:
             log.exception("error processing message")
             cancelled = cancel_pending_permissions(sess, reason=f"query error: {e}")
+            if is_auth_error(e):
+                log.error("authentication failure for user_id=%s: %s", user_id, e)
+                try:
+                    await send_chunked(sess.bot, sess.chat_id, AUTH_HELP, parse_mode=ParseMode.MARKDOWN)
+                except Exception:
+                    log.exception("failed to send auth-error message")
+                await close_session(user_id)
+                return
             try:
                 await send_chunked(
                     sess.bot,

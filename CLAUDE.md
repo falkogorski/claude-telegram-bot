@@ -1,5 +1,19 @@
 # CLAUDE.md — Projekt-Notizen
 
+## 🗺️ MIGRATION — Status & Drehbuch
+
+- **Das verbindliche Drehbuch ist `MIGRATION.md`** (Phasen 0–7 + Anhänge).
+  Bei der Umsetzung strikt daran halten; jeder Schritt hat „Erwartete
+  Ausgabe" — weicht sie ab: STOPP, Nutzer fragen.
+- **Offene Entscheidungen (E1–E4)** stehen im Entscheidungskasten von
+  MIGRATION.md und müssen **vor Phase 2** vom Nutzer bestätigt sein.
+- Wichtigste Stolperfallen (Details im Drehbuch): echte bot.py (~2000+ Zeilen)
+  liegt noch NICHT im Repo (Phase 0.1); iCloud-Log-Pfad existiert auf Linux
+  nicht (Phase 1.3); nie zwei Bot-Instanzen parallel (Telegram-Conflict);
+  Auth NUR per Abo-Token (Kostenregel unten).
+- Erledigt vorab: 401-Handling-Referenz + Abo-Token-first-Doku liegen auf
+  Branch `claude/telegram-bot-auth-401-g6yqrr`.
+
 ## 💰💰💰 KOSTEN-REGEL — HÖCHSTE PRIORITÄT 💰💰💰
 
 **IMMER vorher ausdrücklich warnen und um Bestätigung bitten, bevor irgendeine

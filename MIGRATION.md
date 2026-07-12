@@ -10,14 +10,19 @@
 
 ---
 
-## ⬜ ENTSCHEIDUNGSKASTEN (vor Beginn vom Nutzer bestätigen lassen!)
+## ✅ ENTSCHEIDUNGSKASTEN (vom Nutzer bestätigt)
 
-| # | Entscheidung | Standard (falls Nutzer nichts anderes sagt) | Status |
+| # | Entscheidung | Festlegung | Status |
 |---|---|---|---|
-| E1 | **Ziel-Server** | Debian/Ubuntu-VPS (falls keiner existiert: vorher Rücksprache — Miete ist eine **neue laufende Ausgabe** 💰) | ⬜ offen |
-| E2 | **Voice/STT auf dem Server** | Erstmal **aus** (`STT_BACKEND=off`), Nachrüst-Anleitung in Anhang A | ⬜ offen |
-| E3 | **Modell** | **Sonnet** als Standard, per `.env` (`CLAUDE_MODEL`) umstellbar | ⬜ offen |
-| E4 | **Approval-Hub** (alle Sitzungs-Freigaben in Telegram bündeln) | **Separates Projekt nach** der Migration (Anhang C) | ⬜ offen |
+| E1 | **Ziel-Server** | **VPS ist vorhanden** (bereits gemietet). Zugangsdaten (Host, SSH-User) trägt der Nutzer zu Beginn von Phase 2 ein. | ✅ |
+| E2 | **Voice/STT auf dem Server** | **Bleibt nutzbar wie bisher** — schrittweise umgesetzt: Umschalten zunächst mit `STT_BACKEND=off` (Parität testen), **direkt danach Phase 6** aktiviert Voice. Kurze Voice-Lücke nur zwischen Phase 5 und 6. | ✅ |
+| E3 | **Modell** | **Sonnet als Grundeinstellung** (per `.env` umstellbar). **Automatische Modellwahl je Aufgabe** (Haiku/Sonnet/Opus/ggf. Fable) ist als Post-Migration-Optimierung fest eingeplant → Anhang A.1. | ✅ |
+| E4 | **Approval-Hub** (alle Sitzungs-Freigaben in Telegram bündeln) | **Separates Projekt NACH der Migration** (Anhang C). | ✅ |
+
+> **Leitprinzip (Nutzer-Vorgabe):** Die Migration stellt zuerst den **heutigen
+> Funktionsumfang 1:1 auf dem Server** her (Parität, inkl. Voice). Direkt
+> danach wird **optimiert und verbessert** — der Verbesserungs-Backlog steht
+> in Anhang A und darf nicht verloren gehen.
 
 ---
 
@@ -131,8 +136,11 @@ Ergebnisse aus Audit 0.2 abarbeiten. Mindestens:
 `ClaudeAgentOptions(model=…)` setzen. `.env.example` ergänzen.
 
 ### 1.5 Voice-Schalter (Entscheidung E2)
-Nichts zu coden — `STT_BACKEND=off` in der Server-.env genügt (NullTranscriber
-liefert bereits den Hinweis). Nur `.env.example`-Kommentar prüfen.
+Nichts zu coden — die Umschaltung läuft rein über `STT_BACKEND` in der .env
+(NullTranscriber liefert bei `off` bereits den Hinweis „bitte als Text").
+Der Server startet in Phase 5 mit `off` (ein Fehlerfaktor weniger beim
+Umschalten) und bekommt Voice **direkt danach in Phase 6** — Voice ist
+Pflichtteil der Migration, keine Option. Nur `.env.example`-Kommentar prüfen.
 
 ### 1.6 Abschluss Phase 1
 `py_compile` grün, Mac-Backtest laut Kasten oben bestanden, Branch gepusht.
@@ -187,8 +195,9 @@ CONVERSATION_LOG_DIR=/home/botuser/claude-telegram-bot/logs/conversations
 VOICE_LANGUAGE=de
 ```
 
-(Werte gemäß E2/E3; `TELEGRAM_BOT_TOKEN` ist derselbe wie am Mac — der Bot
-„zieht um", behält aber seine Identität `@jakuna_cc_bot`.)
+(`TELEGRAM_BOT_TOKEN` ist derselbe wie am Mac — der Bot „zieht um", behält
+aber seine Identität `@jakuna_cc_bot`. `STT_BACKEND=off` ist nur der
+Startzustand — wird in Phase 6 auf `whisper_cpp` umgestellt.)
 
 **Check:** `sudo ls -l /etc/claude-telegram-bot.env` → `-rw------- 1 root root`.
 
@@ -274,7 +283,39 @@ Reihenfolge strikt einhalten, Nutzer sitzt am Mac:
 
 ---
 
-## Phase 6 — Aufräumen (erst nach ein paar stabilen Tagen)
+## Phase 6 — Voice/STT auf dem Server aktivieren (Entscheidung E2)
+
+> Direkt im Anschluss an Phase 5, sobald der Text-Betrieb stabil läuft
+> (gleicher Tag ist okay — die Voice-Lücke soll kurz bleiben).
+
+1. Pakete: `sudo apt-get install -y ffmpeg build-essential cmake git`
+2. whisper.cpp bauen (als botuser):
+   ```bash
+   sudo -u botuser git clone https://github.com/ggerganov/whisper.cpp /home/botuser/whisper.cpp
+   cd /home/botuser/whisper.cpp && sudo -u botuser cmake -B build && sudo -u botuser cmake --build build -j --config Release
+   sudo ln -sf /home/botuser/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
+   whisper-cli --help | head -n 3
+   ```
+   **Erwartete Ausgabe:** usage-Zeilen von whisper-cli (kein „command not found").
+3. Modell laden (~480 MB, dauert je nach Leitung ein paar Minuten):
+   ```bash
+   sudo -u botuser mkdir -p /home/botuser/claude-telegram-bot/models
+   sudo -u botuser curl -L -o /home/botuser/claude-telegram-bot/models/ggml-small.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin
+   ls -lh /home/botuser/claude-telegram-bot/models/ggml-small.bin
+   ```
+   **Erwartete Ausgabe:** Dateigröße ~466M–488M.
+4. `/etc/claude-telegram-bot.env` anpassen: `STT_BACKEND=whisper_cpp` und
+   `WHISPER_MODEL_PATH=/home/botuser/claude-telegram-bot/models/ggml-small.bin`,
+   dann `sudo systemctl restart claude-telegram-bot`.
+5. **Test (Nutzer, vom Handy):** Sprachnachricht an den Bot → er echot den
+   erkannten Text (`🎙️ …`) und beantwortet ihn.
+   Hinweis: Auf kleinem VPS kann die Transkription 10–30 s dauern — das ist
+   normal und kein Fehler. Wird es störend: größeres Modell vermeiden,
+   `ggml-base.bin` (~145 MB) als schnellere Alternative testen.
+
+---
+
+## Phase 7 — Aufräumen (erst nach ein paar stabilen Tagen)
 
 - Mac: Plists in einen Backup-Ordner verschieben (nicht löschen) —
   `~/Library/LaunchAgents/_deaktiviert/`.
@@ -284,22 +325,41 @@ Reihenfolge strikt einhalten, Nutzer sitzt am Mac:
 
 ---
 
-## Phase 7 — Rollback (falls der Server zickt)
+## Phase 8 — Rollback (falls der Server zickt)
 
 ```bash
 sudo systemctl stop claude-telegram-bot
 ```
 Dann am Mac beide Plists wieder `launchctl load` (Bot zuerst, dann Guardian).
-Der Mac-Stand bleibt bis Phase 6 unangetastet — Rollback dauert < 2 Minuten.
+Der Mac-Stand bleibt bis Phase 7 unangetastet — Rollback dauert < 2 Minuten.
 
 ---
 
-## Anhang A — Voice/Whisper auf dem Server nachrüsten (falls E2 später „ja")
-1. `sudo apt-get install -y ffmpeg build-essential cmake`
-2. whisper.cpp bauen (Release von github.com/ggerganov/whisper.cpp, `cmake -B build && cmake --build build -j`), `whisper-cli` in PATH verlinken.
-3. Modell laden: `ggml-small.bin` (~480 MB) nach `…/models/`.
-4. `.env`: `STT_BACKEND=whisper_cpp`, `WHISPER_MODEL_PATH=…` → Dienst neu starten.
-   Hinweis: Auf kleinem VPS 10–30 s pro Sprachnachricht.
+## Anhang A — Post-Migration-Optimierungen (Backlog, NICHT verlieren!)
+
+> Nutzer-Vorgabe: Nach der Migration soll alles **besser** laufen als bisher.
+> Diese Punkte werden nach stabiler Migration der Reihe nach angegangen —
+> jeweils als eigener, kleiner Schritt mit Test.
+
+### A.1 Automatische Modellwahl je Aufgabe (Entscheidung E3, fest eingeplant)
+Der Bot soll je nach Aufgabe selbst das passende Modell wählen, statt fix auf
+einem zu stehen: **Haiku** für Alltags-/Kurzanfragen, **Sonnet** als Standard,
+**Opus** (bzw. **Fable**, falls im Abo verfügbar) für anspruchsvolle Aufgaben.
+Umsetzungsskizze: leichtgewichtiger Router in `bot.py` — vor dem Query eine
+schnelle Einstufung der Nachricht (Heuristik oder Mini-Haiku-Call), dann
+`ClaudeAgentOptions(model=…)` pro Session/Anfrage setzen; Override-Befehle im
+Chat (`/model opus` etc.) für manuelle Kontrolle. Kostenregel beachten: alles
+bleibt im Abo — Modellwahl betrifft nur das Kontingent, nie den Geldbeutel.
+
+### A.2 Weitere Verbesserungen (gesammelt)
+- Freundliche Fehlermeldungen für weitere Fehlerklassen ausbauen (über 401
+  hinaus: Netz weg, Rate-Limit/Kontingent erschöpft, Telegram-Timeouts).
+- `/status` erweitern: aktives Modell, Session-Alter, Kontingent-Hinweise.
+- Conversation-Logs vom Server zugänglich machen (z. B. tägliche Zusammenfassung
+  per Telegram statt iCloud-Datei).
+- Approval-Hub (Anhang C) als nächstes großes Projekt.
+
+Neue Wünsche des Nutzers hier ergänzen, statt sie nur im Chat zu lassen.
 
 ## Anhang B — Mac-Dateien vom Server aus bearbeiten (optional)
 Standard: Server-Workspace ist leer/eigenständig. Wer Mac-Dateien braucht:

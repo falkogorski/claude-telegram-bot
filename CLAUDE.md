@@ -2,11 +2,15 @@
 
 ## 🗺️ MIGRATION — Status & Drehbuch
 
-- **Das verbindliche Drehbuch ist `MIGRATION.md`** (Phasen 0–7 + Anhänge).
+- **Das verbindliche Drehbuch ist `MIGRATION.md`** (Phasen 0–8 + Anhänge).
   Bei der Umsetzung strikt daran halten; jeder Schritt hat „Erwartete
   Ausgabe" — weicht sie ab: STOPP, Nutzer fragen.
-- **Offene Entscheidungen (E1–E4)** stehen im Entscheidungskasten von
-  MIGRATION.md und müssen **vor Phase 2** vom Nutzer bestätigt sein.
+- **Entscheidungen E1–E4 sind vom Nutzer bestätigt** (Kasten in MIGRATION.md):
+  E1 VPS vorhanden · E2 Voice bleibt, als Phase 6 · E3 Sonnet-Standard,
+  automatische Modellwahl als Anhang A.1 · E4 Approval-Hub nach Migration.
+- **Leitprinzip:** Erst Funktions-Parität auf dem Server (inkl. Voice), dann
+  Optimierungen laut Backlog **Anhang A** (u. a. automatische Modellwahl je
+  Aufgabe Haiku/Sonnet/Opus/Fable). Backlog nicht verlieren!
 - Wichtigste Stolperfallen (Details im Drehbuch): echte bot.py (~2000+ Zeilen)
   liegt noch NICHT im Repo (Phase 0.1); iCloud-Log-Pfad existiert auf Linux
   nicht (Phase 1.3); nie zwei Bot-Instanzen parallel (Telegram-Conflict);

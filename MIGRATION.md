@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-12 (2)** — **F1 von Adam entschieden:** LiteLLM nur für Neben-Inferenzen, Claude-Agent bleibt am Abo-SDK — 2.6 entsprechend umformuliert und entsperrt. Neuer Punkt **1.0 Server-Zugang** eingefügt (Übermittlung der VPS-Zugangsdaten war bisher kein eigener Punkt).
 - **2026-07-12** — **Zusammenführung** mit dem Drehbuch der Claude-Code-Web-Sitzung: Phase 0 (Code-/Repo-Vorbereitung am Mac) eingefügt; Ausführungsdetails als Anhang D; Rollback-Punkt 1.12; ⚠️-Klärung F1 an 2.6 (Kostenregel/Abo vs. LiteLLM); 9.4 Approval-Hub; Hinweise an 1.6/1.7/1.9/1.10. Entscheidungen E1–E4 vom Nutzer bestätigt (Kasten unten).
 - **2026-06-23 18:18** — Punkt **5.18 Agent-Session-Watchdog** eingefügt (Hintergrund: live demonstrierter Claude-Session-Tod ab 16:11 am Migrationstag; strukturelle Lösung statt vorgezogenem Workaround).
 
@@ -32,11 +33,11 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 | # | Thema | Stand |
 |---|---|---|
-| E1 | Ziel-Server | ✅ Netcup-VPS vorhanden (gemietet); Zugangsdaten trägt Adam zu Beginn von Phase 1 ein. |
+| E1 | Ziel-Server | ✅ Netcup-VPS vorhanden (gemietet); Zugangsdaten-Übermittlung + SSH-Key-Einrichtung ist Punkt **1.0**. |
 | E2 | Voice/STT | ✅ Bleibt vollwertig erhalten. Reihenfolge nach diesem Drehbuch: Whisper wird VOR dem Umschalten aufgebaut (1.3/1.4) → keine Voice-Lücke. |
 | E3 | Modell | ✅ Sonnet als Grundeinstellung (`CLAUDE_MODEL` in .env, Punkt 0.6). Modell-Persistenz + **Empfehlung statt eigenmächtigem Wechsel** gemäß 5.6; Vollautomatik allenfalls später als Ausbau. |
 | E4 | Approval-Hub | ✅ Separates Projekt nach der Migration → Punkt 9.4. |
-| **F1** | **⚠️💰 LiteLLM vs. Abo (betrifft 2.6)** | **OFFEN — vor Phase 2 mit Adam klären!** „Bot ruft Inferenzen NUR noch über LiteLLM" würde den Claude-Verkehr vom kostenfreien Abo (Agent-SDK/OAuth) auf die **bezahlte API** verlagern UND den Agent-Modus (Tools, Permission-Buttons) brechen — LiteLLM kann keine Claude-Code-Agent-Sessions führen. **Vorschlag:** LiteLLM nur für Neben-Inferenzen (Ampel-Klassifizierer, Zusammenfassungen → Ollama/Groq); der Claude-Agent bleibt direkt über Abo-SDK. Rote Anfragen werden VOR dem Agenten abgefangen und lokal beantwortet. 2.6 wird entsprechend umformuliert, sobald Adam bestätigt. |
+| F1 | 💰 LiteLLM vs. Abo (betrifft 2.6) | ✅ **Entschieden (Adam, 2026-07-12):** LiteLLM nur für Neben-Inferenzen (Ampel-Klassifizierer, Zusammenfassungen → Ollama/Groq); der Claude-Agent bleibt direkt am Abo-SDK (`CLAUDE_CODE_OAUTH_TOKEN`). Rote Anfragen werden VOR dem Agenten abgefangen und lokal beantwortet. Kein `ANTHROPIC_API_KEY` im Stack. 2.6 ist entsprechend umformuliert. |
 | F2 | Whisper medium auf VPS-CPU | Mini-Klärung in 1.4: medium (~1,5 GB) ist auf kleinem VPS spürbar langsamer als small — Akzeptanztest ausdrücklich inkl. Laufzeitmessung; bei Frust: base/small als Fallback dokumentieren. |
 
 ---
@@ -108,6 +109,22 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 ---
 
 ## Phase 1 — Server-Grundgerüst
+
+### 1.0 Server-Zugang übermitteln & verifizieren `[NEU 2026-07-12]`
+- **Status:** OFFEN
+- **Hintergrund:** Hier findet der „profane" Teil des Umzugs statt — ohne
+  funktionierenden Zugang keine Phase 1. Adam übermittelt die
+  Netcup-VPS-Daten (Host/IP, SSH-User, Zugangsweg) an die ausführende
+  Sitzung. Passwörter/Keys niemals in den Chat (CLAUDE.md-Regel) — Zugang per
+  SSH-Key einrichten: Key lokal erzeugen, Public-Key auf den Server, fertig.
+- **Akzeptanzkriterium:** `ssh <user>@<host> "hostname && uname -a"` läuft
+  ohne Passwortabfrage (Key-Login); Host/IP + User sind im sicheren Ablageort
+  notiert (nicht im Repo-Klartext); Netcup-SCP-Panel-Zugang (für Notfälle/
+  Konsole) ist Adam bekannt.
+- **Test:** Das eine SSH-Kommando ausführen, erwartete Ausgabe: Server-Hostname
+  + Linux-Kernel-Zeile.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
 
 ### 1.1 System härten (Updates, ufw, fail2ban, unattended-upgrades)
 - **Status:** OFFEN
@@ -201,7 +218,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 ## Phase 2 — KI-Orchestrierung & Datenschutz
 
-> **⚠️💰 F1 vor Beginn dieser Phase klären (siehe Kasten oben):** Der Claude-**Agent** (Tools, Permission-Buttons) läuft über das Abo-SDK und KANN nicht durch LiteLLM ersetzt werden; LiteLLM-Routen zu Anthropic würden zudem extra kosten. Arbeitsannahme bis Adam entscheidet: LiteLLM orchestriert **Neben-Inferenzen** (Ampel, Zusammenfassungen, Link-Inbox) über Ollama/Groq; rote Anfragen werden vor dem Claude-Agenten abgefangen.
+> **💰 Architektur-Leitplanke (F1, von Adam entschieden 2026-07-12):** Der Claude-**Agent** (Tools, Permission-Buttons) läuft über das Abo-SDK und wird NICHT durch LiteLLM ersetzt; LiteLLM orchestriert ausschließlich **Neben-Inferenzen** (Ampel, Zusammenfassungen, Link-Inbox) über Ollama/Groq. Rote Anfragen werden vor dem Claude-Agenten abgefangen. Keine Anthropic-Route in LiteLLM, kein `ANTHROPIC_API_KEY` im Stack.
 
 ### 2.1 LiteLLM-Proxy im SQLite-Modus
 - **Status:** OFFEN
@@ -238,11 +255,11 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
-### 2.6 Telegram-Bot auf LiteLLM umstellen ⚠️ (F1)
-- **Status:** OFFEN — **BLOCKIERT bis F1 entschieden**
-- **Akzeptanzkriterium (Original):** Bot ruft Inferenzen nur noch über LiteLLM auf (kein direkter Anthropic-Endpoint im Code); Modellwahl funktioniert wie zuvor.
-- **`[NEU 2026-07-12]` Vorgeschlagene Umformulierung (nach F1-Entscheid):** Neben-Inferenzen des Bots (Ampel-Klassifizierung, Link-/Video-Zusammenfassungen, TTS-Vorstufen) laufen über LiteLLM (Ollama/Groq); der Claude-Agent (Kern-Sessions mit Tools/Permissions) bleibt direkt am Abo-SDK (`CLAUDE_CODE_OAUTH_TOKEN`). Kein `ANTHROPIC_API_KEY` im Stack.
-- **Test:** Eine Anfrage in Telegram → LiteLLM-Log zeigt Treffer (für Neben-Inferenz); Agent-Anfrage läuft weiter über SDK; Usage-Konsole bleibt bei 0.
+### 2.6 Neben-Inferenzen des Bots auf LiteLLM umstellen (F1 entschieden)
+- **Status:** OFFEN
+- ~~**Akzeptanzkriterium (Original):** Bot ruft Inferenzen nur noch über LiteLLM auf (kein direkter Anthropic-Endpoint im Code); Modellwahl funktioniert wie zuvor.~~ `[GESTRICHEN 2026-07-12 — hätte Claude-Verkehr vom Abo auf die bezahlte API verlagert und den Agent-Modus gebrochen]`
+- **Akzeptanzkriterium:** Neben-Inferenzen des Bots (Ampel-Klassifizierung, Link-/Video-Zusammenfassungen, TTS-Vorstufen) laufen über LiteLLM (Ollama/Groq); der Claude-Agent (Kern-Sessions mit Tools/Permissions) bleibt direkt am Abo-SDK (`CLAUDE_CODE_OAUTH_TOKEN`). Kein `ANTHROPIC_API_KEY` im Stack. Rote Anfragen werden VOR dem Agenten abgefangen und lokal beantwortet.
+- **Test:** Eine Anfrage in Telegram → LiteLLM-Log zeigt Treffer (für Neben-Inferenz); Agent-Anfrage läuft weiter über SDK; Usage-Konsole (console.anthropic.com) bleibt bei 0.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

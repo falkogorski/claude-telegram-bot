@@ -8,10 +8,10 @@
   (Code-/Repo-Vorbereitung), Anhang D (Ausführungsbefehle) und
   Kostenregel-Wächter aus dieser Sitzung. Die Repo-Version ist die Hoheits-
   Fassung; die Telegram-Sitzung übernimmt sie als Arbeitsdokument (Punkt 0.8).
-- **Entscheidungen E1–E4 bestätigt** (Kasten in MIGRATION.md). **⚠️ OFFEN:
-  F1 (Punkt 2.6)** — „Bot nur noch über LiteLLM" würde Claude-Verkehr vom Abo
-  auf die bezahlte API verlagern UND den Agent-Modus brechen; Vorschlag:
-  LiteLLM nur für Neben-Inferenzen, Agent bleibt am Abo-SDK. Vor Phase 2 klären!
+- **Entscheidungen E1–E4 und F1 bestätigt** (Kasten in MIGRATION.md). F1:
+  LiteLLM nur für Neben-Inferenzen (Ollama/Groq); der Claude-Agent bleibt
+  direkt am Abo-SDK — keine Anthropic-Route in LiteLLM (Kostenregel!).
+  Server-Zugangsdaten werden in Punkt 1.0 übermittelt/verifiziert.
 - Wichtigste Stolperfallen: echte bot.py (~2000+ Zeilen) noch NICHT im Repo
   (Punkt 0.1, KRITISCH — Repo-Version ist veraltet); iCloud-Log-Pfad existiert
   auf Linux nicht (0.5); nie zwei Bot-Instanzen parallel; Webhook-Setzen (1.9)

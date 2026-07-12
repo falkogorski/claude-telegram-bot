@@ -18,12 +18,6 @@
   IST der Umschaltmoment; Auth NUR per Abo-Token (Kostenregel unten).
 - Erledigt vorab: 401-Handling-Referenz + Abo-Token-first-Doku auf Branch
   `claude/telegram-bot-auth-401-g6yqrr`.
-- Wichtigste Stolperfallen (Details im Drehbuch): echte bot.py (~2000+ Zeilen)
-  liegt noch NICHT im Repo (Phase 0.1); iCloud-Log-Pfad existiert auf Linux
-  nicht (Phase 1.3); nie zwei Bot-Instanzen parallel (Telegram-Conflict);
-  Auth NUR per Abo-Token (Kostenregel unten).
-- Erledigt vorab: 401-Handling-Referenz + Abo-Token-first-Doku liegen auf
-  Branch `claude/telegram-bot-auth-401-g6yqrr`.
 
 ## 💰💰💰 KOSTEN-REGEL — HÖCHSTE PRIORITÄT 💰💰💰
 

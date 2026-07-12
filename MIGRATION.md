@@ -184,7 +184,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 ### 1.9 Polling → Webhooks (HTTPS via Caddy oder nginx)
 - **Status:** OFFEN
-- **Akzeptanzkriterium:** Telegram `getWebhookInfo` zeigt VPS-URL, letzter Fehler leer; Test-Nachricht trifft Bot in unter zwei Sekunden. `[NEU 2026-07-12]` Achtung: Das Setzen des Webhooks IST der Umschaltmoment — Telegram deaktiviert damit getUpdates, der Mac-Bot verliert sofort den Empfang. Deshalb 1.9 und 1.10 in EINEM Arbeitsgang ausführen (Reihenfolge in Anhang D.4); erfordert zudem Code-Anpassung (run_polling → Webhook-Modus) + Domain/TLS.
+- **Akzeptanzkriterium:** Telegram `getWebhookInfo` zeigt VPS-URL, letzter Fehler leer; Test-Nachricht trifft Bot in unter zwei Sekunden. `[NEU 2026-07-12]` Reihenfolge zwingend nach Anhang D.4: Der Umschalt-Arbeitsgang läuft zuerst über Mac-Stopp (1.10) + VPS-Start im Polling-Modus; die Webhook-Umstellung folgt als eigener Schritt erst nach stabilem Betrieb (erfordert Code-Anpassung run_polling → Webhook-Modus + Domain/TLS). Achtung bei Abweichung: Ein gesetzter Webhook deaktiviert getUpdates sofort — nie setzen, solange der Mac-Bot noch pollt.
 - **Test:** Eine Telegram-Nachricht senden, Logs prüfen.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —

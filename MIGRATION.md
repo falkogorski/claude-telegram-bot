@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-13 (2)** — **Punkte 5.19 (Rechnungs-Workflow per Sprache) und 9.5 (E-Mail-Anbindung SMTP/IMAP) eingefügt** + Backlog-Zeile Messenger-Versand. Herkunft: Desktop-Session „Rechnungs-Automatisierung" (dort sind beide Generatoren fertig; echte Rechnungen 014-26/015-26 damit erstellt). Zugleich geklärt: Die Memory-Checkliste (`project-migration-checklist.md`) ist ab jetzt reiner themenbezogener Index — inhaltlich gepflegt wird NUR noch diese Repo-Datei.
 - **2026-07-13** — **0.7 nachgeschärft:** Akzeptanzkriterium ergänzt — Wächter (Guardian-Plist) muss nach dem Backtest explizit wieder geladen und geprüft sein.
 - **2026-07-12 (2)** — **F1 von Adam entschieden:** LiteLLM nur für Neben-Inferenzen, Claude-Agent bleibt am Abo-SDK — 2.6 entsprechend umformuliert und entsperrt. Neuer Punkt **1.0 Server-Zugang** eingefügt (Übermittlung der VPS-Zugangsdaten war bisher kein eigener Punkt).
 - **2026-07-12** — **Zusammenführung** mit dem Drehbuch der Claude-Code-Web-Sitzung: Phase 0 (Code-/Repo-Vorbereitung am Mac) eingefügt; Ausführungsdetails als Anhang D; Rollback-Punkt 1.12; ⚠️-Klärung F1 an 2.6 (Kostenregel/Abo vs. LiteLLM); 9.4 Approval-Hub; Hinweise an 1.6/1.7/1.9/1.10. Entscheidungen E1–E4 vom Nutzer bestätigt (Kasten unten).
@@ -464,6 +465,14 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+### 5.19 Rechnungs-Workflow per Sprache (Aufstellung + Rechnung aus dem Bot) `[NEU 2026-07-13]`
+- **Status:** OFFEN
+- **Hintergrund:** Beide Generatoren sind fertig und real erprobt (Desktop-Session „Rechnungs-Automatisierung", `~/Projects/rechnungen`: `scripts/generate_aufstellung.py` = Postenaufstellung Excel+PDF, `scripts/generate_rechnung.py` = Rechnungs-PDF im Markenlayout mit Auto-Nummer pro Jahr; Rechnungen 014-26/015-26 damit produktiv erstellt und in iCloud abgelegt). Hier fehlt nur die Bot-Anbindung. Details/Konventionen: Memory `project-rechnungs-automatisierung`.
+- **Akzeptanzkriterium:** Adam gibt per Sprachnachricht Tage/Tätigkeiten durch; Bot fragt Variables gezielt nach (Tagessatz, Spesen In-/Ausland, Übernachtung, Fahrzeug/Pauschalen), erzeugt über die vorhandenen Generatoren Aufstellung (Excel+PDF) + Rechnung (PDF), legt beides nach Abnicken im richtigen iCloud-Projektordner ab (Benennungsschema je Zweig) UND postet die Dateien zur schnellen Kontrolle in den Ausgabekanal (Phase 6). Rechnungsnummer fortlaufend (Register), mit Bestätigungs-Rückfrage vor Vergabe.
+- **Test:** Eine komplette Rechnung per Sprache vom iPhone: Zuruf → Rückfragen → Dateien liegen im iCloud-Ordner + im Ausgabekanal → Beträge und Nummer stimmen.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
 ### Phasen-Audit 5 → 6
 - **Audit-Status:** —
 - **Strategie-Recheck:** —
@@ -629,6 +638,14 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+### 9.5 E-Mail-Anbindung (SMTP/IMAP) — Rechnungen & Anschreiben direkt versenden `[NEU 2026-07-13]`
+- **Status:** OFFEN
+- **Hintergrund:** Adam-Wunsch: „schick das raus" genügt — Anschreiben formulieren, Rechnung anhängen, Versand ohne Handarbeit; muss auch aus dem Telegram-Bot heraus funktionieren. Zwei Konten: `falkogorski@mailbox.org` (geschäftlich; `imap.mailbox.org:993` / `smtp.mailbox.org:465`, SSL/TLS) und `falkogorski@posteo.de` (privat; `posteo.de:993/465`, SSL/TLS). Je Konto EIN App-Passwort — gilt inkl. aller Aliasse und funktioniert auch bei aktiver 2FA; Anleitungen zum Anlegen hat Adam. Details: Memory `project-kommunikationskanaele`.
+- **Akzeptanzkriterium:** Beide Konten mit App-Passwörtern verschlüsselt hinterlegt (Secrets nie im Chat, nie im Klartext-Repo — CLAUDE.md-Regel); Senden über beliebigen Alias und Lesen funktionieren. 💰 Keine Zusatzkosten (Standard-Protokolle, kein API-Abo). **Versand IMMER erst nach expliziter Adam-Bestätigung** — Empfänger, Betreff und Anhang werden vorher angezeigt.
+- **Test:** Test-Mail mit PDF-Anhang von beiden Konten an Adam selbst, per Telegram ausgelöst; danach eine echte Rechnung mit Anschreiben nach Freigabe.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
 ### Phasen-Audit 9 → Abschluss
 - **Audit-Status:** —
 - **Strategie-Recheck:** —
@@ -652,6 +669,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 - `[NEU 2026-07-12]` Vollautomatische Modellwahl je Aufgabe (Ausbau von 5.6, nur falls Adam sie nach Praxiserfahrung mit den Empfehlungen doch wünscht).
 - `[NEU 2026-07-12]` `/status` erweitern um aktives Modell + Session-Alter + Kontingent-Hinweis (falls nicht schon durch 5.4/5.6 abgedeckt).
+- `[NEU 2026-07-13]` Messenger-Versand als Ausbau von 9.5 (Telegram via Bot-API machbar; WhatsApp heikel: Business-API kostenpflichtig 💰, inoffizielle Wege riskant/ToS) — erst nach stabiler E-Mail-Anbindung bewerten.
 
 ---
 

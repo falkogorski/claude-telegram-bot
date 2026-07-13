@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-13** — **0.7 nachgeschärft:** Akzeptanzkriterium ergänzt — Wächter (Guardian-Plist) muss nach dem Backtest explizit wieder geladen und geprüft sein.
 - **2026-07-12 (2)** — **F1 von Adam entschieden:** LiteLLM nur für Neben-Inferenzen, Claude-Agent bleibt am Abo-SDK — 2.6 entsprechend umformuliert und entsperrt. Neuer Punkt **1.0 Server-Zugang** eingefügt (Übermittlung der VPS-Zugangsdaten war bisher kein eigener Punkt).
 - **2026-07-12** — **Zusammenführung** mit dem Drehbuch der Claude-Code-Web-Sitzung: Phase 0 (Code-/Repo-Vorbereitung am Mac) eingefügt; Ausführungsdetails als Anhang D; Rollback-Punkt 1.12; ⚠️-Klärung F1 an 2.6 (Kostenregel/Abo vs. LiteLLM); 9.4 Approval-Hub; Hinweise an 1.6/1.7/1.9/1.10. Entscheidungen E1–E4 vom Nutzer bestätigt (Kasten unten).
 - **2026-06-23 18:18** — Punkt **5.18 Agent-Session-Watchdog** eingefügt (Hintergrund: live demonstrierter Claude-Session-Tod ab 16:11 am Migrationstag; strukturelle Lösung statt vorgezogenem Workaround).
@@ -90,8 +91,8 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 ### 0.7 Mac-Backtest des vorbereiteten Stands
 - **Status:** OFFEN
-- **Akzeptanzkriterium:** Bot läuft vom vorbereiteten Branch einmal manuell am Mac (launchd/Guardian währenddessen gestoppt!): Text, `/status`, `/reset`, Voice, Permission-Buttons — alles wie gewohnt. Danach Mac zurück auf Produktivstand bis zum Umschalten.
-- **Test:** Die fünf genannten Interaktionen einzeln in Telegram.
+- **Akzeptanzkriterium:** Bot läuft vom vorbereiteten Branch einmal manuell am Mac (launchd/Guardian währenddessen gestoppt!): Text, `/status`, `/reset`, Voice, Permission-Buttons — alles wie gewohnt. Danach Mac zurück auf Produktivstand bis zum Umschalten. `[NEU 2026-07-13]` **Wächter muss nach dem Backtest wieder geladen sein** — Guardian-Plist nach dem Test explizit neu laden (`launchctl bootstrap`) und Status prüfen, bevor der Backtest als bestanden gilt.
+- **Test:** Die fünf genannten Interaktionen einzeln in Telegram + anschließend `launchctl list | grep guardian` prüfen (Wächter läuft).
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

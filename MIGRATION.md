@@ -95,10 +95,10 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
-### 0.8 (Adam-Task) Master-Drehbuch an Telegram-Sitzung übergeben
+### 0.8 (Adam-Task) Master-Drehbuch der führenden Migrations-Sitzung übergeben
 - **Status:** OFFEN
-- **Akzeptanzkriterium:** Die Telegram-Sitzung hat diese zusammengeführte Fassung als ihr Arbeitsdokument übernommen (altes Memory ersetzt) und bestätigt, dass sie ab jetzt Status-Pflege hier betreibt.
-- **Test:** Telegram-Claude nach Phase/Punkt fragen — Antwort deckt sich mit diesem Dokument.
+- **Akzeptanzkriterium:** Die **führende Migrations-Sitzung** (die Code-Sitzung am Mac, die Phase 0 ausführt) arbeitet nachweislich mit dieser Repo-Fassung (`git fetch` + aktuelle MIGRATION.md im Arbeitsordner) und betreibt die Status-Pflege hier. Falls die Telegram-Sitzung ein eigenes Drehbuch-Memory hält: durch Verweis auf die Repo-Fassung ersetzen (Zuständigkeiten: siehe CLAUDE.md → Anti-Ping-Pong-Regel).
+- **Test:** Führende Sitzung nach Phase/Punkt fragen — Antwort deckt sich mit diesem Dokument (inkl. nachgeschärftem 0.7 und Alt-Log-Übernahme in 4.2).
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
@@ -651,6 +651,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 - `[NEU 2026-07-12]` Vollautomatische Modellwahl je Aufgabe (Ausbau von 5.6, nur falls Adam sie nach Praxiserfahrung mit den Empfehlungen doch wünscht).
 - `[NEU 2026-07-12]` `/status` erweitern um aktives Modell + Session-Alter + Kontingent-Hinweis (falls nicht schon durch 5.4/5.6 abgedeckt).
+- `[NEU 2026-07-13]` **Anti-Ping-Pong strukturell lösen:** Anliegen, die bei der „falschen" Instanz eingehen, sollen automatisch richtig landen — z. B. Bot beantwortet Drehbuch-/Statusfragen selbst aus der Repo-Fassung statt zu verweisen; perspektivisch gemeinsame Aufgaben-Inbox (verwandt: 5.10 Konversations-Sync, 9.4 Approval-Hub, CLAUDE.md-Zuständigkeitsregel).
 
 ---
 

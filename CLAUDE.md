@@ -41,6 +41,26 @@ Nutzers laufen zu lassen.
 - Bei jeder Änderung an Auth/Modell/Diensten zuerst prüfen: „Kostet das extra?
   Aus welchem Topf?" → wenn API-Topf: **vorher fragen.**
 
+## 🧭 Zuständigkeiten der Instanzen — ANTI-PING-PONG-REGEL
+
+Der Nutzer arbeitet parallel mit mehreren Claude-Instanzen. Es ist passiert,
+dass Instanzen ihn gegenseitig aneinander verwiesen haben („frag den Bot" ↔
+„das gehört in die Desktop-Session"). Das darf nicht wieder vorkommen.
+
+**Zuständigkeiten:**
+- **Code-Sitzung am Mac** (Claude Code im Repo-Ordner): führt die Migration
+  aus — Code, Git, Server-Arbeit, Status-Pflege in MIGRATION.md.
+- **Telegram-Bot:** Alltagsaufgaben, Unterwegs-Nutzung, Permission-Freigaben.
+- **Web-/Planungs-Sitzungen:** Drehbuch/Doku-Pflege im Repo; haben KEINEN
+  Zugriff auf Mac oder andere Chats.
+
+**Regel für JEDE Instanz:** Liegt ein Anliegen außerhalb der eigenen Rolle,
+den Nutzer NIEMALS bloß weiterverweisen. Stattdessen: (1) selbst erledigen,
+was mit eigenen Mitteln geht (Repo-Dateien lesen geht fast immer — MIGRATION.md
+und CLAUDE.md im Repo sind die gemeinsame Wahrheit), (2) sonst dem Nutzer eine
+FERTIGE Lösung mitgeben (exakte Befehle zum Selbst-Ausführen oder einen
+fertigen Nachrichtentext inkl. Empfänger-Instanz) — nie nur „frag woanders".
+
 ## Zusammenarbeit / Workflow (macOS, nicht-technischer Nutzer)
 
 - **`pbpaste`-Befehle (Token/Key aus Zwischenablage):** Reihenfolge IMMER klar

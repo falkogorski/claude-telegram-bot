@@ -959,6 +959,40 @@ def _session_context(memory: str) -> str:
     return f"{memory}\n\n---\n\n{block}" if memory else block
 
 
+_ARG_SAFE_BYTES = 100_000  # Puffer unter Linux MAX_ARG_STRLEN (131.072 pro exec-Argument)
+
+
+def _fit_arg_bytes(text: str) -> str:
+    """Notbremse: Text argv-tauglich kürzen (Anfang behalten, Memory zuerst)."""
+    data = text.encode("utf-8")
+    if len(data) <= _ARG_SAFE_BYTES:
+        return text
+    log.warning("Kontext %d Bytes > argv-Budget %d — gekürzt (Fallback-Pfad)",
+                len(data), _ARG_SAFE_BYTES)
+    return (data[:_ARG_SAFE_BYTES].decode("utf-8", errors="ignore")
+            + "\n\n[⚠️ Kontext wegen Linux-Arg-Limit gekürzt]")
+
+
+def _write_context_claude_md(context: str) -> bool:
+    """Session-Kontext als CLAUDE.md ins WORKDIR schreiben.
+
+    Linux begrenzt ein einzelnes exec-Argument auf 128 KiB (MAX_ARG_STRLEN);
+    das volle Memory sprengt das und ließ den Session-Start auf dem VPS mit
+    E2BIG scheitern (macOS hat dieses Limit nicht — dort fiel es nie auf).
+    Eine Datei hat kein solches Limit; setting_sources=["project"] lädt sie.
+    """
+    path = Path(WORKDIR) / "CLAUDE.md"
+    try:
+        if context:
+            path.write_text(context, encoding="utf-8")
+        elif path.exists():
+            path.unlink()  # kein Kontext → keine veraltete Datei stehen lassen
+        return True
+    except Exception:
+        log.exception("CLAUDE.md-Kontextdatei nicht schreibbar — Fallback auf append")
+        return False
+
+
 async def ensure_session(user_id: int) -> UserSession:
     sess = SESSIONS.get(user_id)
     if sess is not None:
@@ -970,17 +1004,19 @@ async def ensure_session(user_id: int) -> UserSession:
     model_short = user_prefs.get("model", DEFAULT_MODEL)
     model_full = _MODEL_ALIASES.get(model_short, model_short)  # vollständige SDK-ID
     effort = user_prefs.get("effort", None)
+    context_via_file = _write_context_claude_md(context)
     options = ClaudeAgentOptions(
         cwd=str(WORKDIR),
         permission_mode="default",
         can_use_tool=make_permission_callback(user_id),
         model=model_full,
         effort=effort,
+        setting_sources=["project"] if context_via_file else None,
         system_prompt={
             "type": "preset",
             "preset": "claude_code",
-            "append": context,
-        } if context else {"type": "preset", "preset": "claude_code"},
+            "append": _fit_arg_bytes(context),
+        } if (context and not context_via_file) else {"type": "preset", "preset": "claude_code"},
     )
     client = ClaudeSDKClient(options=options)
     await client.connect()

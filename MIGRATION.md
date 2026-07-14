@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (10)** — **1.6 Headless-Auth VERIFIZIERT:** OAuth-Token (Abo, kein API-Key) in Server-Env, `claude -p "1+1="` → `2` ohne Browser. Token-Ausstelldatum-Sidecar für 5.20 angelegt. Zudem E5 + 5.20/5.21 (proaktive Wartung/Token-Erneuerung, register-basierter Update-Monitor) ins Drehbuch aufgenommen. Nächster Punkt: 1.7 Bot-Code auf Server.
 - **2026-07-14 (9)** — **1.5 globales claude-CLI VERIFIZIERT:** v2.1.209; Node auf 22.23.1 LTS angehoben (CLI verlangt ≥22). CLI erreicht Auth-Check, wartet auf Token. Nächster Punkt: 1.6 Headless-Auth (CLAUDE_CODE_OAUTH_TOKEN).
 - **2026-07-14 (8)** — **1.4 Whisper medium VERIFIZIERT + F2 entschieden (medium):** medium klar genauer bei Deutsch, Laufzeit ~45–48 s/30-Sek-Probe (unter 60-Sek-Schwelle). Offen bis 1.6: `WHISPER_MODEL_PATH` in Server-Env auf medium setzen. Nächster Punkt: 1.5 globales claude-CLI.
 - **2026-07-14 (7)** — **1.3 Python/ffmpeg/whisper.cpp VERIFIZIERT:** Python 3.13.5 (Adam-Entscheid statt 3.12, siehe 1.3), ffmpeg 7.1.5, whisper.cpp gebaut; gemischt de/en-Transkription wortgenau. `small`-Modell liegt am Modellpfad. Nächster Punkt: 1.4 Modell-Upgrade small → medium.
@@ -175,11 +176,12 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** 14.07.2026 — Belege: `claude --version` = 2.1.209 (Claude Code), Binary `/usr/local/bin/claude`, auch als `claudebot` aufrufbar. `claude -p "1+1="` erreicht sauber den Auth-Check („Not logged in · Please run /login") → CLI korrekt verdrahtet, Mini-Inferenz folgt in 1.6 nach Token. **Node-Upgrade `[NEU 2026-07-14]`:** CLI verlangt Node ≥22, Debian 13 liefert nur Node 20 → auf **Node 22.23.1 LTS** (NodeSource) angehoben, npm 10.9.8; Engine-Anforderung jetzt erfüllt.
 
 ### 1.6 Headless-Auth (CLAUDE_CODE_OAUTH_TOKEN per setup-token)
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** Token gesetzt; `claude` antwortet auf Test-Inferenz ohne Browser-Flow. `[NEU 2026-07-12]` Eigener Token für den Server (getrennt vom Mac-Token, unabhängig widerrufbar); Ablage in `/etc/claude-telegram-bot.env` (root, `600`); 💰 NIEMALS `ANTHROPIC_API_KEY` als Ausweichlösung.
 - **Test:** Mini-Inferenz "1+1=" → erwartet "2". SDK-Smoke-Test: Anhang D.2.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 — Token via `claude setup-token` am Mac erzeugt, sicher (verschlüsselt, ohne Chat-Kontakt) in die Server-Env übertragen.
+- **Verifiziert am:** 14.07.2026 — Belege: `claude -p "1+1="` als `claudebot` mit Token aus Env → **`2`**, ohne Browser, über Abo. Env-Datei `/etc/claude-telegram-bot.env` root:root `600`, **kein `ANTHROPIC_API_KEY`** (weder in Datei noch Shell). Token-Ausstelldatum in Sidecar `/etc/claude-telegram-bot.token-issued` (14.07.2026, Ablauf ~14.07.2027 → speist 5.20-Frühwarner). **Stolperfalle dokumentiert:** Erst-Übertragung ergab 401 — Token war beim Kopieren an der 80-Spalten-Terminalbreite abgeschnitten (79 statt 108 Zeichen); Fenster breit ziehen / vollständig markieren löst es.
+- **Offen bis 1.7:** Voller SDK-Smoke-Test (Anhang D.2, Python `claude_agent_sdk`) braucht die venv → nach dem Code-Deploy (1.7).
 
 ### 1.7 Bot-Code auf Server (privates git-Repo)
 - **Status:** OFFEN

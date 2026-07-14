@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (14)** — **1.11 Funktionstests bestanden + Memory-Lücke geschlossen:** Text/Voice/Tool-Buttons ✅ in Telegram. Bot-Selbstcheck fand fehlendes Memory → Bot-Gedächtnis (72 Dateien) Mac→VPS migriert, `CLAUDE_MEMORY_DIR` gesetzt, Selbstcheck jetzt sauber (schließt 0.4-Vormerkung). Offen: 48h-Kostenkontrolle. Nächstes: 1.12 Rollback-Trockenlauf.
 - **2026-07-14 (13)** — **UMSCHALTUNG VOLLZOGEN (D.4):** Mac-Bot gestoppt + Plists gesichert (1.10 ✅), VPS-Dienst enabled+gestartet, Telegram verbunden ohne Konflikt, Auto-Restart-Test bestanden (1.8 ✅). Der Bot läuft jetzt produktiv auf dem VPS. Offen: 1.11 (Adam-Telegram-Tests + 48h-Kostenkontrolle), 1.12 (Rollback-Trockenlauf). 1.9 (Webhooks) bewusst später.
 - **2026-07-14 (12)** — **1.8 systemd-Unit vorbereitet (LÄUFT):** Unit installiert + `systemd-analyze verify` OK; bewusst NICHT gestartet/enabled bis zum Umschalt-Moment (Schutz des laufenden Mac-Bots vor Telegram-409). Nächstes: Umschalt-Sequenz D.4 (Mac-Stopp → VPS-Start) — Adam-Timing.
 - **2026-07-14 (11)** — **1.7 Bot-Code auf Server VERIFIZIERT:** privates Repo via Deploy-Key geklont (Server-HEAD = Mac-HEAD `60692c6`), venv mit Python 3.13 + alle Deps, SDK-Smoke-Test `query()` → `OK` (Python→SDK→Claude über Abo). Nächster Punkt: 1.8 systemd-Dienst.
@@ -216,11 +217,13 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** 14.07.2026 — Belege: Reihenfolge eingehalten (Guardian zuerst entladen, dann Bot-Plist, dann `pkill -f bot.py`); `pgrep -f bot.py` = **0**, Bot-Agents vollständig ausgebootet (verbleibender launchctl-Treffer war die Telegram-**Desktop-App**, nicht der Bot). Plists nach `~/Library/LaunchAgents/_deaktiviert/` verschoben (nicht gelöscht → Rollback). Kein Token-Konflikt: VPS-Bot pollt ohne 409. ⚠️ Guardian-Plist am Mac ist mitdeaktiviert — beim etwaigen Rollback (1.12) beide Plists zurückladen.
 
 ### 1.11 Abschlusstest Phase 1
-- **Status:** OFFEN
+- **Status:** LÄUFT — 3 Funktionstests ✅, 48-h-Kostenkontrolle offen.
 - **Akzeptanzkriterium:** Telegram-Text → Antwort; Voice → Transkription; ein Tool-Use-Schritt mit Permission-Buttons funktioniert. `[NEU 2026-07-12]` Plus 48-h-Kostenkontrolle: console.anthropic.com → Usage darf nicht steigen (Beweis: Abo, nicht API).
 - **Test:** Drei konkrete Eingaben aus Telegram, jede einzeln beobachtet.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 — Tests selbst durchgeführt (Telegram).
+- **Verifiziert am (Funktion):** 14.07.2026 — Belege: **Text** → Antwort ✅; **Voice** → korrekt transkribiert („…ob Sprachnachrichten funktionieren") + Antwort ✅ (medium-Modell auf VPS); **Tool+Buttons** → `test.txt` per Allow angelegt, per Allow (Bash `rm`) gelöscht ✅.
+- **⚠️ Beim Test gefunden & geschlossen — Memory-Migration:** Bot-Selbstcheck meldete „MEMORY.md fehlt" (das in 0.4 vorgemerkte `CLAUDE_MEMORY_DIR`/Memory-Umzug war offen). Behoben: Bot-Gedächtnis (72 Dateien inkl. MEMORY.md + Neutralitäts-Regel `user-interfaces.md`) per `tar`-über-SSH Mac→VPS nach `/home/claudebot/.claude/memory`, `CLAUDE_MEMORY_DIR` in Server-Env gesetzt, Neustart → Selbstcheck sauber. **Memory ist ab jetzt VPS-autoritativ** (der VPS-Bot pflegt es dort weiter). `[erledigt 2026-07-14]`
+- **Offen:** 48-h-Kostenkontrolle (Adam beobachtet console.anthropic.com/Usage → darf nicht steigen).
 
 ### 1.12 Rollback-Pfad verifiziert `[NEU 2026-07-12]`
 - **Status:** OFFEN

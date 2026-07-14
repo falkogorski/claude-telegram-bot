@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (7)** — **1.3 Python/ffmpeg/whisper.cpp VERIFIZIERT:** Python 3.13.5 (Adam-Entscheid statt 3.12, siehe 1.3), ffmpeg 7.1.5, whisper.cpp gebaut; gemischt de/en-Transkription wortgenau. `small`-Modell liegt am Modellpfad. Nächster Punkt: 1.4 Modell-Upgrade small → medium.
 - **2026-07-14 (6)** — **1.2 User `claudebot` VERIFIZIERT:** unprivilegiert (kein sudo), eigenes Home, Key-Login. Nächster Punkt: 1.3 Python 3.12 / ffmpeg / whisper.cpp (Build).
 - **2026-07-14 (5)** — **1.1 System härten VERIFIZIERT:** full-upgrade sauber, `ufw` active (nur 22/tcp), `fail2ban` aktiv (bannte live einen Brute-Force-Bot), `unattended-upgrades` mit Security-Origins scharf. Nächster Punkt: 1.2 User `claudebot`.
 - **2026-07-14 (4)** — **1.0 VERIFIZIERT → Phase 1 gestartet.** VPS war nicht frisch (33d Uptime, Root-PW unbekannt) → sauberer Reinstall Debian 13.6 UEFI Minimal mit SSH-Key + deaktivierter Passwort-Auth. Key-Login verifiziert, Fingerprints gegen Netcup-Panel abgeglichen, Alias `claudevps` in `~/.ssh/config`. Nächster Punkt: 1.1 System härten.
@@ -148,12 +149,12 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Adam-Bestätigung:** ✅ 14.07.2026 (von führender Sitzung ausgeführt)
 - **Verifiziert am:** 14.07.2026 — Belege: `id claudebot` = uid 1000, groups `claudebot,users` (kein sudo); Home `/home/claudebot`; `sudo -u claudebot sudo -n -l` scheitert („a password is required"). Login-Only-per-Key (kein Passwort gesetzt); SSH-Key hinterlegt, direkter Login als `claudebot` verifiziert (Alias `claudebot` in `~/.ssh/config`).
 
-### 1.3 Python 3.12, ffmpeg, whisper.cpp
-- **Status:** OFFEN
-- **Akzeptanzkriterium:** `python3.12 --version` = 3.12.x; `ffmpeg -version` läuft; `whisper-cli` (bzw. `main`) Binary vorhanden und ausführbar als claudebot.
+### 1.3 Python 3.13, ffmpeg, whisper.cpp
+- **Status:** VERIFIZIERT
+- **Akzeptanzkriterium:** `python3 --version` = 3.13.x `[GEÄNDERT 2026-07-14: war 3.12 — Debian 13 liefert 3.13, 3.12 nicht mehr in den Repos; Bot pinnt keine feste Version. Adam-Entscheid: 3.13 nehmen]`; `ffmpeg -version` läuft; `whisper-cli` (bzw. `main`) Binary vorhanden und ausführbar als claudebot.
 - **Test:** Drei Kommandos, plus kurze Beispiel-Audio (deutsch+englisch gemischt) durch whisper jagen. Build-Befehle: Anhang D.1.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 (Python-3.13-Entscheid + Freigabe, von führender Sitzung ausgeführt)
+- **Verifiziert am:** 14.07.2026 — Belege: `python3` = 3.13.5; `ffmpeg` = 7.1.5; whisper.cpp als `claudebot` gebaut (`/home/claudebot/whisper.cpp/build/bin/whisper-cli`, global verlinkt `/usr/local/bin/whisper-cli`); Transkription einer gemischt de/en-Sprachprobe (small-Modell, `-l auto`) **wortgenau inkl. Umlaute**. Hinweis: `small`-Modell liegt bereits unter `/home/claudebot/claude-telegram-bot/models/ggml-small.bin` (Basis für 1.4-Upgrade).
 
 ### 1.4 Whisper-Modell-Upgrade small → medium
 - **Status:** OFFEN

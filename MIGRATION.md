@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (11)** — **1.7 Bot-Code auf Server VERIFIZIERT:** privates Repo via Deploy-Key geklont (Server-HEAD = Mac-HEAD `60692c6`), venv mit Python 3.13 + alle Deps, SDK-Smoke-Test `query()` → `OK` (Python→SDK→Claude über Abo). Nächster Punkt: 1.8 systemd-Dienst.
 - **2026-07-14 (10)** — **1.6 Headless-Auth VERIFIZIERT:** OAuth-Token (Abo, kein API-Key) in Server-Env, `claude -p "1+1="` → `2` ohne Browser. Token-Ausstelldatum-Sidecar für 5.20 angelegt. Zudem E5 + 5.20/5.21 (proaktive Wartung/Token-Erneuerung, register-basierter Update-Monitor) ins Drehbuch aufgenommen. Nächster Punkt: 1.7 Bot-Code auf Server.
 - **2026-07-14 (9)** — **1.5 globales claude-CLI VERIFIZIERT:** v2.1.209; Node auf 22.23.1 LTS angehoben (CLI verlangt ≥22). CLI erreicht Auth-Check, wartet auf Token. Nächster Punkt: 1.6 Headless-Auth (CLAUDE_CODE_OAUTH_TOKEN).
 - **2026-07-14 (8)** — **1.4 Whisper medium VERIFIZIERT + F2 entschieden (medium):** medium klar genauer bei Deutsch, Laufzeit ~45–48 s/30-Sek-Probe (unter 60-Sek-Schwelle). Offen bis 1.6: `WHISPER_MODEL_PATH` in Server-Env auf medium setzen. Nächster Punkt: 1.5 globales claude-CLI.
@@ -181,14 +182,14 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Test:** Mini-Inferenz "1+1=" → erwartet "2". SDK-Smoke-Test: Anhang D.2.
 - **Adam-Bestätigung:** ✅ 14.07.2026 — Token via `claude setup-token` am Mac erzeugt, sicher (verschlüsselt, ohne Chat-Kontakt) in die Server-Env übertragen.
 - **Verifiziert am:** 14.07.2026 — Belege: `claude -p "1+1="` als `claudebot` mit Token aus Env → **`2`**, ohne Browser, über Abo. Env-Datei `/etc/claude-telegram-bot.env` root:root `600`, **kein `ANTHROPIC_API_KEY`** (weder in Datei noch Shell). Token-Ausstelldatum in Sidecar `/etc/claude-telegram-bot.token-issued` (14.07.2026, Ablauf ~14.07.2027 → speist 5.20-Frühwarner). **Stolperfalle dokumentiert:** Erst-Übertragung ergab 401 — Token war beim Kopieren an der 80-Spalten-Terminalbreite abgeschnitten (79 statt 108 Zeichen); Fenster breit ziehen / vollständig markieren löst es.
-- **Offen bis 1.7:** Voller SDK-Smoke-Test (Anhang D.2, Python `claude_agent_sdk`) braucht die venv → nach dem Code-Deploy (1.7).
+- **SDK-Smoke-Test (Anhang D.2):** ✅ in 1.7 nachgeholt (nach venv-Aufbau) — `claude_agent_sdk.query()` → `OK`.
 
 ### 1.7 Bot-Code auf Server (privates git-Repo)
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** Privates Repo auf VPS geklont; letzter Commit-Hash identisch mit Mac. `[NEU 2026-07-12]` Voraussetzung: Phase 0 abgeschlossen — sonst landet die veraltete bot.py auf dem Server!
 - **Test:** `git log -1` auf beiden Seiten — gleicher Hash.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 — Read-only Deploy-Key bei GitHub hinterlegt.
+- **Verifiziert am:** 14.07.2026 — Belege: Klon nach `/home/claudebot/claude-telegram-bot` (Branch `mac-produktivstand`), Server-HEAD = Mac-HEAD `60692c6`. Zugang über read-only GitHub-**Deploy-Key** (`~/.ssh/github_deploy`, SSH-Config-Eintrag) → Server kann künftig selbst `git pull`. `models/` + `logs/` bleiben (gitignored) erhalten. **venv** unter `.venv` mit Python 3.13.5; alle `requirements.txt`-Pakete installiert, Kern-Importe (`claude_agent_sdk`, `telegram`, `anyio`) OK → 3.13-Kompatibilität bestätigt. **SDK-Smoke-Test (Anhang D.2, war offen aus 1.6) nachgeholt:** `claude_agent_sdk.query()` als `claudebot` mit Token aus Env → Antwort **`OK`** (voller Python→SDK→Claude-Pfad über Abo).
 
 ### 1.8 systemd-Dienst statt launchd
 - **Status:** OFFEN

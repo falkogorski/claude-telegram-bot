@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (4)** — **1.0 VERIFIZIERT → Phase 1 gestartet.** VPS war nicht frisch (33d Uptime, Root-PW unbekannt) → sauberer Reinstall Debian 13.6 UEFI Minimal mit SSH-Key + deaktivierter Passwort-Auth. Key-Login verifiziert, Fingerprints gegen Netcup-Panel abgeglichen, Alias `claudevps` in `~/.ssh/config`. Nächster Punkt: 1.1 System härten.
 - **2026-07-14 (3)** — **0.7 VERIFIZIERT (am Produktivbetrieb, Adam-Entscheid) → Phase 0 KOMPLETT; Phasen-Audit 0→1 bestanden.** Live-Tests durch Adam alle grün; Modell zurück auf Sonnet; Backlog-Fund: unbekannte Kommandos stumm ignoriert. Nächster Punkt: 1.0 Server-Zugang.
 - **2026-07-14 (2)** — **0.1–0.6 VERIFIZIERT** (Akzeptanzkriterien einzeln geprüft: Zeilenzahl/Hash, Audit-Greps, py_compile, env-Pfade/Modell; Belege je Punkt). **0.7 auf LÄUFT:** Adam-Entscheid — Verifikation am Produktivbetrieb statt erneutem Stopp; Wächter-Kriterium (launchd+Guardian geladen, pgrep = 1 Instanz) bereits erfüllt, Live-Tests durch Adam offen.
 - **2026-07-14** — **5.19 + 9.5 wiederhergestellt:** Beim Marker-Aufräumen am 13.07. waren die aktiven Punkte 5.19 (Rechnungs-Workflow) und 9.5 (E-Mail-Anbindung) samt Messenger-Backlog-Zeile versehentlich mitgelöscht worden — aus `d363d86` zurückgeholt. Dokument-Hoheit präzisiert: führender Branch `mac-produktivstand`.
@@ -115,7 +116,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 ## Phase 1 — Server-Grundgerüst
 
 ### 1.0 Server-Zugang übermitteln & verifizieren `[NEU 2026-07-12]`
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Hintergrund:** Hier findet der „profane" Teil des Umzugs statt — ohne
   funktionierenden Zugang keine Phase 1. Adam übermittelt die
   Netcup-VPS-Daten (Host/IP, SSH-User, Zugangsweg) an die ausführende
@@ -127,8 +128,9 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
   Konsole) ist Adam bekannt.
 - **Test:** Das eine SSH-Kommando ausführen, erwartete Ausgabe: Server-Hostname
   + Linux-Kernel-Zeile.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 — VPS neu aufgesetzt (siehe unten), Root-Passwort im Passwort-Manager gesichert.
+- **Verifiziert am:** 14.07.2026 — Belege: Key-Login ohne Passwort läuft (`ssh … "hostname && uname -a"` → `v2202606366899469275` / `Linux 6.12.95+deb13-amd64 … Debian … x86_64`); Host-Key-Fingerprints (RSA `…OJxU5Xzw8`, ECDSA `…AKjI8+BK/c`) = Netcup-Installationsergebnis (MITM ausgeschlossen); Zugang als SSH-Alias `claudevps` in `~/.ssh/config` + Passwort-Manager (nicht im Repo-Klartext); SCP-Panel + VNC-Konsole („Bildschirm") als Notzugang bekannt.
+- **Ausgangslage-Hinweis `[NEU 2026-07-14]`:** Der VPS war NICHT frisch (33 Tage Uptime, unbekanntes Root-Passwort — SCP-Resets griffen nicht). Lösung: sauberer **Reinstall Debian 13.6 UEFI (Minimal)** über SCP → Medien → Images, mit vorab hinterlegtem SSH-Key (`mac-adam` im SCP) und **deaktivierter SSH-Passwort-Authentifizierung** (Härtung 1.1 damit vorweggenommen). Sprache `en_US.UTF-8` (bessere Log-Diagnose), Zeitzone Europe/Berlin. Kein Zusatz-User (kommt in 1.2 als `claudebot`).
 
 ### 1.1 System härten (Updates, ufw, fail2ban, unattended-upgrades)
 - **Status:** OFFEN

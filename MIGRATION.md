@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (6)** — **1.2 User `claudebot` VERIFIZIERT:** unprivilegiert (kein sudo), eigenes Home, Key-Login. Nächster Punkt: 1.3 Python 3.12 / ffmpeg / whisper.cpp (Build).
 - **2026-07-14 (5)** — **1.1 System härten VERIFIZIERT:** full-upgrade sauber, `ufw` active (nur 22/tcp), `fail2ban` aktiv (bannte live einen Brute-Force-Bot), `unattended-upgrades` mit Security-Origins scharf. Nächster Punkt: 1.2 User `claudebot`.
 - **2026-07-14 (4)** — **1.0 VERIFIZIERT → Phase 1 gestartet.** VPS war nicht frisch (33d Uptime, Root-PW unbekannt) → sauberer Reinstall Debian 13.6 UEFI Minimal mit SSH-Key + deaktivierter Passwort-Auth. Key-Login verifiziert, Fingerprints gegen Netcup-Panel abgeglichen, Alias `claudevps` in `~/.ssh/config`. Nächster Punkt: 1.1 System härten.
 - **2026-07-14 (3)** — **0.7 VERIFIZIERT (am Produktivbetrieb, Adam-Entscheid) → Phase 0 KOMPLETT; Phasen-Audit 0→1 bestanden.** Live-Tests durch Adam alle grün; Modell zurück auf Sonnet; Backlog-Fund: unbekannte Kommandos stumm ignoriert. Nächster Punkt: 1.0 Server-Zugang.
@@ -141,11 +142,11 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** 14.07.2026 — Belege: `full-upgrade` = 0 ausstehende Pakete; `ufw` active, nur `22/tcp` (SSH) offen (IPv4+IPv6), Default deny incoming; `fail2ban` active, sshd-Jail (systemd/journald-Backend) mit bantime 1h/maxretry 5 — bannte live bereits Angreifer-IP `91.92.40.36`; `unattended-upgrades` enabled, Periodic 1/1, Origins Debian + Debian-Security, Dry-run bestätigt aktive Config; apt-daily/-upgrade-Timer active. **Hinweis:** SSH-Passwort-Auth war bereits beim Reinstall (1.0) deaktiviert.
 
 ### 1.2 Unprivilegierter User claudebot
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** `id claudebot` existiert, eigenes Home, **kein** sudo-Recht.
 - **Test:** `id claudebot` + `sudo -u claudebot sudo -l` muss fehlschlagen.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 (von führender Sitzung ausgeführt)
+- **Verifiziert am:** 14.07.2026 — Belege: `id claudebot` = uid 1000, groups `claudebot,users` (kein sudo); Home `/home/claudebot`; `sudo -u claudebot sudo -n -l` scheitert („a password is required"). Login-Only-per-Key (kein Passwort gesetzt); SSH-Key hinterlegt, direkter Login als `claudebot` verifiziert (Alias `claudebot` in `~/.ssh/config`).
 
 ### 1.3 Python 3.12, ffmpeg, whisper.cpp
 - **Status:** OFFEN

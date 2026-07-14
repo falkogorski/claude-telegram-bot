@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (12)** — **1.8 systemd-Unit vorbereitet (LÄUFT):** Unit installiert + `systemd-analyze verify` OK; bewusst NICHT gestartet/enabled bis zum Umschalt-Moment (Schutz des laufenden Mac-Bots vor Telegram-409). Nächstes: Umschalt-Sequenz D.4 (Mac-Stopp → VPS-Start) — Adam-Timing.
 - **2026-07-14 (11)** — **1.7 Bot-Code auf Server VERIFIZIERT:** privates Repo via Deploy-Key geklont (Server-HEAD = Mac-HEAD `60692c6`), venv mit Python 3.13 + alle Deps, SDK-Smoke-Test `query()` → `OK` (Python→SDK→Claude über Abo). Nächster Punkt: 1.8 systemd-Dienst.
 - **2026-07-14 (10)** — **1.6 Headless-Auth VERIFIZIERT:** OAuth-Token (Abo, kein API-Key) in Server-Env, `claude -p "1+1="` → `2` ohne Browser. Token-Ausstelldatum-Sidecar für 5.20 angelegt. Zudem E5 + 5.20/5.21 (proaktive Wartung/Token-Erneuerung, register-basierter Update-Monitor) ins Drehbuch aufgenommen. Nächster Punkt: 1.7 Bot-Code auf Server.
 - **2026-07-14 (9)** — **1.5 globales claude-CLI VERIFIZIERT:** v2.1.209; Node auf 22.23.1 LTS angehoben (CLI verlangt ≥22). CLI erreicht Auth-Check, wartet auf Token. Nächster Punkt: 1.6 Headless-Auth (CLAUDE_CODE_OAUTH_TOKEN).
@@ -192,9 +193,10 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** 14.07.2026 — Belege: Klon nach `/home/claudebot/claude-telegram-bot` (Branch `mac-produktivstand`), Server-HEAD = Mac-HEAD `60692c6`. Zugang über read-only GitHub-**Deploy-Key** (`~/.ssh/github_deploy`, SSH-Config-Eintrag) → Server kann künftig selbst `git pull`. `models/` + `logs/` bleiben (gitignored) erhalten. **venv** unter `.venv` mit Python 3.13.5; alle `requirements.txt`-Pakete installiert, Kern-Importe (`claude_agent_sdk`, `telegram`, `anyio`) OK → 3.13-Kompatibilität bestätigt. **SDK-Smoke-Test (Anhang D.2, war offen aus 1.6) nachgeholt:** `claude_agent_sdk.query()` als `claudebot` mit Token aus Env → Antwort **`OK`** (voller Python→SDK→Claude-Pfad über Abo).
 
 ### 1.8 systemd-Dienst statt launchd
-- **Status:** OFFEN
+- **Status:** LÄUFT — Unit **installiert + validiert**, Start/enable bewusst aufgeschoben.
 - **Akzeptanzkriterium:** `systemctl status claude-telegram-bot` = active (running); Auto-Restart nach Kill greift. (Guardian wird auf dem Server NICHT nachgebaut — `Restart=always` + bot-interner Watchdog decken das ab.)
 - **Test:** Dienst killen → spätestens nach 30 Sek. wieder active. Unit-Vorlage: Anhang D.3.
+- **Zwischenstand `[2026-07-14]`:** `/etc/systemd/system/claude-telegram-bot.service` geschrieben (exakt D.3), `daemon-reload` + `systemd-analyze verify` = **Syntax OK**. Bewusst **nicht gestartet und nicht `enable`d** — ein Start würde Polling beginnen und mit dem noch laufenden Mac-Bot kollidieren (Telegram 409). `enable` + `start` + Kill/Restart-Test erfolgen zusammen im **Umschalt-Moment (D.4 / Punkt 1.10)**. (Kleine, sicherheitsmotivierte Abweichung von D.3: auch `enable` erst beim Umschalten, damit ein ungeplanter VPS-Reboot vorher keinen Zweit-Poller startet.)
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

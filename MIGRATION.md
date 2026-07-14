@@ -15,7 +15,7 @@ metadata:
 **Regel:** Sequenziell. Ein Punkt nach dem anderen. Erst grün, dann der nächste. Spontanes geht in den Backlog (Phase 11 unten), nicht in den laufenden Strang. Nach jedem Phasenwechsel kurzer Audit + Strategie-Recheck.
 **Zusätzlich verbindlich:** Die Regeln aus `CLAUDE.md` (💰 Kostenregel, Nutzer-Workflow: ein Schritt pro Nachricht, keine `#`-Kommentare in zsh-Blöcken, pbpaste-Reihenfolge, Secrets nie in den Chat, jede Anweisung mit „Erwartete Ausgabe").
 
-**Dokument-Hoheit:** Diese Repo-Version (`MIGRATION.md` im Bot-Repo) ist ab 2026-07-12 der Master. Die Telegram-Sitzung übernimmt diese Fassung als ihr Arbeitsdokument (Punkt 0.8) und pflegt Status-Updates darin; andere Sitzungen lesen vor Arbeitsbeginn den aktuellen Stand aus dem Repo.
+**Dokument-Hoheit:** Diese Repo-Version (`MIGRATION.md` im Bot-Repo) ist ab 2026-07-12 der Master. **Führender Branch: `mac-produktivstand`** — dort liegt der gepflegte Stand; jede Sitzung macht vor Arbeitsbeginn `git fetch` und liest/pflegt von diesem Branch. Die Telegram-Sitzung übernimmt diese Fassung als ihr Arbeitsdokument (Punkt 0.8) und pflegt Status-Updates darin; andere Sitzungen lesen vor Arbeitsbeginn den aktuellen Stand aus dem Repo.
 
 ---
 
@@ -23,8 +23,8 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
-- **2026-07-13 (2)** — **Punkte 5.19 (Rechnungs-Workflow per Sprache) und 9.5 (E-Mail-Anbindung SMTP/IMAP) eingefügt** + Backlog-Zeile Messenger-Versand. Herkunft: Desktop-Session „Rechnungs-Automatisierung" (dort sind beide Generatoren fertig; echte Rechnungen 014-26/015-26 damit erstellt). Zugleich geklärt: Die Memory-Checkliste (`project-migration-checklist.md`) ist ab jetzt reiner themenbezogener Index — inhaltlich gepflegt wird NUR noch diese Repo-Datei.
-- **2026-07-13** — **0.7 nachgeschärft:** Akzeptanzkriterium ergänzt — Wächter (Guardian-Plist) muss nach dem Backtest explizit wieder geladen und geprüft sein.
+- **2026-07-14** — **5.19 + 9.5 wiederhergestellt:** Beim Marker-Aufräumen am 13.07. waren die aktiven Punkte 5.19 (Rechnungs-Workflow) und 9.5 (E-Mail-Anbindung) samt Messenger-Backlog-Zeile versehentlich mitgelöscht worden — aus `d363d86` zurückgeholt. Dokument-Hoheit präzisiert: führender Branch `mac-produktivstand`.
+- **2026-07-13** — **0.8 VERIFIZIERT:** Führende Desktop-Sitzung arbeitet mit Repo-MIGRATION.md und pflegt Status darin (Adam-Bestätigung 17:26 Uhr).
 - **2026-07-12 (2)** — **F1 von Adam entschieden:** LiteLLM nur für Neben-Inferenzen, Claude-Agent bleibt am Abo-SDK — 2.6 entsprechend umformuliert und entsperrt. Neuer Punkt **1.0 Server-Zugang** eingefügt (Übermittlung der VPS-Zugangsdaten war bisher kein eigener Punkt).
 - **2026-07-12** — **Zusammenführung** mit dem Drehbuch der Claude-Code-Web-Sitzung: Phase 0 (Code-/Repo-Vorbereitung am Mac) eingefügt; Ausführungsdetails als Anhang D; Rollback-Punkt 1.12; ⚠️-Klärung F1 an 2.6 (Kostenregel/Abo vs. LiteLLM); 9.4 Approval-Hub; Hinweise an 1.6/1.7/1.9/1.10. Entscheidungen E1–E4 vom Nutzer bestätigt (Kasten unten).
 - **2026-06-23 18:18** — Punkt **5.18 Agent-Session-Watchdog** eingefügt (Hintergrund: live demonstrierter Claude-Session-Tod ab 16:11 am Migrationstag; strukturelle Lösung statt vorgezogenem Workaround).
@@ -92,17 +92,17 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 ### 0.7 Mac-Backtest des vorbereiteten Stands
 - **Status:** OFFEN
-- **Akzeptanzkriterium:** Bot läuft vom vorbereiteten Branch einmal manuell am Mac (launchd/Guardian währenddessen gestoppt!): Text, `/status`, `/reset`, Voice, Permission-Buttons — alles wie gewohnt. Danach Mac zurück auf Produktivstand bis zum Umschalten. `[NEU 2026-07-13]` **Wächter muss nach dem Backtest wieder geladen sein** — Guardian-Plist nach dem Test explizit neu laden (`launchctl bootstrap`) und Status prüfen, bevor der Backtest als bestanden gilt.
-- **Test:** Die fünf genannten Interaktionen einzeln in Telegram + anschließend `launchctl list | grep guardian` prüfen (Wächter läuft).
+- **Akzeptanzkriterium:** Bot läuft vom vorbereiteten Branch einmal manuell am Mac (launchd/Guardian währenddessen gestoppt!): Text, `/status`, `/reset`, Voice, Permission-Buttons — alles wie gewohnt. Danach Mac zurück auf Produktivstand bis zum Umschalten. **Der Punkt ist erst grün, wenn launchd + Guardian wieder GELADEN sind und `pgrep -fl bot.py` genau eine laufende Instanz zeigt** — ein gestoppter Wächter darf NIE über das Test-Fenster hinaus bestehen bleiben (Vorfall 2026-07-12: Bot blieb nach unterbrochenem Backtest down, weil der Guardian planmäßig aus war und niemand neu lud).
+- **Test:** Die fünf genannten Interaktionen einzeln in Telegram.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
-### 0.8 (Adam-Task) Master-Drehbuch an Telegram-Sitzung übergeben
-- **Status:** OFFEN
-- **Akzeptanzkriterium:** Die Telegram-Sitzung hat diese zusammengeführte Fassung als ihr Arbeitsdokument übernommen (altes Memory ersetzt) und bestätigt, dass sie ab jetzt Status-Pflege hier betreibt.
-- **Test:** Telegram-Claude nach Phase/Punkt fragen — Antwort deckt sich mit diesem Dokument.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+### 0.8 (Adam-Task) Master-Drehbuch der führenden Migrations-Sitzung übergeben
+- **Status:** VERIFIZIERT
+- **Akzeptanzkriterium:** Die **führende Migrations-Sitzung** (die Code-Sitzung am Mac, die Phase 0 ausführt) arbeitet nachweislich mit dieser Repo-Fassung (`git fetch` + aktuelle MIGRATION.md im Arbeitsordner) und betreibt die Status-Pflege hier. Falls die Telegram-Sitzung ein eigenes Drehbuch-Memory hält: durch Verweis auf die Repo-Fassung ersetzen (Zuständigkeiten: siehe CLAUDE.md → Anti-Ping-Pong-Regel).
+- **Test:** Führende Sitzung nach Phase/Punkt fragen — Antwort deckt sich mit diesem Dokument (inkl. nachgeschärftem 0.7 und Alt-Log-Übernahme in 4.2).
+- **Adam-Bestätigung:** ✅ 13.07.2026 — „Das aktuelle Drehbuch liegt als MIGRATION.md im Projektordner — bitte damit arbeiten und dort auch die Status pflegen."
+- **Verifiziert am:** 13.07.2026 17:26 Uhr
 
 ### Phasen-Audit 0 → 1
 - **Audit-Status:** —
@@ -304,8 +304,8 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 ### 4.2 Zentrale Chat-Logs aller Interfaces auf dem VPS
 - **Status:** OFFEN
-- **Akzeptanzkriterium:** Telegram- und LobeChat-Konversationen werden als Tages-Markdown auf VPS abgelegt. (Baut auf 0.5 auf: `CONVERSATION_LOG_DIR` statt iCloud.)
-- **Test:** Je eine Nachricht aus beiden Frontends → beide Tageslogs zeigen den Eintrag.
+- **Akzeptanzkriterium:** Telegram- und LobeChat-Konversationen werden als Tages-Markdown auf VPS abgelegt. (Baut auf 0.5 auf: `CONVERSATION_LOG_DIR` statt iCloud.) `[NEU 2026-07-13]` **Alt-Logs mitnehmen:** Das bestehende Log-Archiv vom Mac (iCloud-Ordner `…/CloudDocs/Claude-Logs/` + `~/claude-logs/`) wird einmalig auf den VPS ins zentrale Log-Verzeichnis übernommen — der Recall-Index (5.11) braucht die Historie. Nach verifizierter Übernahme wird der iCloud-Altbestand gelöscht (Datenschutz-Entscheid: Logs nicht in iCloud).
+- **Test:** Je eine Nachricht aus beiden Frontends → beide Tageslogs zeigen den Eintrag. Plus: Stichprobe aus den Alt-Logs (ein alter Tageseintrag) ist auf dem VPS auffindbar; iCloud-Ordner danach leer.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
@@ -669,6 +669,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 - `[NEU 2026-07-12]` Vollautomatische Modellwahl je Aufgabe (Ausbau von 5.6, nur falls Adam sie nach Praxiserfahrung mit den Empfehlungen doch wünscht).
 - `[NEU 2026-07-12]` `/status` erweitern um aktives Modell + Session-Alter + Kontingent-Hinweis (falls nicht schon durch 5.4/5.6 abgedeckt).
+- `[NEU 2026-07-13]` **Anti-Ping-Pong strukturell lösen:** Anliegen, die bei der „falschen" Instanz eingehen, sollen automatisch richtig landen — z. B. Bot beantwortet Drehbuch-/Statusfragen selbst aus der Repo-Fassung statt zu verweisen; perspektivisch gemeinsame Aufgaben-Inbox (verwandt: 5.10 Konversations-Sync, 9.4 Approval-Hub, CLAUDE.md-Zuständigkeitsregel).
 - `[NEU 2026-07-13]` Messenger-Versand als Ausbau von 9.5 (Telegram via Bot-API machbar; WhatsApp heikel: Business-API kostenpflichtig 💰, inoffizielle Wege riskant/ToS) — erst nach stabiler E-Mail-Anbindung bewerten.
 
 ---

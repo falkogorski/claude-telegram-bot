@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.jakuna.claude-telegram-bot-guardian</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/jakuna/Projects/claude-telegram-bot/guardian.sh</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Every 60 seconds — check + recover. Costs ~nothing if bot is healthy. -->
+  <key>StartInterval</key>
+  <integer>60</integer>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>/Users/jakuna</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/jakuna/Projects/claude-telegram-bot/logs/guardian.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/jakuna/Projects/claude-telegram-bot/logs/guardian.err.log</string>
+</dict>
+</plist>

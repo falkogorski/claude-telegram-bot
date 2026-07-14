@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (16)** — **1.12 Rollback-Trockenlauf bestanden → PHASE 1 funktional abgeschlossen.** Beide Richtungen bewiesen (→Mac ~1 Min, →VPS zurück), kein Doppel-Polling. Phasen-Audit 1→2 vorbehaltlich bestanden. Offen: 48h-Kostenkontrolle, 1.9 Webhooks (bewusst später). Bot läuft produktiv auf dem VPS.
 - **2026-07-14 (15)** — **Kritischer Fund in 1.11 behoben:** Session-Start scheiterte am Linux-128-KiB-Arg-Limit (Memory 280 KB als `--append-system-prompt`). Fix `bc48004`: Kontext als `CLAUDE.md`-Datei + `setting_sources=["project"]` — verlustfrei, E2E auf VPS bewiesen. Rollback-Test wartet auf Adams Gegenprobe.
 - **2026-07-14 (14)** — **1.11 Funktionstests bestanden + Memory-Lücke geschlossen:** Text/Voice/Tool-Buttons ✅ in Telegram. Bot-Selbstcheck fand fehlendes Memory → Bot-Gedächtnis (72 Dateien) Mac→VPS migriert, `CLAUDE_MEMORY_DIR` gesetzt, Selbstcheck jetzt sauber (schließt 0.4-Vormerkung). Offen: 48h-Kostenkontrolle. Nächstes: 1.12 Rollback-Trockenlauf.
 - **2026-07-14 (13)** — **UMSCHALTUNG VOLLZOGEN (D.4):** Mac-Bot gestoppt + Plists gesichert (1.10 ✅), VPS-Dienst enabled+gestartet, Telegram verbunden ohne Konflikt, Auto-Restart-Test bestanden (1.8 ✅). Der Bot läuft jetzt produktiv auf dem VPS. Offen: 1.11 (Adam-Telegram-Tests + 48h-Kostenkontrolle), 1.12 (Rollback-Trockenlauf). 1.9 (Webhooks) bewusst später.
@@ -228,15 +229,15 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Offen:** 48-h-Kostenkontrolle (Adam beobachtet console.anthropic.com/Usage → darf nicht steigen); Adam-Wiederholung der Gedächtnis-Frage in Telegram als Gegenprobe.
 
 ### 1.12 Rollback-Pfad verifiziert `[NEU 2026-07-12]`
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** Dokumentierter Rollback (Anhang D.5): VPS-Dienst stoppen, Telegram-Webhook löschen (`deleteWebhook`), Mac-Plists wieder laden → Mac-Bot antwortet binnen 2 Minuten. Einmal trocken durchgespielt, BEVOR Phase 2 beginnt.
 - **Test:** Rollback ausführen, Mac-Bot antwortet; danach wieder auf VPS umschalten.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 — „Leg los" für den Trockenlauf.
+- **Verifiziert am:** 14.07.2026 — Trockenlauf durchgespielt. **Phase A (→ Mac):** VPS `systemctl stop` → Mac-Plists aus `_deaktiviert/` zurück + geladen (Bot, dann Guardian) → Mac-Bot in ~1 Min aktiv, Telegram verbunden (`@jakuna_cc_bot`, `Application started`), stabil (python3.12). **Phase B (→ VPS, Normalzustand):** Mac gestoppt (Guardian zuerst), Plists zurück nach `_deaktiviert/`, VPS `systemctl start` → active PID 26144, Telegram verbunden. `deleteWebhook` nicht nötig (Polling-Modus). Kein Doppel-Polling zu keinem Zeitpunkt (strikte Stop-vor-Start-Reihenfolge).
 
 ### Phasen-Audit 1 → 2
-- **Audit-Status:** —
-- **Strategie-Recheck:** —
+- **Audit-Status:** ✅ 14.07.2026 (vorbehaltlich) — Phase 1 funktional vollständig: 1.0–1.8, 1.10, 1.12 VERIFIZIERT; 1.11 Funktionsteil ✅. **Bot läuft produktiv auf dem VPS** (Text/Voice/Tool-Buttons, Memory, Auto-Restart, Rollback getestet). **Offen vor endgültigem Abschluss:** (a) 1.11 **48-h-Kostenkontrolle** (console.anthropic.com/Usage darf nicht steigen — Abo-Beweis); (b) **1.9 Webhooks** bewusst zurückgestellt (läuft vorerst im Polling-Modus — funktioniert, aber Punkt bleibt offen). Zwei Live-Funde sauber behoben: Memory-Migration (`CLAUDE_MEMORY_DIR`) und Linux-Arg-Limit (`bc48004`).
+- **Strategie-Recheck:** ✅ 14.07.2026 — Phase-2-Reihenfolge bleibt sinnvoll. **Vorgezogene Priorität aus Praxis:** Transkriptions-Tempo (5.22) und Session-Start-Diät (5.23) sind für den Alltag spürbar wichtiger als ihre Nummer suggeriert — beim Phasen-Audit vor Phase 5 (bzw. schon früher, falls Adam wünscht) hochziehen. Reihenfolge sonst unverändert; keine Streichungen.
 
 ---
 

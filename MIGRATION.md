@@ -49,6 +49,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 | E4 | Approval-Hub | ✅ Separates Projekt nach der Migration → Punkt 9.4. |
 | F1 | 💰 LiteLLM vs. Abo (betrifft 2.6) | ✅ **Entschieden (Adam, 2026-07-12):** LiteLLM nur für Neben-Inferenzen (Ampel-Klassifizierer, Zusammenfassungen → Ollama/Groq); der Claude-Agent bleibt direkt am Abo-SDK (`CLAUDE_CODE_OAUTH_TOKEN`). Rote Anfragen werden VOR dem Agenten abgefangen und lokal beantwortet. Kein `ANTHROPIC_API_KEY` im Stack. 2.6 ist entsprechend umformuliert. |
 | F2 | Whisper medium auf VPS-CPU | Mini-Klärung in 1.4: medium (~1,5 GB) ist auf kleinem VPS spürbar langsamer als small — Akzeptanztest ausdrücklich inkl. Laufzeitmessung; bei Frust: base/small als Fallback dokumentieren. |
+| E5 | Wartung & Erneuerung proaktiv automatisieren | ✅ **Entschieden (Adam, 2026-07-14):** Das Gesamtsystem muss sich selbst überwachen und Adam frühzeitig warnen — nicht erst reagieren, wenn etwas ausgefallen ist. (a) **Token-Erneuerungs-Frühwarner** → Punkt **5.20**: OAuth-Token (~1 Jahr gültig) proaktiv überwachen, Erinnerung ab ~10 Monaten, **mind. 1 Monat Vorlauf**. (b) **Versions-/Update-Monitor** → Punkt **5.21**: regelmäßiger Check auf neue Versionen der nicht-automatisch aktualisierten Komponenten, Telegram-Hinweis, **größere Versionssprünge hervorgehoben**. Beide Wächter laufen **bot-unabhängig** (eigener systemd-Timer + direkter Telegram-Ping via Bot-API), damit ein liegender Bot die Warnung nicht mitreißt. Token-Erneuerung selbst bleibt manuell (Browser-OAuth), die Warnung davor ist automatisch und früh. |
 
 ---
 
@@ -483,6 +484,22 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+### 5.20 Token-Erneuerungs-Frühwarner (OAuth-Token läuft jährlich ab) `[NEU 2026-07-14]`
+- **Status:** OFFEN
+- **Hintergrund:** `CLAUDE_CODE_OAUTH_TOKEN` ist ~1 Jahr gültig; **ohne gültigen Token läuft der Agent GAR NICHT** (harter Ausfall, keine Antworten). Erzeugung nur manuell (Browser-OAuth via `claude setup-token`) → die Warnung muss früh und verlässlich kommen. Umsetzt E5.
+- **Akzeptanzkriterium:** Token-Ausstelldatum wird bei jedem Setzen festgehalten (Sidecar `/etc/claude-telegram-bot.token-issued`). Ein **bot-unabhängiger** systemd-Timer (täglich) prüft das Alter und schickt Adam ab **~10 Monaten** (spätestens **30 Tage Vorlauf**) eine Telegram-Nachricht direkt über die Bot-API (`curl`), zunehmend dringlicher je näher der Ablauf. Renewal-Prozedur (neuer Token → Env-Zeile ersetzen → `systemctl restart` → alter Token wird ersetzt, **Zero-Downtime** solange vor Ablauf) dokumentiert.
+- **Test:** Timer mit künstlich vordatiertem Ausstelldatum → Warn-Nachricht trifft in Telegram ein; Renewal-Prozedur einmal trocken durchgespielt.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
+### 5.21 Versions-/Update-Monitor (nicht-automatische Komponenten) `[NEU 2026-07-14]`
+- **Status:** OFFEN
+- **Hintergrund:** `unattended-upgrades` deckt nur Debian-OS-Sicherheit ab. whisper.cpp (Eigenbau), `claude`-CLI (npm), Node.js (NodeSource), Bot-Python-Deps (venv) entwickeln sich unterschiedlich schnell; **große Versionssprünge** (neue Node-Major, SDK-Bruch) sollen bewusst und früh sichtbar werden — wie „App-Update verfügbar". Umsetzt E5, löst die frühere Backlog-Notiz „Wartungs-/Update-Routine" ab.
+- **Akzeptanzkriterium:** Regelmäßiger (z. B. wöchentlicher) automatischer Versionscheck je Komponente; bei neueren Versionen Telegram-Hinweis mit „aktuell vs. verfügbar", **Major-Sprünge markiert** (dringlicher). Reine Info/Reminder — **Installation bleibt bestätigt/manuell** (kein eigenmächtiges Major-Upgrade, deckt sich mit E3/„Empfehlung statt eigenmächtigem Wechsel").
+- **Test:** Check läuft, listet mind. eine Komponente mit Versionsvergleich; simulierte neue Version löst Telegram-Hinweis aus.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
 ### Phasen-Audit 5 → 6
 - **Audit-Status:** —
 - **Strategie-Recheck:** —
@@ -682,7 +699,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - `[NEU 2026-07-13]` **Anti-Ping-Pong strukturell lösen:** Anliegen, die bei der „falschen" Instanz eingehen, sollen automatisch richtig landen — z. B. Bot beantwortet Drehbuch-/Statusfragen selbst aus der Repo-Fassung statt zu verweisen; perspektivisch gemeinsame Aufgaben-Inbox (verwandt: 5.10 Konversations-Sync, 9.4 Approval-Hub, CLAUDE.md-Zuständigkeitsregel).
 - `[NEU 2026-07-13]` Messenger-Versand als Ausbau von 9.5 (Telegram via Bot-API machbar; WhatsApp heikel: Business-API kostenpflichtig 💰, inoffizielle Wege riskant/ToS) — erst nach stabiler E-Mail-Anbindung bewerten.
 - `[NEU 2026-07-14]` **Unbekannte Bot-Kommandos nicht stumm ignorieren** (Fund aus 0.7): `/model sonnet` blieb ohne jede Reaktion, weil kein solcher Befehl existiert und der Text-Handler Commands ausschließt. Wunsch: Catch-all für unbekannte `/…`-Kommandos mit Hinweis + ggf. `/model <name>` als Textbefehl parallel zu den Inline-Buttons.
-- `[NEU 2026-07-14]` **Wartungs-/Update-Routine für nicht-automatische Komponenten** (Adam-Frage 14.07.): `unattended-upgrades` deckt NUR Debian-OS-Sicherheitsupdates ab (inkl. Python). NICHT automatisch aktualisiert: whisper.cpp (Eigenbau), `claude`-CLI (npm global), Node.js (NodeSource, nur innerhalb 22.x per `apt upgrade`), Bot-Python-Deps (venv). Periodische manuelle Routine definieren (z. B. quartalsweise: `npm update -g @anthropic-ai/claude-code`; `git pull` + whisper.cpp neu bauen; `pip install -U -r requirements.txt` im venv; `apt full-upgrade`). Perspektivisch als Bot-Wartungskommando/Reminder. Verwandt mit 5.4/Selbstdiagnose.
+- `[GEKLÄRT 2026-07-14]` ~~Wartungs-/Update-Routine für nicht-automatische Komponenten~~ → **zu konkreten Punkten 5.20 (Token-Frühwarner) + 5.21 (Update-Monitor) unter Grundsatz E5 aufgewertet.** Konkrete Update-Befehle je Komponente dort bzw. quartalsweise: `npm update -g @anthropic-ai/claude-code`; `git pull` + whisper.cpp neu bauen; `pip install -U -r requirements.txt` im venv; `apt full-upgrade`.
 - `[NEU 2026-07-14]` **Cowork Mac-unabhängig nutzbar machen** (Prüf-/Ausbaupunkt, nach Migration): Ziel: Cowork-artige Arbeit (Claude mit Zugriff auf Adams Dateien) auch bei ausgeschaltetem Mac. Erkenntnisstand 07/2026: Cowork-Sitzungen laufen remote, aber der Datei-Zugriff hängt an der geöffneten Desktop-App des jeweiligen Rechners (nur macOS/Windows — Linux-VPS scheidet als Host aus). Optionen: (a) pragmatisch: Cowork-Arbeitsordner in synchronisierten Speicher legen — bevorzugt Nextcloud auf unserem VPS (passt zum Datenschutz-Entscheid „weg von iCloud"), Sync-Client auf dem Mac; bei iCloud-Nutzung „Speicher optimieren" für den Ordner deaktivieren; (b) Bastellösung Windows-VPS/Cloud-Mac mit dauerhaft offener Desktop-App — wegen Pflegeaufwand + Sicherheitsbedenken vorerst verworfen; (c) beim Phasen-Audit 9→10 neu bewerten, ob Anthropic inzwischen Headless-/Linux-Unterstützung bietet. Teilbedarf wird ohnehin durch VPS-Bot + Approval-Hub (9.4) abgedeckt.
 
 ---

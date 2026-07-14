@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (2)** — **0.1–0.6 VERIFIZIERT** (Akzeptanzkriterien einzeln geprüft: Zeilenzahl/Hash, Audit-Greps, py_compile, env-Pfade/Modell; Belege je Punkt). **0.7 auf LÄUFT:** Adam-Entscheid — Verifikation am Produktivbetrieb statt erneutem Stopp; Wächter-Kriterium (launchd+Guardian geladen, pgrep = 1 Instanz) bereits erfüllt, Live-Tests durch Adam offen.
 - **2026-07-14** — **5.19 + 9.5 wiederhergestellt:** Beim Marker-Aufräumen am 13.07. waren die aktiven Punkte 5.19 (Rechnungs-Workflow) und 9.5 (E-Mail-Anbindung) samt Messenger-Backlog-Zeile versehentlich mitgelöscht worden — aus `d363d86` zurückgeholt. Dokument-Hoheit präzisiert: führender Branch `mac-produktivstand`.
 - **2026-07-13** — **0.8 VERIFIZIERT:** Führende Desktop-Sitzung arbeitet mit Repo-MIGRATION.md und pflegt Status darin (Adam-Bestätigung 17:26 Uhr).
 - **2026-07-12 (2)** — **F1 von Adam entschieden:** LiteLLM nur für Neben-Inferenzen, Claude-Agent bleibt am Abo-SDK — 2.6 entsprechend umformuliert und entsperrt. Neuer Punkt **1.0 Server-Zugang** eingefügt (Übermittlung der VPS-Zugangsdaten war bisher kein eigener Punkt).
@@ -49,49 +50,49 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 > Grund: Das GitHub-Repo enthält eine **veraltete** `bot.py` (~460 Zeilen). Die echte, produktive Version auf dem Mac hat **~2000+ Zeilen** (Watchdog, Heartbeat, TTS-Pfade, PDF/Foto/Link-Handling, Conversation-Logs …). Ohne Phase 0 klont Phase 1.7 den falschen Stand auf den Server. Referenz-Implementierungen (401-Handling, Abo-Token-Doku) liegen auf Branch `claude/telegram-bot-auth-401-g6yqrr`.
 
 ### 0.1 Echte bot.py + Zubehör ins Repo (KRITISCH)
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** Branch `mac-produktivstand` auf GitHub enthält die produktive `bot.py` (Plausibilität: `wc -l bot.py` > 1500), `transcribe.py`, `guardian.sh`, `requirements.txt`, `run.sh`; Commit-Hash Mac = GitHub.
 - **Test:** `git log -1` lokal vs. GitHub; Zeilenzahl-Check. Befehle: Anhang D.0.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 (Arbeit war seit 13.07. real erledigt, Status-Pflege nachgeholt)
+- **Verifiziert am:** 14.07.2026 — Beleg: `wc -l bot.py` = 3890; alle 5 Dateien vorhanden; Hash lokal = GitHub (`18899cc`).
 
 ### 0.2 Ist-Audit der echten bot.py
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** Liste aller Mac-/Hardcoded-Pfade und Auth-Stellen liegt vor (`grep` nach `Users/jakuna`, `Mobile Documents`, `/opt/homebrew`, `ANTHROPIC_API_KEY`, `system_prompt`, Modell-Strings). Bekannt: Conversation-Log geht nach iCloud (`~/Library/Mobile Documents/…/Claude-Logs/`) — existiert auf Linux nicht.
 - **Test:** Grep-Läufe (Anhang D.0) dokumentiert.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026
+- **Verifiziert am:** 14.07.2026 — Beleg: Grep-Läufe sauber; verbleibende Treffer sind nur Kommentare (Z. 172/401) + optionale Neben-Inferenz `_ai_topic_label` (Z. 3476, nutzt `ANTHROPIC_API_KEY` NUR falls gesetzt; in `.env` NICHT gesetzt → fällt still auf "" zurück, keine Kosten). Hinweis für 2.6: diese Neben-Inferenz später auf LiteLLM umziehen.
 
 ### 0.3 401-/Fehler-Handling in echte bot.py portieren
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** `is_auth_error()` + `AUTH_HELP` (Abo-Token-first!) + automatischer Session-Verwurf bei Auth-Fehlern in der echten bot.py; rohe SDK-Fehler erreichen Adam nicht mehr unkommentiert.
 - **Test:** `py_compile` grün; simulierter 401 (Token kurz invalidieren) zeigt die freundliche Meldung.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026
+- **Verifiziert am:** 14.07.2026 — Beleg: `is_auth_error()` (Z. 242), `AUTH_HELP` (Z. 258), Auth-Fehler → `AUTH_HELP` senden + `close_session()` (Z. 626–632); auch generische Fehler kommen kommentiert an („Session-Fehler … frische Session"); `py_compile` grün. (401-Simulation nicht wiederholt — Handling war auf dem Auth-Branch entwickelt/getestet.)
 
 ### 0.4 Neutrale Begrüßung (keine Kontext-Annahmen)
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** System-Prompt-Zusatz via `{"type": "preset", "preset": "claude_code", "append": "…"}`: Bot nimmt nicht an, wo/an welchem Gerät Adam sitzt (kein „schön, dich am Desktop zu sehen").
 - **Test:** Frische Session, Begrüßung prüfen.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026
+- **Verifiziert am:** 14.07.2026 — Beleg: preset+append-Struktur in `ensure_session()` (Z. 979–983); Neutralitäts-Regel wird über den Memory-Loader eingespeist (`user-interfaces.md`, im MEMORY.md-Index, Auslöser-Vorfall 26.06. behoben). **Abweichung vom Wortlaut:** Regel liegt im Memory, nicht hart im Code. ⚠️ **VPS-Hinweis für 1.7:** `CLAUDE_MEMORY_DIR` muss auf dem Server gesetzt sein und das Memory mitwandern, sonst lädt die Regel dort nicht.
 
 ### 0.5 Mac-Pfade konfigurierbar machen (v. a. iCloud-Log)
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** Conversation-Log-Verzeichnis via env `CONVERSATION_LOG_DIR` (Mac darf weiter iCloud nutzen, Server nutzt lokalen Pfad); keine `/Users/…`- oder `/opt/homebrew`-Pfade mehr hart im Code; benötigte Verzeichnisse werden beim Start angelegt.
 - **Test:** Audit-Liste aus 0.2 vollständig abgearbeitet; Bot startet mit gesetztem Alternativ-Pfad.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026
+- **Verifiziert am:** 14.07.2026 — Beleg: `CONVERSATION_LOG_DIR` mit VPS-tauglichem Fallback `~/claude-logs` (Z. 172–173); keine harten `/Users/…`-/`/opt/homebrew`-Pfade mehr (Grep 0.2); `mkdir(parents=True, exist_ok=True)` an allen Schreibpfaden (Z. 72/96/405/455/1740/1804).
 
 ### 0.6 Modell per .env (Sonnet-Default, E3)
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** `CLAUDE_MODEL` (Default `sonnet`) wird gelesen und in `ClaudeAgentOptions(model=…)` gesetzt; `.env.example` dokumentiert.
 - **Test:** Mit und ohne env-Variable starten, aktives Modell im Log/`/status` prüfen.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026
+- **Verifiziert am:** 14.07.2026 — Beleg: `DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")` (Z. 181), fließt via `_MODEL_ALIASES` in `ClaudeAgentOptions(model=…)` (Z. 977); `.env.example` Z. 24 dokumentiert; Produktivbetrieb läuft damit.
 
 ### 0.7 Mac-Backtest des vorbereiteten Stands
-- **Status:** OFFEN
+- **Status:** LÄUFT — `[NEU 2026-07-14]` **Adam-Entscheid (Abweichung vom Wortlaut):** KEIN erneutes Stoppen des Bots — der vorbereitete Branch läuft seit 13.07. produktiv unter launchd; Verifikation erfolgt AM Produktivbetrieb (der Vorfall vom 12.07. entstand gerade durch den unterbrochenen manuellen Backtest). Wächter-Kriterium bereits erfüllt: launchd-Bot geladen + läuft (PID-Check), Guardian geladen (Exit 0), `pgrep -fl bot.py` = genau eine Instanz (14.07.). Offen: Live-Tests durch Adam (Voice, Tool-Aufgabe mit Permission-Buttons, `/status`).
 - **Akzeptanzkriterium:** Bot läuft vom vorbereiteten Branch einmal manuell am Mac (launchd/Guardian währenddessen gestoppt!): Text, `/status`, `/reset`, Voice, Permission-Buttons — alles wie gewohnt. Danach Mac zurück auf Produktivstand bis zum Umschalten. **Der Punkt ist erst grün, wenn launchd + Guardian wieder GELADEN sind und `pgrep -fl bot.py` genau eine laufende Instanz zeigt** — ein gestoppter Wächter darf NIE über das Test-Fenster hinaus bestehen bleiben (Vorfall 2026-07-12: Bot blieb nach unterbrochenem Backtest down, weil der Guardian planmäßig aus war und niemand neu lud).
 - **Test:** Die fünf genannten Interaktionen einzeln in Telegram.
 - **Adam-Bestätigung:** —

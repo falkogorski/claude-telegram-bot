@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (9)** — **1.5 globales claude-CLI VERIFIZIERT:** v2.1.209; Node auf 22.23.1 LTS angehoben (CLI verlangt ≥22). CLI erreicht Auth-Check, wartet auf Token. Nächster Punkt: 1.6 Headless-Auth (CLAUDE_CODE_OAUTH_TOKEN).
 - **2026-07-14 (8)** — **1.4 Whisper medium VERIFIZIERT + F2 entschieden (medium):** medium klar genauer bei Deutsch, Laufzeit ~45–48 s/30-Sek-Probe (unter 60-Sek-Schwelle). Offen bis 1.6: `WHISPER_MODEL_PATH` in Server-Env auf medium setzen. Nächster Punkt: 1.5 globales claude-CLI.
 - **2026-07-14 (7)** — **1.3 Python/ffmpeg/whisper.cpp VERIFIZIERT:** Python 3.13.5 (Adam-Entscheid statt 3.12, siehe 1.3), ffmpeg 7.1.5, whisper.cpp gebaut; gemischt de/en-Transkription wortgenau. `small`-Modell liegt am Modellpfad. Nächster Punkt: 1.4 Modell-Upgrade small → medium.
 - **2026-07-14 (6)** — **1.2 User `claudebot` VERIFIZIERT:** unprivilegiert (kein sudo), eigenes Home, Key-Login. Nächster Punkt: 1.3 Python 3.12 / ffmpeg / whisper.cpp (Build).
@@ -166,11 +167,11 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **⚠️ Konfig-Anbindung → offen bis 1.6:** Der Bot liest den Modellpfad aus `WHISPER_MODEL_PATH` (transcribe.py; Default sonst `models/ggml-small.bin`). In die Server-Env (`/etc/claude-telegram-bot.env`, Punkt 1.6) muss: `WHISPER_MODEL_PATH=/home/claudebot/claude-telegram-bot/models/ggml-medium.bin`. Endgültiger End-to-End-Nachweis („Bot nutzt medium") beim Bot-Smoke-Test.
 
 ### 1.5 Globales claude-CLI
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** `claude --version` auf VPS läuft, aktuelle Version. `[NEU 2026-07-12]` Hinweis: Das Agent-SDK bringt eine gebündelte CLI mit — das globale CLI dient v. a. Setup/Debugging (`claude -p "hallo"`-Gegentest).
 - **Test:** Kommando ausführen + Mini-Anfrage gegen Test-Endpunkt.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 (Freigabe „Ja bitte", von führender Sitzung ausgeführt)
+- **Verifiziert am:** 14.07.2026 — Belege: `claude --version` = 2.1.209 (Claude Code), Binary `/usr/local/bin/claude`, auch als `claudebot` aufrufbar. `claude -p "1+1="` erreicht sauber den Auth-Check („Not logged in · Please run /login") → CLI korrekt verdrahtet, Mini-Inferenz folgt in 1.6 nach Token. **Node-Upgrade `[NEU 2026-07-14]`:** CLI verlangt Node ≥22, Debian 13 liefert nur Node 20 → auf **Node 22.23.1 LTS** (NodeSource) angehoben, npm 10.9.8; Engine-Anforderung jetzt erfüllt.
 
 ### 1.6 Headless-Auth (CLAUDE_CODE_OAUTH_TOKEN per setup-token)
 - **Status:** OFFEN

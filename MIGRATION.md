@@ -512,6 +512,22 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+### 5.22 STT-Schnellumschalter small↔medium + Tempo-Button-UX `[NEU 2026-07-14]`
+- **Status:** OFFEN
+- **Hintergrund:** Adam-Wunsch nach VPS-Livegang: Whisper `medium` ist präzise, aber ~45 s/30-s-Voice auf VPS-CPU; für eilige Alltags-Voice soll per Knopf auf `small` (~15 s) umschaltbar sein (beide Modelle liegen schon unter `models/`). Zudem Button-Leisten-Ausdünnung prüfen: Tempo evtl. als EIN Toggle (⚡ Schnell ↔ 🚀 Max) statt drei Effort-Buttons — Entscheidung nach Praxisphase mit ⚡ Schnell. Aufklärung 14.07. dokumentiert: Effort-Buttons steuern Denk-Tiefe (Schnell=low=schnellste Antworten, Max=max=gründlich+langsam) — nicht verwechseln.
+- **Akzeptanzkriterium:** Knopf/Kommando wechselt `WHISPER_MODEL_PATH`-Nutzung zur Laufzeit (ohne Neustart), aktives STT-Modell sichtbar (Button-Häkchen und/oder `/status`); Umschaltung wirkt ab der nächsten Voice.
+- **Test:** Voice mit medium, umschalten, gleiche Voice mit small — beide transkribiert, Tempo-Unterschied messbar.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
+### 5.23 Session-Start-Diät (Memory-on-demand statt 280-KB-Vorladung) `[NEU 2026-07-14]`
+- **Status:** OFFEN
+- **Hintergrund:** Erste Antwort einer frischen Session dauerte ~1 Min (Adam, 14.07., 20:53) — Hauptanteil: kompletter Memory-Bestand (280 KB ≈ 70k Token) wird bei JEDEM Session-Start als Kontext eingelesen (seit Fix `bc48004` via CLAUDE.md-Datei). Verschärft sich mit wachsendem Memory. 💰 Kostet zudem Abo-Kontingent pro Session-Start.
+- **Akzeptanzkriterium:** Session-Start lädt nur einen schlanken Kern (Identität/Präferenzen/aktive Projekte + MEMORY.md-Index, Ziel < 30 KB); alles Weitere liest der Agent bei Bedarf selbst per Read-Tool aus `CLAUDE_MEMORY_DIR` (Index verweist auf die Dateien). Erste Antwort einer frischen Session spürbar schneller (Ziel: < 30 s bei einfacher Frage); Gedächtnis-Qualität bleibt (Stichproben-Fragen wie 14.07. weiterhin korrekt).
+- **Test:** Frische Session, einfache Frage → Latenz messen (vorher/nachher); danach Detail-Frage, deren Antwort NUR in einer nachgelagerten Memory-Datei steht → Agent liest nach und antwortet korrekt.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
 ### Phasen-Audit 5 → 6
 - **Audit-Status:** —
 - **Strategie-Recheck:** —

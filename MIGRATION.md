@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (3)** — **0.7 VERIFIZIERT (am Produktivbetrieb, Adam-Entscheid) → Phase 0 KOMPLETT; Phasen-Audit 0→1 bestanden.** Live-Tests durch Adam alle grün; Modell zurück auf Sonnet; Backlog-Fund: unbekannte Kommandos stumm ignoriert. Nächster Punkt: 1.0 Server-Zugang.
 - **2026-07-14 (2)** — **0.1–0.6 VERIFIZIERT** (Akzeptanzkriterien einzeln geprüft: Zeilenzahl/Hash, Audit-Greps, py_compile, env-Pfade/Modell; Belege je Punkt). **0.7 auf LÄUFT:** Adam-Entscheid — Verifikation am Produktivbetrieb statt erneutem Stopp; Wächter-Kriterium (launchd+Guardian geladen, pgrep = 1 Instanz) bereits erfüllt, Live-Tests durch Adam offen.
 - **2026-07-14** — **5.19 + 9.5 wiederhergestellt:** Beim Marker-Aufräumen am 13.07. waren die aktiven Punkte 5.19 (Rechnungs-Workflow) und 9.5 (E-Mail-Anbindung) samt Messenger-Backlog-Zeile versehentlich mitgelöscht worden — aus `d363d86` zurückgeholt. Dokument-Hoheit präzisiert: führender Branch `mac-produktivstand`.
 - **2026-07-13** — **0.8 VERIFIZIERT:** Führende Desktop-Sitzung arbeitet mit Repo-MIGRATION.md und pflegt Status darin (Adam-Bestätigung 17:26 Uhr).
@@ -92,11 +93,11 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** 14.07.2026 — Beleg: `DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")` (Z. 181), fließt via `_MODEL_ALIASES` in `ClaudeAgentOptions(model=…)` (Z. 977); `.env.example` Z. 24 dokumentiert; Produktivbetrieb läuft damit.
 
 ### 0.7 Mac-Backtest des vorbereiteten Stands
-- **Status:** LÄUFT — `[NEU 2026-07-14]` **Adam-Entscheid (Abweichung vom Wortlaut):** KEIN erneutes Stoppen des Bots — der vorbereitete Branch läuft seit 13.07. produktiv unter launchd; Verifikation erfolgt AM Produktivbetrieb (der Vorfall vom 12.07. entstand gerade durch den unterbrochenen manuellen Backtest). Wächter-Kriterium bereits erfüllt: launchd-Bot geladen + läuft (PID-Check), Guardian geladen (Exit 0), `pgrep -fl bot.py` = genau eine Instanz (14.07.). **Zwischenstand Live-Tests (14.07.):** `/status` ✅, Voice/Transkription ✅, Text ✅. Noch offen: (a) Permission-Buttons — Erst-Test war Read-only (SDK fragt im default-Modus bei Lese-Tools nicht → keine Buttons ist dort erwartet), Wiederholung mit schreibender Aktion nötig; (b) Klärung „Desktop-Sitzung"-Label in Bot-Antwort (möglicher 0.4-Verstoß, Wiederholungstest mit neutraler Voice); (c) Modell stand auf Opus statt Sonnet-Default → Adam setzt per `/model sonnet` zurück.
+- **Status:** VERIFIZIERT — **am Produktivbetrieb verifiziert, Adam-Entscheid** `[2026-07-14]`: KEIN erneutes Stoppen des Bots — der vorbereitete Branch läuft seit 13.07. produktiv unter launchd; Verifikation erfolgte AM Produktivbetrieb (der Vorfall vom 12.07. entstand gerade durch den unterbrochenen manuellen Backtest).
 - **Akzeptanzkriterium:** Bot läuft vom vorbereiteten Branch einmal manuell am Mac (launchd/Guardian währenddessen gestoppt!): Text, `/status`, `/reset`, Voice, Permission-Buttons — alles wie gewohnt. Danach Mac zurück auf Produktivstand bis zum Umschalten. **Der Punkt ist erst grün, wenn launchd + Guardian wieder GELADEN sind und `pgrep -fl bot.py` genau eine laufende Instanz zeigt** — ein gestoppter Wächter darf NIE über das Test-Fenster hinaus bestehen bleiben (Vorfall 2026-07-12: Bot blieb nach unterbrochenem Backtest down, weil der Guardian planmäßig aus war und niemand neu lud).
 - **Test:** Die fünf genannten Interaktionen einzeln in Telegram.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 — Live-Tests selbst durchgeführt, Ergebnisse an führende Sitzung gemeldet.
+- **Verifiziert am:** 14.07.2026 — Belege: Wächter-Kriterium (launchd-Bot PID-Check, Guardian geladen, `pgrep -fl bot.py` = genau 1 Instanz) ✅; `/status` ✅; Text ✅; Voice/Transkription ✅; Neutralität bestätigt (Voice ohne Geräte-Nennung → Antwort ohne Kontext-Annahme; 0.4 hält) ✅; Permission-Buttons mit schreibender Aktion (ping.txt anlegen → Allow → Datei da) ✅; Modell auf Sonnet zurückgestellt (via Inline-Buttons; Erst-Test mit Read-only-Aufgabe zeigte erwartungsgemäß keine Buttons — SDK fragt im default-Modus bei Lese-Tools nicht). Erkenntnis → Backlog: kein `/model`-Textbefehl vorhanden, unbekannte Kommandos werden stumm ignoriert.
 
 ### 0.8 (Adam-Task) Master-Drehbuch der führenden Migrations-Sitzung übergeben
 - **Status:** VERIFIZIERT
@@ -106,8 +107,8 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** 13.07.2026 17:26 Uhr
 
 ### Phasen-Audit 0 → 1
-- **Audit-Status:** —
-- **Strategie-Recheck:** —
+- **Audit-Status:** ✅ 14.07.2026 — Alle Punkte 0.1–0.8 VERIFIZIERT (0.1–0.6 mit Einzelbelegen nachgezogen, 0.7 am Produktivbetrieb per Adam-Entscheid, 0.8 seit 13.07.). Ein Fund in den Backlog übertragen (unbekannte Kommandos stumm). Keine offenen Reste in Phase 0.
+- **Strategie-Recheck:** ✅ 14.07.2026 — Reihenfolge Phase 1 bleibt sinnvoll (1.0 Zugang → Härten → Runtime → Auth → Code → Dienst → Umschalten → Rollback). Zwei Mitnahmen für Phase 1: (a) aus 0.4: `CLAUDE_MEMORY_DIR` + Memory-Bestand müssen auf den VPS mitwandern (betrifft 1.7, ggf. auch 4.3); (b) aus 0.2: Neben-Inferenz `_ai_topic_label` nutzt direkt die Anthropic-API falls Key gesetzt — auf dem VPS keinen `ANTHROPIC_API_KEY` setzen (Kostenregel), Umzug auf LiteLLM in 2.6. Eintrag ins Strategie-Audit-Log unten.
 
 ---
 
@@ -672,6 +673,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - `[NEU 2026-07-12]` `/status` erweitern um aktives Modell + Session-Alter + Kontingent-Hinweis (falls nicht schon durch 5.4/5.6 abgedeckt).
 - `[NEU 2026-07-13]` **Anti-Ping-Pong strukturell lösen:** Anliegen, die bei der „falschen" Instanz eingehen, sollen automatisch richtig landen — z. B. Bot beantwortet Drehbuch-/Statusfragen selbst aus der Repo-Fassung statt zu verweisen; perspektivisch gemeinsame Aufgaben-Inbox (verwandt: 5.10 Konversations-Sync, 9.4 Approval-Hub, CLAUDE.md-Zuständigkeitsregel).
 - `[NEU 2026-07-13]` Messenger-Versand als Ausbau von 9.5 (Telegram via Bot-API machbar; WhatsApp heikel: Business-API kostenpflichtig 💰, inoffizielle Wege riskant/ToS) — erst nach stabiler E-Mail-Anbindung bewerten.
+- `[NEU 2026-07-14]` **Unbekannte Bot-Kommandos nicht stumm ignorieren** (Fund aus 0.7): `/model sonnet` blieb ohne jede Reaktion, weil kein solcher Befehl existiert und der Text-Handler Commands ausschließt. Wunsch: Catch-all für unbekannte `/…`-Kommandos mit Hinweis + ggf. `/model <name>` als Textbefehl parallel zu den Inline-Buttons.
 
 ---
 
@@ -687,7 +689,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 *Pro Phasenwechsel: kurzes Resümee + Anpassungen der Folge-Phasen.*
 
-(leer)
+- **2026-07-14 — Audit 0 → 1:** Phase 0 vollständig grün. Besonderheit: 0.7 abweichend vom Wortlaut am Produktivbetrieb verifiziert (Adam-Entscheid; der Branch lief bereits seit 13.07. produktiv — erneuter Stopp hätte nur Risiko wiederholt, das den Vorfall vom 12.07. auslöste). Folge-Phasen unverändert; zwei Mitnahmen an Phase 1/2 notiert (Memory-Umzug für 0.4-Regel → 1.7; kein `ANTHROPIC_API_KEY` auf VPS, `_ai_topic_label` → 2.6). Nächster Punkt: **1.0 Server-Zugang**.
 
 ---
 

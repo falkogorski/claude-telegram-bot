@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (13)** — **UMSCHALTUNG VOLLZOGEN (D.4):** Mac-Bot gestoppt + Plists gesichert (1.10 ✅), VPS-Dienst enabled+gestartet, Telegram verbunden ohne Konflikt, Auto-Restart-Test bestanden (1.8 ✅). Der Bot läuft jetzt produktiv auf dem VPS. Offen: 1.11 (Adam-Telegram-Tests + 48h-Kostenkontrolle), 1.12 (Rollback-Trockenlauf). 1.9 (Webhooks) bewusst später.
 - **2026-07-14 (12)** — **1.8 systemd-Unit vorbereitet (LÄUFT):** Unit installiert + `systemd-analyze verify` OK; bewusst NICHT gestartet/enabled bis zum Umschalt-Moment (Schutz des laufenden Mac-Bots vor Telegram-409). Nächstes: Umschalt-Sequenz D.4 (Mac-Stopp → VPS-Start) — Adam-Timing.
 - **2026-07-14 (11)** — **1.7 Bot-Code auf Server VERIFIZIERT:** privates Repo via Deploy-Key geklont (Server-HEAD = Mac-HEAD `60692c6`), venv mit Python 3.13 + alle Deps, SDK-Smoke-Test `query()` → `OK` (Python→SDK→Claude über Abo). Nächster Punkt: 1.8 systemd-Dienst.
 - **2026-07-14 (10)** — **1.6 Headless-Auth VERIFIZIERT:** OAuth-Token (Abo, kein API-Key) in Server-Env, `claude -p "1+1="` → `2` ohne Browser. Token-Ausstelldatum-Sidecar für 5.20 angelegt. Zudem E5 + 5.20/5.21 (proaktive Wartung/Token-Erneuerung, register-basierter Update-Monitor) ins Drehbuch aufgenommen. Nächster Punkt: 1.7 Bot-Code auf Server.
@@ -193,12 +194,12 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** 14.07.2026 — Belege: Klon nach `/home/claudebot/claude-telegram-bot` (Branch `mac-produktivstand`), Server-HEAD = Mac-HEAD `60692c6`. Zugang über read-only GitHub-**Deploy-Key** (`~/.ssh/github_deploy`, SSH-Config-Eintrag) → Server kann künftig selbst `git pull`. `models/` + `logs/` bleiben (gitignored) erhalten. **venv** unter `.venv` mit Python 3.13.5; alle `requirements.txt`-Pakete installiert, Kern-Importe (`claude_agent_sdk`, `telegram`, `anyio`) OK → 3.13-Kompatibilität bestätigt. **SDK-Smoke-Test (Anhang D.2, war offen aus 1.6) nachgeholt:** `claude_agent_sdk.query()` als `claudebot` mit Token aus Env → Antwort **`OK`** (voller Python→SDK→Claude-Pfad über Abo).
 
 ### 1.8 systemd-Dienst statt launchd
-- **Status:** LÄUFT — Unit **installiert + validiert**, Start/enable bewusst aufgeschoben.
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** `systemctl status claude-telegram-bot` = active (running); Auto-Restart nach Kill greift. (Guardian wird auf dem Server NICHT nachgebaut — `Restart=always` + bot-interner Watchdog decken das ab.)
 - **Test:** Dienst killen → spätestens nach 30 Sek. wieder active. Unit-Vorlage: Anhang D.3.
 - **Zwischenstand `[2026-07-14]`:** `/etc/systemd/system/claude-telegram-bot.service` geschrieben (exakt D.3), `daemon-reload` + `systemd-analyze verify` = **Syntax OK**. Bewusst **nicht gestartet und nicht `enable`d** — ein Start würde Polling beginnen und mit dem noch laufenden Mac-Bot kollidieren (Telegram 409). `enable` + `start` + Kill/Restart-Test erfolgen zusammen im **Umschalt-Moment (D.4 / Punkt 1.10)**. (Kleine, sicherheitsmotivierte Abweichung von D.3: auch `enable` erst beim Umschalten, damit ein ungeplanter VPS-Reboot vorher keinen Zweit-Poller startet.)
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 — „los" für den Umschalt-Moment.
+- **Verifiziert am:** 14.07.2026 — Belege: `systemctl enable --now` → **active (running)**, PID 22610, `Started claude-telegram-bot.service`; Bot verbindet Telegram (`@jakuna_cc_bot` gecached), `Application started`, kein 401/Conflict. **Auto-Restart-Test:** `kill -9` MainPID → nach ~5 s automatisch neue PID 22681, `is-active=active`, `NRestarts=1`, Telegram wieder verbunden. (Logs unter `logs/bot.{out,err}.log` per Unit-Umleitung.)
 
 ### 1.9 Polling → Webhooks (HTTPS via Caddy oder nginx)
 - **Status:** OFFEN
@@ -208,11 +209,11 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** —
 
 ### 1.10 Mac-Bot abschalten
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** `launchctl list | grep telegram-bot` leer; Guardian-Plist ebenfalls deaktiviert; Telegram-Nachricht trifft NUR VPS-Bot (kein Token-Konflikt). `[NEU 2026-07-12]` Reihenfolge am Mac: Guardian zuerst entladen (sonst startet er den Bot neu), dann Bot-Plist, dann `pkill -f bot.py`, dann `pgrep -fl bot.py` = leer. Plists in `~/Library/LaunchAgents/_deaktiviert/` verschieben, nicht löschen (Rollback!).
 - **Test:** Drei Kommandos + eine Test-Nachricht; Logs auf Mac bleiben still.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 — Einverständnis, Mac-Stopp durch führende Sitzung ausgeführt.
+- **Verifiziert am:** 14.07.2026 — Belege: Reihenfolge eingehalten (Guardian zuerst entladen, dann Bot-Plist, dann `pkill -f bot.py`); `pgrep -f bot.py` = **0**, Bot-Agents vollständig ausgebootet (verbleibender launchctl-Treffer war die Telegram-**Desktop-App**, nicht der Bot). Plists nach `~/Library/LaunchAgents/_deaktiviert/` verschoben (nicht gelöscht → Rollback). Kein Token-Konflikt: VPS-Bot pollt ohne 409. ⚠️ Guardian-Plist am Mac ist mitdeaktiviert — beim etwaigen Rollback (1.12) beide Plists zurückladen.
 
 ### 1.11 Abschlusstest Phase 1
 - **Status:** OFFEN

@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (8)** — **1.4 Whisper medium VERIFIZIERT + F2 entschieden (medium):** medium klar genauer bei Deutsch, Laufzeit ~45–48 s/30-Sek-Probe (unter 60-Sek-Schwelle). Offen bis 1.6: `WHISPER_MODEL_PATH` in Server-Env auf medium setzen. Nächster Punkt: 1.5 globales claude-CLI.
 - **2026-07-14 (7)** — **1.3 Python/ffmpeg/whisper.cpp VERIFIZIERT:** Python 3.13.5 (Adam-Entscheid statt 3.12, siehe 1.3), ffmpeg 7.1.5, whisper.cpp gebaut; gemischt de/en-Transkription wortgenau. `small`-Modell liegt am Modellpfad. Nächster Punkt: 1.4 Modell-Upgrade small → medium.
 - **2026-07-14 (6)** — **1.2 User `claudebot` VERIFIZIERT:** unprivilegiert (kein sudo), eigenes Home, Key-Login. Nächster Punkt: 1.3 Python 3.12 / ffmpeg / whisper.cpp (Build).
 - **2026-07-14 (5)** — **1.1 System härten VERIFIZIERT:** full-upgrade sauber, `ufw` active (nur 22/tcp), `fail2ban` aktiv (bannte live einen Brute-Force-Bot), `unattended-upgrades` mit Security-Origins scharf. Nächster Punkt: 1.2 User `claudebot`.
@@ -157,11 +158,12 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** 14.07.2026 — Belege: `python3` = 3.13.5; `ffmpeg` = 7.1.5; whisper.cpp als `claudebot` gebaut (`/home/claudebot/whisper.cpp/build/bin/whisper-cli`, global verlinkt `/usr/local/bin/whisper-cli`); Transkription einer gemischt de/en-Sprachprobe (small-Modell, `-l auto`) **wortgenau inkl. Umlaute**. Hinweis: `small`-Modell liegt bereits unter `/home/claudebot/claude-telegram-bot/models/ggml-small.bin` (Basis für 1.4-Upgrade).
 
 ### 1.4 Whisper-Modell-Upgrade small → medium
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** `ggml-medium.bin` (~1,5 GB) am Modellpfad; Bot-Konfig nutzt es; vergleichende Transkription deutlich präziser als mit small. `[NEU 2026-07-12]` Zusätzlich: Laufzeit pro 30-Sek.-Probe auf VPS-CPU messen und festhalten; wird sie praxisuntauglich (> ~60 s), Entscheidung small vs. medium mit Adam (F2).
 - **Test:** Eine deutsche und eine englische Sprachprobe (~30 Sek.) transkribieren, Output gegen small-Lauf vergleichen + Laufzeit notieren.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 — **F2 entschieden: medium.** (Deutsch ist Hauptsprache; ~15–30 s Wartezeit bei kurzen Nachrichten akzeptabel.)
+- **Verifiziert am:** 14.07.2026 — Belege: `ggml-medium.bin` (1,5 GB) unter `/home/claudebot/claude-telegram-bot/models/`; Vergleich small vs. medium auf VPS-CPU (`-t 4`): **Laufzeit** medium 48 s (de, 34 s Probe) / 45 s (en, 31 s Probe) — **unter der 60-Sek-Schwelle**, small 17 s / 13 s; **Genauigkeit** medium klar besser bei Deutsch (Umlaute ä/ö/ü korrekt, alle Sätze vollständig; small verwechselt ä→„er" und verschluckt Wörter im letzten Satz).
+- **⚠️ Konfig-Anbindung → offen bis 1.6:** Der Bot liest den Modellpfad aus `WHISPER_MODEL_PATH` (transcribe.py; Default sonst `models/ggml-small.bin`). In die Server-Env (`/etc/claude-telegram-bot.env`, Punkt 1.6) muss: `WHISPER_MODEL_PATH=/home/claudebot/claude-telegram-bot/models/ggml-medium.bin`. Endgültiger End-to-End-Nachweis („Bot nutzt medium") beim Bot-Smoke-Test.
 
 ### 1.5 Globales claude-CLI
 - **Status:** OFFEN

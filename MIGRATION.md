@@ -23,6 +23,7 @@ metadata:
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
+- **2026-07-14 (5)** — **1.1 System härten VERIFIZIERT:** full-upgrade sauber, `ufw` active (nur 22/tcp), `fail2ban` aktiv (bannte live einen Brute-Force-Bot), `unattended-upgrades` mit Security-Origins scharf. Nächster Punkt: 1.2 User `claudebot`.
 - **2026-07-14 (4)** — **1.0 VERIFIZIERT → Phase 1 gestartet.** VPS war nicht frisch (33d Uptime, Root-PW unbekannt) → sauberer Reinstall Debian 13.6 UEFI Minimal mit SSH-Key + deaktivierter Passwort-Auth. Key-Login verifiziert, Fingerprints gegen Netcup-Panel abgeglichen, Alias `claudevps` in `~/.ssh/config`. Nächster Punkt: 1.1 System härten.
 - **2026-07-14 (3)** — **0.7 VERIFIZIERT (am Produktivbetrieb, Adam-Entscheid) → Phase 0 KOMPLETT; Phasen-Audit 0→1 bestanden.** Live-Tests durch Adam alle grün; Modell zurück auf Sonnet; Backlog-Fund: unbekannte Kommandos stumm ignoriert. Nächster Punkt: 1.0 Server-Zugang.
 - **2026-07-14 (2)** — **0.1–0.6 VERIFIZIERT** (Akzeptanzkriterien einzeln geprüft: Zeilenzahl/Hash, Audit-Greps, py_compile, env-Pfade/Modell; Belege je Punkt). **0.7 auf LÄUFT:** Adam-Entscheid — Verifikation am Produktivbetrieb statt erneutem Stopp; Wächter-Kriterium (launchd+Guardian geladen, pgrep = 1 Instanz) bereits erfüllt, Live-Tests durch Adam offen.
@@ -133,11 +134,11 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Ausgangslage-Hinweis `[NEU 2026-07-14]`:** Der VPS war NICHT frisch (33 Tage Uptime, unbekanntes Root-Passwort — SCP-Resets griffen nicht). Lösung: sauberer **Reinstall Debian 13.6 UEFI (Minimal)** über SCP → Medien → Images, mit vorab hinterlegtem SSH-Key (`mac-adam` im SCP) und **deaktivierter SSH-Passwort-Authentifizierung** (Härtung 1.1 damit vorweggenommen). Sprache `en_US.UTF-8` (bessere Log-Diagnose), Zeitzone Europe/Berlin. Kein Zusatz-User (kommt in 1.2 als `claudebot`).
 
 ### 1.1 System härten (Updates, ufw, fail2ban, unattended-upgrades)
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** `apt-get upgrade` ohne offene Pakete; `ufw status` = active mit nur den freigegebenen Ports; `fail2ban-client status` läuft; `unattended-upgrades --dry-run` zeigt aktive Konfiguration.
 - **Test:** SSH auf VPS, vier Kommandos ausführen, jeweils erwartete Ausgabe sichten.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 14.07.2026 (Freigabe „Ja bitte", von führender Sitzung ausgeführt)
+- **Verifiziert am:** 14.07.2026 — Belege: `full-upgrade` = 0 ausstehende Pakete; `ufw` active, nur `22/tcp` (SSH) offen (IPv4+IPv6), Default deny incoming; `fail2ban` active, sshd-Jail (systemd/journald-Backend) mit bantime 1h/maxretry 5 — bannte live bereits Angreifer-IP `91.92.40.36`; `unattended-upgrades` enabled, Periodic 1/1, Origins Debian + Debian-Security, Dry-run bestätigt aktive Config; apt-daily/-upgrade-Timer active. **Hinweis:** SSH-Passwort-Auth war bereits beim Reinstall (1.0) deaktiviert.
 
 ### 1.2 Unprivilegierter User claudebot
 - **Status:** OFFEN

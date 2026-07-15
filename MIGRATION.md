@@ -24,6 +24,7 @@ metadata:
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
 - **➡️ NÄCHSTE SITZUNG (Adam 14.07. abends):** Weiter mit **5.22** (Transkriptions-Tempo / STT-Schnellumschalter) und **5.23** (Session-Start-Diät) — Ziel: schnellere Antworten im Alltag. Diese vor Phase 2 ziehen. Konkrete Quick Wins für 5.22 stehen dort (Threads 2→4, Modell-Umschalter, Bot-Selbstverortung korrigieren). (48h-Kostenkontrolle 1.11 läuft nebenher — automatischer Telegram-Reminder aktiv.)
+- **2026-07-15 (4)** — **Robustere Kontext-Behandlung + Ampel-Regelverwaltung (`e2ff813`, Adam-Spec):** (A1) Kontext-Überlauf → Session auto-verwerfen + Nachricht automatisch neu (Statuszeile, kein Verlust); (A3) Skill-Ladungen in Bot-Sessions abgelehnt (Kontextschutz); (B) `/ampel regeln|rot|gelb|weg` — Regelverwaltung rein lokal ohne Claude (Klienten-Namen nie in die Cloud), Log zeigt Label. Neu: **5.24** (proaktive Rotation ~80 %) ins Drehbuch; **4.1** um Backup der lokalen Nicht-Git-Dateien (env, Memory, Ampel-Regeln) ergänzt.
 - **2026-07-15 (3)** — **Phase 2 gestartet:** 2.1 LiteLLM-Proxy ✅, 2.3 Ollama+Phi-4-Mini ✅ (LiteLLM-Route 1 s), 2.2 Datenschutz-Ampel als **Beobachtungsphase** live (regelbasiert, nur Log, kein Umrouten; Ende 4W4T4h/444 → dann Trimmen + Enforcement mit `!cloud`/`!lokal`-Overrides). Modell-Einstufung → Backlog.
 - **2026-07-15 (2)** — **5.23 Session-Diät implementiert + E2E bewiesen:** Memory-Loader lädt nur Kern (Identität+Verhaltensregeln+Index), Projekt/Referenz on-demand (Agent liest via Read, Memory-Ordner via `add_dirs`, Lesen ohne Rückfrage). VPS-Messung: Kern-Frage 4,2 s, On-demand 7,3 s (Read genutzt, korrekt) — erste Session-Antwort ~60 s→~4 s. Adam-Telegram-Test offen.
 - **2026-07-15** — **5.22 VERIFIZIERT (Adam: „funktioniert sehr gut"):** Threads-Fix (medium 47→25 s) + STT-Umschalter 🎙️ Genau/Flott live.
@@ -329,8 +330,8 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 ### 4.1 Tägliches Backup VPS → Mac (rsync, switch-fähig)
 - **Status:** OFFEN
-- **Akzeptanzkriterium:** Cron-Job läuft täglich; Ziel in Config-Datei konfigurierbar; Trockenlauf zeigt erwartete Dateien.
-- **Test:** Eine Testdatei auf VPS, Backup auslösen, Datei am Mac suchen.
+- **Akzeptanzkriterium:** Cron-Job läuft täglich; Ziel in Config-Datei konfigurierbar; Trockenlauf zeigt erwartete Dateien. `[NEU 2026-07-15]` **Muss die NICHT-in-Git-liegenden lokalen Dateien einschließen:** `/etc/claude-telegram-bot.env`, `/etc/claude-telegram-bot.token-issued`, das **Bot-Gedächtnis** `/home/claudebot/.claude/memory/`, und die **Ampel-Regeldateien** `/home/claudebot/.claude/ampel_rules.toml` + `/home/claudebot/.claude/ampel_custom.json` (enthält Klienten-Namen — nur lokal!). Diese sind sonst nirgends gesichert.
+- **Test:** Eine Testdatei auf VPS, Backup auslösen, Datei am Mac suchen. Plus: Ampel-Regeldatei + Memory im Backup vorhanden.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
@@ -541,6 +542,14 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Hintergrund:** Erste Antwort einer frischen Session dauerte ~1 Min (Adam, 14.07., 20:53) — Hauptanteil: kompletter Memory-Bestand (280 KB ≈ 70k Token) wird bei JEDEM Session-Start als Kontext eingelesen (seit Fix `bc48004` via CLAUDE.md-Datei). Verschärft sich mit wachsendem Memory. 💰 Kostet zudem Abo-Kontingent pro Session-Start.
 - **Akzeptanzkriterium:** Session-Start lädt nur einen schlanken Kern (Identität/Präferenzen/aktive Projekte + MEMORY.md-Index, Ziel < 30 KB); alles Weitere liest der Agent bei Bedarf selbst per Read-Tool aus `CLAUDE_MEMORY_DIR` (Index verweist auf die Dateien). Erste Antwort einer frischen Session spürbar schneller (Ziel: < 30 s bei einfacher Frage); Gedächtnis-Qualität bleibt (Stichproben-Fragen wie 14.07. weiterhin korrekt).
 - **Test:** Frische Session, einfache Frage → Latenz messen (vorher/nachher); danach Detail-Frage, deren Antwort NUR in einer nachgelagerten Memory-Datei steht → Agent liest nach und antwortet korrekt.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
+### 5.24 Proaktive Session-Rotation bei Füllstand ~80 % (mit Übergabe) `[NEU 2026-07-15]`
+- **Status:** OFFEN
+- **Hintergrund:** Reaktive Auto-Recovery bei Kontext-Überlauf ist umgesetzt (15.07., `is_context_overflow` → Session verwerfen + Nachricht automatisch neu, Statuszeile „📏 Kontext war voll …"; Skill-Ladungen in Bot-Sessions abgelehnt). **Vorbeugung fehlt noch:** bevor das Fenster voll ist, sanft rotieren.
+- **Akzeptanzkriterium:** Session-Füllstand wird aus den **Usage-Daten des SDK** (`ResultMessage`/Token-Zähler) mitgeführt; ab **~80 %** proaktiv neue Session mit **Übergabe-Zusammenfassung** (kurzer Kontext-Übertrag), transparent für Adam, ohne Antwortverlust. Passt zu 5.1 (Multi-Session), 5.2 (Queue/Persistenz), 5.18 (Watchdog).
+- **Test:** Lange Session künstlich füllen → Rotation greift vor dem harten Überlauf; Folgeantwort kennt den Gesprächsfaden noch.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

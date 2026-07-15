@@ -275,24 +275,26 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** 15.07.2026 — Belege: Ollama **0.32.0** als systemd-Dienst (eigener unprivilegierter User `ollama`, CPU-Modus, `127.0.0.1:11434`, active+enabled); `phi4-mini` (2,5 GB) geladen; Direkt-Inferenz „Paris." (7 s inkl. Erst-Ladung); **über LiteLLM-Route `local` → „Vier." in 1 s** (= zugleich Test-Inferenz für 2.1). Script vor Ausführung analysiert (nur offizielle Quelle, kein GPU/CUDA nötig).
 
 ### 2.4 Groq als Cloud-Fallback (nur grün/gelb)
-- **Status:** OFFEN
+- **Status:** BEWUSST ÜBERSPRUNGEN (Adam 15.07.) — jederzeit nachrüstbar.
 - **Akzeptanzkriterium:** Groq-API-Key in LiteLLM eingetragen; Route aktiv; rote Anfragen werden hier explizit verweigert. `[NEU 2026-07-12]` 💰 Groq ist ein bezahlter/limitierter Fremd-Dienst — vor Einrichtung Kosten/Free-Tier mit Adam bestätigen (Kostenregel).
-- **Test:** Eine grüne Anfrage mit Groq-Route + eine rote Anfrage prüfen (rot → Block).
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **💰-Prüfung erledigt (15.07.):** Groq Free-Tier ist **kostenlos ohne Kreditkarte** (nur Rate-Limits: 30 RPM / 6.000 TPM / **1.000 Anfragen/Tag** pro Org; Kosten nur bei freiwilligem Karten-Hinterlegen). Für Einzelnutzer-Neben-Inferenzen weit ausreichend, kein Kostenrisiko.
+- **Adam-Entscheid 15.07.:** **Vorerst überspringen** — Neben-Inferenzen laufen alle über das lokale Phi-4-Mini (maximal privat, keine externe Abhängigkeit, kein Key zu verwalten). **Merker:** Bei **2.6** (Verkabelung) und spätestens **5.14** (Link-Inbox) neu bewerten, ob Phi-4-Mini für **längere Zusammenfassungen** qualitativ reicht; falls nicht → Groq gezielt nachrüsten (Free-Tier ohne Karte ist bestätigt).
 
 ### 2.5 Kein OpenAI im Stack
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** Keine OpenAI-Route in LiteLLM, kein OpenAI-Key gesetzt.
 - **Test:** `litellm` Routenliste durchgehen.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Verifiziert am:** 15.07.2026 — LiteLLM-Config hat nur die `local`-Route (Ollama); kein `OPENAI` in Config, Env-Datei oder Shell-Env. Zusätzlich: letzte direkte Anthropic-API-Nutzung aus dem Bot-Code entfernt (2.6) — kein Cloud-KI-Provider außer dem Abo-SDK (Haupt-Agent) im Stack.
+- **Adam-Bestätigung:** ✅ implizit (Grundsatz E-Werte, „kein OpenAI im Stack").
 
 ### 2.6 Neben-Inferenzen des Bots auf LiteLLM umstellen (F1 entschieden)
 - **Status:** OFFEN
 - ~~**Akzeptanzkriterium (Original):** Bot ruft Inferenzen nur noch über LiteLLM auf (kein direkter Anthropic-Endpoint im Code); Modellwahl funktioniert wie zuvor.~~ `[GESTRICHEN 2026-07-12 — hätte Claude-Verkehr vom Abo auf die bezahlte API verlagert und den Agent-Modus gebrochen]`
 - **Akzeptanzkriterium:** Neben-Inferenzen des Bots (Ampel-Klassifizierung, Link-/Video-Zusammenfassungen, TTS-Vorstufen) laufen über LiteLLM (Ollama/Groq); der Claude-Agent (Kern-Sessions mit Tools/Permissions) bleibt direkt am Abo-SDK (`CLAUDE_CODE_OAUTH_TOKEN`). Kein `ANTHROPIC_API_KEY` im Stack. Rote Anfragen werden VOR dem Agenten abgefangen und lokal beantwortet.
 - **Test:** Eine Anfrage in Telegram → LiteLLM-Log zeigt Treffer (für Neben-Inferenz); Agent-Anfrage läuft weiter über SDK; Usage-Konsole (console.anthropic.com) bleibt bei 0.
+- **Status:** LÄUFT — Kern umgesetzt, Entscheidung zu langen Zusammenfassungen offen.
+- **Umsetzung 15.07. (`bfdeae1`):** Helfer `_litellm_complete()` (ruft lokalen LiteLLM-Proxy, nie den Agenten). **`_ai_topic_label` (TTS-Kapitel-Labels) auf lokal umgestellt** → **letzte direkte Anthropic-API-Nutzung (`ANTHROPIC_API_KEY`) aus dem Code entfernt**; Label-Erzeugung wieder aktiv (lokal, ohne Key). Live getestet: Label kam über Ollama. Ampel-Klassifizierung ist regelbasiert (kein LLM-Call) → noch privater.
+- **⚠️ Offene Entscheidung — lange Zusammenfassungen** (`_summarize_pdf_direct`, künftig Link-/Video-Summaries 5.14): Qualitätstest 15.07. zeigte, dass **Phi-4-Mini für längere Zusammenfassungen unzuverlässig** ist (inhaltlicher Kern gut, aber entgleist danach — Prompt-Template wiederholt/laberte). Daher **vorerst auf dem Abo-SDK belassen** (hohe Qualität, kostenneutral = Abo). Neubewertung bei **5.14**: entweder Phi-4-Mini per Prompt/Stop-Sequenzen zähmen ODER Groq-Free-Tier nachrüsten (bestätigt kostenlos). Bis dahin bewusste, qualitätsgetriebene Abweichung von „alle Neben-Inferenzen via LiteLLM".
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

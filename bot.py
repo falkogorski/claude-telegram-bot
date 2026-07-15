@@ -48,6 +48,7 @@ from claude_agent_sdk import (
 import tempfile
 
 from transcribe import Transcriber, build_transcriber
+import ampel
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -1313,6 +1314,34 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("\n".join(lines))
 
 
+async def cmd_ampel(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Kennzahlen der Datenschutz-Ampel-Beobachtungsphase (2.2)."""
+    if not authorized(update):
+        return
+    st = ampel.status()
+    L = ["🚦 Datenschutz-Ampel — Beobachtungsphase",
+         "(nur Einstufung + Protokoll, noch KEIN Umrouten)", ""]
+    L.append(f"Eingestuft: {st['count']} / {st['max_count']} Nachrichten")
+    if st.get("end_ts"):
+        end = time.strftime("%d.%m.%Y %H:%M", time.localtime(st["end_ts"]))
+        rem = max(0.0, (st["end_ts"] - time.time()) / 86400)
+        L.append(f"Phase endet: {end} (in ~{rem:.1f} Tagen) — oder bei {st['max_count']} Nachrichten")
+    else:
+        L.append("Phase startet mit der ersten eingestuften Nachricht.")
+    c = st["colors"]
+    L += ["", f"Verteilung: 🔴 {c.get('rot',0)}   🟡 {c.get('gelb',0)}   🟢 {c.get('gruen',0)}"]
+    if st["top_rules"]:
+        L.append("")
+        L.append("Häufigste Regel-Treffer:")
+        for r, n in st["top_rules"]:
+            L.append(f"  • {r}: {n}")
+    rf = "vorhanden" if st["rules_file_exists"] else "eingebaute Defaults (Datei fehlt)"
+    L += ["", f"Regeldatei: {rf}"]
+    if st["phase_over"]:
+        L += ["", "⚠️ Beobachtungsphase ABGELAUFEN — Auswertung + Enforcement stehen an."]
+    await update.message.reply_text("\n".join(L))
+
+
 async def cmd_usage(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
@@ -2538,6 +2567,15 @@ async def process_user_text(
     (z.B. die Transkriptions-Nachricht statt der reinen Sprachnachricht).
     """
     user_id = update.effective_user.id
+
+    # Datenschutz-Ampel (2.2, BEOBACHTUNGSPHASE): jede Nachricht einstufen +
+    # protokollieren — noch KEIN Umrouten. Enforcement (rot → lokal) folgt erst
+    # nach der Auswertung. observe() ist selbst fehlertolerant.
+    try:
+        ampel.observe(text, meta={"user_id": user_id, "force_tts": force_tts})
+    except Exception:
+        log.exception("Ampel-observe übersprungen (nicht-fatal)")
+
     mb = _get_mailbox(user_id)
     job = QueuedJob(
         update=update,
@@ -4046,6 +4084,7 @@ def main() -> None:
     app.add_handler(CommandHandler("quiet", cmd_quiet))
     app.add_handler(CommandHandler("verbose", cmd_verbose))
     app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("ampel", cmd_ampel))
     app.add_handler(CommandHandler("usage", cmd_usage))
     app.add_handler(CommandHandler("hilfe", cmd_hilfe))
     app.add_handler(CommandHandler("restart", cmd_restart))

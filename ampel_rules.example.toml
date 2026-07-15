@@ -1,0 +1,36 @@
+# ============================================================================
+# Datenschutz-Ampel — Regeln (Migrations-Punkt 2.2)
+# ============================================================================
+# VORLAGE. Die ECHTE Datei liegt lokal auf dem Server unter
+#   /home/claudebot/.claude/ampel_rules.toml   (Pfad via AMPEL_RULES_PATH)
+# und wird NICHT nach Git committet (enthält u. U. Klienten-Namen).
+#
+# Beobachtungsphase (jetzt): Regeln dürfen bewusst BREIT sein — Fehlalarme
+# kosten nichts (es wird noch nicht umgeroutet) und liefern Lerndaten.
+# VOR dem Enforcement werden die Regeln anhand der Log-Auswertung eng getrimmt.
+#
+# Format: Abschnitte [rot.*] und [gelb.*]. Höchste Sensibilität gewinnt
+# (rot > gelb > grün). Alles ohne Treffer = grün.
+# Live editierbar: Änderungen greifen ohne Bot-Neustart (Datei-mtime-Cache).
+# ============================================================================
+
+[rot.regex]
+# Reguläre Ausdrücke (auf den Originaltext, Groß/Klein beachtet)
+IBAN        = '\b[A-Z]{2}\d{2}[ ]?(?:[A-Za-z0-9][ ]?){10,30}\b'
+Kontonummer = '\b\d{8,12}\b'
+Kreditkarte = '\b(?:\d[ -]?){13,16}\b'
+
+[rot.keywords]
+# Stichwörter (Teilstring, Groß/Klein egal)
+Gesundheit   = ["diagnose", "befund", "medikament", "krankheit", "therapie", "arztbrief", "rezept", "blutwert", "psych", "symptom"]
+Zugangsdaten = ["passwort", "api-key", "api key", "secret", "token", "zugangsdaten", "geheimzahl", "private key", "seed phrase"]
+Finanzen     = ["kontostand", "gehalt", "umsatz", "schulden", "kredit", "steuererklärung", "einkommen", "vermögen"]
+
+[rot.klienten]
+# Echte Klienten-Namen NUR in der lokalen Datei auf dem VPS eintragen.
+# Beispiel: namen = ["Max Mustermann", "Erika Beispiel"]
+namen = []
+
+[gelb.keywords]
+Kontaktdaten = ["adresse", "telefonnummer", "handynummer", "e-mail-adresse", "geburtsdatum", "geburtstag"]
+Persoenlich  = ["beziehung", "familie", "privat", "vertraulich"]

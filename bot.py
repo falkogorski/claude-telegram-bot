@@ -125,8 +125,32 @@ _MEMORY_CACHE: str | None = None
 _MEMORY_MTIME: float = 0.0
 
 
+# Session-Diät (5.23): Diese Typen werden IMMER voll geladen (Identität +
+# Verhaltensregeln — dürfen nie fehlen). Alles andere (project/reference =
+# dickes Detailwissen) wird nur als "bei Bedarf nachlesen"-Liste referenziert.
+_MEMORY_ALWAYS_TYPES = {"user", "feedback", ""}
+
+
+def _read_memory_file(path: Path) -> tuple[str, str]:
+    """Gibt (type, Body-ohne-Frontmatter) einer Memory-Datei zurück."""
+    import re
+    text = path.read_text(encoding="utf-8")
+    mtype = ""
+    if text.startswith("---"):
+        end = text.find("---", 3)
+        if end >= 0:
+            m = re.search(r"^\s*type:\s*([A-Za-z_]+)", text[3:end], re.MULTILINE)
+            if m:
+                mtype = m.group(1).strip().lower()
+            text = text[end + 3:].lstrip("\n")
+    return mtype, text.strip()
+
+
 def load_user_memory() -> str:
-    """Liest alle Memory-Dateien als Kontext-String; gecacht bis MEMORY.md sich ändert."""
+    """Lädt einen schlanken Kern (Identität + Verhaltensregeln + Index) voll;
+    dickes Projekt-/Referenzwissen wird als 'bei Bedarf nachlesen'-Liste
+    referenziert, statt bei jedem Session-Start ~280 KB vorzuladen
+    (Session-Diät 5.23). Gecacht bis MEMORY.md sich ändert."""
     global _MEMORY_CACHE, _MEMORY_MTIME
     import re
     index_path = _MEMORY_DIR / "MEMORY.md"
@@ -137,21 +161,38 @@ def load_user_memory() -> str:
         if _MEMORY_CACHE is not None and mtime == _MEMORY_MTIME:
             return _MEMORY_CACHE
         index = index_path.read_text(encoding="utf-8")
-        parts: list[str] = ["# Nutzer-Kontext (persistente Memory)\n"]
-        for match in re.finditer(r"\[.*?\]\(([^)]+\.md)\)", index):
-            mem_file = _MEMORY_DIR / match.group(1)
+        core: list[str] = [
+            "# Nutzer-Kontext — Kern (Identität & Verhaltensregeln, gelten IMMER)\n"
+        ]
+        ondemand: list[str] = []
+        for m in re.finditer(
+            r"\[([^\]]*)\]\(([^)]+\.md)\)[ \t]*(?:[—-][ \t]*([^\n]*))?", index
+        ):
+            title, fname, hook = m.group(1), m.group(2), (m.group(3) or "").strip()
+            mem_file = _MEMORY_DIR / fname
             if not mem_file.exists():
                 continue
-            text = mem_file.read_text(encoding="utf-8")
-            if text.startswith("---"):
-                end = text.find("---", 3)
-                if end >= 0:
-                    text = text[end + 3:].lstrip("\n")
-            parts.append(text.strip())
+            mtype, body = _read_memory_file(mem_file)
+            if mtype in _MEMORY_ALWAYS_TYPES:
+                core.append(body)
+            else:
+                ondemand.append(f"- **{title}** — {hook}\n  → Datei: {mem_file}")
+        parts = ["\n\n---\n\n".join(core)]
+        if ondemand:
+            parts.append(
+                "# WEITERES GEDÄCHTNIS — BEI BEDARF NACHLESEN (bewusst NICHT vorgeladen)\n"
+                "Folgende Themen (v. a. Projekt-Details) liegen als einzelne Dateien im "
+                "Memory-Ordner und sind aus Tempo-Gründen NICHT vorgeladen. Sobald du für "
+                "die aktuelle Aufgabe Details zu einem Punkt brauchst, lies die genannte "
+                "Datei mit dem Read-Tool — der Zugriff auf diesen Ordner ist ohne Rückfrage "
+                "erlaubt. Rate nicht, wenn das Detail hier liegt: lies nach.\n\n"
+                + "\n".join(ondemand)
+            )
         _MEMORY_CACHE = "\n\n---\n\n".join(parts)
         _MEMORY_MTIME = mtime
         return _MEMORY_CACHE
     except Exception:
+        logging.getLogger("claude-tg-bot").exception("load_user_memory (lean) fehlgeschlagen")
         return ""
 
 
@@ -879,6 +920,20 @@ def make_permission_callback(user_id: int):
         if tool_name in sess.always_allowed_tools:
             return PermissionResultAllow()
 
+        # Session-Diät (5.23): Lesen im Memory-Ordner ohne Rückfrage erlauben —
+        # der Agent lädt Detailwissen bei Bedarf selbst nach (nur lesend, eigener
+        # Memory-Ordner, kein Risiko).
+        if tool_name in ("Read", "Grep", "Glob"):
+            raw = tool_input.get("file_path") or tool_input.get("path") or ""
+            try:
+                if raw:
+                    p = Path(raw).expanduser().resolve()
+                    md = _MEMORY_DIR.resolve()
+                    if p == md or md in p.parents:
+                        return PermissionResultAllow()
+            except Exception:
+                pass
+
         request_id = uuid.uuid4().hex[:8]
         loop = asyncio.get_running_loop()
         fut: asyncio.Future = loop.create_future()
@@ -1061,12 +1116,16 @@ async def ensure_session(user_id: int) -> UserSession:
     model_full = _MODEL_ALIASES.get(model_short, model_short)  # vollständige SDK-ID
     effort = user_prefs.get("effort", None)
     context_via_file = _write_context_claude_md(context)
+    # Memory-Ordner mitgeben, damit der Agent Detailwissen bei Bedarf nachlesen
+    # kann (Session-Diät 5.23) — liegt außerhalb des WORKDIR.
+    add_dirs = [str(_MEMORY_DIR)] if _MEMORY_DIR.exists() else []
     options = ClaudeAgentOptions(
         cwd=str(WORKDIR),
         permission_mode="default",
         can_use_tool=make_permission_callback(user_id),
         model=model_full,
         effort=effort,
+        add_dirs=add_dirs,
         setting_sources=["project"] if context_via_file else None,
         system_prompt={
             "type": "preset",

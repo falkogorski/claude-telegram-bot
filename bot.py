@@ -3692,42 +3692,62 @@ def _caption_topic(chunk_clean: str, max_words: int = 7) -> str:
     return ""
 
 
-async def _ai_topic_label(text: str, max_words: int = 7) -> str:
-    """Kurzes Inhalts-Thema (3-6 Wörter) für einen Abschnitt per Anthropic-API.
+# ---------- Neben-Inferenzen über LiteLLM (2.6, F1-Leitplanke) ----------
+# Kleine Hilfs-Inferenzen (Kapitel-Labels etc.) laufen über den lokalen
+# LiteLLM-Proxy (→ Ollama/Phi-4-Mini), NICHT über den Claude-Agenten/das Abo.
+LITELLM_BASE_URL = os.environ.get("LITELLM_BASE_URL", "http://127.0.0.1:4000")
+LITELLM_LOCAL_MODEL = os.environ.get("LITELLM_LOCAL_MODEL", "local")
 
-    Fällt bei fehlendem Key oder jedem Fehler still auf "" zurück (kein Label statt
-    Stichwort-Salat — weniger ist mehr), damit das Vorlesen nie blockiert. ACHTUNG:
-    schickt den Abschnitt an die Cloud-KI → nur für grün/gelb. Beim Vorlesen verlässt
-    der Text den Rechner ohnehin schon via edge-tts (Microsoft).
+
+async def _litellm_complete(user: str, system: str = "", max_tokens: int = 256,
+                            model: str | None = None) -> str:
+    """Neben-Inferenz über den lokalen LiteLLM-Proxy. Nie der Haupt-Agent.
+
+    Fällt bei JEDEM Fehler still auf "" zurück — Neben-Inferenzen dürfen den Bot
+    nie blockieren. Rote Daten haben hier ohnehin nichts verloren (Aufrufer prüfen).
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        return ""
+    import httpx
+    msgs: list[dict] = []
+    if system:
+        msgs.append({"role": "system", "content": system})
+    msgs.append({"role": "user", "content": user})
+    payload = {
+        "model": model or LITELLM_LOCAL_MODEL,
+        "messages": msgs,
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+    }
     try:
-        import anthropic
-        client = anthropic.AsyncAnthropic(api_key=api_key)
-        try:
-            message = await client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=24,
-                system=(
-                    "Du benennst das Hauptthema eines Textabschnitts in 3 bis 7 deutschen "
-                    "Wörtern — wie eine knappe, in sich abgeschlossene Kapitelüberschrift, "
-                    "die den Inhalt erkennbar macht und nicht abgeschnitten wirkt. Gib NUR "
-                    "die Überschrift aus, ohne Anführungszeichen und ohne Satzzeichen am Ende."
-                ),
-                messages=[{"role": "user", "content": f"Worum geht es in diesem Abschnitt?\n\n{text[:2000]}"}],
-            )
-        finally:
-            await client.close()
-        label = " ".join((message.content[0].text or "").split()).strip(' "„“.')
-        if not label:
-            return ""
-        words = label.split()
-        return " ".join(words[:max_words]) if len(words) > max_words else label
+        async with httpx.AsyncClient(timeout=90) as c:
+            r = await c.post(f"{LITELLM_BASE_URL}/v1/chat/completions", json=payload)
+            r.raise_for_status()
+            data = r.json()
+            return (data["choices"][0]["message"]["content"] or "").strip()
     except Exception:
-        log.exception("KI-Themenlabel fehlgeschlagen — kein Label")
+        log.exception("LiteLLM-Neben-Inferenz fehlgeschlagen")
         return ""
+
+
+async def _ai_topic_label(text: str, max_words: int = 7) -> str:
+    """Kurzes Inhalts-Thema (3-7 Wörter) für einen Abschnitt — via lokales Modell
+    (LiteLLM/Ollama, 2.6), NICHT über das Abo. Still auf "" bei jedem Fehler,
+    damit das Vorlesen nie blockiert.
+    """
+    system = (
+        "Du benennst das Hauptthema eines Textabschnitts in 3 bis 7 deutschen "
+        "Wörtern — wie eine knappe, in sich abgeschlossene Kapitelüberschrift, "
+        "die den Inhalt erkennbar macht und nicht abgeschnitten wirkt. Gib NUR "
+        "die Überschrift aus, ohne Anführungszeichen und ohne Satzzeichen am Ende."
+    )
+    out = await _litellm_complete(
+        user=f"Worum geht es in diesem Abschnitt?\n\n{text[:2000]}",
+        system=system, max_tokens=24,
+    )
+    label = " ".join(out.split()).strip(' "„“.')
+    if not label:
+        return ""
+    words = label.split()
+    return " ".join(words[:max_words]) if len(words) > max_words else label
 
 
 async def _send_pdf_chapters_tts(

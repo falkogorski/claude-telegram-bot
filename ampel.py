@@ -42,6 +42,12 @@ _STATE_PATH = Path(
     os.environ.get("AMPEL_STATE_PATH")
     or str(Path(__file__).parent / "logs" / "ampel_state.json")
 )
+# Vom Nutzer per /ampel-Kommando gepflegte Regeln (z. B. Klienten-Namen).
+# Bewusst als eigene, leicht schreibbare JSON-Datei — lokal, NIE in Git/Cloud.
+_CUSTOM_PATH = Path(
+    os.environ.get("AMPEL_CUSTOM_PATH")
+    or str(Path.home() / ".claude" / "ampel_custom.json")
+)
 
 # Eingebaute Default-Regeln (greifen, falls keine Regeldatei existiert).
 # Bewusst breit für die Beobachtungsphase.
@@ -115,15 +121,33 @@ def _rules() -> dict:
     return _RULES_CACHE
 
 
+def _load_custom() -> dict:
+    try:
+        if _CUSTOM_PATH.is_file():
+            d = json.loads(_CUSTOM_PATH.read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                return d
+    except Exception:
+        log.exception("Ampel-Custom-Regeln nicht ladbar")
+    return {"rot": [], "gelb": []}
+
+
+def _save_custom(d: dict) -> None:
+    _CUSTOM_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _CUSTOM_PATH.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def classify(text: str) -> dict:
     """Stuft einen Text ein. Gibt {color, rules:[...], matches:[(rule, snippet)]}.
 
     color: 'rot' | 'gelb' | 'gruen'. Bei mehreren Treffern gewinnt die höchste
-    Sensibilität (rot > gelb > grün).
+    Sensibilität (rot > gelb > grün). Berücksichtigt Basis-Regeln (TOML) UND
+    per /ampel gepflegte Custom-Regeln (Log zeigt deren Label, nicht das Muster).
     """
     text = text or ""
     lower = text.lower()
     rules = _rules()
+    custom = _load_custom()
 
     def scan(section: dict) -> list[tuple[str, str]]:
         hits: list[tuple[str, str]] = []
@@ -144,13 +168,88 @@ def classify(text: str) -> dict:
                 hits.append((f"Klient:{nm}", nm))
         return hits
 
-    rot = scan(rules.get("rot") or {})
+    def color_hits(color: str) -> list[tuple[str, str]]:
+        hits = scan(rules.get(color) or {})
+        for e in (custom.get(color) or []):
+            p = (e.get("pattern") or "").lower()
+            if p and p in lower:
+                # Rule-Name = Label (gruppiert, verrät im Log nicht das Muster)
+                hits.append((e.get("label") or "manuell", (e.get("pattern") or "")[:60]))
+        return hits
+
+    rot = color_hits("rot")
     if rot:
         return {"color": "rot", "rules": [h[0] for h in rot], "matches": rot}
-    gelb = scan(rules.get("gelb") or {})
+    gelb = color_hits("gelb")
     if gelb:
         return {"color": "gelb", "rules": [h[0] for h in gelb], "matches": gelb}
     return {"color": "gruen", "rules": [], "matches": []}
+
+
+def add_rule(color: str, pattern: str, label: str = "manuell") -> str:
+    """Custom-Regel hinzufügen (für /ampel rot|gelb). Muster = Teilstring (case-insensitiv)."""
+    color = "rot" if color.lower().startswith("rot") else ("gelb" if color.lower().startswith("gelb") else "")
+    if not color:
+        return "Farbe muss „rot“ oder „gelb“ sein."
+    pattern = (pattern or "").strip()
+    if not pattern:
+        return "Kein Muster angegeben. Nutzung: /ampel rot [Label:] <Muster>"
+    label = (label or "manuell").strip() or "manuell"
+    d = _load_custom()
+    lst = d.setdefault(color, [])
+    if any((e.get("pattern", "").lower() == pattern.lower()) for e in lst):
+        return f"Regel „{pattern}“ existiert bereits ({color})."
+    lst.append({"pattern": pattern, "label": label})
+    try:
+        _save_custom(d)
+    except Exception:
+        log.exception("Custom-Regel speichern fehlgeschlagen")
+        return "⚠️ Konnte die Regel nicht speichern (Dateifehler)."
+    return f"✅ {color.upper()}-Regel hinzugefügt: „{pattern}“ · Label „{label}“."
+
+
+def remove_rule(pattern: str) -> str:
+    """Custom-Regel(n) mit exaktem Muster entfernen (für /ampel weg)."""
+    pattern = (pattern or "").strip()
+    if not pattern:
+        return "Kein Muster angegeben. Nutzung: /ampel weg <Muster>"
+    d = _load_custom()
+    removed = 0
+    for color in ("rot", "gelb"):
+        lst = d.get(color) or []
+        keep = [e for e in lst if e.get("pattern", "").lower() != pattern.lower()]
+        removed += len(lst) - len(keep)
+        d[color] = keep
+    if not removed:
+        return f"Keine Custom-Regel mit Muster „{pattern}“ gefunden."
+    try:
+        _save_custom(d)
+    except Exception:
+        log.exception("Custom-Regel entfernen fehlgeschlagen")
+        return "⚠️ Konnte die Änderung nicht speichern (Dateifehler)."
+    return f"🗑️ {removed} Regel(n) mit Muster „{pattern}“ entfernt."
+
+
+def list_rules() -> str:
+    """Textübersicht: Basis-Kategorien (aus TOML) + Custom-Regeln (für /ampel regeln)."""
+    rules = _rules()
+    custom = _load_custom()
+    L = ["🚦 Ampel-Regeln", ""]
+    for color in ("rot", "gelb"):
+        sec = rules.get(color) or {}
+        cats = list((sec.get("regex") or {}).keys()) + list((sec.get("keywords") or {}).keys())
+        kl = len(sec.get("klienten") or [])
+        base = ", ".join(cats) + (f", Klienten({kl})" if kl else "")
+        L.append(f"{'🔴' if color=='rot' else '🟡'} {color.upper()} — Basis: {base or '—'}")
+        cust = custom.get(color) or []
+        if cust:
+            for e in cust:
+                L.append(f"     • „{e.get('pattern')}“  (Label: {e.get('label','manuell')})")
+        else:
+            L.append("     • (keine eigenen Regeln)")
+        L.append("")
+    L.append("Hinzufügen: /ampel rot [Label:] <Muster>   ·   Entfernen: /ampel weg <Muster>")
+    return "\n".join(L)
 
 
 def _load_state() -> dict:

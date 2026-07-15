@@ -309,6 +309,24 @@ def is_auth_error(exc: Exception) -> bool:
     return any(n in msg for n in needles)
 
 
+def is_context_overflow(exc: Exception) -> bool:
+    """True bei Kontextfenster-/‚prompt too long'-Fehlern (Session voll).
+    Wie is_auth_error anhand des durchgereichten Fehlertexts."""
+    msg = str(exc).lower()
+    needles = (
+        "prompt is too long",
+        "context length",
+        "context_length_exceeded",
+        "context window",
+        "maximum context",
+        "too many tokens",
+        "exceeds the maximum",
+        "input is too long",
+        "reduce the length",
+    )
+    return any(n in msg for n in needles)
+
+
 AUTH_HELP = (
     "🔑 *Authentifizierung fehlgeschlagen* (401)\n\n"
     "Der Claude-Subprozess kann sich nicht bei Anthropic anmelden — "
@@ -605,6 +623,7 @@ class QueuedJob:
     output_chat_id: int | None = None
     reply_to_override: int | None = None
     received_at: float = field(default_factory=time.time)
+    context_retry: bool = False  # True, nachdem wg. Kontext-Überlauf frisch neu gestartet
 
 
 @dataclass
@@ -726,6 +745,37 @@ async def _run_job(user_id: int, job: QueuedJob) -> None:
                     await send_chunked(sess.bot, sess.chat_id, AUTH_HELP, parse_mode=ParseMode.MARKDOWN)
                 except Exception:
                     log.exception("failed to send auth-error message")
+                await close_session(user_id)
+                return
+            # Kontext-Überlauf: Session verwerfen, frisch starten und die
+            # gescheiterte Nachricht AUTOMATISCH neu verarbeiten (kein Nutzer-Eingriff,
+            # nichts geht verloren). Nur einmal — scheitert es erneut, klare Meldung.
+            if is_context_overflow(e):
+                if not job.context_retry:
+                    log.warning("context overflow user_id=%s — rotiere Session + retry", user_id)
+                    await close_session(user_id)
+                    job.context_retry = True
+                    mb = _get_mailbox(user_id)
+                    mb.queue.appendleft(job)  # als Nächstes mit frischer Session
+                    try:
+                        await sess.bot.send_message(
+                            sess.chat_id,
+                            "📏 Kontext war voll — neue Session, ich beantworte deine Nachricht jetzt …",
+                        )
+                    except Exception:
+                        log.exception("failed to send context-rotate status")
+                    return
+                # Auch mit frischer Session zu groß → klare Meldung.
+                try:
+                    await send_chunked(
+                        sess.bot, sess.chat_id,
+                        "📏 Auch mit frischer Session passt das nicht ins Kontextfenster. "
+                        "Die Nachricht oder ein Anhang ist zu groß.\n"
+                        "→ Bitte kürzen oder aufteilen (bei langen Dokumenten: relevanten "
+                        "Ausschnitt schicken). Für sehr große Recherchen ist die Code-/Web-Sitzung besser geeignet.",
+                    )
+                except Exception:
+                    log.exception("failed to send context-overflow message")
                 await close_session(user_id)
                 return
             try:
@@ -917,6 +967,18 @@ def make_permission_callback(user_id: int):
         if sess is None or sess.bot is None or sess.chat_id is None:
             log.error("permission request with no active session for %s", user_id)
             return PermissionResultDeny(message="no active session")
+
+        # Kontextschutz (Adam 15.07.): Skills laden große Wissensdateien in den
+        # Kontext und waren Mit-Ursache von Überläufen. Ein Telegram-Assistent
+        # braucht das nicht — Skill-Ladungen hart ablehnen. Solche Themen bei
+        # Bedarf in der Code-/Web-Sitzung.
+        if tool_name == "Skill":
+            skill = tool_input.get("skill") or tool_input.get("command") or ""
+            log.info("Skill-Load abgelehnt (Bot-Session, Kontextschutz): %s", skill)
+            return PermissionResultDeny(
+                message="Skills sind in der Telegram-Session deaktiviert (Kontextschutz). "
+                        "Frag solche Themen bei Bedarf in der Code-/Web-Sitzung."
+            )
 
         if tool_name in sess.always_allowed_tools:
             return PermissionResultAllow()
@@ -1314,9 +1376,45 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("\n".join(lines))
 
 
-async def cmd_ampel(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
-    """Kennzahlen der Datenschutz-Ampel-Beobachtungsphase (2.2)."""
+async def cmd_ampel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Datenschutz-Ampel (2.2): Status + Regelverwaltung — rein lokal, ohne Claude.
+
+    /ampel               → Kennzahlen
+    /ampel regeln        → Regeln anzeigen
+    /ampel rot [L:] <M>  → Rot-Regel hinzufügen (Muster M, optionales Label L)
+    /ampel gelb [L:] <M> → Gelb-Regel hinzufügen
+    /ampel weg <Muster>  → Regel entfernen
+    Muster (z. B. Klienten-Namen) werden NUR lokal auf dem VPS gespeichert,
+    nie an Claude/Cloud geschickt (dieses Kommando wird direkt hier abgefangen).
+    """
     if not authorized(update):
+        return
+    args = list(getattr(context, "args", []) or [])
+    if args:
+        sub = args[0].lower()
+        rest = " ".join(args[1:]).strip()
+        if sub in ("regeln", "regel", "liste", "list"):
+            await update.message.reply_text(ampel.list_rules())
+            return
+        if sub in ("rot", "gelb"):
+            label, pattern = "manuell", rest
+            if ":" in rest:
+                lbl, pat = rest.split(":", 1)
+                if pat.strip():
+                    label, pattern = (lbl.strip() or "manuell"), pat.strip()
+            await update.message.reply_text(ampel.add_rule(sub, pattern, label))
+            return
+        if sub in ("weg", "entfernen", "loeschen", "löschen", "remove", "del"):
+            await update.message.reply_text(ampel.remove_rule(rest))
+            return
+        await update.message.reply_text(
+            "Nutzung:\n"
+            "/ampel — Status & Kennzahlen\n"
+            "/ampel regeln — Regeln anzeigen\n"
+            "/ampel rot [Label:] <Muster> — Rot-Regel hinzufügen\n"
+            "/ampel gelb [Label:] <Muster> — Gelb-Regel hinzufügen\n"
+            "/ampel weg <Muster> — Regel entfernen"
+        )
         return
     st = ampel.status()
     L = ["🚦 Datenschutz-Ampel — Beobachtungsphase",

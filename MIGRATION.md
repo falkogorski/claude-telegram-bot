@@ -24,6 +24,7 @@ metadata:
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
 - **➡️ NÄCHSTE SITZUNG (Adam 14.07. abends):** Weiter mit **5.22** (Transkriptions-Tempo / STT-Schnellumschalter) und **5.23** (Session-Start-Diät) — Ziel: schnellere Antworten im Alltag. Diese vor Phase 2 ziehen. Konkrete Quick Wins für 5.22 stehen dort (Threads 2→4, Modell-Umschalter, Bot-Selbstverortung korrigieren). (48h-Kostenkontrolle 1.11 läuft nebenher — automatischer Telegram-Reminder aktiv.)
+- **2026-07-15 (3)** — **Phase 2 gestartet:** 2.1 LiteLLM-Proxy ✅, 2.3 Ollama+Phi-4-Mini ✅ (LiteLLM-Route 1 s), 2.2 Datenschutz-Ampel als **Beobachtungsphase** live (regelbasiert, nur Log, kein Umrouten; Ende 4W4T4h/444 → dann Trimmen + Enforcement mit `!cloud`/`!lokal`-Overrides). Modell-Einstufung → Backlog.
 - **2026-07-15 (2)** — **5.23 Session-Diät implementiert + E2E bewiesen:** Memory-Loader lädt nur Kern (Identität+Verhaltensregeln+Index), Projekt/Referenz on-demand (Agent liest via Read, Memory-Ordner via `add_dirs`, Lesen ohne Rückfrage). VPS-Messung: Kern-Frage 4,2 s, On-demand 7,3 s (Read genutzt, korrekt) — erste Session-Antwort ~60 s→~4 s. Adam-Telegram-Test offen.
 - **2026-07-15** — **5.22 VERIFIZIERT (Adam: „funktioniert sehr gut"):** Threads-Fix (medium 47→25 s) + STT-Umschalter 🎙️ Genau/Flott live.
 - **2026-07-14 (17)** — **Nach Livegang:** 48h-Kostenkontroll-Reminder als VPS-systemd-Timer→Telegram eingerichtet (Adam-Wunsch). STT-Analyse: VPS nutzt medium mit nur 2/4 Threads (Quick Win →4), keine GPU; Bot gab fälschlich Mac/Metal-Rat → Selbstverortung veraltet, in 5.22 vermerkt.
@@ -257,11 +258,14 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Adam-Bestätigung:** —
 
 ### 2.2 Datenschutz-Ampel als Gatekeeper (grün/gelb/rot)
-- **Status:** OFFEN
+- **Status:** LÄUFT — **Beobachtungsphase aktiv seit 15.07.2026 17:43** (erste eingestufte Nachricht). Wird erst VERIFIZIERT, wenn das Enforcement aktiv **und getestet** ist.
 - **Akzeptanzkriterium:** Klassifizierer pro Anfrage liefert Farbe; rote Anfragen werden hart auf lokales Modell geroutet, niemals Richtung Cloud; Routing-Entscheidung im Log nachvollziehbar.
 - **Test:** Drei Beispielanfragen (grün, gelb, rot) durchschicken, jeweils das gewählte Backend im Log prüfen.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Design-Entscheid Adam (15.07.) — zweistufig:**
+  1. **BEOBACHTUNGSPHASE (jetzt):** regelbasierte Einstufung 🟢🟡🔴 läuft mit + wird protokolliert (Regel-Treffer + Nachrichtentext, lokal/privat), **noch KEIN Umrouten** — Status quo bleibt. Regeln bewusst **breit** (Fehlalarme kosten hier nichts, liefern Lerndaten). **Ende:** 4 Wochen + 4 Tage + 4 Stunden **ODER 444 Einstufungen** (was zuerst kommt; ca. **16.08.2026** bei Dauer-Kriterium). Dann **Auswertung** (welche Nachrichten wären rot, welche Regel griff, Fehlalarm-Quote) → Regeln **eng trimmen** (lieber seltener Durchrutscher als Fehlalarme, die im Enforcement Claude „wegnehmen").
+  2. **ENFORCEMENT (danach):** Rot → automatisch lokal (Phi-4-Mini), Kennzeichnung „🔴 lokal beantwortet — Regel: X"; **Overrides pro Nachricht:** Präfix `!cloud` erzwingt Claude trotz Rot, `!lokal` erzwingt lokal.
+- **Umsetzung 15.07. (`6f34891`):** `ampel.py` (regelbasiert), Hook in `process_user_text` (Text+Voice, rein beobachtend), `/ampel`-Kommando (count/444, Enddatum, Farbverteilung, Top-Regeln). **Regeldatei** editierbar als TOML unter `/home/claudebot/.claude/ampel_rules.toml` (VPS-lokal, **nicht in Git** wegen Klienten-Namen; Vorlage `ampel_rules.example.toml` im Repo). Live verifiziert: echte Nachricht → grün, korrekt geloggt. Muster: IBAN/Konto/Kreditkarte-Regex, Gesundheits-/Zugangsdaten-/Finanz-Stichwörter, Klienten-Namensliste (Adam pflegt lokal).
+- **Adam-Bestätigung (Enforcement):** — (nach Auswertung)
 
 ### 2.3 Lokales Fallback-Modell (Ollama + Phi-4 Mini Q4)
 - **Status:** VERIFIZIERT
@@ -739,6 +743,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - `[NEU 2026-07-13]` Messenger-Versand als Ausbau von 9.5 (Telegram via Bot-API machbar; WhatsApp heikel: Business-API kostenpflichtig 💰, inoffizielle Wege riskant/ToS) — erst nach stabiler E-Mail-Anbindung bewerten.
 - `[NEU 2026-07-14]` **Unbekannte Bot-Kommandos nicht stumm ignorieren** (Fund aus 0.7): `/model sonnet` blieb ohne jede Reaktion, weil kein solcher Befehl existiert und der Text-Handler Commands ausschließt. Wunsch: Catch-all für unbekannte `/…`-Kommandos mit Hinweis + ggf. `/model <name>` als Textbefehl parallel zu den Inline-Buttons.
 - `[GEKLÄRT 2026-07-14]` ~~Wartungs-/Update-Routine für nicht-automatische Komponenten~~ → **zu konkreten Punkten 5.20 (Token-Frühwarner) + 5.21 (Update-Monitor) unter Grundsatz E5 aufgewertet.** Konkrete Update-Befehle je Komponente dort bzw. quartalsweise: `npm update -g @anthropic-ai/claude-code`; `git pull` + whisper.cpp neu bauen; `pip install -U -r requirements.txt` im venv; `apt full-upgrade`.
+- `[NEU 2026-07-15]` **Ampel-Zweitstufe: modellbasierte Einstufung für Grenzfälle** (Adam-Entscheid 15.07.): Die regelbasierte Ampel (2.2) bleibt die schnelle, deterministische erste Stufe. Als späterer Ausbau: für unklare Fälle (kein Regel-Treffer, aber potenziell sensibel) eine zweite Stufe per lokalem Modell (Phi-4-Mini) einstufen lassen — nur lokal, nie Cloud. Erst nach Praxiserfahrung mit den getrimmten Regeln bewerten.
 - `[NEU 2026-07-14]` **Cowork Mac-unabhängig nutzbar machen** (Prüf-/Ausbaupunkt, nach Migration): Ziel: Cowork-artige Arbeit (Claude mit Zugriff auf Adams Dateien) auch bei ausgeschaltetem Mac. Erkenntnisstand 07/2026: Cowork-Sitzungen laufen remote, aber der Datei-Zugriff hängt an der geöffneten Desktop-App des jeweiligen Rechners (nur macOS/Windows — Linux-VPS scheidet als Host aus). Optionen: (a) pragmatisch: Cowork-Arbeitsordner in synchronisierten Speicher legen — bevorzugt Nextcloud auf unserem VPS (passt zum Datenschutz-Entscheid „weg von iCloud"), Sync-Client auf dem Mac; bei iCloud-Nutzung „Speicher optimieren" für den Ordner deaktivieren; (b) Bastellösung Windows-VPS/Cloud-Mac mit dauerhaft offener Desktop-App — wegen Pflegeaufwand + Sicherheitsbedenken vorerst verworfen; (c) beim Phasen-Audit 9→10 neu bewerten, ob Anthropic inzwischen Headless-/Linux-Unterstützung bietet. Teilbedarf wird ohnehin durch VPS-Bot + Approval-Hub (9.4) abgedeckt.
 
 ---

@@ -211,11 +211,23 @@ _BTN_EFFORT_MAX = "🚀 Max"
 _BTN_EFFORT_LOW_ACTIVE = "⚡ Schnell ✓"
 _BTN_EFFORT_MED_ACTIVE = "⚖️ Normal ✓"
 _BTN_EFFORT_MAX_ACTIVE = "🚀 Max ✓"
+# STT-Tempo-Buttons: 🎙️ Genau (medium, präziser) / 🎙️ Flott (small, ~2× schneller).
+# Mikrofon-Icon zur klaren Abgrenzung von den Denk-Tempo-Buttons (⚡/🚀).
+_BTN_STT_ACCURATE = "🎙️ Genau"
+_BTN_STT_FAST = "🎙️ Flott"
+_BTN_STT_ACCURATE_ACTIVE = "🎙️ Genau ✓"
+_BTN_STT_FAST_ACTIVE = "🎙️ Flott ✓"
+_STT_BTN_TARGET = {
+    _BTN_STT_ACCURATE: "medium", _BTN_STT_ACCURATE_ACTIVE: "medium",
+    _BTN_STT_FAST: "small", _BTN_STT_FAST_ACTIVE: "small",
+}
 _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_TTS_ON, _BTN_TTS_OFF,
                       _BTN_OPUS_ACTIVE, _BTN_SONNET_ACTIVE, _BTN_HAIKU_ACTIVE,
                       _BTN_RESTART, _BTN_INFO,
                       _BTN_EFFORT_LOW, _BTN_EFFORT_MED, _BTN_EFFORT_MAX,
-                      _BTN_EFFORT_LOW_ACTIVE, _BTN_EFFORT_MED_ACTIVE, _BTN_EFFORT_MAX_ACTIVE}
+                      _BTN_EFFORT_LOW_ACTIVE, _BTN_EFFORT_MED_ACTIVE, _BTN_EFFORT_MAX_ACTIVE,
+                      _BTN_STT_ACCURATE, _BTN_STT_FAST,
+                      _BTN_STT_ACCURATE_ACTIVE, _BTN_STT_FAST_ACTIVE}
 # Aliase statt fester Versionen → Bot nutzt automatisch das jeweils
 # höchstwertige aktuelle Modell, Label muss bei neuen Versionen nicht angepasst werden.
 _MODEL_IDS = {
@@ -269,6 +281,44 @@ AUTH_HELP = (
 )
 
 
+def _discover_stt_models() -> dict[str, str]:
+    """Vorhandene Whisper-Modelle im models/-Ordner (neben WHISPER_MODEL_PATH)."""
+    raw = os.environ.get("WHISPER_MODEL_PATH")
+    base = Path(raw).expanduser().parent if raw else (Path(__file__).parent / "models")
+    out: dict[str, str] = {}
+    for name in ("tiny", "base", "small", "medium", "large"):
+        p = base / f"ggml-{name}.bin"
+        if p.is_file():
+            out[name] = str(p)
+    return out
+
+
+_STT_MODELS: dict[str, str] = _discover_stt_models()
+
+
+def _default_stt_name() -> str:
+    raw = os.environ.get("WHISPER_MODEL_PATH", "")
+    for name in _STT_MODELS:
+        if f"ggml-{name}.bin" in raw:
+            return name
+    return "medium" if "medium" in _STT_MODELS else next(iter(_STT_MODELS), "medium")
+
+
+# Global aktives STT-Modell (Einzelnutzer-Bot). Persistiert in den Prefs.
+_ACTIVE_STT: str = _default_stt_name()
+for _p in _USER_PREFS.values():
+    if isinstance(_p, dict) and _p.get("stt_model") in _STT_MODELS:
+        _ACTIVE_STT = _p["stt_model"]
+        break
+
+_STT_LABELS = {"medium": "Genau (medium)", "small": "Flott (small)",
+               "base": "Sehr flott (base)", "tiny": "Turbo (tiny)", "large": "Höchste (large)"}
+
+
+def _stt_label(name: str) -> str:
+    return _STT_LABELS.get(name, name)
+
+
 def _main_keyboard(tts_on: bool, model: str, effort: str | None = None) -> ReplyKeyboardMarkup:
     opus_label = _BTN_OPUS_ACTIVE if "opus" in model else _BTN_OPUS
     sonnet_label = _BTN_SONNET_ACTIVE if "sonnet" in model else _BTN_SONNET
@@ -277,12 +327,18 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None) -> Reply
     low_label = _BTN_EFFORT_LOW_ACTIVE if effort == "low" else _BTN_EFFORT_LOW
     med_label = _BTN_EFFORT_MED_ACTIVE if effort is None else _BTN_EFFORT_MED
     max_label = _BTN_EFFORT_MAX_ACTIVE if effort == "max" else _BTN_EFFORT_MAX
+    rows = [
+        [haiku_label, sonnet_label, opus_label],
+        [med_label, low_label, max_label],
+        [_BTN_RESTART, tts_label, _BTN_INFO],
+    ]
+    # STT-Umschaltzeile nur zeigen, wenn mind. beide Modelle (small+medium) da sind.
+    if "small" in _STT_MODELS and "medium" in _STT_MODELS:
+        stt_acc = _BTN_STT_ACCURATE_ACTIVE if _ACTIVE_STT == "medium" else _BTN_STT_ACCURATE
+        stt_fast = _BTN_STT_FAST_ACTIVE if _ACTIVE_STT == "small" else _BTN_STT_FAST
+        rows.insert(2, [stt_acc, stt_fast])
     return ReplyKeyboardMarkup(
-        [
-            [haiku_label, sonnet_label, opus_label],
-            [med_label, low_label, max_label],
-            [_BTN_RESTART, tts_label, _BTN_INFO],
-        ],
+        rows,
         resize_keyboard=True,
         is_persistent=True,
     )
@@ -1191,6 +1247,9 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             f"Session: aktiv · {'🔕 quiet' if sess.quiet else '🔔 verbose'} · "
             f"Pending permissions: {len(sess.pending_permissions)}"
         )
+
+    if "small" in _STT_MODELS and "medium" in _STT_MODELS:
+        lines.append(f"🎙️ Voice-Transkription: {_stt_label(_ACTIVE_STT)}")
 
     await update.message.reply_text("\n".join(lines))
 
@@ -2691,6 +2750,34 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         )
         return
 
+    # --- STT-Tempo-Button (Voice-Transkription genau/flott) ---
+    if text in _STT_BTN_TARGET:
+        global _ACTIVE_STT
+        want = _STT_BTN_TARGET[text]
+        sess = SESSIONS.get(user_id)
+        _p = _USER_PREFS.get(str(user_id), {})
+        tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
+        cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
+        cur_effort = sess.current_effort if sess else _p.get("effort")
+        kb = lambda: _main_keyboard(tts_on, cur_model, cur_effort)
+        if want not in _STT_MODELS:
+            await update.message.reply_text(
+                f"🎙️ Modell „{want}“ ist auf dem Server nicht installiert.", reply_markup=kb())
+            return
+        if _ACTIVE_STT == want:
+            await update.message.reply_text(
+                f"🎙️ {_stt_label(want)} ist bereits aktiv.", reply_markup=kb())
+            return
+        _ACTIVE_STT = want
+        _USER_PREFS.setdefault(str(user_id), {})["stt_model"] = want
+        _save_prefs(_USER_PREFS)
+        hint = ("präziser, etwas langsamer" if want == "medium"
+                else "~2× schneller, etwas ungenauer")
+        await update.message.reply_text(
+            f"🎙️ Voice-Transkription: {_stt_label(want)} aktiv ({hint}). "
+            f"Gilt ab der nächsten Sprachnachricht.", reply_markup=kb())
+        return
+
     # --- Info-Button ---
     if text == _BTN_INFO:
         sess = SESSIONS.get(user_id)
@@ -2808,6 +2895,13 @@ async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         log.exception("transcriber init failed")
         await msg.reply_text(f"❌ STT nicht konfiguriert: {e}")
         return
+
+    # Aktuell gewähltes STT-Modell anwenden (Umschalter 🎙️ Genau/Flott)
+    try:
+        if hasattr(transcriber, "set_model") and _ACTIVE_STT in _STT_MODELS:
+            transcriber.set_model(_STT_MODELS[_ACTIVE_STT])
+    except Exception:
+        log.exception("STT-Modellwahl fehlgeschlagen — nutze Default")
 
     try:
         text = await transcriber.transcribe(src, language=VOICE_LANGUAGE)

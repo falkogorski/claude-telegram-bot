@@ -55,6 +55,13 @@ class WhisperCppTranscriber(Transcriber):
             env_threads = 0
         self.threads = threads or env_threads or (os.cpu_count() or 4)
 
+    def set_model(self, model_path: str | Path) -> None:
+        """Aktives Modell zur Laufzeit wechseln (STT-Umschalter). Prüft Existenz."""
+        p = Path(model_path)
+        if not p.is_file():
+            raise FileNotFoundError(f"whisper model not found: {p}")
+        self.model_path = p
+
     async def _convert_to_wav(self, src: Path) -> Path:
         wav = src.with_suffix(".wav")
         # 16-bit signed PCM, mono, 16 kHz — what whisper.cpp wants

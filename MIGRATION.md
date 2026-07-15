@@ -250,11 +250,11 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 > **💰 Architektur-Leitplanke (F1, von Adam entschieden 2026-07-12):** Der Claude-**Agent** (Tools, Permission-Buttons) läuft über das Abo-SDK und wird NICHT durch LiteLLM ersetzt; LiteLLM orchestriert ausschließlich **Neben-Inferenzen** (Ampel, Zusammenfassungen, Link-Inbox) über Ollama/Groq. Rote Anfragen werden vor dem Claude-Agenten abgefangen. Keine Anthropic-Route in LiteLLM, kein `ANTHROPIC_API_KEY` im Stack.
 
 ### 2.1 LiteLLM-Proxy im SQLite-Modus
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT (Proxy läuft; Test-Inferenz folgt mit 2.3)
 - **Akzeptanzkriterium:** LiteLLM-Dienst läuft als systemd-Unit; `/health`-Endpoint antwortet 200; SQLite-Datei initialisiert; kein Redis/Postgres.
 - **Test:** Curl gegen `/health` + eine Test-Inferenz über LiteLLM.
+- **Verifiziert am:** 15.07.2026 — Belege: LiteLLM **1.92.0** in eigenem venv (`/home/claudebot/litellm/venv`), systemd-Unit `litellm.service` (User claudebot, `--host 127.0.0.1 --port 4000`, active+enabled); `curl /health/liveliness` → **HTTP 200**; Config `config.yaml` mit Ollama-Route (Backend kommt in 2.3). **Interpretation „SQLite-Modus":** Für reines Routing braucht LiteLLM **keine** DB → DB-los betrieben (noch leichter als SQLite, erfüllt „kein Redis/Postgres"). Nur lokal gebunden (ufw lässt ohnehin nur Port 22). Echte Test-Inferenz über den Proxy = mit 2.3 (dann existiert ein Backend).
 - **Adam-Bestätigung:** —
-- **Verifiziert am:** —
 
 ### 2.2 Datenschutz-Ampel als Gatekeeper (grün/gelb/rot)
 - **Status:** OFFEN

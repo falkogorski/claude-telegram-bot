@@ -44,7 +44,16 @@ class WhisperCppTranscriber(Transcriber):
             raise FileNotFoundError(f"whisper model not found: {self.model_path}")
         self.binary = shutil.which(binary) or binary
         self.ffmpeg = shutil.which(ffmpeg) or ffmpeg
-        self.threads = threads or max(1, (os.cpu_count() or 4) - 2)
+        # Standard: ALLE CPU-Kerne (Transkription ist die vom Nutzer erwartete
+        # Wartezeit — der Bot hat währenddessen kaum anderes zu tun). Frühere
+        # Heuristik cpu_count()-2 verschenkte auf dem 4-Kern-VPS die Hälfte.
+        # Override per WHISPER_THREADS env, falls doch Kopf-Raum gewünscht.
+        env_threads = 0
+        try:
+            env_threads = int(os.environ.get("WHISPER_THREADS") or 0)
+        except ValueError:
+            env_threads = 0
+        self.threads = threads or env_threads or (os.cpu_count() or 4)
 
     async def _convert_to_wav(self, src: Path) -> Path:
         wav = src.with_suffix(".wav")

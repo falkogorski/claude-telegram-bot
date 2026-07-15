@@ -264,11 +264,11 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** —
 
 ### 2.3 Lokales Fallback-Modell (Ollama + Phi-4 Mini Q4)
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT
 - **Akzeptanzkriterium:** Ollama-Dienst läuft; `phi4-mini` geladen (~4 GB); LiteLLM-Route auf Ollama funktioniert.
 - **Test:** Eine Inferenz explizit über das lokale Modell anfordern, Antwort kommt zurück.
-- **Adam-Bestätigung:** —
-- **Verifiziert am:** —
+- **Adam-Bestätigung:** ✅ 15.07.2026 — Ollama-Installer (offizielles Script, ollama.com) nach Script-Prüfung freigegeben.
+- **Verifiziert am:** 15.07.2026 — Belege: Ollama **0.32.0** als systemd-Dienst (eigener unprivilegierter User `ollama`, CPU-Modus, `127.0.0.1:11434`, active+enabled); `phi4-mini` (2,5 GB) geladen; Direkt-Inferenz „Paris." (7 s inkl. Erst-Ladung); **über LiteLLM-Route `local` → „Vier." in 1 s** (= zugleich Test-Inferenz für 2.1). Script vor Ausführung analysiert (nur offizielle Quelle, kein GPU/CUDA nötig).
 
 ### 2.4 Groq als Cloud-Fallback (nur grün/gelb)
 - **Status:** OFFEN

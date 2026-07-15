@@ -288,11 +288,10 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Adam-Bestätigung:** ✅ implizit (Grundsatz E-Werte, „kein OpenAI im Stack").
 
 ### 2.6 Neben-Inferenzen des Bots auf LiteLLM umstellen (F1 entschieden)
-- **Status:** OFFEN
+- **Status:** LÄUFT — Kern umgesetzt, Entscheidung zu langen Zusammenfassungen offen (Neubewertung 5.14).
 - ~~**Akzeptanzkriterium (Original):** Bot ruft Inferenzen nur noch über LiteLLM auf (kein direkter Anthropic-Endpoint im Code); Modellwahl funktioniert wie zuvor.~~ `[GESTRICHEN 2026-07-12 — hätte Claude-Verkehr vom Abo auf die bezahlte API verlagert und den Agent-Modus gebrochen]`
 - **Akzeptanzkriterium:** Neben-Inferenzen des Bots (Ampel-Klassifizierung, Link-/Video-Zusammenfassungen, TTS-Vorstufen) laufen über LiteLLM (Ollama/Groq); der Claude-Agent (Kern-Sessions mit Tools/Permissions) bleibt direkt am Abo-SDK (`CLAUDE_CODE_OAUTH_TOKEN`). Kein `ANTHROPIC_API_KEY` im Stack. Rote Anfragen werden VOR dem Agenten abgefangen und lokal beantwortet.
 - **Test:** Eine Anfrage in Telegram → LiteLLM-Log zeigt Treffer (für Neben-Inferenz); Agent-Anfrage läuft weiter über SDK; Usage-Konsole (console.anthropic.com) bleibt bei 0.
-- **Status:** LÄUFT — Kern umgesetzt, Entscheidung zu langen Zusammenfassungen offen.
 - **Umsetzung 15.07. (`bfdeae1`):** Helfer `_litellm_complete()` (ruft lokalen LiteLLM-Proxy, nie den Agenten). **`_ai_topic_label` (TTS-Kapitel-Labels) auf lokal umgestellt** → **letzte direkte Anthropic-API-Nutzung (`ANTHROPIC_API_KEY`) aus dem Code entfernt**; Label-Erzeugung wieder aktiv (lokal, ohne Key). Live getestet: Label kam über Ollama. Ampel-Klassifizierung ist regelbasiert (kein LLM-Call) → noch privater.
 - **⚠️ Offene Entscheidung — lange Zusammenfassungen** (`_summarize_pdf_direct`, künftig Link-/Video-Summaries 5.14): Qualitätstest 15.07. zeigte, dass **Phi-4-Mini für längere Zusammenfassungen unzuverlässig** ist (inhaltlicher Kern gut, aber entgleist danach — Prompt-Template wiederholt/laberte). Daher **vorerst auf dem Abo-SDK belassen** (hohe Qualität, kostenneutral = Abo). Neubewertung bei **5.14**: entweder Phi-4-Mini per Prompt/Stop-Sequenzen zähmen ODER Groq-Free-Tier nachrüsten (bestätigt kostenlos). Bis dahin bewusste, qualitätsgetriebene Abweichung von „alle Neben-Inferenzen via LiteLLM".
 - **Adam-Bestätigung:** —

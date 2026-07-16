@@ -24,6 +24,7 @@ metadata:
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
 - **➡️ NÄCHSTE SITZUNG (Adam 14.07. abends):** Weiter mit **5.22** (Transkriptions-Tempo / STT-Schnellumschalter) und **5.23** (Session-Start-Diät) — Ziel: schnellere Antworten im Alltag. Diese vor Phase 2 ziehen. Konkrete Quick Wins für 5.22 stehen dort (Threads 2→4, Modell-Umschalter, Bot-Selbstverortung korrigieren). (48h-Kostenkontrolle 1.11 läuft nebenher — automatischer Telegram-Reminder aktiv.)
+- **2026-07-16 (3)** — **Phasen-Audit 2→3 bestanden.** Adam-Reihenfolge festgelegt: (1) **4.1 Backup** vorgezogen (nächster Schritt — Gedächtnis+Ampel-Regeln+Env nur auf VPS), (2) **8.5 Pre-Send-Hook**, (3) Phase 3 (LobeChat). 2.2 läuft bis ~16.08., 2.6-Rest → 5.14.
 - **2026-07-16 (2)** — **2.7 SearxNG VERIFIZIERT (private kostenfreie Websuche):** SearxNG lokal (systemd), als `web_search`-Tool im Bot; Anthropic-WebSearch via `disallowed_tools` deaktiviert. E2E: Agent recherchiert lokal + antwortet mit Quelle, kein WebSearch. Board-Buttons auf gleichmäßig 3/Zeile. **Phase 2 damit weitgehend abgeschlossen** (2.2 Ampel-Beobachtung läuft weiter; 2.6 lange Summaries offen bis 5.14).
 - **2026-07-16** — **Kostenregel verschärft + WebSearch-Kostenkontrolle + Antwortqualität (`2f37658`, Adam-Auftrag):** CLAUDE.md-💰-Regel jetzt UNIVERSELL (jede Kostenquelle, Cent zählt, „unklar=ja", gilt auch für Recherche-Tools; neue Dienste vorab auf versteckte Gebühren prüfen). WebSearch in Bot-Sessions kostenpflichtig-abgesichert (kein Always-Allow, Kostenhinweis). Antwortqualitäts-Leitplanke im System-Prompt + 🎯 Gründlich-Modus. Neu im Drehbuch: **2.7** SearxNG (kostenfreie private Suche), **8.5 hochgestuft**, Vermerke 5.6.
 - **2026-07-15 (4)** — **Robustere Kontext-Behandlung + Ampel-Regelverwaltung (`e2ff813`, Adam-Spec):** (A1) Kontext-Überlauf → Session auto-verwerfen + Nachricht automatisch neu (Statuszeile, kein Verlust); (A3) Skill-Ladungen in Bot-Sessions abgelehnt (Kontextschutz); (B) `/ampel regeln|rot|gelb|weg` — Regelverwaltung rein lokal ohne Claude (Klienten-Namen nie in die Cloud), Log zeigt Label. Neu: **5.24** (proaktive Rotation ~80 %) ins Drehbuch; **4.1** um Backup der lokalen Nicht-Git-Dateien (env, Memory, Ampel-Regeln) ergänzt.
@@ -311,8 +312,12 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** —
 
 ### Phasen-Audit 2 → 3
-- **Audit-Status:** —
-- **Strategie-Recheck:** —
+- **Audit-Status:** ✅ 16.07.2026 — Phase 2 im Kern abgeschlossen. **VERIFIZIERT:** 2.1 LiteLLM, 2.3 Ollama+Phi-4-Mini, 2.5 kein OpenAI, 2.7 SearxNG (private kostenfreie Suche, Anthropic-WebSearch deaktiviert). **2.4** bewusst übersprungen (Groq, jederzeit nachrüstbar). **Laufende/offene Fäden (bewusst, keine Blocker):** 2.2 Datenschutz-Ampel in Beobachtungsphase (zeitgesteuert bis **~16.08.2026 / 444 Nachrichten** → dann Auswertung + Enforcement); 2.6 Neben-Inferenzen Kern fertig, **lange Zusammenfassungen verschoben nach 5.14**. Querschnitt: 💰-Kostenregel in CLAUDE.md universell verschärft; Antwortqualität + 🎯 Gründlich + robuste Kontext-Recovery umgesetzt.
+- **Strategie-Recheck:** ✅ 16.07.2026 — **Adam-Entscheid zur Folge-Reihenfolge (weicht bewusst von der Nummerierung ab):**
+  1. **4.1 Backup ZUERST vorziehen** — Gedächtnis, Chat-Logs, **Ampel-Regeldatei (Klienten-Namen!)**, Configs und Env liegen aktuell **nur auf dem VPS** = größtes Verlustrisiko. Backup muss Regeldatei **und** Gedächtnis ausdrücklich einschließen (siehe 4.1).
+  2. **8.5 Pre-Send-Hook** — Adams Verlässlichkeits-Schwerpunkt (bereits hochgestuft).
+  3. **Phase 3 (LobeChat) erst danach.**
+  2.2 läuft parallel zeitgesteuert; 2.6-Rest bei 5.14 mitziehen.
 
 ---
 

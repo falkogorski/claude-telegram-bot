@@ -402,13 +402,16 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None) -> Reply
     rows = [
         [haiku_label, sonnet_label, opus_label],
         [med_label, low_label, max_label],
-        [_BTN_THOROUGH, _BTN_RESTART, tts_label, _BTN_INFO],
     ]
-    # STT-Umschaltzeile nur zeigen, wenn mind. beide Modelle (small+medium) da sind.
+    # STT-Umschaltzeile nur zeigen, wenn beide Modelle (small+medium) da sind.
+    # Dann: [Genau, Flott, Gründlich] + [Neustart, TTS, Info] → alle Zeilen à 3.
     if "small" in _STT_MODELS and "medium" in _STT_MODELS:
         stt_acc = _BTN_STT_ACCURATE_ACTIVE if _ACTIVE_STT == "medium" else _BTN_STT_ACCURATE
         stt_fast = _BTN_STT_FAST_ACTIVE if _ACTIVE_STT == "small" else _BTN_STT_FAST
-        rows.insert(2, [stt_acc, stt_fast])
+        rows.append([stt_acc, stt_fast, _BTN_THOROUGH])
+        rows.append([_BTN_RESTART, tts_label, _BTN_INFO])
+    else:
+        rows.append([_BTN_THOROUGH, _BTN_RESTART, tts_label, _BTN_INFO])
     return ReplyKeyboardMarkup(
         rows,
         resize_keyboard=True,

@@ -21,25 +21,36 @@
 
 ## 💰💰💰 KOSTEN-REGEL — HÖCHSTE PRIORITÄT 💰💰💰
 
-**IMMER vorher ausdrücklich warnen und um Bestätigung bitten, bevor irgendeine
-Aktion zusätzliche Kosten verursachen könnte.** Keine Ausnahme. Vor allem alles,
-was Nutzung auf die kostenpflichtige **Anthropic-API** (pay-per-token,
-console.anthropic.com) verlagert, statt sie über das **Claude-Max-Abo** des
-Nutzers laufen zu lassen.
+**Die Warnpflicht gilt UNIVERSELL — für JEDE Art möglicher Extra-Kosten, egal
+aus welcher Quelle** (Adam-Anweisung 2026-07-15):
+- **API-/Token-Verbrauch** (Anthropic-API pay-per-token; `ANTHROPIC_API_KEY` statt Abo)
+- **Werkzeug-Gebühren** (z. B. WebSearch ~$10/1000 Suchen)
+- **Drittanbieter-Dienste** (Groq, Azure, Such-/Cloud-Dienste, …)
+- **Abos / Grundgebühren**
+- **Server-/Infrastruktur-Kosten**
+- **Speicher- / Traffic-Kosten**
+- **auch scheinbare Kleinstbeträge — Cent-Beträge zählen!**
 
-### Hintergrund (zwei getrennte Geldtöpfe)
+**Vor JEDER Aktion, Tool-Einbindung oder Dienst-Einrichtung aktiv prüfen:**
+> „Kann hierdurch irgendwo Geld abgebucht werden — jetzt oder später, einmalig
+> oder laufend?"
+
+**Falls ja ODER unklar → STOPP:** Kostenquelle + geschätzte Höhe nennen, Adams
+**ausdrückliche Freigabe abwarten. „Unklar" gilt als „ja".**
+
+Diese Prüfpflicht gilt für **alle Instanzen** und ausdrücklich **auch für die
+Recherche-Tools der Sitzungen selbst** (z. B. WebSearch). **Neue Dienste/Tools
+zuerst auf versteckte Zusatzgebühren prüfen** (wie bei Groq geschehen) —
+**Abo/kostenfrei ist der Standard.**
+
+### Hintergrund (Spezialfall Anthropic: zwei getrennte Geldtöpfe)
 - **Max-Abo** (~100 €/Monat): Auth via OAuth / `claude login` /
   `CLAUDE_CODE_OAUTH_TOKEN`. Im Abo enthalten, **keine** Extra-Kosten.
 - **API-Schlüssel** (`ANTHROPIC_API_KEY`): bucht **IMMER extra** ab,
   völlig getrennt vom Abo. Hat Vorrang vor OAuth, wenn gesetzt.
-
-### Vorgaben des Nutzers
-- Alles soll **möglichst über das Abo (kostenfrei)** laufen, solange es nicht
-  „professionell/produktiv" wird.
 - **Standard-Auth für diesen Bot: Abo-Token (`CLAUDE_CODE_OAUTH_TOKEN`),
-  NICHT `ANTHROPIC_API_KEY`.**
-- Bei jeder Änderung an Auth/Modell/Diensten zuerst prüfen: „Kostet das extra?
-  Aus welchem Topf?" → wenn API-Topf: **vorher fragen.**
+  NICHT `ANTHROPIC_API_KEY`.** Alles möglichst über das **Abo (kostenfrei)**,
+  solange es nicht „professionell/produktiv" wird.
 
 ## 🧭 Zuständigkeiten der Instanzen — ANTI-PING-PONG-REGEL
 

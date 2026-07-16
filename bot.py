@@ -259,6 +259,17 @@ _BTN_STT_ACCURATE = "🎙️ Genau"
 _BTN_STT_FAST = "🎙️ Flott"
 _BTN_STT_ACCURATE_ACTIVE = "🎙️ Genau ✓"
 _BTN_STT_FAST_ACTIVE = "🎙️ Flott ✓"
+# 🎯 Gründlich: einmalig die NÄCHSTE Anfrage mit Opus + hohem Effort + Pflicht-
+# Quellencheck beantworten (für wichtige Fragen, die stimmen müssen). Danach
+# wieder Standard.
+_BTN_THOROUGH = "🎯 Gründlich"
+_THOROUGH_PENDING: set[int] = set()
+_THOROUGH_PREFIX = (
+    "[GRÜNDLICH-MODUS — diese Frage muss stimmen: Prüfe Fakten AKTIV über Quellen "
+    "(Websuche/Nachlesen) statt aus dem Gedächtnis; kennzeichne jede Unsicherheit "
+    "ausdrücklich; keine ungeprüften Behauptungen. Nimm dir Zeit für eine "
+    "sorgfältige, belegte Antwort.]\n\n"
+)
 _STT_BTN_TARGET = {
     _BTN_STT_ACCURATE: "medium", _BTN_STT_ACCURATE_ACTIVE: "medium",
     _BTN_STT_FAST: "small", _BTN_STT_FAST_ACTIVE: "small",
@@ -269,7 +280,8 @@ _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_TTS_ON, _BTN_TTS_
                       _BTN_EFFORT_LOW, _BTN_EFFORT_MED, _BTN_EFFORT_MAX,
                       _BTN_EFFORT_LOW_ACTIVE, _BTN_EFFORT_MED_ACTIVE, _BTN_EFFORT_MAX_ACTIVE,
                       _BTN_STT_ACCURATE, _BTN_STT_FAST,
-                      _BTN_STT_ACCURATE_ACTIVE, _BTN_STT_FAST_ACTIVE}
+                      _BTN_STT_ACCURATE_ACTIVE, _BTN_STT_FAST_ACTIVE,
+                      _BTN_THOROUGH}
 # Aliase statt fester Versionen → Bot nutzt automatisch das jeweils
 # höchstwertige aktuelle Modell, Label muss bei neuen Versionen nicht angepasst werden.
 _MODEL_IDS = {
@@ -390,7 +402,7 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None) -> Reply
     rows = [
         [haiku_label, sonnet_label, opus_label],
         [med_label, low_label, max_label],
-        [_BTN_RESTART, tts_label, _BTN_INFO],
+        [_BTN_THOROUGH, _BTN_RESTART, tts_label, _BTN_INFO],
     ]
     # STT-Umschaltzeile nur zeigen, wenn mind. beide Modelle (small+medium) da sind.
     if "small" in _STT_MODELS and "medium" in _STT_MODELS:
@@ -624,6 +636,7 @@ class QueuedJob:
     reply_to_override: int | None = None
     received_at: float = field(default_factory=time.time)
     context_retry: bool = False  # True, nachdem wg. Kontext-Überlauf frisch neu gestartet
+    thorough: bool = False       # 🎯 Gründlich: diese Anfrage mit Opus+Max+Quellencheck
 
 
 @dataclass
@@ -709,7 +722,12 @@ async def _session_worker(user_id: int) -> None:
 async def _run_job(user_id: int, job: QueuedJob) -> None:
     """Führt EINEN Job gegen die (ggf. frisch geöffnete) Claude-Session aus.
     Body entspricht der früheren process_user_text-Logik."""
-    sess = await ensure_session(user_id)
+    if job.thorough:
+        # 🎯 Gründlich: einmalige frische Session mit Opus + hohem Effort.
+        sess = await ensure_session(user_id, model_override="opus",
+                                    effort_override="max", fresh=True)
+    else:
+        sess = await ensure_session(user_id)
     update = job.update
     sess.chat_id = update.effective_chat.id
     sess.bot = update.get_bot()
@@ -731,7 +749,8 @@ async def _run_job(user_id: int, job: QueuedJob) -> None:
         try:
             if sess.logger:
                 sess.logger.log_user(job.text)
-            await sess.client.query(_current_datetime_context() + job.text)
+            query_prefix = _current_datetime_context() + (_THOROUGH_PREFIX if job.thorough else "")
+            await sess.client.query(query_prefix + job.text)
             tts_text = await stream_response(
                 sess, effective_output_id, force_tts=job.force_tts,
                 reply_to=reply_to, thread_id=thread_id,
@@ -792,6 +811,10 @@ async def _run_job(user_id: int, job: QueuedJob) -> None:
 
     if tts_text and sess.bot:
         asyncio.create_task(_send_tts(sess.bot, effective_output_id, tts_text, reply_to=reply_to, thread_id=thread_id))
+
+    # 🎯 Gründlich war einmalig: Session schließen → nächste Nachricht wieder Standard.
+    if job.thorough and user_id in SESSIONS:
+        await close_session(user_id)
 
 
 # ---------- helpers ----------
@@ -933,6 +956,13 @@ async def send_chunked(bot, chat_id: int, text: str, reply_to: int | None = None
     return first_msg
 
 
+# Werkzeuge mit möglichen Extra-Kosten (💰-Kostenregel): NIE „always allow",
+# immer mit Kostenhinweis nachfragen. WebFetch bleibt frei (keine Extra-Gebühr).
+_COST_TOOLS = {
+    "WebSearch": "⚠️ kostet ~1 Cent pro Suche (Anthropic-Werkzeuggebühr) — erlauben?",
+}
+
+
 def format_tool_call(tool_name: str, tool_input: dict[str, Any]) -> str:
     """Pretty-print a tool call for the permission prompt (plain text only)."""
     if tool_name == "Bash":
@@ -980,7 +1010,9 @@ def make_permission_callback(user_id: int):
                         "Frag solche Themen bei Bedarf in der Code-/Web-Sitzung."
             )
 
-        if tool_name in sess.always_allowed_tools:
+        # Kosten-Tools (z. B. WebSearch) NIE über die Always-Allow-Liste durchwinken —
+        # jede Nutzung muss einzeln mit Kostenhinweis bestätigt werden (Kostenregel).
+        if tool_name in sess.always_allowed_tools and tool_name not in _COST_TOOLS:
             return PermissionResultAllow()
 
         # Session-Diät (5.23): Lesen im Memory-Ordner ohne Rückfrage erlauben —
@@ -1005,20 +1037,23 @@ def make_permission_callback(user_id: int):
                  user_id, request_id, tool_name)
 
         body = format_tool_call(tool_name, tool_input)
-        keyboard = InlineKeyboardMarkup(
+        if tool_name in _COST_TOOLS:
+            body = f"💰 {_COST_TOOLS[tool_name]}\n\n{body}"
+        rows = [
             [
-                [
-                    InlineKeyboardButton("✅ Allow", callback_data=f"p:{request_id}:allow"),
-                    InlineKeyboardButton("❌ Deny", callback_data=f"p:{request_id}:deny"),
-                ],
-                [
-                    InlineKeyboardButton(
-                        f"🔓 Always allow {tool_name}",
-                        callback_data=f"p:{request_id}:always:{tool_name}",
-                    ),
-                ],
-            ]
-        )
+                InlineKeyboardButton("✅ Allow", callback_data=f"p:{request_id}:allow"),
+                InlineKeyboardButton("❌ Deny", callback_data=f"p:{request_id}:deny"),
+            ],
+        ]
+        # „Always allow" NICHT für Kosten-Tools anbieten (muss jedes Mal bestätigt werden).
+        if tool_name not in _COST_TOOLS:
+            rows.append([
+                InlineKeyboardButton(
+                    f"🔓 Always allow {tool_name}",
+                    callback_data=f"p:{request_id}:always:{tool_name}",
+                ),
+            ])
+        keyboard = InlineKeyboardMarkup(rows)
         try:
             sent = await sess.bot.send_message(
                 chat_id=sess.chat_id,
@@ -1115,11 +1150,24 @@ def _recent_conversation_recall(max_chars: int = 6000) -> str:
     return text
 
 
+_QUALITY_GUIDANCE = (
+    "# ANTWORTQUALITÄT (verbindlich, Adam-Priorität)\n"
+    "- Bei Fakten- und Recherchefragen: **Quellen prüfen** (Websuche/Nachlesen) "
+    "statt aus dem Gedächtnis zu raten. Aktuelle oder überprüfbare Fakten NIE frei erfinden.\n"
+    "- **Unsicherheiten ausdrücklich kennzeichnen** ('unsicher', 'ungeprüft', "
+    "'bitte gegenprüfen') — lieber ehrlich unsicher als selbstbewusst falsch.\n"
+    "- **Keine ungeprüften Behauptungen** als Tatsache ausgeben.\n"
+    "- Websuche kostet Gebühr (Kostenregel) → gezielt einsetzen; bekannte Quellen "
+    "lieber direkt per WebFetch lesen (kostenfrei).\n"
+)
+
+
 def _session_context(memory: str) -> str:
-    """Memory + jüngster Gesprächsverlauf als ein system_prompt-Append-Block."""
+    """Antwortqualitäts-Leitplanke + Memory + jüngster Gesprächsverlauf als
+    system_prompt-Append-Block."""
     recall = _recent_conversation_recall()
     if not recall:
-        return memory
+        return f"{_QUALITY_GUIDANCE}\n\n---\n\n{memory}" if memory else _QUALITY_GUIDANCE
     header = (
         "# LETZTER GESPRÄCHSVERLAUF (vorherige Sitzung — nahtlos fortsetzen)\n"
         "Dies ist der jüngste Dialog mit Adam vor diesem (Neu-)Start. Nutze ihn, "
@@ -1130,7 +1178,8 @@ def _session_context(memory: str) -> str:
         "nicht über 'letzte/vorletzte'.\n\n"
     )
     block = header + recall
-    return f"{memory}\n\n---\n\n{block}" if memory else block
+    core = f"{memory}\n\n---\n\n{block}" if memory else block
+    return f"{_QUALITY_GUIDANCE}\n\n---\n\n{core}"
 
 
 _ARG_SAFE_BYTES = 100_000  # Puffer unter Linux MAX_ARG_STRLEN (131.072 pro exec-Argument)
@@ -1167,17 +1216,28 @@ def _write_context_claude_md(context: str) -> bool:
         return False
 
 
-async def ensure_session(user_id: int) -> UserSession:
+_UNSET = object()  # Sentinel: effort=None ist ein gültiger Wert (Normal)
+
+
+async def ensure_session(
+    user_id: int,
+    *,
+    model_override: str | None = None,
+    effort_override=_UNSET,
+    fresh: bool = False,
+) -> UserSession:
     sess = SESSIONS.get(user_id)
-    if sess is not None:
+    if sess is not None and not fresh:
         return sess
+    if sess is not None and fresh:
+        await close_session(user_id)  # frische Session mit Overrides erzwingen (🎯 Gründlich)
 
     memory = load_user_memory()
     context = _session_context(memory)
     user_prefs = _USER_PREFS.get(str(user_id), {})
-    model_short = user_prefs.get("model", DEFAULT_MODEL)
+    model_short = model_override or user_prefs.get("model", DEFAULT_MODEL)
     model_full = _MODEL_ALIASES.get(model_short, model_short)  # vollständige SDK-ID
-    effort = user_prefs.get("effort", None)
+    effort = user_prefs.get("effort", None) if effort_override is _UNSET else effort_override
     context_via_file = _write_context_claude_md(context)
     # Memory-Ordner mitgeben, damit der Agent Detailwissen bei Bedarf nachlesen
     # kann (Session-Diät 5.23) — liegt außerhalb des WORKDIR.
@@ -2674,6 +2734,9 @@ async def process_user_text(
     except Exception:
         log.exception("Ampel-observe übersprungen (nicht-fatal)")
 
+    thorough = user_id in _THOROUGH_PENDING
+    _THOROUGH_PENDING.discard(user_id)
+
     mb = _get_mailbox(user_id)
     job = QueuedJob(
         update=update,
@@ -2681,6 +2744,7 @@ async def process_user_text(
         force_tts=force_tts,
         output_chat_id=output_chat_id or update.effective_chat.id,
         reply_to_override=reply_to_override,
+        thorough=thorough,
     )
 
     busy = mb.current_job is not None
@@ -2885,6 +2949,21 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
 
     if text == _BTN_RESTART:
         await _request_restart_confirm(update, user_id)
+        return
+
+    if text == _BTN_THOROUGH:
+        _THOROUGH_PENDING.add(user_id)
+        sess = SESSIONS.get(user_id)
+        _p = _USER_PREFS.get(str(user_id), {})
+        tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
+        cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
+        cur_effort = sess.current_effort if sess else _p.get("effort")
+        await update.message.reply_text(
+            "🎯 Gründlich-Modus für deine NÄCHSTE Nachricht aktiv:\n"
+            "Opus · hoher Effort · Pflicht-Quellencheck. Schick jetzt deine Frage.\n"
+            "(Danach wieder Standard.)",
+            reply_markup=_main_keyboard(tts_on, cur_model, cur_effort),
+        )
         return
 
     if text in (_BTN_TTS_ON, _BTN_TTS_OFF):

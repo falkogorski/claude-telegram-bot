@@ -346,9 +346,10 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 ## Phase 4 — Backup & Reproduzierbarkeit
 
 ### 4.1 Tägliches Backup VPS → Mac (rsync, switch-fähig)
-- **Status:** OFFEN
+- **Status:** VERIFIZIERT (16.07.2026, vorgezogen laut Audit 2→3)
 - **Akzeptanzkriterium:** Cron-Job läuft täglich; Ziel in Config-Datei konfigurierbar; Trockenlauf zeigt erwartete Dateien. `[NEU 2026-07-15]` **Muss die NICHT-in-Git-liegenden lokalen Dateien einschließen:** `/etc/claude-telegram-bot.env`, `/etc/claude-telegram-bot.token-issued`, das **Bot-Gedächtnis** `/home/claudebot/.claude/memory/`, und die **Ampel-Regeldateien** `/home/claudebot/.claude/ampel_rules.toml` + `/home/claudebot/.claude/ampel_custom.json` (enthält Klienten-Namen — nur lokal!). Diese sind sonst nirgends gesichert.
 - **Test:** Eine Testdatei auf VPS, Backup auslösen, Datei am Mac suchen. Plus: Ampel-Regeldatei + Memory im Backup vorhanden.
+- **Verifiziert am:** 16.07.2026 — Belege: Skript `scripts/vps_backup.sh` (im Repo, **Mac zieht per rsync/SSH vom VPS** als `claudevps`=root, liest alle Pfade). rsync 3.4.1 auf VPS nachinstalliert (`apt`). **Switch-fähig:** Ziel/Host in `~/.claude/vps-backup.conf` (`BACKUP_DIR`, default `~/VPS-Backup`). Sichert: `/etc/*.env` + `token-issued`, **Gedächtnis** `~/.claude/memory/`, **Ampel** `ampel_rules.toml`+`ampel_custom.json`, **Chat-Logs** `logs/`, Configs (searxng/litellm). Trockenlauf + echter Lauf = **892 K** (MEMORY.md ✅, ampel_rules.toml ✅, env ✅, conversations ✅). **Täglich via launchd** `com.jakuna.vps-backup` (12:30, verpasste Läufe beim Aufwachen; per `kickstart` verifiziert). Erreichbarkeits-Guard (VPS/Mac offline → sauberer Skip). Mac-rsync ist alt (2.6.9) → pro Pfad eigener Aufruf (kein `--ignore-missing-args`).
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

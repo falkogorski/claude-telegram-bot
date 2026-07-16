@@ -43,6 +43,8 @@ from claude_agent_sdk import (
     TextBlock,
     ToolPermissionContext,
     ToolUseBlock,
+    tool,
+    create_sdk_mcp_server,
 )
 
 import tempfile
@@ -1013,6 +1015,10 @@ def make_permission_callback(user_id: int):
                         "Frag solche Themen bei Bedarf in der Code-/Web-Sitzung."
             )
 
+        # Lokale private Websuche (SearxNG, 2.7): kostenfrei + lokal → ohne Rückfrage.
+        if tool_name == _SEARCH_TOOL_NAME:
+            return PermissionResultAllow()
+
         # Kosten-Tools (z. B. WebSearch) NIE über die Always-Allow-Liste durchwinken —
         # jede Nutzung muss einzeln mit Kostenhinweis bestätigt werden (Kostenregel).
         if tool_name in sess.always_allowed_tools and tool_name not in _COST_TOOLS:
@@ -1160,8 +1166,9 @@ _QUALITY_GUIDANCE = (
     "- **Unsicherheiten ausdrücklich kennzeichnen** ('unsicher', 'ungeprüft', "
     "'bitte gegenprüfen') — lieber ehrlich unsicher als selbstbewusst falsch.\n"
     "- **Keine ungeprüften Behauptungen** als Tatsache ausgeben.\n"
-    "- Websuche kostet Gebühr (Kostenregel) → gezielt einsetzen; bekannte Quellen "
-    "lieber direkt per WebFetch lesen (kostenfrei).\n"
+    "- Für Websuche das Tool **`web_search`** nutzen (lokale private Suche, "
+    "**kostenfrei**) — NICHT die kostenpflichtige WebSearch. Treffer-URLs bei "
+    "Bedarf mit WebFetch vertiefen (ebenfalls kostenfrei).\n"
 )
 
 
@@ -1219,6 +1226,51 @@ def _write_context_claude_md(context: str) -> bool:
         return False
 
 
+# ---------- Private Websuche über SearxNG (2.7, kostenfrei/lokal) ----------
+SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888")
+
+
+@tool(
+    "web_search",
+    "Durchsucht das Web über die lokale, private Metasuche (SearxNG) — KOSTENFREI. "
+    "Für aktuelle oder überprüfbare Fakten immer dies nutzen, statt aus dem Gedächtnis "
+    "zu raten. Gibt Titel, URL und Kurzbeschreibung der Treffer zurück; zum Vertiefen "
+    "die URLs mit WebFetch lesen.",
+    {"query": str},
+)
+async def _searxng_search_tool(args: dict) -> dict:
+    q = (args.get("query") or "").strip()
+    if not q:
+        return {"content": [{"type": "text", "text": "Kein Suchbegriff angegeben."}]}
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.get(f"{SEARXNG_URL}/search",
+                            params={"q": q, "format": "json"})
+            r.raise_for_status()
+            data = r.json()
+    except Exception as e:
+        log.exception("SearxNG-Suche fehlgeschlagen")
+        return {"content": [{"type": "text",
+                             "text": f"Suche fehlgeschlagen: {e}"}]}
+    results = (data.get("results") or [])[:8]
+    if not results:
+        return {"content": [{"type": "text", "text": f"Keine Treffer für „{q}“."}]}
+    lines = [f"Suchergebnisse für „{q}“ (lokale private Suche):", ""]
+    for i, res in enumerate(results, 1):
+        title = " ".join((res.get("title") or "").split())
+        url = (res.get("url") or "").strip()
+        snippet = " ".join((res.get("content") or "").split())[:300]
+        lines.append(f"{i}. {title}\n   {url}\n   {snippet}")
+    return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+
+_SEARCH_MCP = create_sdk_mcp_server(name="suche", version="1.0.0",
+                                    tools=[_searxng_search_tool])
+# Toolname, den der Agent sieht (für Auto-Allow + Bewerbung im Prompt):
+_SEARCH_TOOL_NAME = "mcp__suche__web_search"
+
+
 _UNSET = object()  # Sentinel: effort=None ist ein gültiger Wert (Normal)
 
 
@@ -1252,6 +1304,9 @@ async def ensure_session(
         model=model_full,
         effort=effort,
         add_dirs=add_dirs,
+        # Private, kostenfreie Websuche (2.7) statt kostenpflichtiger Anthropic-WebSearch.
+        mcp_servers={"suche": _SEARCH_MCP},
+        disallowed_tools=["WebSearch"],
         setting_sources=["project"] if context_via_file else None,
         system_prompt={
             "type": "preset",

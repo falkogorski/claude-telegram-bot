@@ -10,7 +10,7 @@
   </array>
   <key>StartCalendarInterval</key>
   <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>30</integer></dict>
-  <key>RunAtLoad</key><false/>
+  <key>RunAtLoad</key><true/>
   <key>EnvironmentVariables</key>
   <dict><key>HOME</key><string>/Users/jakuna</string></dict>
   <key>StandardOutPath</key><string>/Users/jakuna/VPS-Backup/launchd.out.log</string>

@@ -72,6 +72,28 @@ und CLAUDE.md im Repo sind die gemeinsame Wahrheit), (2) sonst dem Nutzer eine
 FERTIGE Lösung mitgeben (exakte Befehle zum Selbst-Ausführen oder einen
 fertigen Nachrichtentext inkl. Empfänger-Instanz) — nie nur „frag woanders".
 
+**Frisch lesen vor Reden/Schreiben:** Vor jeder Aussage über oder jedem
+Schreibzugriff auf geteilte Projekt-Dateien zuerst den frischen Stand aus
+Repo/Dateien lesen — nie aus altem Sitzungsgedächtnis schreiben.
+
+### 📌 Führungs-Register (pro Vorgang genau EINE führende Sitzung)
+
+- **Vorgang „VPS-Migration" (aktuell): die Migrations-/Code-Sitzung am Mac
+  führt.** Nur sie schreibt MIGRATION.md, CLAUDE.md und Code / pusht.
+- **Alle anderen Sitzungen: NUR LESEN.** Änderungswünsche als Text an Adam
+  bzw. an die führende Sitzung übergeben (fertiger Vorschlag, kein Direkt-Edit).
+- **Führungswechsel nur ausdrücklich:** Dieser Registereintrag wird geändert
+  und committet — erst danach schreibt die neue führende Sitzung.
+- Durchsetzung: SessionStart-/PreToolUse-Hooks in `.claude/settings.json`
+  (Warnbanner, Schreibschutz bei veraltetem Stand).
+
+**Datenschutz-Hinweis Ampel-Regelpflege:** Heikelste Muster (z. B. Klienten-
+Namen) NUR über den cloud-freien Weg eintragen — Telegram-Button-Dialog unter
+`/ampel` oder Textbefehl `/ampel rot …` (beides wird deterministisch in bot.py
+verarbeitet, ohne Claude-Beteiligung). Natürlichsprachige Pflege („nimm X als
+Klient auf") ist erlaubt, läuft aber durch den Claude-Agenten (Cloud) — für
+weniger heikle Begriffe okay, für das Heikelste den Button-Weg nutzen.
+
 ## Zusammenarbeit / Workflow (macOS, nicht-technischer Nutzer)
 
 - **`pbpaste`-Befehle (Token/Key aus Zwischenablage):** Reihenfolge IMMER klar
@@ -107,3 +129,28 @@ fertigen Nachrichtentext inkl. Empfänger-Instanz) — nie nur „frag woanders"
   und Antworten **neutral** halten. Umsetzung: kurzer Zusatz im System-Prompt
   des Bots (`bot.py`, `ClaudeAgentOptions`), z. B. „Du bist ein Telegram-Bot;
   nimm nicht an, wo oder an welchem Gerät der Nutzer sitzt."
+
+## 🧠 Kontext-Kompass bei dieser (langen) Migration — FESTER RHYTHMUS
+
+Vereinbarung mit Adam (2026-07-16): Diese zusammenhängende Migration in **einer**
+Sitzung weiterführen, **nicht** in Zweit-Sitzungen aufspalten (`/clear` = Neustart
+bei null, `/resume` lädt den ganzen Verlauf zurück — kein Zwischenweg). Der
+Kontext-Rhythmus ist ab jetzt fest:
+
+1. **VOR jeder neuen Phase** (oder sobald der Kontext knapp wird): gesteuert
+   verdichten mit `/compact focus on <die offenen, jüngsten Punkte>` — **nicht**
+   aufs automatische Verdichten warten. So bleibt der Fokus auf dem noch
+   Unabgeschlossenen scharf; das Erledigte wird eingedampft.
+2. **NACH jeder Phase und VOR jedem Verdichten:** den Stand in `MIGRATION.md`
+   zurückschreiben. Das ist das verdichtungssichere Langzeitgedächtnis —
+   `CLAUDE.md`, `MIGRATION.md` und `MEMORY.md` werden bei jeder Verdichtung ohnehin
+   frisch neu eingespielt, die Gesprächs-Historie dagegen komprimiert.
+3. **Große Lese-/Rechercheaufgaben** (Logs, Configs, Audits) an **Subagenten**
+   delegieren — sie lesen in eigenem Kontext und liefern nur die Zusammenfassung
+   zurück, der Hauptkontext bleibt schlank.
+
+Hinweis zur Ehrlichkeit: Ein echter Auto-Trigger, der `/compact` von selbst mit
+sinnvollem Fokus auslöst, ist technisch nicht machbar (braucht inhaltliches
+Urteil). Diese Regel steht bewusst **hier** in `CLAUDE.md`, weil sie so bei jedem
+Sitzungsstart und nach jeder Verdichtung neu präsent ist. Details:
+Memory `strategy-context-management-large-sessions`.

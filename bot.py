@@ -266,6 +266,10 @@ _BTN_STT_FAST_ACTIVE = "🎙️ Flott ✓"
 # wieder Standard.
 _BTN_THOROUGH = "🎯 Gründlich"
 _THOROUGH_PENDING: set[int] = set()
+# Ampel-Regel-Erfassungsmodus (/ampel → ➕ Neue Regel → Farbe → nächste Nachricht
+# wird DETERMINISTISCH (ohne Claude) als Regel übernommen). Verfällt nach 60 s.
+_AMPEL_CAPTURE: dict[int, dict] = {}
+_AMPEL_CAPTURE_TTL = 60  # Sekunden
 _THOROUGH_PREFIX = (
     "[GRÜNDLICH-MODUS — diese Frage muss stimmen: Prüfe Fakten AKTIV über Quellen "
     "(Websuche/Nachlesen) statt aus dem Gedächtnis; kennzeichne jede Unsicherheit "
@@ -1019,6 +1023,20 @@ def make_permission_callback(user_id: int):
         if tool_name == _SEARCH_TOOL_NAME:
             return PermissionResultAllow()
 
+        # Führungs-Register: Das Projekt-Repo ist für den Bot NUR-LESEN —
+        # Schreibzugriffe dorthin hart ablehnen (nur die Migrations-Sitzung schreibt).
+        if tool_name in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
+            raw = tool_input.get("file_path") or ""
+            try:
+                if raw and "/claude-telegram-bot" in str(Path(raw).expanduser().resolve()):
+                    return PermissionResultDeny(
+                        message="Das Projekt-Repo ist für den Bot NUR-LESEN "
+                                "(Führungs-Register, CLAUDE.md). Änderungswunsch "
+                                "als Text an Adam/die Migrations-Sitzung geben."
+                    )
+            except Exception:
+                pass
+
         # Kosten-Tools (z. B. WebSearch) NIE über die Always-Allow-Liste durchwinken —
         # jede Nutzung muss einzeln mit Kostenhinweis bestätigt werden (Kostenregel).
         if tool_name in sess.always_allowed_tools and tool_name not in _COST_TOOLS:
@@ -1169,6 +1187,13 @@ _QUALITY_GUIDANCE = (
     "- Für Websuche das Tool **`web_search`** nutzen (lokale private Suche, "
     "**kostenfrei**) — NICHT die kostenpflichtige WebSearch. Treffer-URLs bei "
     "Bedarf mit WebFetch vertiefen (ebenfalls kostenfrei).\n"
+    "\n"
+    "# REPO-ZUGRIFF (Führungs-Register, siehe CLAUDE.md im Repo)\n"
+    "- Du darfst das Projekt-Repo (/home/claudebot/claude-telegram-bot) LESEN — "
+    "bei Status-/Migrationsfragen IMMER frisch aus MIGRATION.md/CLAUDE.md lesen, "
+    "nie aus dem Sitzungsgedächtnis antworten.\n"
+    "- Du darfst dort NIEMALS schreiben, ändern oder committen — das tut nur die "
+    "führende Migrations-Sitzung am Mac. Änderungswünsche als Textvorschlag an Adam.\n"
 )
 
 
@@ -1555,7 +1580,97 @@ async def cmd_ampel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     L += ["", f"Regeldatei: {rf}"]
     if st["phase_over"]:
         L += ["", "⚠️ Beobachtungsphase ABGELAUFEN — Auswertung + Enforcement stehen an."]
-    await update.message.reply_text("\n".join(L))
+    await update.message.reply_text("\n".join(L), reply_markup=_ampel_menu_markup())
+
+
+def _ampel_menu_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("➕ Neue Regel", callback_data="amp:new"),
+            InlineKeyboardButton("📋 Regeln zeigen", callback_data="amp:list"),
+        ],
+        [InlineKeyboardButton("🗑 Regel löschen", callback_data="amp:del")],
+    ])
+
+
+async def on_ampel_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ampel-Menü — rein deterministisch in bot.py, ohne Claude-Beteiligung."""
+    q = update.callback_query
+    user_id = q.from_user.id
+    if user_id not in ALLOWED_USER_IDS:
+        await q.answer("Nicht berechtigt.")
+        return
+    data = q.data or ""
+
+    if data == "amp:list":
+        await q.answer()
+        await q.message.reply_text(ampel.list_rules(), reply_markup=_ampel_menu_markup())
+        return
+
+    if data == "amp:new":
+        await q.answer()
+        await q.message.reply_text(
+            "Welche Farbe soll die neue Regel bekommen?",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔴 Rot", callback_data="amp:c:rot"),
+                InlineKeyboardButton("🟡 Gelb", callback_data="amp:c:gelb"),
+                InlineKeyboardButton("🟢 Grün", callback_data="amp:c:gruen"),
+            ]]),
+        )
+        return
+
+    if data == "amp:c:gruen":
+        await q.answer()
+        await q.message.reply_text(
+            "🟢 Grün ist der Standard (alles ohne Regel-Treffer) — Regeln gibt es "
+            "nur für 🔴 Rot und 🟡 Gelb."
+        )
+        return
+
+    if data in ("amp:c:rot", "amp:c:gelb"):
+        color = data.rsplit(":", 1)[1]
+        _AMPEL_CAPTURE[user_id] = {"color": color, "expires": time.time() + _AMPEL_CAPTURE_TTL}
+        icon = "🔴" if color == "rot" else "🟡"
+        await q.answer()
+        await q.message.reply_text(
+            f"{icon} ERFASSUNGSMODUS ({_AMPEL_CAPTURE_TTL} s): Schick jetzt den Begriff "
+            f"als nächste Nachricht — optional mit Label, z. B. „Klient: Max Mustermann“.\n"
+            f"Die Nachricht wird OHNE Claude-Beteiligung direkt in die lokale "
+            f"Regeldatei übernommen (cloud-frei)."
+        )
+        return
+
+    if data == "amp:del":
+        custom = ampel._load_custom()
+        rows = []
+        for color in ("rot", "gelb"):
+            for i, e in enumerate(custom.get(color) or []):
+                label = (e.get("pattern") or "")[:24]
+                icon = "🔴" if color == "rot" else "🟡"
+                rows.append([InlineKeyboardButton(
+                    f"🗑 {icon} {label}", callback_data=f"amp:rm:{color}:{i}")])
+        await q.answer()
+        if not rows:
+            await q.message.reply_text("Keine eigenen Regeln vorhanden (Basis-Regeln "
+                                       "liegen in der TOML-Datei auf dem Server).")
+            return
+        await q.message.reply_text("Welche Regel löschen?", reply_markup=InlineKeyboardMarkup(rows))
+        return
+
+    if data.startswith("amp:rm:"):
+        try:
+            _, _, color, idx_s = data.split(":", 3)
+            idx = int(idx_s)
+            custom = ampel._load_custom()
+            entry = (custom.get(color) or [])[idx]
+            msg = ampel.remove_rule(entry.get("pattern", ""))
+        except (IndexError, ValueError):
+            msg = "Regel nicht mehr vorhanden (Liste veraltet — /ampel erneut öffnen)."
+        await q.answer()
+        await q.message.reply_text(msg)
+        return
+
+    await q.answer()
 
 
 async def cmd_usage(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3186,8 +3301,29 @@ async def on_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not text.strip():
         return
     if text.strip() in _ALL_KEYBOARD_BTNS:
+        # Tastatur-Button bricht einen laufenden Ampel-Erfassungsmodus ab.
+        _AMPEL_CAPTURE.pop(update.effective_user.id, None)
         await _handle_keyboard_btn(update, text.strip())
         return
+
+    # Ampel-Erfassungsmodus (/ampel → ➕): nächste Nachricht wird DETERMINISTISCH
+    # als Regel übernommen — geht NIE an Claude, zählt NICHT als normale Nachricht.
+    cap = _AMPEL_CAPTURE.pop(update.effective_user.id, None)
+    if cap is not None:
+        if time.time() > cap["expires"]:
+            await update.message.reply_text(
+                "⌛ Erfassungsmodus abgelaufen — bitte /ampel → ➕ Neue Regel erneut."
+            )
+            return
+        raw = text.strip()
+        label, pattern = "manuell", raw
+        if ":" in raw:
+            lbl, pat = raw.split(":", 1)
+            if pat.strip():
+                label, pattern = (lbl.strip() or "manuell"), pat.strip()
+        await update.message.reply_text(ampel.add_rule(cap["color"], pattern, label))
+        return
+
     prefix = _extract_reply_context(update)
     await process_user_text(update, prefix + text)
 
@@ -4346,6 +4482,7 @@ def main() -> None:
     app.add_handler(CommandHandler("setkanal", cmd_setkanal))
     app.add_handler(CommandHandler("selfcheck", cmd_selfcheck))
     app.add_handler(CallbackQueryHandler(on_permission_callback, pattern=r"^p:"))
+    app.add_handler(CallbackQueryHandler(on_ampel_callback, pattern=r"^amp:"))
     app.add_handler(CallbackQueryHandler(on_pdf_callback, pattern=r"^pdf:"))
     app.add_handler(CallbackQueryHandler(on_channel_callback, pattern=r"^ch:"))
     app.add_handler(CallbackQueryHandler(on_restart_callback, pattern=r"^rst:"))

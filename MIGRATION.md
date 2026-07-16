@@ -24,6 +24,7 @@ metadata:
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
 - **➡️ NÄCHSTE SITZUNG (Adam 14.07. abends):** Weiter mit **5.22** (Transkriptions-Tempo / STT-Schnellumschalter) und **5.23** (Session-Start-Diät) — Ziel: schnellere Antworten im Alltag. Diese vor Phase 2 ziehen. Konkrete Quick Wins für 5.22 stehen dort (Threads 2→4, Modell-Umschalter, Bot-Selbstverortung korrigieren). (48h-Kostenkontrolle 1.11 läuft nebenher — automatischer Telegram-Reminder aktiv.)
+- **2026-07-16** — **Kostenregel verschärft + WebSearch-Kostenkontrolle + Antwortqualität (`2f37658`, Adam-Auftrag):** CLAUDE.md-💰-Regel jetzt UNIVERSELL (jede Kostenquelle, Cent zählt, „unklar=ja", gilt auch für Recherche-Tools; neue Dienste vorab auf versteckte Gebühren prüfen). WebSearch in Bot-Sessions kostenpflichtig-abgesichert (kein Always-Allow, Kostenhinweis). Antwortqualitäts-Leitplanke im System-Prompt + 🎯 Gründlich-Modus. Neu im Drehbuch: **2.7** SearxNG (kostenfreie private Suche), **8.5 hochgestuft**, Vermerke 5.6.
 - **2026-07-15 (4)** — **Robustere Kontext-Behandlung + Ampel-Regelverwaltung (`e2ff813`, Adam-Spec):** (A1) Kontext-Überlauf → Session auto-verwerfen + Nachricht automatisch neu (Statuszeile, kein Verlust); (A3) Skill-Ladungen in Bot-Sessions abgelehnt (Kontextschutz); (B) `/ampel regeln|rot|gelb|weg` — Regelverwaltung rein lokal ohne Claude (Klienten-Namen nie in die Cloud), Log zeigt Label. Neu: **5.24** (proaktive Rotation ~80 %) ins Drehbuch; **4.1** um Backup der lokalen Nicht-Git-Dateien (env, Memory, Ampel-Regeln) ergänzt.
 - **2026-07-15 (3)** — **Phase 2 gestartet:** 2.1 LiteLLM-Proxy ✅, 2.3 Ollama+Phi-4-Mini ✅ (LiteLLM-Route 1 s), 2.2 Datenschutz-Ampel als **Beobachtungsphase** live (regelbasiert, nur Log, kein Umrouten; Ende 4W4T4h/444 → dann Trimmen + Enforcement mit `!cloud`/`!lokal`-Overrides). Modell-Einstufung → Backlog.
 - **2026-07-15 (2)** — **5.23 Session-Diät implementiert + E2E bewiesen:** Memory-Loader lädt nur Kern (Identität+Verhaltensregeln+Index), Projekt/Referenz on-demand (Agent liest via Read, Memory-Ordner via `add_dirs`, Lesen ohne Rückfrage). VPS-Messung: Kern-Frage 4,2 s, On-demand 7,3 s (Read genutzt, korrekt) — erste Session-Antwort ~60 s→~4 s. Adam-Telegram-Test offen.
@@ -298,6 +299,14 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+### 2.7 Kostenfreie private Websuche (SearxNG) `[NEU 2026-07-16]`
+- **Status:** OFFEN
+- **Hintergrund:** Anthropic-**WebSearch kostet** (~$10/1000 Suchen ≈ 1 Cent/Suche) → verstößt gegen die Kostenregel. **Sofortmaßnahme 16.07. bereits umgesetzt (`2f37658`):** WebSearch in Bot-Sessions aus Always-Allow entfernt, Kostenhinweis im Permission-Prompt („💰 ~1 Cent/Suche"), kein „Always allow"-Button. WebFetch bleibt frei (keine Extra-Gebühr).
+- **Akzeptanzkriterium:** **SearxNG** als Docker- **oder** systemd-Dienst auf dem VPS, **nur lokal** erreichbar (127.0.0.1, kein öffentlicher Port); dem Bot als Such-Werkzeug angebunden (MCP-Tool oder Custom-Tool in bot.py: Anfrage → SearxNG → Treffer-Liste → Seiten per WebFetch lesen). Danach **Anthropic-WebSearch in Bot-Sessions komplett deaktivieren** (via `disallowed_tools` o. Ä.). Eine Recherche-Testfrage im Bot liefert Antwort **mit Quellen**, UND console.anthropic.com → **Usage bleibt 0** (💰-Beweis: keine Werkzeug-Gebühr).
+- **Test:** Recherchefrage im Bot → sinnvolle Antwort mit Quellenlinks; parallel Usage-Konsole = 0.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
 ### Phasen-Audit 2 → 3
 - **Audit-Status:** —
 - **Strategie-Recheck:** —
@@ -410,6 +419,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Status:** OFFEN
 - **Akzeptanzkriterium:** Bot startet nach Neustart im zuletzt genutzten Modell; bei neuen anspruchsvollen Prozessen kommt eine Empfehlung statt eigenmächtigem Wechsel. `[NEU 2026-07-12]` Grundeinstellung Sonnet (0.6/E3); Empfehlungen können auch nach unten zeigen („Trivial-Anfrage → eher Haiku?"). Vollautomatischer Wechsel bleibt bewusst AUS (Adam-Entscheid E3); falls später gewünscht → Backlog.
 - **Test:** Modell wechseln, Bot killen, wieder hoch → gleiches Modell; eine Trivial-Anfrage in Opus → Empfehlung „eher Sonnet?".
+- **`[NEU 2026-07-16]` Verwandt — 🎯 Gründlich-Modus (umgesetzt `2f37658`):** Ein-Klick-Button, der die NÄCHSTE Anfrage einmalig mit Opus + hohem Effort + Pflicht-Quellencheck beantwortet, danach zurück zu Standard. Adressiert (mit 8.5) Adams **Verlässlichkeits-Anforderung**: für wichtige Fragen bewusst „auf Nummer sicher".
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
@@ -676,7 +686,7 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Verifiziert am:** —
 
 ### 8.5 Pre-Send-Hook (Datums-/Bezugs-/Vollständigkeits-Check)
-- **Status:** OFFEN — Kernpunkt
+- **Status:** OFFEN — **Kernpunkt, PRIORITÄT HOCHGESTUFT (Adam 16.07.)** — adressiert Adams Verlässlichkeits-Anforderung strukturell (nicht nur per Aufmerksamkeit). Vorziehen, sobald Phase 2/3 stabil. Zwischenschritte 16.07. bereits umgesetzt: Antwortqualitäts-Leitplanke fest im Session-System-Prompt (Quellen prüfen, Unsicherheit kennzeichnen, keine ungeprüften Behauptungen) + 🎯 Gründlich-Modus (Opus+Max+Pflicht-Quellencheck für wichtige Fragen). Der volle Hook am Sendepfad ersetzt/ergänzt diese Disziplin durch eine harte Garantie.
 - **Akzeptanzkriterium:** Zentraler Hook am Sendepfad; (a) zeitliche Aussagen gegen Systemdatum verifiziert, (b) Bezug auf Nachricht prüft Absender+Uhrzeit+Inhalt, (c) Vollständigkeits-Check seit letzter Antwort, (d) erweiterbar.
 - **Test:** Bewusst eine falsche Datumsangabe formulieren → Hook blockiert/korrigiert; gleiches für falsche Nachrichten-Referenz.
 - **Adam-Bestätigung:** —

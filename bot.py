@@ -51,6 +51,7 @@ import tempfile
 
 from transcribe import Transcriber, build_transcriber
 import ampel
+import pending
 import presend
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -652,6 +653,7 @@ class QueuedJob:
     received_at: float = field(default_factory=time.time)
     context_retry: bool = False  # True, nachdem wg. Kontext-Überlauf frisch neu gestartet
     thorough: bool = False       # 🎯 Gründlich: diese Anfrage mit Opus+Max+Quellencheck
+    pending_key: str | None = None  # 5.2: Schlüssel des Persistenz-Records (logs/pending/<key>.json)
 
 
 @dataclass
@@ -724,13 +726,28 @@ async def _session_worker(user_id: int) -> None:
         job = mb.queue.popleft()
         mb.current_job = job
         mb.current_started = time.monotonic()
+        # 5.2: Persistenz-Status auf „in Bearbeitung" (falls Reboot jetzt: Hybrid → melden).
+        if job.pending_key:
+            pending.set_status(job.pending_key, pending.STATUS_RUNNING)
+        outcome = "fehler"
         try:
-            await _run_job(user_id, job)
+            outcome = await _run_job(user_id, job)
         except Exception:
             log.exception("worker: job failed for user_id=%s", user_id)
         finally:
             mb.done_log.append((time.time(), _job_preview(job.text)))
             mb.current_job = None
+        # 5.2: Persistenz-Status nach Ausgang nachziehen.
+        #   beantwortet/aufgegeben → Record löschen (raus aus pending)
+        #   offen (Kontext-Retry re-enqueued) → bleibt liegen, wird gleich neu gezogen
+        #   fehler → bleibt liegen (Hybrid-Reconcile meldet ihn beim nächsten Start)
+        if job.pending_key:
+            if outcome in ("beantwortet", "aufgegeben"):
+                pending.resolve(job.pending_key)
+            elif outcome == "offen":
+                pending.set_status(job.pending_key, pending.STATUS_OPEN)
+            else:
+                pending.set_status(job.pending_key, pending.STATUS_FAILED)
     mb.worker = None
 
 
@@ -803,9 +820,15 @@ async def _presend_gate(
     return answer + hinweis
 
 
-async def _run_job(user_id: int, job: QueuedJob) -> None:
+async def _run_job(user_id: int, job: QueuedJob) -> str:
     """Führt EINEN Job gegen die (ggf. frisch geöffnete) Claude-Session aus.
-    Body entspricht der früheren process_user_text-Logik."""
+    Body entspricht der früheren process_user_text-Logik.
+
+    Rückgabe = Ausgang für die 5.2-Persistenz-Pflege im Worker:
+      "beantwortet" — Turn lief durch (Record wird gelöscht)
+      "aufgegeben"  — Auth-/finaler Kontextfehler, wird nicht erneut versucht (Record gelöscht)
+      "offen"       — wg. Kontext-Überlauf re-enqueued (Record bleibt, kommt gleich neu dran)
+      "fehler"      — sonstiger Session-Fehler (Record bleibt liegen → Hybrid-Reconcile meldet ihn)"""
     if job.thorough:
         # 🎯 Gründlich: einmalige frische Session mit Opus + hohem Effort.
         sess = await ensure_session(user_id, model_override="opus",
@@ -855,7 +878,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> None:
                 except Exception:
                     log.exception("failed to send auth-error message")
                 await close_session(user_id)
-                return
+                return "aufgegeben"
             # Kontext-Überlauf: Session verwerfen, frisch starten und die
             # gescheiterte Nachricht AUTOMATISCH neu verarbeiten (kein Nutzer-Eingriff,
             # nichts geht verloren). Nur einmal — scheitert es erneut, klare Meldung.
@@ -873,7 +896,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> None:
                         )
                     except Exception:
                         log.exception("failed to send context-rotate status")
-                    return
+                    return "offen"
                 # Auch mit frischer Session zu groß → klare Meldung.
                 try:
                     await send_chunked(
@@ -886,7 +909,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> None:
                 except Exception:
                     log.exception("failed to send context-overflow message")
                 await close_session(user_id)
-                return
+                return "aufgegeben"
             try:
                 await send_chunked(
                     sess.bot,
@@ -898,6 +921,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> None:
             except Exception:
                 log.exception("failed to send error message to user")
             await close_session(user_id)
+            return "fehler"
 
     # Senden erst JETZT — nach der Pre-Send-Prüfung (8.5), über den zentralen
     # Sendepfad (Vorstufe 5.8; ersetzt den früheren toten _send_tts-Zweig).
@@ -913,6 +937,8 @@ async def _run_job(user_id: int, job: QueuedJob) -> None:
     # 🎯 Gründlich war einmalig: Session schließen → nächste Nachricht wieder Standard.
     if job.thorough and user_id in SESSIONS:
         await close_session(user_id)
+
+    return "beantwortet"
 
 
 # ---------- helpers ----------
@@ -1622,6 +1648,17 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
     if "small" in _STT_MODELS and "medium" in _STT_MODELS:
         lines.append(f"🎙️ Voice-Transkription: {_stt_label(_ACTIVE_STT)}")
+
+    # 5.2: liegende Persistenz-Records (Normalbetrieb: leer; nach hartem Reboot
+    # zeigt sich hier, was noch nicht abgearbeitet ist).
+    try:
+        pc = pending.counts()
+        if pc:
+            total = sum(pc.values())
+            detail = ", ".join(f"{n}× {s}" for s, n in sorted(pc.items()))
+            lines.append(f"🗂 Persistiert (5.2): {total} ({detail})")
+    except Exception:
+        log.exception("pending-counts in /status übersprungen (nicht-fatal)")
 
     await update.message.reply_text("\n".join(lines))
 
@@ -2867,6 +2904,22 @@ def run_self_check() -> tuple[bool, list[str]]:
             assert "LETZTER GESPRÄCHSVERLAUF" in ctx, "Recall-Block fehlt im Kontext"
     check("Session-Recall", _c_recall)
 
+    # 9. Nachrichten-Persistenz (5.2) — record→set_status→resolve muss atomar
+    # durchlaufen und darf keine Leiche hinterlassen. Test auf einem Wegwerf-
+    # Schlüssel, der garantiert nicht mit echten Nachrichten kollidiert.
+    def _c_pending_persist() -> None:
+        k = pending.make_key(-1, -1)  # unmöglicher chat/message-Wert
+        try:
+            pending.record(k, {"text": "selfcheck", "status": pending.STATUS_OPEN})
+            assert any(r.get("_key") == k for r in pending.load_all()), "Record nicht geschrieben"
+            pending.set_status(k, pending.STATUS_RUNNING)
+            hit = next((r for r in pending.load_all() if r.get("_key") == k), None)
+            assert hit and hit.get("status") == pending.STATUS_RUNNING, "Status nicht gesetzt"
+        finally:
+            pending.resolve(k)
+        assert not any(r.get("_key") == k for r in pending.load_all()), "Record nicht gelöscht"
+    check("Nachrichten-Persistenz (5.2)", _c_pending_persist)
+
     return state["ok"], results
 
 
@@ -3083,6 +3136,29 @@ async def process_user_text(
         reply_to_override=reply_to_override,
         thorough=thorough,
     )
+
+    # 5.2: Nachricht SOFORT persistieren (überlebt Reboot). Nur serialisierbare
+    # Primitive — das lebende Update geht nicht; der Anhang-Pfad steckt bereits
+    # im text (Datei liegt dauerhaft in UPLOAD_DIR). Rein additiv/fehlertolerant.
+    try:
+        msg = update.message
+        if msg is not None:
+            key = pending.make_key(update.effective_chat.id, msg.message_id)
+            job.pending_key = key
+            pending.record(key, {
+                "user_id": user_id,
+                "chat_id": update.effective_chat.id,
+                "message_id": msg.message_id,
+                "thread_id": getattr(msg, "message_thread_id", None),
+                "text": text,
+                "force_tts": force_tts,
+                "output_chat_id": job.output_chat_id,
+                "reply_to_override": reply_to_override,
+                "thorough": thorough,
+                "received_at": job.received_at,
+            })
+    except Exception:
+        log.exception("5.2 Persistenz beim Empfang übersprungen (nicht-fatal)")
 
     busy = mb.current_job is not None
     correction = _is_correction(text)

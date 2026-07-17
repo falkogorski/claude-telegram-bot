@@ -20,8 +20,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity, ReactionTypeEmoji, ReplyKeyboardMarkup, ReplyParameters, Update
-from telegram.constants import ParseMode
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity, ReactionTypeEmoji, ReplyKeyboardMarkup, ReplyParameters, Update
+from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -1506,8 +1506,8 @@ async def cmd_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "Befehle:\n"
         "/reset — Session beenden (neue beginnt mit nächster Nachricht)\n"
         "/tts — Sprachnachricht-Modus an/aus (Text + Voice parallel)\n"
-        "/quiet — Nur Abschlussantworten (keine Tool-Meldungen)\n"
-        "/verbose — Alle Tool-Meldungen anzeigen\n"
+        "/quiet — Ruhiger Modus (Tipp-Indikator aus; 🔧-Spur bleibt)\n"
+        "/verbose — Tipp-Indikator wieder an (🔧-Spur ist immer sichtbar)\n"
         "/status — Session-Info\n"
         "/whoami — Deine Telegram-User-ID\n\n"
         "Permission-Anfragen: Buttons *oder* 👍 (Allow) / 👎 (Deny) als Reaktion.",
@@ -1834,8 +1834,8 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/usage — Token-Verbrauch heute (Bot-Kanal)\n"
         "/tts — TTS an/aus umschalten\n"
         "/ttsdemo — TTS-Testausgabe\n"
-        "/quiet — Tool-Calls ausblenden\n"
-        "/verbose — Tool-Calls anzeigen\n"
+        "/quiet — Tipp-Indikator aus (🔧-Spur bleibt sichtbar)\n"
+        "/verbose — Tipp-Indikator wieder an\n"
         "/setkanal — Ausgabekanal setzen\n"
         "/whereami — Kanal-Info anzeigen\n"
         "/whoami — User-Info\n"
@@ -2188,7 +2188,9 @@ async def cmd_quiet(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         return
     sess = await ensure_session(update.effective_user.id)
     sess.quiet = True
-    await update.message.reply_text("🔕 Quiet-Modus an — nur Abschlussantworten, keine Tool-Meldungen.")
+    await update.message.reply_text(
+        "🔕 Ruhiger Modus an — Tipp-Indikator aus. Die 🔧-Werkzeug-Spur bleibt als "
+        "Lebenszeichen sichtbar.")
 
 
 async def cmd_verbose(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2196,7 +2198,9 @@ async def cmd_verbose(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         return
     sess = await ensure_session(update.effective_user.id)
     sess.quiet = False
-    await update.message.reply_text("🔔 Verbose-Modus an — alle Tool-Meldungen sichtbar.")
+    await update.message.reply_text(
+        "🔔 Verbose-Modus an — Tipp-Indikator läuft wieder mit (die 🔧-Spur ist "
+        "ohnehin immer sichtbar).")
 
 
 async def cmd_setkanal(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2887,6 +2891,30 @@ async def post_init(app: Application) -> None:
         log.info("bot username gecached: @%s", _BOT_USERNAME)
     except Exception:
         log.warning("bot username konnte nicht ermittelt werden (Rück-Button inaktiv)")
+
+    # Befehls-Menü in Telegram registrieren, damit die „/"-Autovervollständigung
+    # die Befehle vorschlägt — sonst tippt man z.B. /presend blind und verschreibt
+    # sich (genau so am 17.07.: „/present" statt „/presend"). Fehlschlag hier ist
+    # unkritisch, der Bot läuft auch ohne Menü.
+    try:
+        await app.bot.set_my_commands([
+            BotCommand("hilfe", "Alle Befehle anzeigen"),
+            BotCommand("status", "Queue & Session-Übersicht"),
+            BotCommand("presend", "Pre-Send-Hook — Kennzahlen"),
+            BotCommand("ampel", "Ampel — Regeln & Status"),
+            BotCommand("usage", "Token-Verbrauch heute"),
+            BotCommand("tts", "Sprachausgabe an/aus"),
+            BotCommand("quiet", "Ruhiger Modus (Tipp-Indikator aus)"),
+            BotCommand("verbose", "Tipp-Indikator wieder an"),
+            BotCommand("reset", "Session zurücksetzen"),
+            BotCommand("selfcheck", "Selbsttest der Kernfunktionen"),
+            BotCommand("setkanal", "Ausgabekanal setzen"),
+            BotCommand("whereami", "Aktuellen Kanal zeigen"),
+            BotCommand("restart", "Bot neu starten"),
+        ])
+        log.info("Telegram-Befehlsmenü registriert (setMyCommands)")
+    except Exception:
+        log.warning("setMyCommands fehlgeschlagen (Menü evtl. unvollständig)", exc_info=True)
 
     # Startup-Statusnachricht: Wenn ich (Claude) vor dem Neustart einen Grund
     # hinterlegt habe, wird er hier gelesen und als Telegram-Nachricht gesendet.
@@ -4426,6 +4454,24 @@ async def _summarize_pdf_direct(local_path: Path) -> str:
     return summary
 
 
+async def _typing_keepalive(bot, chat_id: int, thread_id: int | None) -> None:
+    """Hält Telegrams „tippt…" wach, solange ein Turn läuft — zusätzliches
+    Lebenszeichen neben der 🔧-Werkzeug-Spur, das auch Turns OHNE Werkzeug-Aufruf
+    abdeckt (reine Textantworten, bei denen sonst gar nichts zu sehen wäre). Der
+    Status verfällt nach ~5 s, deshalb alle 4 s auffrischen. Fehler hier dürfen
+    den Turn nie stören → alles defensiv, Abbruch nur über cancel()."""
+    try:
+        while True:
+            try:
+                await bot.send_chat_action(chat_id, ChatAction.TYPING,
+                                           message_thread_id=thread_id)
+            except Exception:
+                pass
+            await asyncio.sleep(4)
+    except asyncio.CancelledError:
+        pass
+
+
 async def stream_response(
     sess: UserSession, chat_id: int, force_tts: bool = False, reply_to: int | None = None,
     thread_id: int | None = None,
@@ -4438,41 +4484,54 @@ async def stream_response(
     war, bevor er den Nutzer erreichte. Ein Pre-Send-Hook (8.5) war so unmöglich.
     Jetzt: Text sammeln → Aufrufer prüft (presend) → Aufrufer sendet.
 
-    LIVE bleibt nur die Werkzeug-Spur (🔧 …) als Lebenszeichen während langer
-    Turns — sie ist kein Antworttext und braucht keine Prüfung.
+    LEBENSZEICHEN während langer Turns (Adam-Entscheid 17.07., fester Bestandteil
+    der Puffer-Option 1): Seit der Text gesammelt statt live gestreamt wird, gäbe
+    es sonst minutenlang nichts zu sehen. Zwei Signale:
+      • 🔧-Werkzeug-Spur pro Tool-Aufruf — IMMER sichtbar, auch im quiet-Modus.
+      • Telegram-„tippt…" als Dauer-Indikator — deckt Turns ganz ohne Werkzeug ab;
+        im quiet-Modus abgeschaltet (wer Ruhe will, behält nur die 🔧-Spur).
 
     Rückgabe: der vollständige Antworttext (oder None, wenn der Turn keinen lieferte).
     """
     claude_turn_started = False
     parts: list[str] = []
 
-    async for msg in sess.client.receive_response():
-        if isinstance(msg, AssistantMessage):
-            for block in msg.content:
-                if isinstance(block, TextBlock):
-                    if not claude_turn_started and sess.logger:
-                        sess.logger.start_assistant_turn()
-                        claude_turn_started = True
-                    if sess.logger:
-                        sess.logger.log_assistant_text(block.text)
-                    parts.append(block.text)
-                elif isinstance(block, ToolUseBlock):
-                    # Lebenszeichen: zeigt, dass gearbeitet wird, während der
-                    # Antworttext noch gesammelt (und gleich geprüft) wird.
-                    if not sess.quiet:
+    # Tipp-Indikator nur außerhalb des quiet-Modus (die 🔧-Spur läuft unabhängig).
+    typing_task = (
+        asyncio.create_task(_typing_keepalive(sess.bot, chat_id, thread_id))
+        if not sess.quiet else None
+    )
+    try:
+        async for msg in sess.client.receive_response():
+            if isinstance(msg, AssistantMessage):
+                for block in msg.content:
+                    if isinstance(block, TextBlock):
+                        if not claude_turn_started and sess.logger:
+                            sess.logger.start_assistant_turn()
+                            claude_turn_started = True
+                        if sess.logger:
+                            sess.logger.log_assistant_text(block.text)
+                        parts.append(block.text)
+                    elif isinstance(block, ToolUseBlock):
+                        # 🔧-Lebenszeichen — BEWUSST unabhängig von quiet: ohne
+                        # Live-Textstrom ist die Werkzeug-Spur bei langen Recherche-
+                        # Turns das einzige Zeichen, dass überhaupt gearbeitet wird.
                         await send_chunked(sess.bot, chat_id, f"🔧 {block.name}",
                                            thread_id=thread_id)
-                    if sess.logger:
-                        sess.logger.log_tool(block.name)
-        elif isinstance(msg, ResultMessage):
-            if sess.logger and claude_turn_started:
-                sess.logger.end_turn()
-            _record_usage(sess.current_model, msg)
-            return "".join(parts).strip() or None
-    # Fallback: kein ResultMessage (z.B. Abbruch) — trotzdem sauber abschließen.
-    if sess.logger and claude_turn_started:
-        sess.logger.end_turn()
-    return "".join(parts).strip() or None
+                        if sess.logger:
+                            sess.logger.log_tool(block.name)
+            elif isinstance(msg, ResultMessage):
+                if sess.logger and claude_turn_started:
+                    sess.logger.end_turn()
+                _record_usage(sess.current_model, msg)
+                return "".join(parts).strip() or None
+        # Fallback: kein ResultMessage (z.B. Abbruch) — trotzdem sauber abschließen.
+        if sess.logger and claude_turn_started:
+            sess.logger.end_turn()
+        return "".join(parts).strip() or None
+    finally:
+        if typing_task is not None:
+            typing_task.cancel()
 
 
 async def send_answer_to_user(

@@ -29,7 +29,10 @@ if ! ssh -o BatchMode=yes -o ConnectTimeout=15 "$SSH_HOST" true 2>>"$LOG"; then
   exit 0
 fi
 
-RSYNC=(rsync -az)   # Mac-rsync (2.6.9) kennt kein --ignore-missing-args → pro Pfad einzeln.
+RSYNC=(rsync -az --exclude='._*' --exclude='.DS_Store')
+# rsync -az; Mac-rsync (2.6.9) kennt kein --ignore-missing-args → pro Pfad einzeln.
+# --exclude: macOS-Müll nicht mitsichern — AppleDouble `._*` (stammten aus der
+# tar-Migration Mac→VPS am 14.07., COPYFILE_DISABLE war nicht gesetzt) + `.DS_Store`.
 [ "${1:-}" = "--dry-run" ] && RSYNC+=(-n --itemize-changes)
 
 # Pfad|Zielgruppe. Jeder Pfad ein eigener rsync-Aufruf: eine fehlende Datei

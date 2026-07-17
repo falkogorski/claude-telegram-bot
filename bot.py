@@ -604,7 +604,11 @@ class UserSession:
     client: ClaudeSDKClient
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     always_allowed_tools: set[str] = field(default_factory=set)
-    quiet: bool = True
+    # Default verbose: der Tipp-Indikator (Lebenszeichen bei werkzeuglosen Turns)
+    # läuft nur außerhalb von quiet — bliebe der Default True, sähe man bei einer
+    # reinen Textfrage gar nichts (der behobene Regress). /quiet schaltet dann
+    # NUR den Indikator ab; die 🔧-Werkzeug-Spur bleibt in jedem Fall sichtbar.
+    quiet: bool = False
     tts_enabled: bool = False
     current_model: str = field(default_factory=lambda: DEFAULT_MODEL)
     current_effort: str | None = None  # "low" / None (default) / "max"

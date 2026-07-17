@@ -51,6 +51,7 @@ import tempfile
 
 from transcribe import Transcriber, build_transcriber
 import ampel
+import presend
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -728,6 +729,75 @@ async def _session_worker(user_id: int) -> None:
     mb.worker = None
 
 
+def _count_newer_pending(user_id: int, job: QueuedJob) -> int:
+    """Wie viele NEUERE Nachrichten warten seit Bearbeitungsbeginn dieses Jobs?
+
+    ACHTUNG Zeitbasen (Analyse-Befund 17.07.): `Mailbox.current_started` ist
+    time.monotonic(), `QueuedJob.received_at` dagegen time.time() — ein Vergleich
+    der beiden wirft KEINEN Fehler, wäre aber IMMER wahr und würde bei jeder
+    Antwort Fehlalarm auslösen. Deshalb wird ausschließlich received_at gegen
+    received_at verglichen (gleiche Zeitbasis).
+    """
+    try:
+        mb = MAILBOXES.get(user_id)
+        if not mb or not mb.queue:
+            return 0
+        return sum(1 for j in mb.queue if j.received_at > job.received_at)
+    except Exception:
+        log.exception("Vollständigkeits-Zählung fehlgeschlagen (nicht-fatal)")
+        return 0
+
+
+async def _presend_gate(
+    sess: UserSession, job: QueuedJob, answer: str | None, *, chat_id: int,
+    reply_to: int | None, thread_id: int | None,
+) -> str | None:
+    """Pre-Send-Hook (8.5): prüft den vollständigen Text, BEVOR er rausgeht.
+
+    Adam-Spec: deterministisch Fixbares wird direkt korrigiert; verifizierbare,
+    nicht auto-fixbare Befunde gehen EINMAL zur Korrektur an Claude zurück — greift
+    das nicht, wird MIT ⚠️-Vermerk gesendet statt weiter zu blockieren (nie eine
+    hängende Antwort). Rückgabe: der zu sendende Text.
+    """
+    if not answer:
+        return answer
+    pending = _count_newer_pending(job.update.effective_user.id, job)
+    answer, findings = presend.check_and_fix(answer, pending_newer=pending)
+    meta = {"user_id": job.update.effective_user.id, "thorough": job.thorough}
+
+    todo = presend.needs_correction(findings)
+    if not todo:
+        presend.log_findings(findings, meta)
+        return answer
+
+    # EINE Korrekturrunde — mit konkretem Befund.
+    log.info("presend: Korrekturrunde für %s Befund(e)", len(todo))
+    try:
+        await sess.client.query(presend.correction_prompt(todo))
+        corrected = await stream_response(
+            sess, chat_id, force_tts=job.force_tts,
+            reply_to=reply_to, thread_id=thread_id,
+        )
+    except Exception:
+        log.exception("presend: Korrekturrunde fehlgeschlagen")
+        corrected = None
+
+    if corrected:
+        corrected, again = presend.check_and_fix(
+            corrected, pending_newer=_count_newer_pending(job.update.effective_user.id, job))
+        if not presend.needs_correction(again):
+            meta["korrektur"] = "erfolgreich"
+            presend.log_findings(findings + again, meta)
+            return corrected
+        answer, findings = corrected, findings + again
+
+    # Korrektur griff nicht → senden MIT sichtbarem Vermerk, niemals blockieren.
+    meta["korrektur"] = "fehlgeschlagen"
+    presend.log_findings(findings, meta)
+    hinweis = "\n\n⚠️ " + "; ".join(f.get("detail", "") for f in todo)
+    return answer + hinweis
+
+
 async def _run_job(user_id: int, job: QueuedJob) -> None:
     """Führt EINEN Job gegen die (ggf. frisch geöffnete) Claude-Session aus.
     Body entspricht der früheren process_user_text-Logik."""
@@ -753,15 +823,21 @@ async def _run_job(user_id: int, job: QueuedJob) -> None:
     thread_id = getattr(update.message, "message_thread_id", None) if same_chat else None
     sess.thread_id = thread_id  # Permission-Prompts lesen das Thema von hier
 
-    tts_text: str | None = None
+    answer: str | None = None
     async with sess.lock:
         try:
             if sess.logger:
                 sess.logger.log_user(job.text)
-            query_prefix = _current_datetime_context() + (_THOROUGH_PREFIX if job.thorough else "")
+            received_dt = getattr(getattr(job.update, "message", None), "date", None)
+            query_prefix = (_current_datetime_context(received_dt)
+                            + (_THOROUGH_PREFIX if job.thorough else ""))
             await sess.client.query(query_prefix + job.text)
-            tts_text = await stream_response(
+            answer = await stream_response(
                 sess, effective_output_id, force_tts=job.force_tts,
+                reply_to=reply_to, thread_id=thread_id,
+            )
+            answer = await _presend_gate(
+                sess, job, answer, chat_id=effective_output_id,
                 reply_to=reply_to, thread_id=thread_id,
             )
         except Exception as e:
@@ -818,8 +894,16 @@ async def _run_job(user_id: int, job: QueuedJob) -> None:
                 log.exception("failed to send error message to user")
             await close_session(user_id)
 
-    if tts_text and sess.bot:
-        asyncio.create_task(_send_tts(sess.bot, effective_output_id, tts_text, reply_to=reply_to, thread_id=thread_id))
+    # Senden erst JETZT — nach der Pre-Send-Prüfung (8.5), über den zentralen
+    # Sendepfad (Vorstufe 5.8; ersetzt den früheren toten _send_tts-Zweig).
+    if answer and sess.bot:
+        try:
+            await send_answer_to_user(
+                sess, effective_output_id, answer, force_tts=job.force_tts,
+                reply_to=reply_to, thread_id=thread_id,
+            )
+        except Exception:
+            log.exception("Senden der geprüften Antwort fehlgeschlagen")
 
     # 🎯 Gründlich war einmalig: Session schließen → nächste Nachricht wieder Standard.
     if job.thorough and user_id in SESSIONS:
@@ -1126,26 +1210,44 @@ def make_permission_callback(user_id: int):
 
 # ---------- session lifecycle ----------
 
-def _current_datetime_context() -> str:
-    """Liefert das aktuelle Datum, den Wochentag und die Uhrzeit als
-    Pflicht-Kontextzeile, die vor jeder User-Nachricht ans Modell mitgegeben wird.
+def _current_datetime_context(received_dt=None) -> str:
+    """Datum/Wochentag/Uhrzeit als Pflicht-Kontextzeile vor jeder User-Nachricht.
 
-    Damit hat das Modell bei jedem Aufruf das aktuelle Datum vor sich und muss
-    es nicht aus der Memory oder aus früheren Log-Einträgen zurückrechnen.
-    Schließt den wiederkehrenden 'letzte/vorletzte Nacht'-Fehlerkanal.
+    Damit hat das Modell bei jedem Aufruf das Datum vor sich und muss es nicht aus
+    der Memory zurückrechnen. Schließt den 'letzte/vorletzte Nacht'-Fehlerkanal.
+
+    `received_dt`: die ECHTE, serverseitige Empfangszeit (update.message.date,
+    tz-aware). Ohne sie behauptete diese Zeile früher 'Eingang dieser Nachricht',
+    rechnete aber mit dem Bearbeitungs-Start — lag die Nachricht in der
+    Warteschlange, bekam das Modell eine nachweislich falsche Eingangszeit
+    (Analyse-Befund 17.07.2026). Wartete die Nachricht spürbar, werden BEIDE
+    Zeiten genannt, statt eine davon zu verschweigen.
     """
     from datetime import datetime
     now = datetime.now()
-    weekdays_de = [
-        "Montag", "Dienstag", "Mittwoch", "Donnerstag",
-        "Freitag", "Samstag", "Sonntag",
-    ]
-    weekday = weekdays_de[now.weekday()]
+    recv = now
+    if received_dt is not None:
+        try:
+            recv = received_dt.astimezone().replace(tzinfo=None)
+        except Exception:
+            recv = now
+    wd_recv = presend.WEEKDAYS_DE[recv.weekday()]
+    line = (
+        f"[Eingang dieser Nachricht: {wd_recv}, "
+        f"{recv.strftime('%d.%m.%Y')}, {recv.strftime('%H:%M')} Uhr."
+    )
+    delay = (now - recv).total_seconds()
+    if delay >= 120:
+        wd_now = presend.WEEKDAYS_DE[now.weekday()]
+        line += (
+            f" JETZT ist es {wd_now}, {now.strftime('%d.%m.%Y')}, "
+            f"{now.strftime('%H:%M')} Uhr — die Nachricht wartete "
+            f"{int(delay // 60)} Min. in der Warteschlange."
+        )
     return (
-        f"[Systemzeit beim Eingang dieser Nachricht: {weekday}, "
-        f"{now.strftime('%d.%m.%Y')}, {now.strftime('%H:%M')} Uhr. "
-        f"Bei jeder zeitlichen Aussage (heute/gestern/letzte Nacht/in X Tagen) "
-        f"diesen Wert als Wahrheit nehmen — nicht aus der Memory rechnen.]\n\n"
+        line +
+        f" Bei jeder zeitlichen Aussage (heute/gestern/letzte Nacht/in X Tagen) "
+        f"diese Werte als Wahrheit nehmen — nicht aus der Memory rechnen.]\n\n"
     )
 
 
@@ -1671,6 +1773,29 @@ async def on_ampel_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     await q.answer()
+
+
+async def cmd_presend(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Kennzahlen des Pre-Send-Hooks (8.5) — Fehlalarm-Quote im Blick behalten."""
+    if not authorized(update):
+        return
+    st = presend.status()
+    L = ["🛡 Pre-Send-Hook — Kennzahlen", ""]
+    L.append(f"Antworten mit Befund: {st['antworten_mit_befund']}")
+    a = st["arten"]
+    L.append(f"  • automatisch korrigiert: {a.get('autofix', 0)}")
+    L.append(f"  • Korrekturrunde nötig:   {a.get('korrektur', 0)}")
+    L.append(f"  • nur protokolliert:      {a.get('log', 0)}")
+    if st["codes"]:
+        L += ["", "Nach Prüfung:"]
+        for code, n in sorted(st["codes"].items(), key=lambda x: -x[1]):
+            L.append(f"  • {code}: {n}")
+    if st["korrektur_erfolgreich"] or st["korrektur_fehlgeschlagen"]:
+        L += ["", f"Korrekturrunden: {st['korrektur_erfolgreich']} erfolgreich, "
+                  f"{st['korrektur_fehlgeschlagen']} mit ⚠️-Vermerk gesendet"]
+    L += ["", "v1 prüft: Wochentag↔Datum (auto-fix), Vollständigkeit (Korrektur), "
+              "relative Datumsangaben + Tentativ-Sprache (nur Log)."]
+    await update.message.reply_text("\n".join(L))
 
 
 async def cmd_usage(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2876,7 +3001,13 @@ async def post_init(app: Application) -> None:
                         sess.logger.log_user(t)
                     async with sess.lock:
                         await sess.client.query(t)  # war fälschlich .send_message()
-                        await stream_response(sess, u)
+                        # stream_response SAMMELT nur (Umbau 17.07.) → hier selbst
+                        # prüfen und senden, sonst verschwände die Autorun-Antwort.
+                        ans = await stream_response(sess, u)
+                    if ans:
+                        ans, fnd = presend.check_and_fix(ans)
+                        presend.log_findings(fnd, {"quelle": "autorun", "user_id": u})
+                        await send_answer_to_user(sess, u, ans)
                 except Exception:
                     log.exception("autorun failed for uid=%s", u)
             app.create_task(_do_autorun(), name=f"autorun-{uid}")
@@ -4299,50 +4430,21 @@ async def stream_response(
     sess: UserSession, chat_id: int, force_tts: bool = False, reply_to: int | None = None,
     thread_id: int | None = None,
 ) -> str | None:
-    """Forward assistant text + a compact tool-use trace back to Telegram.
+    """SAMMELT den Antworttext eines Turns und gibt ihn ZURÜCK — sendet ihn NICHT.
 
-    Wenn TTS aktiv (sess.tts_enabled oder force_tts): Text wird in Chunks von
-    max. TTS_SYNC_CHUNK Zeichen aufgeteilt. Jeder Text-Chunk bekommt sofort seine
-    eigene Sprachnachricht — kein separater TTS-Task mehr nötig, Rückgabe ist None.
+    Umbau 17.07.2026 (Adam-Entscheid, Vorstufe des einheitlichen Sendepfads 5.8):
+    Früher ging jeder TextBlock sofort raus (text_buffer wurde nach jedem Send
+    geleert) — dadurch gab es KEINEN Moment, in dem der vollständige Text bekannt
+    war, bevor er den Nutzer erreichte. Ein Pre-Send-Hook (8.5) war so unmöglich.
+    Jetzt: Text sammeln → Aufrufer prüft (presend) → Aufrufer sendet.
 
-    Wenn TTS aus: Text sofort senden, Rückgabe None.
+    LIVE bleibt nur die Werkzeug-Spur (🔧 …) als Lebenszeichen während langer
+    Turns — sie ist kein Antworttext und braucht keine Prüfung.
+
+    Rückgabe: der vollständige Antworttext (oder None, wenn der Turn keinen lieferte).
     """
     claude_turn_started = False
-    use_tts = sess.tts_enabled or force_tts
-    first_text_pending = reply_to is not None
-    tts_buffer: str = ""
-    text_buffer: str = ""  # für nicht-TTS-Pfad: sammelt Streaming-Blöcke, hält Heading+Inhalt zusammen
-
-    async def _flush(text: str) -> None:
-        """Sendet Audio mit Text als Caption (1 Nachricht). Bei force_tts: nur Audio."""
-        nonlocal first_text_pending
-        text = text.strip()
-        if not text:
-            return
-        tts_clean = _strip_markdown_for_tts(text)
-        if tts_clean:
-            kb = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
-            await _send_tts_chunk(
-                sess.bot, chat_id, tts_clean,
-                caption=None if force_tts else text[:1024],
-                reply_to=reply_to if first_text_pending else None,
-                thread_id=thread_id,
-                reply_markup=None if force_tts else kb,
-            )
-        first_text_pending = False
-
-    async def _maybe_flush_buffer() -> None:
-        """Flusht vollständige TTS_SYNC_CHUNK-Chunks aus dem Puffer."""
-        nonlocal tts_buffer
-        while len(tts_buffer) >= TTS_SYNC_CHUNK:
-            cut = TTS_SYNC_CHUNK
-            for sep in ("\n\n", "\n", ". ", "! ", "? ", "; ", ", "):
-                pos = tts_buffer.rfind(sep, 0, TTS_SYNC_CHUNK)
-                if pos > TTS_SYNC_CHUNK // 2:
-                    cut = pos + len(sep)
-                    break
-            await _flush(tts_buffer[:cut])
-            tts_buffer = tts_buffer[cut:]
+    parts: list[str] = []
 
     async for msg in sess.client.receive_response():
         if isinstance(msg, AssistantMessage):
@@ -4353,80 +4455,78 @@ async def stream_response(
                         claude_turn_started = True
                     if sess.logger:
                         sess.logger.log_assistant_text(block.text)
-                    if use_tts:
-                        tts_buffer += block.text
-                        await _maybe_flush_buffer()
-                    else:
-                        # Streaming-Blöcke puffern, damit eine Heading am Block-Ende
-                        # NICHT als letzte Zeile einer Nachricht stehen bleibt.
-                        text_buffer += block.text
-                        if _text_ends_with_heading(text_buffer):
-                            # warten auf nächsten Block, damit Heading+Inhalt zusammen senden
-                            continue
-                        kb = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
-                        sent = await send_chunked(
-                            sess.bot, chat_id, text_buffer, reply_markup=kb,
-                            reply_to=reply_to if first_text_pending else None,
-                            thread_id=thread_id,
-                        )
-                        if sent is not None:
-                            _remember_bot_msg(chat_id, sent.message_id, text_buffer)
-                        text_buffer = ""
-                        first_text_pending = False
+                    parts.append(block.text)
                 elif isinstance(block, ToolUseBlock):
-                    if use_tts and tts_buffer.strip():
-                        await _flush(tts_buffer)
-                        tts_buffer = ""
-                    if not use_tts and text_buffer.strip():
-                        # Restpuffer vor Tool-Use leeren — Heading bleibt drin, dafür Inhalt erst spät
-                        kb = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
-                        sent = await send_chunked(
-                            sess.bot, chat_id, text_buffer, reply_markup=kb,
-                            reply_to=reply_to if first_text_pending else None,
-                            thread_id=thread_id,
-                        )
-                        if sent is not None:
-                            _remember_bot_msg(chat_id, sent.message_id, text_buffer)
-                        text_buffer = ""
-                        first_text_pending = False
+                    # Lebenszeichen: zeigt, dass gearbeitet wird, während der
+                    # Antworttext noch gesammelt (und gleich geprüft) wird.
                     if not sess.quiet:
-                        await send_chunked(sess.bot, chat_id, f"🔧 {block.name}", thread_id=thread_id)
+                        await send_chunked(sess.bot, chat_id, f"🔧 {block.name}",
+                                           thread_id=thread_id)
                     if sess.logger:
                         sess.logger.log_tool(block.name)
         elif isinstance(msg, ResultMessage):
-            if use_tts and tts_buffer.strip():
-                await _flush(tts_buffer)
-                tts_buffer = ""
-            if not use_tts and text_buffer.strip():
-                kb = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
-                sent = await send_chunked(
-                    sess.bot, chat_id, text_buffer, reply_markup=kb,
-                    reply_to=reply_to if first_text_pending else None,
-                    thread_id=thread_id,
-                )
-                if sent is not None:
-                    _remember_bot_msg(chat_id, sent.message_id, text_buffer)
-                text_buffer = ""
-                first_text_pending = False
             if sess.logger and claude_turn_started:
                 sess.logger.end_turn()
             _record_usage(sess.current_model, msg)
-            return None  # TTS bereits inline gesendet
-    # Fallback: Restpuffer leeren (falls kein ResultMessage)
-    if use_tts and tts_buffer.strip():
-        await _flush(tts_buffer)
-    if not use_tts and text_buffer.strip():
-        kb = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
+            return "".join(parts).strip() or None
+    # Fallback: kein ResultMessage (z.B. Abbruch) — trotzdem sauber abschließen.
+    if sess.logger and claude_turn_started:
+        sess.logger.end_turn()
+    return "".join(parts).strip() or None
+
+
+async def send_answer_to_user(
+    sess: UserSession, chat_id: int, text: str, *, force_tts: bool = False,
+    reply_to: int | None = None, thread_id: int | None = None,
+) -> None:
+    """ZENTRALER Sendepfad für Antworttext (Vorstufe 5.8) — nach dem Pre-Send-Hook.
+
+    Bei aktivem TTS wird der Text in TTS_SYNC_CHUNK-Stücke geschnitten; jedes
+    bekommt seine eigene Sprachnachricht (Text als Caption; bei force_tts nur Audio).
+    Sonst: als Text senden (send_chunked splittet am Telegram-Limit).
+    """
+    text = (text or "").strip()
+    if not text:
+        return
+    use_tts = sess.tts_enabled or force_tts
+    first_pending = reply_to is not None
+    kb = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
+
+    if not use_tts:
         sent = await send_chunked(
-            sess.bot, chat_id, text_buffer, reply_markup=kb,
-            reply_to=reply_to if first_text_pending else None,
+            sess.bot, chat_id, text, reply_markup=kb,
+            reply_to=reply_to if first_pending else None,
             thread_id=thread_id,
         )
         if sent is not None:
-            _remember_bot_msg(chat_id, sent.message_id, text_buffer)
-    if sess.logger and claude_turn_started:
-        sess.logger.end_turn()
-    return None
+            _remember_bot_msg(chat_id, sent.message_id, text)
+        return
+
+    rest = text
+    while rest:
+        if len(rest) <= TTS_SYNC_CHUNK:
+            chunk, rest = rest, ""
+        else:
+            cut = TTS_SYNC_CHUNK
+            for sep in ("\n\n", "\n", ". ", "! ", "? ", "; ", ", "):
+                pos = rest.rfind(sep, 0, TTS_SYNC_CHUNK)
+                if pos > TTS_SYNC_CHUNK // 2:
+                    cut = pos + len(sep)
+                    break
+            chunk, rest = rest[:cut], rest[cut:]
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        tts_clean = _strip_markdown_for_tts(chunk)
+        if tts_clean:
+            await _send_tts_chunk(
+                sess.bot, chat_id, tts_clean,
+                caption=None if force_tts else chunk[:1024],
+                reply_to=reply_to if first_pending else None,
+                thread_id=thread_id,
+                reply_markup=None if force_tts else kb,
+            )
+        first_pending = False
 
 
 # ---------- entry ----------
@@ -4476,6 +4576,7 @@ def main() -> None:
     app.add_handler(CommandHandler("verbose", cmd_verbose))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("ampel", cmd_ampel))
+    app.add_handler(CommandHandler("presend", cmd_presend))
     app.add_handler(CommandHandler("usage", cmd_usage))
     app.add_handler(CommandHandler("hilfe", cmd_hilfe))
     app.add_handler(CommandHandler("restart", cmd_restart))

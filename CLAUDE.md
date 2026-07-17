@@ -52,6 +52,24 @@ zuerst auf versteckte Zusatzgebühren prüfen** (wie bei Groq geschehen) —
   NICHT `ANTHROPIC_API_KEY`.** Alles möglichst über das **Abo (kostenfrei)**,
   solange es nicht „professionell/produktiv" wird.
 
+## 🔗 BEZUGS-INTEGRITÄT — Abhängigkeits-Register (Adam-Anweisung 2026-07-16)
+
+Schutz gegen stille Abhängigkeits-Brüche (das „Excel-`#BEZUG!`-Problem"): Eine
+Komponente wird geändert/entfernt, und woanders bricht unbemerkt etwas, das
+davon abhing. **Register: `ABHAENGIGKEITEN.md` im Repo** (Komponente → wird
+benötigt von → Prüfbefehl).
+
+1. **VOR jeder Änderung oder Entfernung einer Komponente** zuerst das Register
+   prüfen: Wer hängt davon ab?
+2. **DANACH die abhängigen Komponenten mittesten** (Prüfbefehl aus dem Register)
+   — nicht nur das Geänderte selbst.
+3. **Beim Bau neuer Features deren Bezüge SOFORT ins Register eintragen** —
+   nicht auf später verschieben.
+
+Verkabelt mit **8.1** (täglicher 4-Uhr-Check arbeitet die Prüfbefehle ab, meldet
+Brüche per Telegram) und **8.2** (Regressionstest nutzt das Register als
+Prüfliste nach Änderungen).
+
 ## 🧭 Zuständigkeiten der Instanzen — ANTI-PING-PONG-REGEL
 
 Der Nutzer arbeitet parallel mit mehreren Claude-Instanzen. Es ist passiert,

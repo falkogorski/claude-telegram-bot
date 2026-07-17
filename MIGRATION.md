@@ -670,15 +670,15 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 
 ### 8.1 Täglicher 4-Uhr-Funktionscheck (zentrale Sammelstelle)
 - **Status:** OFFEN
-- **Akzeptanzkriterium:** Systemd-Timer um 04:00 MEZ; prüft Token gültig, API erreichbar, TTS-Cleanup-Selbsttest, Migrations-Endpunkte; Bericht ins Bot-Log + bei Fehler Telegram-Hinweis.
-- **Test:** Manueller Auslöser → Bericht erscheint.
+- **Akzeptanzkriterium:** Systemd-Timer um 04:00 MEZ; prüft Token gültig, API erreichbar, TTS-Cleanup-Selbsttest, Migrations-Endpunkte; Bericht ins Bot-Log + bei Fehler Telegram-Hinweis. `[NEU 2026-07-16]` **Arbeitet die Prüfbefehle des Abhängigkeits-Registers (`ABHAENGIGKEITEN.md`) ab** und meldet **Bezugs-Brüche proaktiv per Telegram** (Schutz vor stillen `#BEZUG!`-Fehlern). Das Register ist die Prüfliste — neue Komponenten dort eintragen heißt automatisch: ab dem nächsten 4-Uhr-Lauf mitgeprüft.
+- **Test:** Manueller Auslöser → Bericht erscheint. Plus: eine Register-Abhängigkeit künstlich brechen (z. B. `searxng` stoppen) → Check meldet den Bruch per Telegram.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
 ### 8.2 Regressionstest nach jeder größeren Änderung
 - **Status:** OFFEN
-- **Akzeptanzkriterium:** Isolierter Read-only-Test-Lauf, der nach einem Deploy/Change automatisch durchgezogen wird; Ergebnis sichtbar.
-- **Test:** Eine simulierte Änderung → Regressionstest läuft + meldet grün/rot.
+- **Akzeptanzkriterium:** Isolierter Read-only-Test-Lauf, der nach einem Deploy/Change automatisch durchgezogen wird; Ergebnis sichtbar. `[NEU 2026-07-16]` **Nutzt das Abhängigkeits-Register (`ABHAENGIGKEITEN.md`) als Prüfliste:** nach jeder Änderung werden die Prüfbefehle der betroffenen UND der davon abhängigen Komponenten durchlaufen — so fällt ein `#BEZUG!`-Bruch sofort auf, nicht erst Wochen später.
+- **Test:** Eine simulierte Änderung → Regressionstest läuft + meldet grün/rot. Plus: Register-Kette prüfen (z. B. Whisper-`small`-Modell entfernen → Test meldet „STT-Umschalter verliert Button-Zeile").
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

@@ -1874,6 +1874,8 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/reset — Session zurücksetzen\n"
         "/status — Aktuelle Queue & Session-Übersicht\n"
         "/usage — Token-Verbrauch heute (Bot-Kanal)\n"
+        "/ampel — Datenschutz-Ampel: Regeln & Status\n"
+        "/presend — Pre-Send-Hook: Kennzahlen\n"
         "/tts — TTS an/aus umschalten\n"
         "/ttsdemo — TTS-Testausgabe\n"
         "/quiet — Tipp-Indikator aus (🔧-Spur bleibt sichtbar)\n"
@@ -1884,10 +1886,12 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/restart — Bot neu starten\n"
         "/selfcheck — Selbsttest ausführen\n"
         "/hilfe — Diese Befehlsübersicht\n\n"
-        "📌 Buttons in der Tastatur:\n"
-        "🔵 Opus / 🟡 Sonnet — Modell wechseln\n"
+        "📌 Buttons in der Tastatur (9):\n"
+        "🟣 Haiku / 🟡 Sonnet / 🔵 Opus — Modell wechseln\n"
         "⚖️ Normal / ⚡ Schnell / 🚀 Max — Denk-Tiefe\n"
-        "🔄 Neustart / 🔊🔇 TTS / ℹ️ Info"
+        "🎙️ Genau / 🎙️ Flott — Transkriptions-Tempo\n"
+        "🎯 Gründlich — nächste Frage besonders sorgfältig\n\n"
+        "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
     )
     await update.message.reply_text(text)
 

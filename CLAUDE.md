@@ -148,6 +148,36 @@ weniger heikle Begriffe okay, für das Heikelste den Button-Weg nutzen.
   des Bots (`bot.py`, `ClaudeAgentOptions`), z. B. „Du bist ein Telegram-Bot;
   nimm nicht an, wo oder an welchem Gerät der Nutzer sitzt."
 
+## 🪞 DOKU-SPIEGEL — nutzerseitige Texte im SELBEN Commit (Adam 2026-07-19)
+
+**Jede Feature-Änderung aktualisiert ihre nutzerseitigen Texte im selben
+Commit** — `/hilfe`, `/start`, Startnachricht, Button-Beschriftungen,
+`setMyCommands`. Kein „mach ich gleich noch".
+
+**Warum:** Am 17.07. wurde die Tastatur von 12 auf 9 Buttons verschlankt, der
+`/hilfe`-Text blieb stehen — der Bot beschrieb Adam ein Layout, das es nicht
+mehr gab (gefunden erst am 19.07. bei einer Video-Analyse; es waren am Ende
+gleich drei Abweichungen plus zwei fehlende Befehle). Diese Drift ist tückisch,
+weil sie **nichts kaputt macht** und deshalb in keinem Test auffällt — sie
+untergräbt still das Vertrauen in jede Auskunft des Bots.
+
+**Gilt auch für Status-Quellen:** Was der Bot beim Start als „noch offen"
+meldet, kommt aus `~/.claude/memory/pending-items.md` **auf dem VPS** — auch das
+ist ein nutzerseitiger Text. Erledigtes dort abhaken, sonst begrüßt der Bot mit
+einem veralteten Projektstand (genau so mit 4.1/8.5 passiert). Automatische
+Absicherung folgt mit Punkt **8.6** (Prüfskript `check_hilfe_buttons.py`).
+
+## 🔒 GOVERNANCE — der Bot editiert sein eigenes Repo NIE (Adam 2026-07-19)
+
+Die Regel „Bot editiert das Bot-Repo nicht" gilt **ausdrücklich auch für die
+VPS-Kopie `/home/claudebot/claude-telegram-bot`**: **lesen ja — editieren,
+committen oder pushen niemals.** Deploys laufen **ausschließlich** über
+`git pull`, ausgelöst von Adam.
+
+**Warum:** Ein Selbst-Edit auf dem VPS lässt Repo-Stand und laufenden Code
+auseinanderlaufen; der nächste `git pull` kollidiert dann oder überschreibt
+stillschweigend Handarbeit. Details + technische Verankerung: Punkt **8.7**.
+
 ## 🧠 Kontext-Kompass bei dieser (langen) Migration — FESTER RHYTHMUS
 
 Vereinbarung mit Adam (2026-07-16): Diese zusammenhängende Migration in **einer**

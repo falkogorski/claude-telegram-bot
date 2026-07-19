@@ -970,13 +970,24 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
     # Senden erst JETZT — nach der Pre-Send-Prüfung (8.5), über den zentralen
     # Sendepfad (Vorstufe 5.8; ersetzt den früheren toten _send_tts-Zweig).
     if answer and sess.bot:
+        delivered = False
         try:
-            await send_answer_to_user(
+            delivered = await send_answer_to_user(
                 sess, effective_output_id, answer, force_tts=job.force_tts,
                 reply_to=reply_to, thread_id=thread_id,
             )
         except Exception:
             log.exception("Senden der geprüften Antwort fehlgeschlagen")
+        if not delivered:
+            # Antwort erzeugt, aber NICHTS kam beim Nutzer an. Der Job ist damit
+            # NICHT erledigt — Record bleibt liegen (Status „fehler"), damit er
+            # in /status sichtbar ist und der Start-Reconcile ihn meldet. Ihn hier
+            # als „beantwortet" abzuhaken hieße: Antwort spurlos verloren.
+            log.error("Antwort erzeugt, aber nicht zustellbar (user_id=%s, %d Zeichen) "
+                      "— Nachricht bleibt offen", user_id, len(answer))
+            if job.thorough and user_id in SESSIONS:
+                await close_session(user_id)
+            return "fehler"
 
     # 🎯 Gründlich war einmalig: Session schließen → nächste Nachricht wieder Standard.
     if job.thorough and user_id in SESSIONS:
@@ -2986,6 +2997,22 @@ def run_self_check() -> tuple[bool, list[str]]:
             pending.resolve(k)
     check("Wiederaufgreif-Pfad (5.2)", _c_resume_path)
 
+    # 11. Zustellnachweis — der zentrale Sendepfad MUSS melden, ob wirklich etwas
+    # ankam. Fällt er auf „gibt nichts zurück" zurück, hält `_run_job` jeden
+    # Sendefehler wieder für Erfolg und hakt die Nachricht ab (Verlust vom 19.07.).
+    def _c_delivery_proof() -> None:
+        import inspect
+        sig = inspect.signature(send_answer_to_user)
+        # Die Datei nutzt `from __future__ import annotations` → Annotationen sind
+        # Strings, nicht Typ-Objekte. Beides zulassen, sonst schlägt der Check
+        # fehl, obwohl der Code stimmt.
+        assert sig.return_annotation in (bool, "bool"), \
+            "send_answer_to_user liefert keinen Zustellnachweis (bool) mehr"
+        src = inspect.getsource(send_answer_to_user)
+        assert "delivered" in src and "send_chunked" in src, \
+            "Text-Fallback bei TTS-Ausfall fehlt"
+    check("Zustellnachweis + TTS-Fallback", _c_delivery_proof)
+
     return state["ok"], results
 
 
@@ -4837,16 +4864,24 @@ async def stream_response(
 async def send_answer_to_user(
     sess: UserSession, chat_id: int, text: str, *, force_tts: bool = False,
     reply_to: int | None = None, thread_id: int | None = None,
-) -> None:
+) -> bool:
     """ZENTRALER Sendepfad für Antworttext (Vorstufe 5.8) — nach dem Pre-Send-Hook.
 
     Bei aktivem TTS wird der Text in TTS_SYNC_CHUNK-Stücke geschnitten; jedes
     bekommt seine eigene Sprachnachricht (Text als Caption; bei force_tts nur Audio).
     Sonst: als Text senden (send_chunked splittet am Telegram-Limit).
+
+    **Rückgabe = Zustellnachweis** (seit 19.07.): True, wenn mindestens ein Stück
+    tatsächlich rausging. Der Aufrufer entscheidet daran, ob die Nachricht als
+    beantwortet gilt. Vorher gab diese Funktion nichts zurück und ein
+    fehlgeschlagener Versand sah für den Aufrufer aus wie ein erfolgreicher —
+    am 19.07. live passiert: edge-tts war kurz nicht erreichbar, die Antwort
+    („Nenn mir eine Stadt") wurde erzeugt, nie zugestellt und trotzdem als
+    erledigt abgehakt. Genau der stille Verlust, den 5.2 ausschließen soll.
     """
     text = (text or "").strip()
     if not text:
-        return
+        return True  # nichts zu senden ist kein Zustellfehler
     use_tts = sess.tts_enabled or force_tts
     first_pending = reply_to is not None
     kb = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
@@ -4859,8 +4894,9 @@ async def send_answer_to_user(
         )
         if sent is not None:
             _remember_bot_msg(chat_id, sent.message_id, text)
-        return
+        return sent is not None
 
+    delivered = False
     rest = text
     while rest:
         if len(rest) <= TTS_SYNC_CHUNK:
@@ -4877,15 +4913,33 @@ async def send_answer_to_user(
         if not chunk:
             continue
         tts_clean = _strip_markdown_for_tts(chunk)
+        sent = None
         if tts_clean:
-            await _send_tts_chunk(
+            sent = await _send_tts_chunk(
                 sess.bot, chat_id, tts_clean,
                 caption=None if force_tts else chunk[:1024],
                 reply_to=reply_to if first_pending else None,
                 thread_id=thread_id,
                 reply_markup=None if force_tts else kb,
             )
+        if sent is None:
+            # Sprachausgabe ausgefallen (edge-tts nicht erreichbar o. ä.) ODER der
+            # Chunk war nicht sprechbar: NIEMALS still verschlucken — als Text
+            # zustellen. Eine gelesene Antwort ist unendlich viel besser als keine.
+            # (Ohne diesen Zweig verschwand am 19.07. eine fertige Antwort spurlos.)
+            if tts_clean:
+                log.warning("TTS-Chunk fehlgeschlagen — Text-Fallback für %d Zeichen", len(chunk))
+            sent = await send_chunked(
+                sess.bot, chat_id, chunk, reply_markup=kb,
+                reply_to=reply_to if first_pending else None,
+                thread_id=thread_id,
+            )
+            if sent is not None:
+                _remember_bot_msg(chat_id, sent.message_id, chunk)
+        delivered = delivered or (sent is not None)
         first_pending = False
+
+    return delivered
 
 
 # ---------- entry ----------

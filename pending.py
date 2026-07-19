@@ -100,6 +100,28 @@ def set_status(key: str, status: str) -> None:
         log.exception("pending.set_status fehlgeschlagen (key=%s) — nicht-fatal", key)
 
 
+def bump_attempts(key: str) -> int:
+    """Erhöht den Versuchszähler des Records und gibt den neuen Stand zurück.
+
+    Schutz gegen Absturz-Schleifen: Eine Nachricht, die den Bot reproduzierbar
+    mitreißt, würde sonst bei JEDEM Start erneut nachgeholt — und risse ihn
+    wieder mit. Ab einer Obergrenze wird sie nur noch gemeldet."""
+    if not key:
+        return 0
+    try:
+        p = _path(key)
+        if not p.exists():
+            return 0
+        payload = json.loads(p.read_text(encoding="utf-8"))
+        n = int(payload.get("attempts", 0)) + 1
+        payload["attempts"] = n
+        _atomic_write(key, payload)
+        return n
+    except Exception:
+        log.exception("pending.bump_attempts fehlgeschlagen (key=%s) — nicht-fatal", key)
+        return 0
+
+
 def resolve(key: str) -> None:
     """Nachricht erledigt (beantwortet/aufgegeben) → Record löschen."""
     if not key:

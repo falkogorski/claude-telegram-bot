@@ -272,6 +272,14 @@ _THOROUGH_PENDING: set[int] = set()
 # wird DETERMINISTISCH (ohne Claude) als Regel übernommen). Verfällt nach 60 s.
 _AMPEL_CAPTURE: dict[int, dict] = {}
 _AMPEL_CAPTURE_TTL = 60  # Sekunden
+# 5.2 Schritt 2: Vermerk für nach einem Neustart nachgeholte Nachrichten. Ohne ihn
+# beantwortet der Agent sie so, als kämen sie gerade eben — die Zeitzeile nennt
+# zwar Eingang UND Jetzt, der Grund für die Lücke bliebe aber unerklärt.
+_RESUMED_PREFIX = (
+    "[NACHGEHOLT: Diese Nachricht kam vor einem Neustart an und blieb unbeantwortet — "
+    "sie wird jetzt nachgeholt. Geh normal darauf ein; die Verzögerung nur erwähnen, "
+    "wenn sie inhaltlich eine Rolle spielt (z. B. bei Zeitbezügen wie „heute“).]\n\n"
+)
 _THOROUGH_PREFIX = (
     "[GRÜNDLICH-MODUS — diese Frage muss stimmen: Prüfe Fakten AKTIV über Quellen "
     "(Websuche/Nachlesen) statt aus dem Gedächtnis; kennzeichne jede Unsicherheit "
@@ -645,7 +653,11 @@ CORRECTION_PREFIXES = ("korrektur", "weitere info", "zusatzinfo", "nachtrag", "e
 
 @dataclass
 class QueuedJob:
-    update: Update
+    # update ist NUR noch Herkunftsnachweis — der Job-Pfad liest ausschließlich die
+    # Primitive darunter. Bei aus der Persistenz wiederaufgenommenen Jobs (5.2
+    # Reconcile) ist update None, denn ein lebendes telegram.Update überlebt keinen
+    # Neustart. Wer hier wieder `job.update.…` einbaut, bricht genau diesen Pfad.
+    update: Update | None
     text: str
     force_tts: bool = False
     output_chat_id: int | None = None
@@ -654,6 +666,18 @@ class QueuedJob:
     context_retry: bool = False  # True, nachdem wg. Kontext-Überlauf frisch neu gestartet
     thorough: bool = False       # 🎯 Gründlich: diese Anfrage mit Opus+Max+Quellencheck
     pending_key: str | None = None  # 5.2: Schlüssel des Persistenz-Records (logs/pending/<key>.json)
+    # --- 5.2: Primitive statt update.* (überleben Reboot) ---
+    user_id: int = 0
+    chat_id: int | None = None
+    message_id: int | None = None
+    thread_id: int | None = None
+    # ECHTE Sendezeit (Telegram-Serverzeit, aus update.message.date) als Unix-Zeit.
+    # Bewusst NICHT received_at: eine nach Neustart nachgeholte Nachricht wurde
+    # früher gesendet als sie verarbeitet wird — der Prompt muss die Sendezeit
+    # nennen (Registereintrag „update.message.date"), sonst lügt die Zeitzeile.
+    message_date: float | None = None
+    bot: Any = None            # telegram.Bot — beim Reconcile gesetzt (kein update vorhanden)
+    resumed: bool = False      # True = aus der Persistenz nachgeholt (5.2 Schritt 2)
 
 
 @dataclass
@@ -666,6 +690,17 @@ class Mailbox:
 
 
 MAILBOXES: dict[int, Mailbox] = {}
+
+# 5.2 Schritt 2: Schlüssel der beim Start aus der Persistenz nachgeholten
+# Nachrichten. Telegram stellt dieselben Nachrichten nach einem Neustart u. U.
+# NOCHMAL zu (DROP_PENDING_UPDATES=False) — dann würde ohne diese Sperre dieselbe
+# Nachricht zweimal beantwortet. Einträge werden bei der Zweitzustellung
+# verbraucht; was nie doppelt kommt, bleibt harmlos liegen (paar Bytes).
+_RESUMED_KEYS: set[str] = set()
+
+# Wie oft eine liegengebliebene Nachricht höchstens automatisch nachgeholt wird,
+# bevor der Bot aufgibt und sie nur noch meldet (s. _reconcile_pending).
+_MAX_RESUME_ATTEMPTS = int(os.environ.get("MAX_RESUME_ATTEMPTS", "3"))
 
 # Letzte Transkription pro User — für /ttsdemo
 _LAST_TRANSCRIPTION: dict[int, str] = {}
@@ -783,9 +818,11 @@ async def _presend_gate(
     """
     if not answer:
         return answer
-    pending = _count_newer_pending(job.update.effective_user.id, job)
-    answer, findings = presend.check_and_fix(answer, pending_newer=pending)
-    meta = {"user_id": job.update.effective_user.id, "thorough": job.thorough}
+    # NICHT `pending` nennen — das würde das Modul `pending` (5.2) in dieser
+    # Funktion überschatten und jeden künftigen Zugriff darauf still brechen.
+    pending_newer = _count_newer_pending(job.user_id, job)
+    answer, findings = presend.check_and_fix(answer, pending_newer=pending_newer)
+    meta = {"user_id": job.user_id, "thorough": job.thorough}
 
     todo = presend.needs_correction(findings)
     if not todo:
@@ -806,7 +843,7 @@ async def _presend_gate(
 
     if corrected:
         corrected, again = presend.check_and_fix(
-            corrected, pending_newer=_count_newer_pending(job.update.effective_user.id, job))
+            corrected, pending_newer=_count_newer_pending(job.user_id, job))
         if not presend.needs_correction(again):
             meta["korrektur"] = "erfolgreich"
             presend.log_findings(findings + again, meta)
@@ -835,20 +872,21 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                                     effort_override="max", fresh=True)
     else:
         sess = await ensure_session(user_id)
-    update = job.update
-    sess.chat_id = update.effective_chat.id
-    sess.bot = update.get_bot()
-    effective_output_id = job.output_chat_id or update.effective_chat.id
+    # AUSSCHLIESSLICH Primitive (5.2): so läuft dieser Pfad identisch für frische
+    # und für nach einem Neustart wiederaufgenommene Jobs (dort gibt es kein Update).
+    sess.chat_id = job.chat_id
+    sess.bot = job.bot or (job.update.get_bot() if job.update is not None else None)
+    effective_output_id = job.output_chat_id or job.chat_id
 
-    same_chat = bool(update.message and effective_output_id == update.effective_chat.id)
+    same_chat = bool(job.message_id and effective_output_id == job.chat_id)
     # Antwort als Reply auf die auslösende Nachricht markieren — aber nur, wenn die
     # Antwort in denselben Chat geht (ein message_id-Bezug über Chats hinweg wäre ungültig).
     # Bei Sprachnachrichten zeigt der Override auf die lesbare Transkriptions-Nachricht
     # (🎙️ …) statt auf das reine Audio, damit das Zitat beim Scrollen lesbar bleibt.
-    reply_to = (job.reply_to_override or update.message.message_id) if same_chat else None
+    reply_to = (job.reply_to_override or job.message_id) if same_chat else None
     # In Forum-Gruppen: Antwort ins selbe Thema (Topic) zurückschicken. Nur sinnvoll,
     # wenn die Antwort in denselben Chat geht; bei Cross-Chat-Ablage (Ausgabekanal) None.
-    thread_id = getattr(update.message, "message_thread_id", None) if same_chat else None
+    thread_id = job.thread_id if same_chat else None
     sess.thread_id = thread_id  # Permission-Prompts lesen das Thema von hier
 
     answer: str | None = None
@@ -856,8 +894,14 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
         try:
             if sess.logger:
                 sess.logger.log_user(job.text)
-            received_dt = getattr(getattr(job.update, "message", None), "date", None)
+            # Echte Sendezeit aus dem Primitiv (überlebt Neustart) — bei einer
+            # nachgeholten Nachricht nennt die Zeitzeile dadurch korrekt BEIDES:
+            # wann Adam sie geschickt hat und dass sie jetzt erst drankommt.
+            from datetime import datetime as _dt
+            received_dt = (_dt.fromtimestamp(job.message_date).astimezone()
+                           if job.message_date else None)
             query_prefix = (_current_datetime_context(received_dt)
+                            + (_RESUMED_PREFIX if job.resumed else "")
                             + (_THOROUGH_PREFIX if job.thorough else ""))
             await sess.client.query(query_prefix + job.text)
             answer = await stream_response(
@@ -1992,16 +2036,17 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = int(parts[1])
     action = parts[2]
 
-    pending = _PENDING_DOCS.pop(user_id, None)
-    if not pending:
+    # NICHT `pending` nennen — überschattet sonst das Modul `pending` (5.2).
+    pending_doc = _PENDING_DOCS.pop(user_id, None)
+    if not pending_doc:
         await query.edit_message_text("Dokument nicht mehr verfügbar — bitte erneut senden.")
         return
 
-    doc_parts: list[str] = pending["parts"]
-    prefix: str = pending["prefix"]
-    orig_update: Update = pending["update"]
-    filename: str = pending["filename"]
-    size_mb: float = pending["size_mb"]
+    doc_parts: list[str] = pending_doc["parts"]
+    prefix: str = pending_doc["prefix"]
+    orig_update: Update = pending_doc["update"]
+    filename: str = pending_doc["filename"]
+    size_mb: float = pending_doc["size_mb"]
 
     cid, ch_title, ch_url = get_output_channel()
     chat_id = orig_update.effective_chat.id
@@ -2924,6 +2969,23 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert not any(r.get("_key") == k for r in pending.load_all()), "Record nicht gelöscht"
     check("Nachrichten-Persistenz (5.2)", _c_pending_persist)
 
+    # 10. Wiederaufgreif-Pfad (5.2 Schritt 2) — ein Job muss OHNE lebendes
+    # telegram.Update baubar sein, sonst kann nach einem Neustart nichts
+    # nachgeholt werden. Plus: die Schleifen-Bremse darf nicht abgeschaltet sein.
+    def _c_resume_path() -> None:
+        j = QueuedJob(update=None, text="x", user_id=1, chat_id=2, message_id=3,
+                      message_date=1.0, resumed=True)
+        assert j.update is None and j.chat_id == 2 and j.resumed, "Job ohne Update unbrauchbar"
+        assert _MAX_RESUME_ATTEMPTS >= 1, "Schleifen-Bremse abgeschaltet"
+        k = pending.make_key(-2, -2)  # Wegwerf-Schlüssel, kollidiert nie mit echten
+        try:
+            pending.record(k, {"text": "x", "status": pending.STATUS_OPEN})
+            assert pending.bump_attempts(k) == 1 and pending.bump_attempts(k) == 2, \
+                "Versuchszähler zählt nicht"
+        finally:
+            pending.resolve(k)
+    check("Wiederaufgreif-Pfad (5.2)", _c_resume_path)
+
     return state["ok"], results
 
 
@@ -2934,6 +2996,118 @@ async def cmd_selfcheck(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     ok, lines = run_self_check()
     header = "Selbstcheck: alles grün." if ok else "⚠️ Selbstcheck: Probleme gefunden!"
     await update.message.reply_text(header + "\n\n" + "\n".join(lines))
+
+
+def _reconcile_pending(app: Application) -> str:
+    """5.2 Schritt 2 — Startup-Reconcile im HYBRID-Modus (Adam-Entscheid 17.07.).
+
+    Läuft beim Start über die liegengebliebenen Persistenz-Records:
+
+      Status „offen" (nie begonnen)          → **automatisch nachholen**. Die
+          Nachricht wurde nachweislich nie an Claude geschickt, es kann also
+          keine halbe Antwort draußen sein.
+      Status „in_bearbeitung"/„fehler"       → **nur melden**. Hier kann bereits
+          eine (Teil-)Antwort rausgegangen sein; blind neu zu verarbeiten
+          erzeugte Doppelantworten. Adam entscheidet selbst, ob er wiederholt.
+
+    Gibt eine Meldezeile für die Startup-Nachricht zurück ("" wenn nichts anlag).
+    Die Jobs werden nur EINGEREIHT — die Worker startet der Aufrufer verzögert,
+    damit die Startup-Nachricht zuerst ankommt.
+    """
+    try:
+        recs = pending.load_all()
+    except Exception:
+        log.exception("Reconcile: Records nicht lesbar (nicht-fatal)")
+        return ""
+    if not recs:
+        return ""
+
+    # Chronologisch nachholen. Die laufende Queue ist bewusst LIFO („neueste
+    # zuerst"), hier gilt das Gegenteil: nachgeholte Nachrichten in ihrer
+    # ursprünglichen Reihenfolge, sonst wird eine Unterhaltung rückwärts gelesen.
+    recs.sort(key=lambda r: r.get("received_at") or 0)
+
+    resumed: list[dict] = []
+    reported: list[dict] = []
+    gaveup: list[dict] = []
+    for r in recs:
+        key = r.get("_key")
+        uid = r.get("user_id")
+        # Unbrauchbar oder fremd → auflösen statt ewig mitschleppen.
+        if not key or not uid or uid not in ALLOWED_USER_IDS or not r.get("text") \
+                or r.get("chat_id") is None:
+            log.warning("Reconcile: Record verworfen (unvollständig/fremd): %s", key)
+            pending.resolve(key or "")
+            continue
+
+        if r.get("status") == pending.STATUS_OPEN:
+            # Absturz-Schleifen-Bremse: Wurde diese Nachricht schon mehrfach
+            # nachgeholt und der Bot ging jedes Mal vorher unter, ist sie
+            # vermutlich die Ursache — dann nicht weiter wiederholen, sondern
+            # ehrlich melden. Ohne diese Bremse startet der Bot in einer Schleife.
+            if pending.bump_attempts(key) > _MAX_RESUME_ATTEMPTS:
+                log.warning("Reconcile: %s nach %d Versuchen aufgegeben",
+                            key, _MAX_RESUME_ATTEMPTS)
+                gaveup.append(r)
+                pending.resolve(key)
+                continue
+            job = QueuedJob(
+                update=None,                       # kein lebendes Update mehr — nur Primitive
+                text=r["text"],
+                force_tts=bool(r.get("force_tts")),
+                output_chat_id=r.get("output_chat_id"),
+                reply_to_override=r.get("reply_to_override"),
+                received_at=r.get("received_at") or time.time(),
+                thorough=bool(r.get("thorough")),
+                pending_key=key,
+                user_id=uid,
+                chat_id=r.get("chat_id"),
+                message_id=r.get("message_id"),
+                thread_id=r.get("thread_id"),
+                message_date=r.get("message_date"),
+                bot=app.bot,
+                resumed=True,
+            )
+            _get_mailbox(uid).queue.append(job)    # ans Ende = chronologisch
+            if r.get("message_id") is not None:
+                _RESUMED_KEYS.add(key)             # gegen Telegrams Zweitzustellung
+            resumed.append(r)
+        else:
+            reported.append(r)
+            # Melden UND auflösen: bliebe der Record liegen, meldete der Bot ihn
+            # bei jedem künftigen Start erneut (Dauer-Nörgeln).
+            pending.resolve(key)
+
+    lines: list[str] = []
+    if resumed:
+        n = len(resumed)
+        lines.append(f"📨 {n} unbeantwortete {'Nachricht' if n == 1 else 'Nachrichten'} "
+                     "aus dem Neustart-Fenster — ich hole sie jetzt nach:")
+        lines += [f"  • „{_job_preview(r['text'])}“" for r in resumed[:5]]
+        if n > 5:
+            lines.append(f"  … und {n - 5} weitere")
+    if reported:
+        n = len(reported)
+        lines.append(f"⚠️ {n} {'Nachricht war' if n == 1 else 'Nachrichten waren'} beim "
+                     "Neustart mitten in Bearbeitung — ob meine Antwort noch rausging, "
+                     "kann ich nicht sicher sagen:")
+        lines += [f"  • „{_job_preview(r['text'])}“" for r in reported[:5]]
+        if n > 5:
+            lines.append(f"  … und {n - 5} weitere")
+        lines.append("→ Kam dazu keine Antwort, schick die Nachricht bitte nochmal.")
+    if gaveup:
+        n = len(gaveup)
+        lines.append(f"🛑 {n} {'Nachricht' if n == 1 else 'Nachrichten'} konnte ich auch "
+                     f"nach {_MAX_RESUME_ATTEMPTS} Anläufen nicht verarbeiten — ich höre "
+                     "damit auf, statt es endlos zu wiederholen:")
+        lines += [f"  • „{_job_preview(r['text'])}“" for r in gaveup[:5]]
+        if n > 5:
+            lines.append(f"  … und {n - 5} weitere")
+        lines.append("→ Bitte anders formuliert oder in kleineren Teilen nochmal schicken.")
+
+    log.info("Reconcile: %d nachgeholt, %d gemeldet, %d aufgegeben",
+             len(resumed), len(reported), len(gaveup))
+    return "\n".join(lines)
 
 
 async def post_init(app: Application) -> None:
@@ -3035,6 +3209,16 @@ async def post_init(app: Application) -> None:
             log.warning("pending-updates-check failed (ignored)", exc_info=True)
         if pending_info_line:
             startup_msg = pending_info_line + "\n\n" + startup_msg
+
+        # 5.2 Schritt 2: liegengebliebene Nachrichten aufgreifen (Hybrid). Steht
+        # ganz oben in der Startup-Nachricht — es ist die wichtigste Information
+        # nach einem unsauberen Neustart („ist etwas von mir untergegangen?").
+        try:
+            reconcile_line = _reconcile_pending(app)
+            if reconcile_line:
+                startup_msg = reconcile_line + "\n\n" + startup_msg
+        except Exception:
+            log.exception("Reconcile beim Start fehlgeschlagen (nicht-fatal)")
         # Selbstcheck der Kern-Invarianten bei JEDEM Start — fängt Regressionen ab.
         # Bei Erfolg eine knappe Zeile, bei Fehler laut + auffällig.
         try:
@@ -3078,6 +3262,17 @@ async def post_init(app: Application) -> None:
                     await app.bot.send_message(chat_id=uid, text=startup_msg, reply_markup=kb)
             except Exception:
                 log.warning("startup message to user %s failed", uid)
+        # 5.2 Schritt 2: Die Worker für nachgeholte Nachrichten erst JETZT
+        # anwerfen — nach der Startup-Nachricht, damit Adam erst die Ankündigung
+        # („ich hole nach: …") und dann die Antwort sieht, nicht umgekehrt.
+        if any(mb.queue for mb in MAILBOXES.values()):
+            async def _start_resumed_workers() -> None:
+                await asyncio.sleep(2)
+                for uid, mb in list(MAILBOXES.items()):
+                    if mb.queue:
+                        _ensure_worker(uid)
+            app.create_task(_start_resumed_workers(), name="resumed-workers")
+
         # AUTORUN-Tasks als Hintergrundaufgaben starten (nach kurzer Pause,
         # damit die Startup-Nachricht zuerst ankommt)
         for uid, autorun_text in autorun_tasks:
@@ -3131,35 +3326,55 @@ async def process_user_text(
     thorough = user_id in _THOROUGH_PENDING
     _THOROUGH_PENDING.discard(user_id)
 
+    msg = update.message
+    chat_id = update.effective_chat.id
+    message_id = getattr(msg, "message_id", None)
+
+    # 5.2 DEDUP: Nach einem harten Kill stellt Telegram Nachrichten aus dem
+    # Restart-Fenster ERNEUT zu (DROP_PENDING_UPDATES=False, absichtlich). Hat der
+    # Startup-Reconcile dieselbe Nachricht schon aus der Persistenz nachgeholt,
+    # käme sie hier ein zweites Mal an → doppelte Antwort. Der Schlüssel ist je
+    # Telegram-Nachricht eindeutig, also genügt er als Sperre.
+    dedup_key = pending.make_key(chat_id, message_id) if message_id is not None else None
+    if dedup_key and dedup_key in _RESUMED_KEYS:
+        _RESUMED_KEYS.discard(dedup_key)
+        log.info("dedup: Nachricht %s wird bereits aus der Persistenz nachgeholt "
+                 "— Telegram-Zweitzustellung verworfen", dedup_key)
+        return
+
     mb = _get_mailbox(user_id)
     job = QueuedJob(
         update=update,
         text=text,
         force_tts=force_tts,
-        output_chat_id=output_chat_id or update.effective_chat.id,
+        output_chat_id=output_chat_id or chat_id,
         reply_to_override=reply_to_override,
         thorough=thorough,
+        user_id=user_id,
+        chat_id=chat_id,
+        message_id=message_id,
+        thread_id=getattr(msg, "message_thread_id", None),
+        message_date=(msg.date.timestamp() if msg is not None and msg.date else None),
     )
 
     # 5.2: Nachricht SOFORT persistieren (überlebt Reboot). Nur serialisierbare
     # Primitive — das lebende Update geht nicht; der Anhang-Pfad steckt bereits
     # im text (Datei liegt dauerhaft in UPLOAD_DIR). Rein additiv/fehlertolerant.
     try:
-        msg = update.message
-        if msg is not None:
-            key = pending.make_key(update.effective_chat.id, msg.message_id)
-            job.pending_key = key
-            pending.record(key, {
+        if dedup_key is not None:
+            job.pending_key = dedup_key
+            pending.record(dedup_key, {
                 "user_id": user_id,
-                "chat_id": update.effective_chat.id,
-                "message_id": msg.message_id,
-                "thread_id": getattr(msg, "message_thread_id", None),
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "thread_id": job.thread_id,
                 "text": text,
                 "force_tts": force_tts,
                 "output_chat_id": job.output_chat_id,
                 "reply_to_override": reply_to_override,
                 "thorough": thorough,
                 "received_at": job.received_at,
+                "message_date": job.message_date,
             })
     except Exception:
         log.exception("5.2 Persistenz beim Empfang übersprungen (nicht-fatal)")

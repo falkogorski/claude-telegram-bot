@@ -632,6 +632,15 @@ class UserSession:
     thread_id: int | None = None  # Forum-Thema (message_thread_id) des aktuellen Jobs
     bot: Any = None  # telegram.Bot, injected per-message
     started_at: float = field(default_factory=time.monotonic)
+    # 5.18 Stall-Erkennung: Zeitpunkt der letzten Regung DIESER Claude-Session
+    # (monotonic). Wird in `stream_response` bei JEDER eingehenden SDK-Nachricht
+    # gesetzt — Text, Werkzeug-Aufruf, Werkzeug-Ergebnis. Bewusst hier und nicht
+    # in `Mailbox` (so der ursprüngliche Plan): `stream_response` kennt nur die
+    # Session, nicht die user_id — ein Umweg über ein zweites Feld wäre eine
+    # zusätzliche Bruchstelle. Der Stall-Wächter vergleicht gegen
+    # `max(mb.current_started, sess.last_activity)`, deckt also auch den Fall ab,
+    # dass ein Turn losläuft und NIE etwas liefert.
+    last_activity: float = field(default_factory=time.monotonic)
 
 
 SESSIONS: dict[int, UserSession] = {}
@@ -678,6 +687,10 @@ class QueuedJob:
     message_date: float | None = None
     bot: Any = None            # telegram.Bot — beim Reconcile gesetzt (kein update vorhanden)
     resumed: bool = False      # True = aus der Persistenz nachgeholt (5.2 Schritt 2)
+    # 5.18: Wie oft dieser Job schon einem Session-Stall zum Opfer fiel. Bremse
+    # gegen die Endlosschleife „hängt → neu → hängt": ab MAX_STALL_RETRIES wird
+    # nur noch gemeldet statt automatisch wiederholt.
+    stall_retries: int = 0
 
 
 @dataclass
@@ -1680,6 +1693,14 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if mb and mb.current_job is not None:
         elapsed = int(time.monotonic() - mb.current_started)
         lines.append(f"▶️ Läuft ({elapsed}s): „{_job_preview(mb.current_job.text)}“")
+        # 5.18: sichtbar machen, wie lange die Session schon stumm ist — sonst
+        # ist „läuft seit 4 Minuten" nicht von „hängt seit 4 Minuten" zu
+        # unterscheiden. Erst ab der Hälfte des Limits, sonst nur Rauschen.
+        if sess is not None:
+            silent = int(time.monotonic() - max(mb.current_started, sess.last_activity))
+            if silent > STALL_LIMIT_S // 2:
+                lines.append(f"   ⏱️ letzte Regung vor {silent}s "
+                             f"(Wächter greift ab {STALL_LIMIT_S}s)")
     else:
         lines.append("▶️ Läuft: nichts")
 
@@ -2614,6 +2635,164 @@ async def watchdog(app: Application) -> None:
                 os._exit(1)
 
 
+# ---------- 5.18 Agent-Session-Watchdog ----------
+# Der Wächter oben deckt den Fall „Bot-Prozess wedged" ab. Dieser hier den
+# selteneren, aber ärgerlicheren: **Bot lebt, die Claude-Session dahinter ist
+# tot.** Live vorgeführt am 23.06.2026 ab 16:11 — der Bot war munter, nahm
+# Nachrichten an, quittierte sie, und Adam fragte ins Leere, weil hinter der
+# Annahme nie wieder etwas passierte. Ohne diesen Wächter merkt das NIEMAND:
+# der Job bleibt „in Bearbeitung", der Worker wartet ewig, kein Fehler fällt an.
+
+STALL_CHECK_INTERVAL_S = int(os.environ.get("STALL_CHECK_INTERVAL", "30"))
+# Ab wann eine Session als tot gilt. 5 Minuten ohne JEDE Regung — kein Text,
+# kein Werkzeug-Aufruf, kein Werkzeug-Ergebnis. Ein normaler Turn, der lange
+# arbeitet, meldet sich über die 🔧-Spur ständig; still ist nur eine, die hängt.
+STALL_LIMIT_S = int(os.environ.get("STALL_LIMIT", "300"))
+# Wie oft eine Nachricht nach einem Stall automatisch neu versucht wird.
+# Bewusst 1: hängt es zweimal an derselben Nachricht, liegt es vermutlich an ihr
+# — dann ehrlich melden, statt endlos zu wiederholen (kostet jedes Mal
+# Abo-Kontingent, s. Kostenregel).
+MAX_STALL_RETRIES = int(os.environ.get("MAX_STALL_RETRIES", "1"))
+
+
+async def _disconnect_quietly(sess: UserSession, user_id: int) -> None:
+    """Hängende Session im Hintergrund schließen — mit Zeitlimit.
+
+    WICHTIG: nicht direkt awaiten. `disconnect()` läuft gegen genau den Teil,
+    der gerade nicht antwortet; ein blockierendes await würde den Wächter
+    mitreißen. Scheitert es, ist das hinnehmbar — die Session ist bereits aus
+    SESSIONS entfernt, der Prozess räumt den Rest beim nächsten Neustart auf.
+    """
+    try:
+        await asyncio.wait_for(sess.client.disconnect(), timeout=20)
+    except Exception:
+        log.warning("Stall: disconnect der hängenden Session (user_id=%s) "
+                    "fehlgeschlagen — ignoriert", user_id, exc_info=True)
+
+
+async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession,
+                                  stalled_for: float) -> None:
+    """Eine hängende Session beenden, den Job retten, frisch weitermachen.
+
+    LOCKFREI (Kern der Umsetzung): `_run_job` hält die Session-Sperre für die
+    gesamte Dauer von Anfrage + Antwortstrom. Wer hier auf sie warten würde,
+    wartete bis in alle Ewigkeit — genau auf den Vorgang, der hängt. Der
+    Wächter greift deshalb bewusst an der Sperre vorbei; er nimmt der Session
+    ihre Zuständigkeit weg (aus SESSIONS raus) und bricht den Worker-Task ab.
+    """
+    job = mb.current_job
+    bot = (job.bot if job is not None and job.bot is not None else None) or sess.bot
+    chat_id = (job.chat_id if job is not None else None) or sess.chat_id
+    minutes = int(stalled_for // 60)
+    log.error("Stall erkannt: user_id=%s ohne Regung seit %.0fs — Session wird beendet",
+              user_id, stalled_for)
+
+    # 1. Session sofort entmachten, damit nichts Neues mehr daran andockt.
+    SESSIONS.pop(user_id, None)
+    try:
+        cancel_pending_permissions(sess, reason="Session-Stall (5.18)")
+    except Exception:
+        log.exception("Stall: Permissions-Aufräumen fehlgeschlagen (nicht-fatal)")
+    asyncio.create_task(_disconnect_quietly(sess, user_id))
+
+    # 2. Worker-Task abbrechen. Er hängt im await auf die tote Session; ein
+    # cancel() löst dort CancelledError aus und beendet ihn. Reagiert er auch
+    # darauf nicht, wird NICHT neu eingereiht — sonst liefe der alte Task
+    # womöglich später doch noch los und Adam bekäme die Antwort doppelt.
+    worker_dead = True
+    task = mb.worker
+    if task is not None and not task.done():
+        task.cancel()
+        # Bewusst asyncio.wait statt await/wait_for: es wirft weder die
+        # CancelledError des Workers noch dessen Fehler an DIESE Schleife
+        # weiter — der Wächter darf an einem sterbenden Task nicht mitsterben.
+        try:
+            await asyncio.wait([task], timeout=10)
+        except Exception:
+            log.exception("Stall: Warten auf Worker-Ende fehlgeschlagen")
+        worker_dead = task.done()
+    mb.worker = None
+    mb.current_job = None
+    mb.current_started = 0.0
+
+    # 3. Die unbeantwortete Nachricht retten.
+    retry = False
+    if job is not None and worker_dead:
+        job.stall_retries += 1
+        if job.stall_retries <= MAX_STALL_RETRIES:
+            job.resumed = True          # Prompt-Vermerk „nachgeholt nach Unterbrechung"
+            mb.queue.appendleft(job)    # als Nächstes, mit frischer Session
+            retry = True
+            if job.pending_key:
+                pending.set_status(job.pending_key, pending.STATUS_OPEN)
+        elif job.pending_key:
+            # Aufgegeben — Record auflösen, sonst meldet ihn der Startup-Reconcile
+            # bei jedem künftigen Start erneut.
+            pending.resolve(job.pending_key)
+
+    # 4. Adam aktiv informieren. Schweigen wäre hier das Schlimmste: genau das
+    # „ins Leere fragen" soll dieser Punkt ja abschaffen.
+    if bot is not None and chat_id is not None:
+        preview = _job_preview(job.text) if job is not None else ""
+        msg = (f"⚠️ Meine Claude-Sitzung hat {minutes} Minuten lang nicht mehr reagiert. "
+               "Ich habe sie beendet und starte eine frische.")
+        if job is not None:
+            msg += f"\n\nBetroffen war: „{preview}“"
+            if retry:
+                msg += "\n→ Ich nehme sie automatisch nochmal dran."
+            elif not worker_dead:
+                msg += ("\n→ Der alte Vorgang ließ sich nicht sauber stoppen. Ich hole die "
+                        "Nachricht NICHT automatisch nach (sonst käme die Antwort womöglich "
+                        "doppelt) — bitte schick sie nochmal, falls nichts mehr kommt.")
+            else:
+                msg += (f"\n→ Das war schon der {job.stall_retries}. Anlauf. Ich wiederhole sie "
+                        "nicht weiter — bitte anders formuliert oder in kleineren Teilen "
+                        "nochmal schicken.")
+        try:
+            await bot.send_message(chat_id, msg)
+        except Exception:
+            log.exception("Stall: Meldung an Adam konnte nicht gesendet werden")
+    else:
+        log.error("Stall: keine Sendemöglichkeit (bot=%s, chat_id=%s) — Meldung entfällt",
+                  bot is not None, chat_id)
+
+    # 5. Frisch weiterarbeiten. `ensure_session` legt beim nächsten Job eine neue
+    # Session an, weil SESSIONS für diesen User jetzt leer ist.
+    if mb.queue:
+        _ensure_worker(user_id)
+
+
+async def stall_watchdog(app: Application) -> None:
+    """Prüfschleife: läuft ein Job zu lange ohne jede Regung der Claude-Session?"""
+    while True:
+        await asyncio.sleep(STALL_CHECK_INTERVAL_S)
+        try:
+            now = time.monotonic()
+            for user_id, mb in list(MAILBOXES.items()):
+                if mb.current_job is None:
+                    continue
+                sess = SESSIONS.get(user_id)
+                if sess is None:
+                    continue
+                # Wartet der Vorgang auf eine Freigabe von Adam, ist Stille
+                # GEWOLLT — er darf sich Zeit lassen, ohne dass ihm der Wächter
+                # die Sitzung unter dem Stuhl wegzieht.
+                if sess.pending_permissions:
+                    continue
+                # Job-Beginn zählt als Regung: sonst schlüge der Wächter bei
+                # einem Turn zu, der noch nie etwas geliefert hat, weil
+                # last_activity dann von der Vorgänger-Nachricht stammt.
+                ref = max(mb.current_started, sess.last_activity)
+                stalled_for = now - ref
+                if stalled_for > STALL_LIMIT_S:
+                    await _handle_stalled_session(user_id, mb, sess, stalled_for)
+        except Exception:
+            # Ein Fehler hier darf die Schleife nie beenden — sonst wäre der
+            # Wächter still weg und niemand merkte es (dieselbe Klasse Fehler,
+            # gegen die er schützen soll).
+            log.exception("Stall-Wächter: Durchlauf fehlgeschlagen (Schleife läuft weiter)")
+
+
 def _detect_pending_item(full: bool = False) -> str:
     """Analysiert die letzten Telegram-Logs und erkennt offene Punkte.
     Zwei Fälle:
@@ -3014,6 +3193,26 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert pending.STATUS_SENDING != pending.STATUS_RUNNING, "Status nicht unterscheidbar"
     check("Zustellnachweis + TTS-Fallback", _c_delivery_proof)
 
+    # 12. Session-Wächter (5.18) — greift nur, wenn ALLE drei Teile stehen:
+    # das Lebenszeichen im Antwortstrom, die Prüfschleife, und ihr Start.
+    # Fehlt eines davon, ist der Wächter still weg — und genau die Stille ist
+    # der Fehler, gegen den er schützt (23.06.: Bot lebt, Session tot).
+    def _c_stall_watchdog() -> None:
+        import inspect
+        assert "last_activity" in inspect.getsource(stream_response), \
+            "Lebenszeichen im Antwortstrom fehlt — Wächter würde blind zuschlagen"
+        assert "last_activity" in UserSession.__dataclass_fields__, "Feld last_activity fehlt"
+        src = inspect.getsource(_handle_stalled_session)
+        assert "async with sess.lock" not in src, \
+            "Wächter wartet auf die Sperre — genau die hält der hängende Vorgang"
+        assert "SESSIONS.pop" in src and "cancel()" in src, \
+            "hängende Session wird nicht wirklich beendet"
+        assert "stall_watchdog" in inspect.getsource(post_init), \
+            "Prüfschleife wird beim Start nicht angeworfen"
+        assert STALL_LIMIT_S >= 60 and STALL_CHECK_INTERVAL_S >= 5, "Limits unplausibel"
+        assert MAX_STALL_RETRIES >= 0, "Wiederholungsbremse unplausibel"
+    check("Session-Wächter (5.18)", _c_stall_watchdog)
+
     return state["ok"], results
 
 
@@ -3151,6 +3350,10 @@ async def post_init(app: Application) -> None:
     app.create_task(heartbeat_writer(), name="heartbeat")
     log.info("heartbeat writer started (interval=%ds, path=%s)",
              HEARTBEAT_INTERVAL_S, HEARTBEAT_PATH)
+    # 5.18: zweiter Wächter — der oben prüft den Bot, dieser die Claude-Session.
+    app.create_task(stall_watchdog(app), name="stall_watchdog")
+    log.info("Stall-Wächter gestartet (Intervall=%ds, Limit=%ds, Wiederholungen=%d)",
+             STALL_CHECK_INTERVAL_S, STALL_LIMIT_S, MAX_STALL_RETRIES)
 
     # Bot-Username für Rücksprung-Links (Ausgabekanal → Bot-Chat) einmalig cachen.
     global _BOT_USERNAME
@@ -4916,6 +5119,12 @@ async def stream_response(
     )
     try:
         async for msg in sess.client.receive_response():
+            # 5.18: JEDE eingehende SDK-Nachricht ist ein Lebenszeichen der
+            # Session — Text, Werkzeug-Aufruf, Werkzeug-Ergebnis, Zwischenstand.
+            # Bewusst hier oben und nicht nur bei Text/Tool-Blöcken: ein Turn,
+            # der lange in einem Werkzeug steckt, ist NICHT tot, und der
+            # Stall-Wächter darf ihm nicht die Sitzung abschießen.
+            sess.last_activity = time.monotonic()
             if isinstance(msg, AssistantMessage):
                 for block in msg.content:
                     if isinstance(block, TextBlock):

@@ -970,6 +970,11 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
     # Senden erst JETZT — nach der Pre-Send-Prüfung (8.5), über den zentralen
     # Sendepfad (Vorstufe 5.8; ersetzt den früheren toten _send_tts-Zweig).
     if answer and sess.bot:
+        # Ab HIER kann etwas beim Nutzer ankommen (bei TTS in mehreren Häppchen).
+        # Nur ein Absturz ab diesem Punkt macht ein automatisches Nachholen
+        # riskant — davor ist die Nachricht gefahrlos wiederholbar.
+        if job.pending_key:
+            pending.set_status(job.pending_key, pending.STATUS_SENDING)
         delivered = False
         try:
             delivered = await send_answer_to_user(
@@ -3011,6 +3016,12 @@ def run_self_check() -> tuple[bool, list[str]]:
         src = inspect.getsource(send_answer_to_user)
         assert "delivered" in src and "send_chunked" in src, \
             "Text-Fallback bei TTS-Ausfall fehlt"
+        # Die Sendemarke entscheidet, ob eine unterbrochene Nachricht automatisch
+        # nachgeholt werden darf. Fehlt sie, landet wieder ALLES Angefangene im
+        # „nur melden"-Topf — auch das, was gefahrlos wiederholbar wäre.
+        assert "STATUS_SENDING" in inspect.getsource(_run_job), \
+            "Sendemarke fehlt — unterbrochene Nachrichten würden unnötig liegenbleiben"
+        assert pending.STATUS_SENDING != pending.STATUS_RUNNING, "Status nicht unterscheidbar"
     check("Zustellnachweis + TTS-Fallback", _c_delivery_proof)
 
     return state["ok"], results
@@ -3067,7 +3078,11 @@ def _reconcile_pending(app: Application) -> str:
             pending.resolve(key or "")
             continue
 
-        if r.get("status") == pending.STATUS_OPEN:
+        # Nachholbar ist alles, bei dem der Versand nachweislich NOCH NICHT begonnen
+        # hatte: `offen` (nie gestartet) und `in_bearbeitung` (Claude dachte noch —
+        # `stream_response` sammelt nur, es kann also nichts beim Nutzer sein).
+        # Nur ab `sendet`/`fehler` ist unklar, ob schon etwas ankam → melden.
+        if r.get("status") in (pending.STATUS_OPEN, pending.STATUS_RUNNING):
             # Absturz-Schleifen-Bremse: Wurde diese Nachricht schon mehrfach
             # nachgeholt und der Bot ging jedes Mal vorher unter, ist sie
             # vermutlich die Ursache — dann nicht weiter wiederholen, sondern
@@ -3115,9 +3130,10 @@ def _reconcile_pending(app: Application) -> str:
             lines.append(f"  … und {n - 5} weitere")
     if reported:
         n = len(reported)
-        lines.append(f"⚠️ {n} {'Nachricht war' if n == 1 else 'Nachrichten waren'} beim "
-                     "Neustart mitten in Bearbeitung — ob meine Antwort noch rausging, "
-                     "kann ich nicht sicher sagen:")
+        lines.append(f"⚠️ Bei {n} {'Nachricht' if n == 1 else 'Nachrichten'} war die Antwort "
+                     "schon fertig und im Versand — ob sie dich ganz erreicht hat, kann ich "
+                     "nicht sicher sagen. Deshalb hole ich sie NICHT automatisch nach "
+                     "(sonst bekämst du sie womöglich doppelt):")
         lines += [f"  • „{_job_preview(r['text'])}“" for r in reported[:5]]
         if n > 5:
             lines.append(f"  … und {n - 5} weitere")

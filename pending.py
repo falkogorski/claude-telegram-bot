@@ -37,8 +37,17 @@ log = logging.getLogger(__name__)
 # Status-Werte. "beantwortet" ist bewusst KEIN gespeicherter Status:
 # beantwortet == Record gelöscht (was noch liegt, ist per Definition offen).
 STATUS_OPEN = "offen"
-STATUS_RUNNING = "in_bearbeitung"
+STATUS_RUNNING = "in_bearbeitung"   # an Claude übergeben, es ging noch NICHTS raus
+STATUS_SENDING = "sendet"           # Antwort fertig, Versand hat begonnen
 STATUS_FAILED = "fehler"
+
+# Warum die Trennung RUNNING/SENDING (19.07. → 20.07.):
+# `stream_response` SAMMELT die Antwort nur; verschickt wird sie erst danach am
+# Stück (Vorstufe 5.8). Zwischen „Claude denkt noch" und „Text ist unterwegs"
+# liegt also eine harte Grenze. Solange nur gedacht wird, kann keine Teilantwort
+# beim Nutzer sein → die Nachricht ist gefahrlos nachholbar. Erst ab SENDING ist
+# unklar, ob (bei mehreren Sprach-Häppchen) schon etwas ankam — nur dort ist die
+# Vorsicht „lieber melden als doppelt antworten" berechtigt.
 
 _DIR = Path(
     os.environ.get("PENDING_DIR")

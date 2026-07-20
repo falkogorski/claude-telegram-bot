@@ -715,6 +715,33 @@ _RESUMED_KEYS: set[str] = set()
 # bevor der Bot aufgibt und sie nur noch meldet (s. _reconcile_pending).
 _MAX_RESUME_ATTEMPTS = int(os.environ.get("MAX_RESUME_ATTEMPTS", "3"))
 
+# 5.2 Voice-Eingangsschutz (Befund 20.07.): Eine Sprachnachricht wird schon beim
+# Eintreffen persistiert, lange bevor ihr Text bekannt ist. Solange sie diese
+# Stufenmarke trägt, ist der gespeicherte „Text" nur ein Platzhalter — er darf
+# NIEMALS an Claude gehen. Der Reconcile erkennt das daran und meldet statt
+# nachzuholen (dieselbe Hybrid-Logik wie beim Status „sendet").
+VOICE_STAGE = "voice_transkription"
+VOICE_STAGE_PLACEHOLDER = "[Sprachnachricht — noch nicht transkribiert]"
+
+
+def _resolve_voice_stage(key: str | None) -> None:
+    """Löst den Voice-Eingangs-Eintrag auf, wenn die Verarbeitung sauber
+    abgebrochen ist (Adam hat ja eine Fehlermeldung bekommen). Ohne das bliebe
+    der Record liegen und der Bot meldete ihn bei jedem Start erneut."""
+    if not key:
+        return
+    try:
+        pending.resolve(key)
+    except Exception:
+        log.exception("Voice-Eingangs-Record nicht auflösbar (nicht-fatal)")
+
+
+def _note_voice_audio(key: str | None, path: Path) -> None:
+    """Trägt den Pfad der gesicherten Audiodatei in den Eingangs-Eintrag nach."""
+    if not key:
+        return
+    pending.merge(key, {"audio_path": str(path)})
+
 # Letzte Transkription pro User — für /ttsdemo
 _LAST_TRANSCRIPTION: dict[int, str] = {}
 
@@ -3230,6 +3257,25 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert MAX_STALL_RETRIES >= 0, "Wiederholungsbremse unplausibel"
     check("Session-Wächter (5.18)", _c_stall_watchdog)
 
+    # 13. Voice-Eingangsschutz (Befund 20.07.). Die Sprachnachricht muss VOR
+    # Download und Transkription festgehalten werden — sonst klafft wieder das
+    # 25-Sekunden-Loch, in dem ein Neustart sie spurlos verschluckt. Und der
+    # Platzhalter darf niemals nachgeholt werden, sonst legt der Reconcile
+    # Claude eine leere Hülle statt Adams Anliegen vor.
+    def _c_voice_entry_guard() -> None:
+        import inspect
+        src = inspect.getsource(on_voice)
+        assert "pending.record" in src, "Sprachnachricht wird beim Eingang nicht gesichert"
+        i_rec, i_dl = src.index("pending.record"), src.index("_download_tg_file")
+        assert i_rec < i_dl, "Sicherung liegt hinter dem Download — Lücke wieder offen"
+        assert src.count("_resolve_voice_stage") >= 4, \
+            "nicht jeder Abbruchzweig räumt den Eingangs-Eintrag ab"
+        rec_src = inspect.getsource(_reconcile_pending)
+        assert "VOICE_STAGE" in rec_src, "Reconcile erkennt den Platzhalter nicht"
+        assert VOICE_STAGE_PLACEHOLDER.startswith("["), "Platzhalter nicht als solcher erkennbar"
+        assert hasattr(pending, "merge"), "pending.merge fehlt — Audio-Pfad nicht nachtragbar"
+    check("Voice-Eingangsschutz (5.2)", _c_voice_entry_guard)
+
     return state["ok"], results
 
 
@@ -3274,6 +3320,7 @@ def _reconcile_pending(app: Application) -> str:
     resumed: list[dict] = []
     reported: list[dict] = []
     gaveup: list[dict] = []
+    voice_lost: list[dict] = []
     for r in recs:
         key = r.get("_key")
         uid = r.get("user_id")
@@ -3282,6 +3329,16 @@ def _reconcile_pending(app: Application) -> str:
                 or r.get("chat_id") is None:
             log.warning("Reconcile: Record verworfen (unvollständig/fremd): %s", key)
             pending.resolve(key or "")
+            continue
+
+        # Sprachnachricht, die es nie bis zur Transkription geschafft hat: Ihr
+        # gespeicherter „Text" ist nur ein Platzhalter. Automatisch nachholen wäre
+        # hier falsch — Claude bekäme den Platzhalter statt Adams Anliegen. Also
+        # dieselbe Hybrid-Regel wie bei „sendet": ehrlich melden statt raten. Das
+        # Audio liegt dauerhaft in UPLOAD_DIR, die Nachricht ist also nicht weg.
+        if r.get("stage") == VOICE_STAGE:
+            voice_lost.append(r)
+            pending.resolve(key)
             continue
 
         # Nachholbar ist alles, bei dem der Versand nachweislich NOCH NICHT begonnen
@@ -3353,10 +3410,34 @@ def _reconcile_pending(app: Application) -> str:
         if n > 5:
             lines.append(f"  … und {n - 5} weitere")
         lines.append("→ Bitte anders formuliert oder in kleineren Teilen nochmal schicken.")
+    if voice_lost:
+        n = len(voice_lost)
+        lines.append(f"🎙️ {n} {'Sprachnachricht' if n == 1 else 'Sprachnachrichten'} von dir "
+                     f"{'war' if n == 1 else 'waren'} gerade in der Transkription, als ich "
+                     "unterbrochen wurde — ich habe sie also nie verstanden:")
+        for r in voice_lost[:5]:
+            when = _voice_when(r)
+            dur = r.get("voice_duration")
+            dauer = f", {int(dur)} Sekunden lang" if isinstance(dur, (int, float)) and dur else ""
+            lines.append(f"  • Sprachnachricht von {when}{dauer}")
+        if n > 5:
+            lines.append(f"  … und {n - 5} weitere")
+        lines.append("→ Das Audio liegt gesichert vor, verloren ist nichts. "
+                     "Am schnellsten geht es, wenn du sie kurz nochmal schickst.")
 
-    log.info("Reconcile: %d nachgeholt, %d gemeldet, %d aufgegeben",
-             len(resumed), len(reported), len(gaveup))
+    log.info("Reconcile: %d nachgeholt, %d gemeldet, %d aufgegeben, %d Voice unterbrochen",
+             len(resumed), len(reported), len(gaveup), len(voice_lost))
     return "\n".join(lines)
+
+
+def _voice_when(rec: dict) -> str:
+    """Uhrzeit einer Sprachnachricht für die Meldung — absoluter Bezug statt
+    „letzte/vorletzte", damit Adam sie im Verlauf sofort wiederfindet."""
+    ts = rec.get("message_date") or rec.get("received_at")
+    try:
+        return time.strftime("%H:%M", time.localtime(float(ts)))
+    except Exception:
+        return "unbekannter Zeit"
 
 
 async def post_init(app: Application) -> None:
@@ -4130,12 +4211,47 @@ async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if voice is None:
         return
 
+    # 5.2 LÜCKE GESCHLOSSEN (Befund 20.07.): Bis hierher war eine Sprachnachricht
+    # durch NICHTS geschützt. Der Persistenz-Eintrag entstand erst in
+    # process_user_text — also NACH Download und Transkription. Mit Whisper-medium
+    # sind das rund 25 Sekunden, in denen ein Neustart oder Absturz die Nachricht
+    # spurlos verschluckt: kein Eintrag, also auch kein Nachholen durch den
+    # Reconcile, keine Fehlermeldung, nichts. Genau diese Stille hat Adam am
+    # 20.07. erlebt (und schon einmal am 23.06., s. _request_restart_confirm).
+    # Deshalb wird der Eingang jetzt SOFORT festgehalten — mit Platzhaltertext und
+    # Stufenmarke. Gelingt die Transkription, überschreibt process_user_text
+    # denselben Schlüssel mit dem echten Text; scheitert sie, wird der Eintrag in
+    # den Fehlerzweigen unten aufgelöst. Bleibt er liegen, weiß der Reconcile beim
+    # nächsten Start, dass hier eine Sprachnachricht unterwegs war.
+    _vkey: str | None = None
+    try:
+        if msg.message_id is not None:
+            _vkey = pending.make_key(msg.chat_id, msg.message_id)
+            pending.record(_vkey, {
+                "user_id": update.effective_user.id,
+                "chat_id": msg.chat_id,
+                "message_id": msg.message_id,
+                "thread_id": getattr(msg, "message_thread_id", None),
+                "text": VOICE_STAGE_PLACEHOLDER,
+                "stage": VOICE_STAGE,
+                "voice_duration": getattr(voice, "duration", None),
+                "received_at": time.time(),
+                "message_date": (msg.date.timestamp() if msg.date else None),
+            })
+    except Exception:
+        log.exception("5.2 Voice-Eingang nicht persistierbar (nicht-fatal)")
+
+    log.info("Sprachnachricht empfangen: user=%s msg=%s dauer=%ss — Eingang gesichert (%s)",
+             update.effective_user.id, msg.message_id,
+             getattr(voice, "duration", "?"), _vkey or "ohne Schlüssel")
+
     # Telegram "voice" notes are OGG/Opus, "audio" can be anything ffmpeg understands.
     await msg.reply_chat_action("typing")
     try:
         tg_file = await voice.get_file()
     except Exception as e:
         log.exception("get_file failed")
+        _resolve_voice_stage(_vkey)
         await msg.reply_text(f"❌ Konnte Sprachnachricht nicht laden: {e}")
         return
 
@@ -4146,13 +4262,20 @@ async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         src = await _download_tg_file(tg_file, "voice" + suffix)
     except Exception as e:
         log.exception("voice download failed")
+        _resolve_voice_stage(_vkey)
         await msg.reply_text(f"❌ Download fehlgeschlagen: {e}")
         return
+
+    # Audio-Pfad nachtragen: Geht der Bot jetzt unter, kann die Sprachnachricht
+    # nachträglich aus der gesicherten Datei geholt werden — der Reconcile nennt
+    # sie beim nächsten Start.
+    _note_voice_audio(_vkey, src)
 
     try:
         transcriber = get_transcriber()
     except Exception as e:
         log.exception("transcriber init failed")
+        _resolve_voice_stage(_vkey)
         await msg.reply_text(f"❌ STT nicht konfiguriert: {e}")
         return
 
@@ -4167,11 +4290,13 @@ async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         text = await transcriber.transcribe(src, language=VOICE_LANGUAGE)
     except Exception as e:
         log.exception("transcription failed")
+        _resolve_voice_stage(_vkey)
         await msg.reply_text(f"❌ Transkription fehlgeschlagen: {e}")
         return
 
     text = (text or "").strip()
     if not text:
+        _resolve_voice_stage(_vkey)
         await msg.reply_text("❌ Konnte nichts verstehen — bitte nochmal.")
         return
 

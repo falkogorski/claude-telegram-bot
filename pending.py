@@ -109,6 +109,23 @@ def set_status(key: str, status: str) -> None:
         log.exception("pending.set_status fehlgeschlagen (key=%s) — nicht-fatal", key)
 
 
+def merge(key: str, fields: dict) -> None:
+    """Ergänzt einzelne Felder eines bestehenden Records, ohne den Rest anzufassen
+    (atomar). Fehlt die Datei — etwa weil die Nachricht inzwischen erledigt ist —
+    passiert bewusst nichts, statt einen Record wiederauferstehen zu lassen."""
+    if not key or not fields:
+        return
+    try:
+        p = _path(key)
+        if not p.exists():
+            return
+        payload = json.loads(p.read_text(encoding="utf-8"))
+        payload.update(fields)
+        _atomic_write(key, payload)
+    except Exception:
+        log.exception("pending.merge fehlgeschlagen (key=%s) — nicht-fatal", key)
+
+
 def bump_attempts(key: str) -> int:
     """Erhöht den Versuchszähler des Records und gibt den neuen Stand zurück.
 

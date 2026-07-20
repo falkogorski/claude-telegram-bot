@@ -167,6 +167,34 @@ ist ein nutzerseitiger Text. Erledigtes dort abhaken, sonst begrüßt der Bot mi
 einem veralteten Projektstand (genau so mit 4.1/8.5 passiert). Automatische
 Absicherung folgt mit Punkt **8.6** (Prüfskript `check_hilfe_buttons.py`).
 
+## 🧬 BLAUPAUSE-SAMMELPFLICHT — Teil der „fertig"-Definition (Adam 2026-07-19)
+
+Entsteht bei einem Punkt ein Mechanismus oder eine Regel, die erkennbar
+**übertragbar** ODER erkennbar **plattformgebunden** ist, kommt **sofort** eine
+Zeile nach `blaupause-notizen.md` — Format `Was · Punkt-Nr. · Einschätzung`
+(universell / anpassbar / plattformgebunden). Keine Ausarbeitung, nur die
+Inventur-Zeile; ausgearbeitet wird erst mit Punkt **9.6** nach dem Gesamtaudit.
+
+Das ist **fester Teil der „fertig"-Definition jedes Punkts** — analog zum
+Abhängigkeits-Register. Nachträgliches Sammeln funktioniert nicht: Die
+Einschätzung „warum haben wir es so und nicht anders gebaut" ist genau dann
+präsent, wenn die Entscheidung fällt, und danach nie wieder.
+
+## 📊 STATUSÜBERSICHT — festes Format (Adam 2026-07-19)
+
+Statusberichte an Adam folgen dem Format **„Migrations-Inhaltsverzeichnis"**:
+
+- Tabelle(n) mit **einer Zeile pro Punkt**, jeweils in **Kurzsatz-Form**
+  (kein Stichwort-Telegramm, kein Absatz).
+- Symbole: **✅** fertig · **🔄** läuft/teilweise · **⬜** offen ·
+  **⏭️** bewusst zurückgestellt.
+- Je Phase ein **Fertigstellungsgrad in Prozent nach Arbeitsumfang**,
+  nicht nach Punktzahl (zehn Kleinigkeiten sind nicht mehr als eine Migration).
+- Ein **gewichteter Gesamt-Prozentwert**.
+- Am Schluss die **Liste offener Entscheidungen und Wartepunkte**.
+
+Gilt für spätere Migrations-Stände **und künftige Prozesse gleichermaßen**.
+
 ## 🔒 GOVERNANCE — der Bot editiert sein eigenes Repo NIE (Adam 2026-07-19)
 
 Die Regel „Bot editiert das Bot-Repo nicht" gilt **ausdrücklich auch für die

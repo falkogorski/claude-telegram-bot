@@ -1,0 +1,98 @@
+# Blaupause — Sammelnotizen
+
+**Zweck:** Rohstoff-Lager für Punkt **9.6** (`BLAUPAUSE.md`, das übertragbare Grundwerk).
+Hier wird **gesammelt, nicht ausgearbeitet** — je Baustein eine Zeile. Die Ausformulierung
+geschieht erst in 9.6, nach dem Gesamtaudit (10.1).
+
+**Format:** Was · Punkt-Nr. · Einschätzung
+**Einschätzungen:**
+- **universell** — gilt unabhängig von Modell, Anbieter und Umgebung; wandert unverändert in die Charta.
+- **anpassbar** — das *Muster* trägt überall, die konkrete Ausführung hängt an der Umgebung.
+- **plattformgebunden** — funktioniert nur mit diesem Anbieter/Dienst; braucht bei einem Wechsel ein Gegenstück.
+
+**Pflicht (Regel in `CLAUDE.md`):** Entsteht bei einem Punkt ein Mechanismus oder eine Regel,
+die erkennbar übertragbar **oder** erkennbar plattformgebunden ist, wird die Zeile **sofort**
+ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
+
+**Angelegt:** 2026-07-20 (mit einmaligem Rückblick über alles bereits Umgesetzte)
+
+---
+
+## Regeln, Werte, Leitplanken
+
+| Was | Punkt | Einschätzung |
+|---|---|---|
+| 💰 Kostenregel: vor jeder Aktion prüfen „kann hier Geld abgebucht werden?", „unklar = ja", Cent zählt | CLAUDE.md | **universell** |
+| Zwei-Geldtöpfe-Prinzip: Pauschal-Zugang und nutzungsabhängiger Zugang strikt trennen, Vorrang bewusst festlegen | CLAUDE.md | **anpassbar** (jeder Anbieter hat andere Töpfe) |
+| Auth ausschließlich per Abo-Token (`CLAUDE_CODE_OAUTH_TOKEN`), nie per API-Schlüssel | CLAUDE.md / 1.6 | **plattformgebunden** (Anthropic-spezifisch) |
+| Datenschutz-Ampel grün/gelb/rot: Rotes bleibt lokal, Grünes darf in die Cloud | 2.2 | **universell** (Prinzip) |
+| Heikelste Regelpflege nur auf cloud-freiem Weg (deterministisch, ohne Modell-Beteiligung) | 2.2 | **universell** |
+| Kein OpenAI im Stack (bewusste Anbieter-Ausschlussliste) | 2.5 | **anpassbar** (die Liste selbst ist persönlich) |
+| Anti-Ping-Pong: keine Instanz verweist den Nutzer bloß weiter, jede liefert eine fertige Lösung | CLAUDE.md | **universell** |
+| Führungs-Register: pro Vorgang genau **eine** schreibende Instanz, alle anderen nur lesend | CLAUDE.md | **universell** |
+| „Frisch lesen vor Reden/Schreiben" — nie aus altem Sitzungsgedächtnis über geteilte Dateien urteilen | CLAUDE.md | **universell** |
+| Manuelle Änderungen des Nutzers haben immer Vorrang; nie stillschweigend überschreiben | CLAUDE.md | **universell** |
+| Doku-Spiegel: nutzerseitige Texte im **selben** Commit nachziehen | 8.6 | **universell** |
+| Governance: die laufende Kopie editiert ihr eigenes Repo nie; Deploy nur per `git pull` durch den Nutzer | 8.7 | **universell** |
+| Secrets nie in Chat, Log oder Datei — Maskierung vor jeder Ausgabe erzwingen | CLAUDE.md / 5.2 | **universell** |
+| „Keine Nachricht geht verloren" als harte Zusage, nicht als Vorsatz | 5.2 | **universell** |
+| Listen-Fakten nie aus einer Einzelquelle; Quellen nennen, Lücken kennzeichnen | 5.25 (e) | **universell** |
+| Muster „kostenfrei + lesend = automatisch freigeben, kostenpflichtig oder schreibend = fragen" | 5.25 (a) | **universell** |
+
+## Architektur-Muster
+
+| Was | Punkt | Einschätzung |
+|---|---|---|
+| **Gatekeeper vor der Inferenz** (Proxy entscheidet, welches Modell eine Anfrage sehen darf) | 2.1 / 2.2 | **universell** (Muster); LiteLLM als Umsetzung **anpassbar** |
+| **Lokales Fallback-Modell** für Offline- und Rot-Fälle | 2.3 | **universell** (Muster); Ollama+Phi-4-Mini **anpassbar** |
+| **Private Suchschicht** statt kostenpflichtiger Anbieter-Suche | 2.7 | **universell** (Muster); SearxNG **anpassbar** |
+| **Persistenz-Schicht**: jede eingehende Nachricht sofort auf Platte, mit Status-Lebenslauf (offen → in Bearbeitung → sendet → erledigt) | 5.2 | **universell** |
+| **Hybrid-Wiederaufnahme**: automatisch nachholen nur, wenn nachweislich nichts raus war — sonst ehrlich melden | 5.2 | **universell** |
+| **Atomares Schreiben** (tmp + `os.replace`), damit ein Absturz keine halbe Datei hinterlässt | 5.2 | **universell** |
+| **Absturz-Schleifen-Bremse**: eine Nachricht, die den Dienst reproduzierbar mitreißt, wird nach N Anläufen nur noch gemeldet | 5.2 | **universell** |
+| **Eingangsschutz vor teurer Vorverarbeitung**: sichern, bevor transkribiert/konvertiert wird — nicht danach | 5.2 (20.07.) | **universell** |
+| **Zwei-Ebenen-Wächter**: einer für „Dienst tot", einer für „Dienst lebt, Arbeitssitzung tot" | 5.18 | **universell** |
+| **Wächter müssen sperrfrei arbeiten** — wer auf die Sperre des Hängenden wartet, hängt mit | 5.18 | **universell** |
+| **Wartende Rückfragen sind kein Stillstand** — Stille auf eine offene Frage ist gewollt | 5.18 | **universell** |
+| **Pre-Send-Prüfung**: vollständige Antwort erst prüfen, dann senden (setzt Sammeln statt Durchreichen voraus) | 8.5 | **universell** |
+| **Selbstprüfung als Code**: Kern-Invarianten als Selbstcheck, der bei jedem Start läuft und auch den Autor überführt | 8.x | **universell** |
+| **Abhängigkeits-Register** gegen stille Bezugs-Brüche (Komponente → Abhängige → Prüfbefehl) | CLAUDE.md | **universell** |
+| **Durchsetzungs-Hooks** statt bloßer Absichtserklärung (Schreibschutz, Warnbanner bei veraltetem Stand) | CLAUDE.md | **anpassbar** (hier Claude-Code-Hooks) |
+| **Backup mit Restore-Probe** — eine Sicherung gilt erst als gültig, wenn sie zurückgespielt und geprüft wurde | 4.1 | **universell** |
+| **Kontext-Diät**: Kern-Gedächtnis vorladen, Details auf Abruf lesen | 5.23 | **universell** |
+| **Kontext-Überlauf abfangen**: Sitzung verwerfen, Nachricht automatisch neu — ohne Verlust für den Nutzer | 5.24-Vorstufe | **universell** |
+| **Ein Sendepfad** für alles, mit einem einzigen Haken für Nachbearbeitung (TTS, Prüfung, Protokoll) | 5.8 | **universell** |
+| **Zustellnachweis**: der Sendepfad meldet zurück, ob wirklich etwas ankam — kein blindes „erledigt" | 5.2 | **universell** |
+
+## Betrieb & Infrastruktur
+
+| Was | Punkt | Einschätzung |
+|---|---|---|
+| Unprivilegierter Dienst-Nutzer, gehärtetes System (Firewall, fail2ban, automatische Updates) | 1.1 / 1.2 | **universell** |
+| Dienst-Verwaltung über den System-Dienstmanager statt Bastellösung | 1.8 | **anpassbar** (hier systemd, vorher launchd) |
+| Geheimnisse in einer Umgebungsdatei außerhalb des Repos, nur für root lesbar | 1.6 | **universell** |
+| Verifizierter Rollback-Pfad, bevor umgeschaltet wird | 1.12 | **universell** |
+| Nie zwei Instanzen desselben Dienstes parallel | 1.10 | **universell** |
+| Lokale Spracherkennung statt Cloud-Dienst | 1.3 / 1.4 | **anpassbar** (hier whisper.cpp) |
+| Umschaltbare Qualitätsstufen bei teuren Verarbeitungsschritten (genau ↔ schnell) | 5.22 | **universell** |
+| Konfiguration per Umgebungsvariable statt fester Pfade im Code | 0.5 / 0.6 | **universell** |
+
+## Arbeitsweise & Kommunikation
+
+| Was | Punkt | Einschätzung |
+|---|---|---|
+| Drehbuch mit Status, Akzeptanzkriterium, Test und Nutzer-Bestätigung je Punkt; sequenziell | MIGRATION.md | **universell** |
+| Eine lebende Datei mit Änderungshistorie statt Versions-Sammlung | Doku-Konvention | **universell** |
+| Statusübersicht als „Inhaltsverzeichnis" mit Symbolen und gewichtetem Fertigstellungsgrad | CLAUDE.md | **universell** |
+| Ein Schritt pro Nachricht für nicht-technische Nutzer, mit erwarteter Ausgabe | CLAUDE.md | **universell** |
+| Shell-Eigenheiten beachten (keine Kommentarzeilen in Befehlsblöcken, Zwischenablage-Reihenfolge) | CLAUDE.md | **anpassbar** (hier zsh/macOS) |
+| Neutrale Begrüßung: nie annehmen, wo oder an welchem Gerät der Nutzer sitzt | 0.4 | **universell** |
+| Test erst nach Deploy-Beweis (Selbstcheck-Zahl als Beleg, dass der neue Stand wirklich läuft) | 5.2 (Merkregel) | **universell** |
+
+---
+
+## Offene Klärungspunkte für 9.6
+
+- **Modell-Abhängigkeit prüfen:** Wie viel der Verhaltensregeln trägt ein schwächeres oder lokales Modell noch? Die Charta muss kennzeichnen, was ein Modell *können* muss, damit eine Regel greift.
+- **Widerspruch Komfort ↔ Sicherheit:** Auto-Freigaben (5.25) und der Grundsatz „im Zweifel fragen" ziehen gegeneinander. In der Blaupause als bewusste Abwägung mit klarer Grenzlinie beschreiben, nicht als Regel-Kollision stehen lassen.
+- **Was ohne Telegram bleibt:** Reaktions-Vokabular, Inline-Freigaben und Kanal-Routing sind eng an Telegram gebaut. Für die Blaupause das *Bedürfnis* beschreiben (schnelle Antwort ohne Tippen, Freigabe von unterwegs), nicht die Telegram-Lösung.

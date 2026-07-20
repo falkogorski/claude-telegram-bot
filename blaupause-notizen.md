@@ -38,6 +38,8 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | „Keine Nachricht geht verloren" als harte Zusage, nicht als Vorsatz | 5.2 | **universell** |
 | Listen-Fakten nie aus einer Einzelquelle; Quellen nennen, Lücken kennzeichnen | 5.25 (e) | **universell** |
 | Muster „kostenfrei + lesend = automatisch freigeben, kostenpflichtig oder schreibend = fragen" | 5.25 (a) | **universell** |
+| **Automatik nur für Adressen aus Nutzer-Eingabe oder eigener Suche** — von fremden Inhalten nachgereichte Ziele brauchen immer eine Freigabe | 5.25 (a) | **universell** |
+| Jeder automatisch freigegebene Zugriff bleibt im Klartext mitlesbar — Automatik ohne Sichtbarkeit ist blind | 5.25 (a)/(d) | **universell** |
 
 ## Architektur-Muster
 
@@ -94,5 +96,5 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 ## Offene Klärungspunkte für 9.6
 
 - **Modell-Abhängigkeit prüfen:** Wie viel der Verhaltensregeln trägt ein schwächeres oder lokales Modell noch? Die Charta muss kennzeichnen, was ein Modell *können* muss, damit eine Regel greift.
-- **Widerspruch Komfort ↔ Sicherheit:** Auto-Freigaben (5.25) und der Grundsatz „im Zweifel fragen" ziehen gegeneinander. In der Blaupause als bewusste Abwägung mit klarer Grenzlinie beschreiben, nicht als Regel-Kollision stehen lassen.
+- **Widerspruch Komfort ↔ Sicherheit — Grenzlinie gefunden (Adam-Entscheid 20.07.):** Auto-Freigaben (5.25) und „im Zweifel fragen" ziehen gegeneinander; die Linie verläuft **nicht** am Werkzeug, sondern an der **Herkunft der Zieladresse** — aus Nutzer-Eingabe oder eigener Suche: automatisch; von fremden Inhalten nachgereicht: fragen. In der Blaupause als eigenes Muster ausformulieren, weil es weit über WebFetch hinaus trägt (jede Automatik, deren Ziel von außen bestimmt werden könnte).
 - **Was ohne Telegram bleibt:** Reaktions-Vokabular, Inline-Freigaben und Kanal-Routing sind eng an Telegram gebaut. Für die Blaupause das *Bedürfnis* beschreiben (schnelle Antwort ohne Tippen, Freigabe von unterwegs), nicht die Telegram-Lösung.

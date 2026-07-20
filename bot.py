@@ -825,9 +825,12 @@ async def _presend_gate(
     meta = {"user_id": job.user_id, "thorough": job.thorough}
 
     todo = presend.needs_correction(findings)
+    # Vermerke werden angehängt, lösen aber KEINE Korrekturrunde aus (s. presend.py).
+    notices = presend.needs_notice(findings)
+    notice_suffix = ("\n\n" + "\n".join(f.get("hinweis", "") for f in notices)) if notices else ""
     if not todo:
         presend.log_findings(findings, meta)
-        return answer
+        return answer + notice_suffix
 
     # EINE Korrekturrunde — mit konkretem Befund.
     log.info("presend: Korrekturrunde für %s Befund(e)", len(todo))
@@ -847,14 +850,14 @@ async def _presend_gate(
         if not presend.needs_correction(again):
             meta["korrektur"] = "erfolgreich"
             presend.log_findings(findings + again, meta)
-            return corrected
+            return corrected + notice_suffix
         answer, findings = corrected, findings + again
 
     # Korrektur griff nicht → senden MIT sichtbarem Vermerk, niemals blockieren.
     meta["korrektur"] = "fehlgeschlagen"
     presend.log_findings(findings, meta)
     hinweis = "\n\n⚠️ " + "; ".join(f.get("detail", "") for f in todo)
-    return answer + hinweis
+    return answer + hinweis + notice_suffix
 
 
 async def _run_job(user_id: int, job: QueuedJob) -> str:

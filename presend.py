@@ -149,13 +149,26 @@ def check_and_fix(text: str, *, pending_newer: int = 0,
                 "detail": f"relative Zeitaussage: „{m.group(0)}“",
             })
 
-        # (c) Vollständigkeit — deterministisch, NICHT auto-fixbar → Korrekturrunde
+        # (c) Vollständigkeit — reiner VERMERK, bewusst KEINE Korrekturrunde.
+        # Der Agent kann die neueren Nachrichten gar nicht sehen: sie liegen in der
+        # Warteschlange und werden gleich EINZELN beantwortet. Eine Korrekturrunde
+        # ist deshalb per Konstruktion vergeblich — sie kostete nur eine zusätzliche
+        # Anfrage und verleitete ihn dazu, nach etwas zu fragen, das längst vorliegt
+        # („kannst du sie mir zeigen?" — live beobachtet 20.07., zwei Sekunden bevor
+        # er dieselben Nachrichten selbst beantwortete).
         if pending_newer > 0:
             findings.append({
                 "code": "vollstaendigkeit",
-                "art": "korrektur",
+                "art": "vermerk",
                 "detail": f"{pending_newer} neuere Nachricht(en) seit Bearbeitungsbeginn "
                           f"eingegangen, von dieser Antwort nicht adressiert",
+                "hinweis": (
+                    "ℹ️ Eine neuere Nachricht von dir ist inzwischen eingegangen — "
+                    "die beantworte ich gleich separat."
+                    if pending_newer == 1 else
+                    f"ℹ️ {pending_newer} neuere Nachrichten von dir sind inzwischen "
+                    "eingegangen — die beantworte ich gleich einzeln."
+                ),
             })
 
         # (d) Tentativ-Sprache — KEIN harter Fehler, nur Kennzahl
@@ -172,6 +185,13 @@ def check_and_fix(text: str, *, pending_newer: int = 0,
 
 def needs_correction(findings: list[dict]) -> list[dict]:
     return [f for f in findings if f.get("art") == "korrektur"]
+
+
+def needs_notice(findings: list[dict]) -> list[dict]:
+    """Befunde, die dem Nutzer nur als Vermerk angehängt werden — ohne Korrekturrunde.
+    Für alles, was der Agent nicht selbst beheben kann (weil ihm die Information
+    gar nicht vorliegt), aber worüber der Nutzer Bescheid wissen soll."""
+    return [f for f in findings if f.get("art") == "vermerk"]
 
 
 def correction_prompt(findings: list[dict]) -> str:

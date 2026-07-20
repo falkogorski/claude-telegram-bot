@@ -2690,41 +2690,28 @@ def _detect_pending_item(full: bool = False) -> str:
         last_cl = max((i for i, l in enumerate(recent[:boundary]) if l.startswith("## Claude")), default=-1)
         last_author = "user" if last_du > last_cl else "claude"
 
-    def _clean_user_text(block: list[str]) -> str:
-        """Kontext-Wrapper ('[Kontext: …]'-Zeilen) herausfiltern, echten Text zurückgeben."""
-        in_ctx = False
-        clean: list[str] = []
-        for l in block:
-            s = l.strip()
-            if s.startswith("[Kontext:"):
-                in_ctx = True
-            if in_ctx:
-                if s.endswith("]"):
-                    in_ctx = False
-                continue
-            if s:
-                clean.append(s)
-        return "\n".join(clean).strip()
+    # (Die Helfer `_clean_user_text` / `_first_meaningful` sind mit Fall B
+    # entfallen — sie hatten keinen anderen Aufrufer. Historie in Git.)
 
-    def _first_meaningful(text: str, max_len: int = 100) -> str:
-        lines = [
-            _re.sub(r"[*_`#>]", "", l).strip()
-            for l in text.splitlines()
-            if _re.sub(r"[*_`#>]", "", l).strip()
-        ]
-        s = lines[0] if lines else text[:max_len]
-        return (s[:max_len] + "…") if len(s) > max_len else s
-
-    # ── Fall B: Adams letzte Nachricht vor dem Neustart blieb unbeantwortet ──
-    if last_author == "user" and last_user_block:
-        user_text = _clean_user_text(last_user_block)
-        if user_text:
-            if full:
-                return (
-                    f"Deine letzte Nachricht aus der vorherigen Session ist noch offen "
-                    f"geblieben. Bitte beantworte sie jetzt:\n\n{user_text[:800]}"
-                )
-            return _first_meaningful(user_text)
+    # ── Fall B: ABGESCHALTET seit 20.07.2026 — 5.2 macht das jetzt exakt ──
+    #
+    # Fall B riet aus dem Chat-Log („wer war zuletzt dran?"), ob Adams letzte
+    # Nachricht unbeantwortet blieb, und ließ sie per Autorun neu beantworten.
+    # Das war vor 5.2 die einzige Rettung — jetzt ist es ein ZWEITER, blinder
+    # Nachhol-Mechanismus neben `_reconcile_pending`, der nichts von den
+    # Persistenz-Records weiß und deshalb keine Ahnung hat, was bereits
+    # beantwortet wurde.
+    #
+    # Live schiefgegangen am 20.07.: Nach dem Kill-Test lag eine „## Session"-
+    # Grenze im Log, dadurch sah die längst beantwortete Brot-Frage wie der
+    # letzte unbeantwortete User-Block aus — der Bot beantwortete sie beim
+    # nächsten Neustart ein zweites Mal. Das unterläuft genau die Zusage von
+    # 5.2 („jede Nachricht genau einmal") und kostet zusätzlich eine Anfrage.
+    #
+    # Die exakte Antwort auf „ist das noch offen?" steht in `logs/pending/`:
+    # Record vorhanden = offen, gelöscht = beantwortet. Raten ist überflüssig.
+    # Fall A unten bleibt — der deckt den ANDEREN Fall ab (Claude wartet auf
+    # Adam), den 5.2 nicht kennt und auch nicht abdecken soll.
 
     # ── Fall A: Claude hatte Frage/Test gestellt, Adam hat noch nicht reagiert ──
     if last_author == "claude" and last_claude_block:

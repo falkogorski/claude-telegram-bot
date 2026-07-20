@@ -2685,7 +2685,10 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession |
         or (sess.bot if sess is not None else None)
     chat_id = (job.chat_id if job is not None else None) \
         or (sess.chat_id if sess is not None else None)
-    minutes = int(stalled_for // 60)
+    # Dauer in ganzen Worten: unter 2 Minuten in Sekunden (bei einem 60-s-Limit
+    # las sich „1 Minuten" sonst falsch UND ungenau — live gesehen 20.07.).
+    dauer = (f"{int(stalled_for)} Sekunden" if stalled_for < 120
+             else f"{int(stalled_for // 60)} Minuten")
     log.error("Stall erkannt: user_id=%s ohne Regung seit %.0fs (Session %s) — wird beendet",
               user_id, stalled_for, "vorhanden" if sess is not None else "nie zustande gekommen")
 
@@ -2741,10 +2744,10 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession |
     # „ins Leere fragen" soll dieser Punkt ja abschaffen.
     if bot is not None and chat_id is not None:
         preview = _job_preview(job.text) if job is not None else ""
-        msg = (f"⚠️ Meine Claude-Sitzung hat {minutes} Minuten lang nicht mehr reagiert. "
+        msg = (f"⚠️ Meine Claude-Sitzung hat {dauer} lang nicht mehr reagiert. "
                "Ich habe sie beendet und starte eine frische."
                if sess is not None else
-               f"⚠️ Meine Claude-Sitzung ließ sich seit {minutes} Minuten nicht einmal "
+               f"⚠️ Meine Claude-Sitzung ließ sich seit {dauer} nicht einmal "
                "starten. Ich breche den Versuch ab und probiere es frisch.")
         if job is not None:
             msg += f"\n\nBetroffen war: „{preview}“"

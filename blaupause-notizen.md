@@ -89,6 +89,9 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | Ein Schritt pro Nachricht für nicht-technische Nutzer, mit erwarteter Ausgabe | CLAUDE.md | **universell** |
 | Shell-Eigenheiten beachten (keine Kommentarzeilen in Befehlsblöcken, Zwischenablage-Reihenfolge) | CLAUDE.md | **anpassbar** (hier zsh/macOS) |
 | Neutrale Begrüßung: nie annehmen, wo oder an welchem Gerät der Nutzer sitzt | 0.4 | **universell** |
+| Wunsch-Vokabular gegen die Plattform **messen statt raten**; für Nicht-Unterstütztes einen gleichwertigen Weg vorsehen, damit keine Bedeutung verlorengeht | 5.9 | **universell** |
+| **Jede Messung braucht eine Kontrollprobe**, die durchfallen muss — sonst misst man womöglich nichts (hier: die Emoji-Sonde meldete alles als gültig, auch Unsinn) | 5.9 | **universell** |
+| Abbruch-/Stopp-Signale nie auf ein sinnverwandtes Ersatzzeichen legen — Eindeutigkeit schlägt Bequemlichkeit | 5.9 | **universell** |
 | Test erst nach Deploy-Beweis (Selbstcheck-Zahl als Beleg, dass der neue Stand wirklich läuft) | 5.2 (Merkregel) | **universell** |
 
 ---

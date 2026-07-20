@@ -106,6 +106,29 @@ async def main():
     print("✓ zweiter Stall: keine Wiederholung, ehrliche Meldung:\n    "
           + SENT[0][1].replace("\n", "\n    "))
 
+    # --- Fall 4: Session kam nie zustande (ensure_session hängt) ---
+    # Lücke, die beim Vorbereiten des VPS-Tests auffiel: früher brach der
+    # Wächter bei `sess is None` ab — ein Job, dessen Sitzung sich nie öffnet,
+    # lief damit unbegrenzt weiter, und Adam fragte ins Leere. Für ihn ist das
+    # derselbe Fall wie eine tote Session.
+    SENT.clear()
+    RESTARTED.clear()
+    bot.SESSIONS.pop(uid, None)
+    job2 = bot.QueuedJob(update=None, text="Frage ohne Sitzung", user_id=uid,
+                         chat_id=999, message_id=2, bot=FakeBot())
+    mb.queue.clear()
+    mb.current_job = job2
+    mb.current_started = bot.time.monotonic() - 600
+    mb.worker = asyncio.create_task(haengt())
+    wd2 = asyncio.create_task(bot.stall_watchdog(None))
+    await asyncio.sleep(2.5)
+    wd2.cancel()
+    assert SENT and "nicht einmal starten" in SENT[0][1], \
+        "FEHLER: hängender Session-Aufbau wird nicht erkannt"
+    assert len(mb.queue) == 1 and mb.queue[0] is job2, "FEHLER: Job nicht gerettet"
+    print("✓ hängender Session-AUFBAU wird erkannt:\n    "
+          + SENT[0][1].replace("\n", "\n    "))
+
     print("\nALLE TEILPRÜFUNGEN BESTANDEN")
 
 

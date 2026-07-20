@@ -2670,7 +2670,7 @@ async def _disconnect_quietly(sess: UserSession, user_id: int) -> None:
                     "fehlgeschlagen — ignoriert", user_id, exc_info=True)
 
 
-async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession,
+async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession | None,
                                   stalled_for: float) -> None:
     """Eine hängende Session beenden, den Job retten, frisch weitermachen.
 
@@ -2681,19 +2681,26 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession,
     ihre Zuständigkeit weg (aus SESSIONS raus) und bricht den Worker-Task ab.
     """
     job = mb.current_job
-    bot = (job.bot if job is not None and job.bot is not None else None) or sess.bot
-    chat_id = (job.chat_id if job is not None else None) or sess.chat_id
+    bot = (job.bot if job is not None and job.bot is not None else None) \
+        or (sess.bot if sess is not None else None)
+    chat_id = (job.chat_id if job is not None else None) \
+        or (sess.chat_id if sess is not None else None)
     minutes = int(stalled_for // 60)
-    log.error("Stall erkannt: user_id=%s ohne Regung seit %.0fs — Session wird beendet",
-              user_id, stalled_for)
+    log.error("Stall erkannt: user_id=%s ohne Regung seit %.0fs (Session %s) — wird beendet",
+              user_id, stalled_for, "vorhanden" if sess is not None else "nie zustande gekommen")
 
     # 1. Session sofort entmachten, damit nichts Neues mehr daran andockt.
-    SESSIONS.pop(user_id, None)
-    try:
-        cancel_pending_permissions(sess, reason="Session-Stall (5.18)")
-    except Exception:
-        log.exception("Stall: Permissions-Aufräumen fehlgeschlagen (nicht-fatal)")
-    asyncio.create_task(_disconnect_quietly(sess, user_id))
+    # sess kann None sein: dann hängt bereits der SESSION-AUFBAU (`ensure_session`
+    # kehrt nie zurück, das Objekt existiert also noch gar nicht). Für Adam ist
+    # das derselbe Fall — er fragt ins Leere —, nur gibt es hier nichts zu
+    # schließen. Aufgefallen beim Vorbereiten des VPS-Tests am 20.07.
+    if sess is not None:
+        SESSIONS.pop(user_id, None)
+        try:
+            cancel_pending_permissions(sess, reason="Session-Stall (5.18)")
+        except Exception:
+            log.exception("Stall: Permissions-Aufräumen fehlgeschlagen (nicht-fatal)")
+        asyncio.create_task(_disconnect_quietly(sess, user_id))
 
     # 2. Worker-Task abbrechen. Er hängt im await auf die tote Session; ein
     # cancel() löst dort CancelledError aus und beendet ihn. Reagiert er auch
@@ -2735,7 +2742,10 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession,
     if bot is not None and chat_id is not None:
         preview = _job_preview(job.text) if job is not None else ""
         msg = (f"⚠️ Meine Claude-Sitzung hat {minutes} Minuten lang nicht mehr reagiert. "
-               "Ich habe sie beendet und starte eine frische.")
+               "Ich habe sie beendet und starte eine frische."
+               if sess is not None else
+               f"⚠️ Meine Claude-Sitzung ließ sich seit {minutes} Minuten nicht einmal "
+               "starten. Ich breche den Versuch ab und probiere es frisch.")
         if job is not None:
             msg += f"\n\nBetroffen war: „{preview}“"
             if retry:
@@ -2772,17 +2782,21 @@ async def stall_watchdog(app: Application) -> None:
                 if mb.current_job is None:
                     continue
                 sess = SESSIONS.get(user_id)
-                if sess is None:
-                    continue
-                # Wartet der Vorgang auf eine Freigabe von Adam, ist Stille
-                # GEWOLLT — er darf sich Zeit lassen, ohne dass ihm der Wächter
-                # die Sitzung unter dem Stuhl wegzieht.
-                if sess.pending_permissions:
+                # sess None = der Session-AUFBAU hängt (ensure_session kehrt nie
+                # zurück). Früher wurde hier abgebrochen — genau das war eine
+                # Lücke: ein Job, dessen Sitzung sich nie öffnen lässt, läuft
+                # dann unbegrenzt weiter und Adam fragt ins Leere. Ein Aufbau
+                # dauert normal 1–3 Sekunden; Minuten ohne Session sind kaputt.
+                if sess is not None and sess.pending_permissions:
+                    # Wartet der Vorgang auf eine Freigabe von Adam, ist Stille
+                    # GEWOLLT — er darf sich Zeit lassen, ohne dass ihm der
+                    # Wächter die Sitzung unter dem Stuhl wegzieht.
                     continue
                 # Job-Beginn zählt als Regung: sonst schlüge der Wächter bei
                 # einem Turn zu, der noch nie etwas geliefert hat, weil
                 # last_activity dann von der Vorgänger-Nachricht stammt.
-                ref = max(mb.current_started, sess.last_activity)
+                ref = (mb.current_started if sess is None
+                       else max(mb.current_started, sess.last_activity))
                 stalled_for = now - ref
                 if stalled_for > STALL_LIMIT_S:
                     await _handle_stalled_session(user_id, mb, sess, stalled_for)

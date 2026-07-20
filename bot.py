@@ -3554,6 +3554,86 @@ async def on_restart_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> N
         await _do_restart(update, user_id, via_callback=True)
 
 
+def _mask_secrets(text: str) -> str:
+    """Entfernt Geheimnisse aus Fehlertexten, BEVOR sie in einer Datei oder gar
+    in einer Telegram-Nachricht landen.
+
+    Telegram-Fehlermeldungen enthalten regelmäßig die API-URL — und darin steckt
+    der Bot-Token (`https://api.telegram.org/bot<TOKEN>/…`). Ein `InvalidToken`
+    zitiert ihn sogar wörtlich. Ohne diese Maske stünde er nach einem Absturz in
+    `bot-restart-reason.txt` (wird gebackupt!), im Chat-Log und in der
+    Startnachricht — genau das darf nie passieren (Adam-Regel: Secrets nie in
+    den Chat). Beim Testcrash am 20.07. live aufgefallen."""
+    import re as _re
+    out = text or ""
+    for secret in (TELEGRAM_BOT_TOKEN, os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")):
+        if secret and len(secret) > 8:
+            out = out.replace(secret, "<GEHEIM>")
+    # Zusätzlich generisch: Bot-Token-Muster (Ziffern:Base64-artig), auch wenn es
+    # ein anderer als der eigene ist.
+    out = _re.sub(r"\b\d{6,}:[A-Za-z0-9_-]{20,}\b", "<GEHEIM>", out)
+    return out
+
+
+def _write_crash_restart_reason(exc: BaseException) -> None:
+    """Hinterlässt bei einem ABSTURZ einen lesbaren Grund für die nächste
+    Startnachricht (Auftrag Web-Sitzung 20.07.).
+
+    Bisher schrieb nur `/restart` bzw. der Guardian einen Grund; starb der Prozess
+    an einer Exception (Telegram-Timeout beim Hochfahren, Netzwerkfehler, alles
+    Unerwartete), blieb die Datei leer und Adam bekam nur ein wortloses „Bin
+    wieder da" — ohne Hinweis, dass überhaupt etwas schiefgegangen war.
+
+    Bewusste Grenze: Ein sauberes SIGTERM (`systemctl restart`) fängt
+    python-telegram-bot intern ab, dort greift weiterhin die normale Logik.
+
+    Ein bereits vorhandener, SPEZIFISCHER Grund (z. B. vom /restart-Befehl) wird
+    nicht überschrieben — nur der generische Guardian-Fallback („lag still")
+    weicht einer genaueren Ursache.
+    """
+    try:
+        if _RESTART_REASON_FILE.exists():
+            existing = _RESTART_REASON_FILE.read_text(encoding="utf-8")
+            if "lag still" not in existing:
+                return
+    except Exception:
+        pass
+
+    from telegram.error import TimedOut, NetworkError, RetryAfter, Forbidden, InvalidToken
+    # Reihenfolge beachten: TimedOut ist eine Unterklasse von NetworkError —
+    # zuerst geprüft, sonst bekäme ein Timeout die unspezifische Netzwerk-Meldung.
+    if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+        reason = "Kurz weg — sauberer Neustart (Signal / SystemExit). Bin wieder da."
+    elif isinstance(exc, InvalidToken):
+        # Bewusst OHNE Fehlertext: der zitiert den Token wörtlich.
+        reason = ("⚠️ Der Telegram-Zugangsschlüssel wurde vom Server abgelehnt — "
+                  "ich komme so nicht hoch. Bitte die Zugangsdaten prüfen.")
+    elif isinstance(exc, TimedOut):
+        reason = ("Kurz weg — Telegram-Verbindungs-Timeout. "
+                  "Die Verbindung war kurzfristig unterbrochen, bin wieder da.")
+    elif isinstance(exc, RetryAfter):
+        reason = ("Kurz weg — Telegram hat einen Rate-Limit-Fehler gemeldet "
+                  "(zu viele Anfragen). Läuft wieder.")
+    elif isinstance(exc, NetworkError):
+        reason = (f"Kurz weg — Netzwerkfehler ({type(exc).__name__}). "
+                  "Verbindung steht wieder.")
+    elif isinstance(exc, Forbidden):
+        reason = ("Kurz weg — Telegram hat den Zugriff vorübergehend verweigert. "
+                  "Läuft wieder.")
+    else:
+        # str(exc) kann Geheimnisse tragen (API-URL mit Token) → immer maskieren.
+        short = _mask_secrets(str(exc))[:100]
+        reason = (f"Kurz weg — unerwarteter Fehler "
+                  f"({type(exc).__name__}: {short}). Bin neu gestartet.")
+
+    try:
+        _RESTART_REASON_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _RESTART_REASON_FILE.write_text(reason, encoding="utf-8")
+        log.info("crash restart reason written: %s", type(exc).__name__)
+    except Exception:
+        log.warning("could not write crash restart reason", exc_info=True)
+
+
 async def _do_restart(update: Update, user_id: int, via_callback: bool = False) -> None:
     """Schreibt den letzten Stand in die Restart-Grund-Datei und beendet den
     Prozess sanft — launchd (KeepAlive) startet den Bot neu, der die Datei beim
@@ -5027,4 +5107,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # Stirbt der Prozess an einer Exception, bleibt ein lesbarer Grund für die
+    # nächste Startnachricht zurück — sonst meldet der Bot nach einem Absturz
+    # nur wortlos „Bin wieder da" und Adam erfährt nie, dass etwas schiefging.
+    try:
+        main()
+    except BaseException as exc:
+        _write_crash_restart_reason(exc)
+        raise

@@ -1,3 +1,4 @@
+<!-- ROLLE: abhaengigkeits-register -->
 # 🔗 Abhängigkeits-Register
 
 **Zweck (Adam-Auftrag 16.07.2026):** Schutz gegen stille Abhängigkeits-Brüche —
@@ -53,6 +54,10 @@ Regressionstest (**8.2**) nutzt sie als Prüfliste nach Änderungen.
 | Komponente | Wird benötigt von | Prüfbefehl / Prüfkriterium |
 |---|---|---|
 | **`.claude/settings.json` + `.claude/hooks/*.sh`** `[Mac]` | SessionStart-Banner + **Schreibschutz** auf MIGRATION.md/CLAUDE.md (Führungs-Register). Fehlt/unausführbar → Schutz still weg | Hooks ausführbar (`-x`); Blocktest: veralteter Klon → `guard-master-files.sh` Exit `2` |
+| **Rollen-Marker `<!-- ROLLE: … -->`** in den 6 Schlüsseldokumenten + **`WIEDERANLAUF.md`** (22.07.) | Wiedereinsetzung neuer Kontroll-/Planungssitzungen (WIEDERANLAUF referenziert über Rollen); „Struktur über Namen"-Prinzip in CLAUDE.md. **WIEDERANLAUF.md hängt an der CLAUDE.md-Struktur — bei Regel-Umbauten mitprüfen** | `grep -rl "ROLLE:" *.md` listet 6 Dateien; ⚠️ **Umbenennen/Verschieben = Abhängigkeits-Änderung**: Marker mitnehmen, dieses Register + Komfort-Namen in WIEDERANLAUF.md/CLAUDE.md im selben Commit nachziehen |
+| **Sanfter Wechsel** (`Mailbox.switch_pending`, 22.07.) | Modell-/Effort-Zweig in `_handle_keyboard_btn` (kein hartes `close_session` bei laufendem Job mehr), `_session_worker` (schließt nach Job-Ende), 5.2-Statuslogik (Job endet nie mehr als „fehler" durch Wechsel), Session-Aufbau via Prefs; künftig 5.21-Modell-Baustein (👍-Übernahme nutzt denselben Weg) | Wechsel im Leerlauf → sofort „aktiv. Session neu gestartet"; Wechsel bei laufendem Job → „🔄 Vorgemerkt…", laufende Antwort kommt vollständig an, nächste läuft im neuen Modus |
+| **Fehler-Sofortmeldung** (`_notify_job_failed`, 22.07.) | Worker-Except-Pfad + Nicht-zustellbar-Pfad in `_run_job` — kein „fehler"-Job mehr ohne Nachricht an Adam | Job künstlich scheitern lassen → ⚠️-Meldung mit Job-Vorschau kommt sofort, Record bleibt für Reconcile liegen |
+| **Repo-Bundle im Backup** (`scripts/vps_backup.sh`, 22.07.) | Notfall-Plan 4.1: datierte Offline-Vollkopien (14 Stück Rotation) unabhängig von den drei Live-Klonen | `git bundle verify ~/VPS-Backup/bundles/<neuestes>.bundle` → „complete history" |
 | **🎯 Gründlich-Modus** (Opus + Max-Effort) | **Pre-Send-Hook v2** — der Sicherheits-Gegencheck läuft dort (starkes Modell), bewusst NICHT in Phi-4-Mini | 🎯-Button in der Tastatur vorhanden; v1-Hook unabhängig davon lauffähig |
 | **`_COST_TOOLS` + `disallowed_tools=["WebSearch"]`** | 💰-Kostenregel im Bot (WebSearch-Sperre). Entfernt → kostenpflichtige Suche wieder möglich | `WebSearch` in `disallowed_tools` der `ClaudeAgentOptions`; `_COST_TOOLS` enthält `WebSearch` |
 | **Memory-Auto-Allow + `add_dirs`** | Session-Diät (5.23): Agent liest Detailwissen selbst nach. Fehlt → Rückfragen bei jedem Memory-Read oder gar kein Zugriff | `add_dirs` enthält Memory-Pfad; Read im Memory-Ordner ohne Permission-Prompt |

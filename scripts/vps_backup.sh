@@ -54,5 +54,21 @@ for item in "${ITEMS[@]}"; do
   fi
 done
 
+# Repo-Vollkopie als git bundle (Mini-Ergänzung 4.1, 22.07.): eine Datei =
+# komplettes Repo samt Historie, datiert — Offline-Kopie unabhängig von allen
+# drei Live-Klonen (schützt auch gegen „fehlerhafter Inhalt wird überall hin
+# synchronisiert"). Rotation: die letzten 14 Bundles bleiben liegen.
+REPO_DIR="${REPO_DIR:-$HOME/Projects/claude-telegram-bot}"
+if [ -d "$REPO_DIR/.git" ] && [ "${1:-}" != "--dry-run" ]; then
+  mkdir -p "$BACKUP_DIR/bundles"
+  if git -C "$REPO_DIR" bundle create \
+       "$BACKUP_DIR/bundles/claude-telegram-bot-$(date '+%Y%m%d').bundle" --all 2>>"$LOG"; then
+    ls -t "$BACKUP_DIR/bundles"/claude-telegram-bot-*.bundle 2>/dev/null | tail -n +15 | xargs rm -f 2>/dev/null
+    echo "  Repo-Bundle abgelegt (bundles/)." >>"$LOG"
+  else
+    echo "  Repo-Bundle fehlgeschlagen (siehe Log oben)." >>"$LOG"
+  fi
+fi
+
 SIZE=$(du -sh "$DEST" 2>/dev/null | cut -f1)
 echo "  fertig: $SIZE gesichert in $DEST" | tee -a "$LOG"

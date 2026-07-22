@@ -1,3 +1,4 @@
+<!-- ROLLE: blaupause-sammlung -->
 # Blaupause — Sammelnotizen
 
 **Zweck:** Rohstoff-Lager für Punkt **9.6** (`BLAUPAUSE.md`, das übertragbare Grundwerk).
@@ -71,6 +72,12 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | **Eskalationsleiter „kostenfrei-lokal vor bezahlt-Cloud"**: erst die lokale Optimierung ausmessen, Cloud-Optionen nur mit Kostenschätzung als bewusster Entscheid danach | 5.22 / 22.07. | **universell** |
 | **K.-o.-Kriterium Abo-Auth bei Framework-Wechseln**: ein Plattform-/Framework-Kandidat, der die pauschal bezahlte Auth nicht trägt, scheidet aus, bevor Features verglichen werden | 9.7 | **anpassbar** (der konkrete Auth-Weg ist anbieterspezifisch, das Prüfprinzip nicht) |
 | **Referenz-Artefakte als Qualitätsmaßstab statt abstrakter Kriterien**: ein fachlich bestätigtes Muster-Ergebnis im Repo ablegen und Lieferungen daran messen | 5.25 (e) / 22.07. | **universell** |
+| **Aktualität wird überwacht, nicht erinnert** — kontinuierliche Verbesserung ist ein Qualitätskriterium des Systems selbst; ein Register-basierter Monitor erkennt neue Modelle/Komponenten/Verfahren, kein Mensch muss daran denken | 5.21 / CLAUDE.md | **universell** |
+| **Jede Schlüsselrolle braucht eine personen-/modellunabhängige Wiedereinsetzungs-Anleitung** — Rolle, Leseordnung, Rituale, Verweise; keine Status-Duplikate | WIEDERANLAUF.md | **universell** |
+| **„Struktur über Namen"**: Referenzen laufen über deklarierte Rollen/Muster mit einem Suchweg, der Umbenennungen überlebt — nie ausschließlich über konkrete Datei-/Pfadnamen | CLAUDE.md / 22.07. | **universell** — Kern jeder übertragbaren Architektur |
+| **Konfigurationswechsel wirken auf die nächste Arbeitseinheit, nie destruktiv auf die laufende** — bei besetzter Arbeitseinheit: Präferenz speichern, vormerken, nach Abschluss anwenden | Sanfter Wechsel / 22.07. | **universell** |
+| **Modellwahl ist Konfiguration mit Frische-Wächter, nicht Code** — Modell-Zuordnungen in Laufzeit-Konfig, ein Monitor prüft auf Neueres, Übernahme per Ein-Tap-Bestätigung | 5.21-Baustein | **universell** |
+| **Offline-Vollkopien mit Historie unabhängig von allen Live-Klonen** (git bundle, datiert, rotiert) — schützt gegen „fehlerhafter Inhalt wird überall hin synchronisiert" | 4.1 / 22.07. | **anpassbar** (git-Konzept; das Muster „Snapshot außerhalb der Sync-Kette" ist universell) |
 
 ## Betrieb & Infrastruktur
 

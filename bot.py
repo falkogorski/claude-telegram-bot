@@ -227,8 +227,8 @@ UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR") or str(Path.home() / "Downloads" 
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")
 # Kurznamen → vollständige Modell-IDs, die das SDK versteht
 _MODEL_ALIASES: dict[str, str] = {
-    "opus":   "claude-opus-4-7",
-    "sonnet": "claude-sonnet-4-6",
+    "opus":   "claude-opus-4-8",   # angehoben 22.07. nach OAuth-Probe (war 4-7)
+    "sonnet": "claude-sonnet-5",   # angehoben 22.07. nach OAuth-Probe (war 4-6)
     "haiku":  "claude-haiku-4-5-20251001",
     "fable":  "claude-fable-5",
 }
@@ -610,6 +610,12 @@ class ConversationLogger:
     def log_user(self, text: str) -> None:
         self._append(f"## Du · {self._stamp()}\n\n{text}\n\n")
 
+    def log_event(self, text: str) -> None:
+        """Meta-Zeile (kursiv) vor einem Eintrag — z. B. „🎙️ Sprachnachricht (8:55)"
+        oder „📎 Datei: bericht.pdf · PDF · 1,2 MB". Macht die Tagesdatei zum
+        vollwertigen Screenshot-Ersatz für die Kontrollsitzung (22.07.)."""
+        self._append(f"*{text}*\n\n")
+
     def start_assistant_turn(self) -> None:
         self._append(f"## Claude · {self._stamp()}\n\n")
 
@@ -757,6 +763,9 @@ class QueuedJob:
     message_date: float | None = None
     bot: Any = None            # telegram.Bot — beim Reconcile gesetzt (kein update vorhanden)
     resumed: bool = False      # True = aus der Persistenz nachgeholt (5.2 Schritt 2)
+    # Meta-Zeile fürs Gesprächs-Log (22.07.): „🎙️ Sprachnachricht (M:SS)" bzw.
+    # Dateiname/Typ/Größe bei Uploads — wird vor dem User-Eintrag geloggt.
+    log_note: str | None = None
     # 5.18: Wie oft dieser Job schon einem Session-Stall zum Opfer fiel. Bremse
     # gegen die Endlosschleife „hängt → neu → hängt": ab MAX_STALL_RETRIES wird
     # nur noch gemeldet statt automatisch wiederholt.
@@ -770,6 +779,11 @@ class Mailbox:
     current_job: QueuedJob | None = None
     current_started: float = 0.0
     done_log: deque[tuple[float, str]] = field(default_factory=lambda: deque(maxlen=8))
+    # Sanfter Wechsel (22.07.): Modell-/Tempo-Wechsel während eines laufenden
+    # Jobs schließt die Session NICHT mehr hart (das beendete den Job als
+    # „fehler" — für Adam wirkte die Antwort verloren). Stattdessen nur Prefs
+    # speichern + diesen Merker setzen; der Worker schließt nach Job-Abschluss.
+    switch_pending: bool = False
 
 
 MAILBOXES: dict[int, Mailbox] = {}
@@ -879,6 +893,9 @@ async def _session_worker(user_id: int) -> None:
             outcome = await _run_job(user_id, job)
         except Exception:
             log.exception("worker: job failed for user_id=%s", user_id)
+            # Bisher der einzige Fehler-Pfad OHNE Nachricht an Adam — der Job
+            # verschwand still bis zum nächsten Neustart (22.07. behoben).
+            await _notify_job_failed(job)
         finally:
             mb.done_log.append((time.time(), _job_preview(job.text)))
             mb.current_job = None
@@ -893,7 +910,32 @@ async def _session_worker(user_id: int) -> None:
                 pending.set_status(job.pending_key, pending.STATUS_OPEN)
             else:
                 pending.set_status(job.pending_key, pending.STATUS_FAILED)
+        # Sanfter Wechsel (22.07.): Erst NACH Abschluss des Jobs die Session
+        # schließen — der nächste Job baut sie automatisch mit den inzwischen
+        # gespeicherten neuen Prefs (Modell/Tempo) auf.
+        if mb.switch_pending:
+            mb.switch_pending = False
+            await close_session(user_id)
     mb.worker = None
+
+
+async def _notify_job_failed(job: QueuedJob) -> None:
+    """Kurze Sofortmeldung, wenn ein Job als „fehler" endet (22.07.): Adam
+    entscheidet, ob er neu anstößt oder liegen lässt — statt erst beim nächsten
+    Neustart vom Reconcile überrascht zu werden. Der 5.2-Record bleibt liegen."""
+    bot_obj = job.bot or (job.update.get_bot() if job.update is not None else None)
+    if bot_obj is None:
+        return
+    try:
+        await bot_obj.send_message(
+            chat_id=job.chat_id,
+            text=(f"⚠️ Die Aufgabe „{_job_preview(job.text)}“ ist mit einem Fehler "
+                  "abgebrochen. Schick sie neu, wenn sie noch gebraucht wird — "
+                  "oder lass sie liegen."),
+            reply_to_message_id=job.message_id or None,
+        )
+    except Exception:
+        log.exception("Fehler-Sofortmeldung nicht zustellbar")
 
 
 def _count_newer_pending(user_id: int, job: QueuedJob) -> int:
@@ -1008,6 +1050,8 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
     async with sess.lock:
         try:
             if sess.logger:
+                if job.log_note:
+                    sess.logger.log_event(job.log_note)
                 sess.logger.log_user(job.text)
             # Echte Sendezeit aus dem Primitiv (überlebt Neustart) — bei einer
             # nachgeholten Nachricht nennt die Zeitzeile dadurch korrekt BEIDES:
@@ -1105,6 +1149,9 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             # als „beantwortet" abzuhaken hieße: Antwort spurlos verloren.
             log.error("Antwort erzeugt, aber nicht zustellbar (user_id=%s, %d Zeichen) "
                       "— Nachricht bleibt offen", user_id, len(answer))
+            # Kurze Klartext-Meldung versuchen (22.07.) — der einfache Sendepfad
+            # kann funktionieren, auch wenn die volle Antwort-Zustellung scheiterte.
+            await _notify_job_failed(job)
             if job.thorough and user_id in SESSIONS:
                 await close_session(user_id)
             return "fehler"
@@ -2246,6 +2293,7 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
                 orig_update,
                 prefix + "\n".join(full_parts),
                 output_chat_id=summary_ch,
+                log_note=f"📎 Datei: {filename} · {size_mb:.1f} MB",
             )
         return
 
@@ -3714,6 +3762,7 @@ async def process_user_text(
     force_tts: bool = False,
     output_chat_id: int | None = None,
     reply_to_override: int | None = None,
+    log_note: str | None = None,
 ) -> None:
     """Shared path: authorized update + text → Claude query + streamed response.
 
@@ -3763,6 +3812,7 @@ async def process_user_text(
         message_id=message_id,
         thread_id=getattr(msg, "message_thread_id", None),
         message_date=(msg.date.timestamp() if msg is not None and msg.date else None),
+        log_note=log_note,
     )
 
     # 5.2: Nachricht SOFORT persistieren (überlebt Reboot). Nur serialisierbare
@@ -4108,13 +4158,28 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
                            else "Sonnet")
             await update.message.reply_text(f"{model_label} ist bereits aktiv.", reply_markup=keyboard)
             return
-        # Modell wechseln: Session neu starten
-        await close_session(user_id)
+        # Sanfter Wechsel (22.07.): Läuft gerade ein Job, wird NICHT hart
+        # geschlossen (das beendete ihn als „fehler") — Prefs sofort speichern,
+        # Merker setzen, der Worker schließt nach Job-Abschluss. Wartende Jobs
+        # in der Queue laufen damit bereits mit der neuen Einstellung.
         _USER_PREFS.setdefault(str(user_id), {})["model"] = new_model
         _save_prefs(_USER_PREFS)
+        model_label = _model_btn_label(new_model)
+        mb = MAILBOXES.get(user_id)
+        if mb and mb.current_job is not None:
+            mb.switch_pending = True
+            _p = _USER_PREFS.get(str(user_id), {})
+            keyboard = _main_keyboard(_p.get("tts_enabled", False), new_model, _p.get("effort"))
+            await update.message.reply_text(
+                f"🔄 Vorgemerkt: {model_label} gilt ab der nächsten Aufgabe — "
+                "die laufende wird noch im bisherigen Modus fertiggestellt.",
+                reply_markup=keyboard,
+            )
+            return
+        # Leerlauf: Modell wechseln, Session sofort neu starten
+        await close_session(user_id)
         new_sess = await ensure_session(user_id)
         keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort)
-        model_label = _model_btn_label(new_model)
         await update.message.reply_text(
             f"{model_label} aktiv. Session neu gestartet.",
             reply_markup=keyboard,
@@ -4130,18 +4195,32 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             effort_name = {None: "Normal", "low": "Schnell", "max": "Max"}.get(new_effort, str(new_effort))
             await update.message.reply_text(f"Thinking: {effort_name} ist bereits aktiv.", reply_markup=keyboard)
             return
-        # Effort wechseln: Session neu starten (effort ist ein Session-Start-Parameter)
-        await close_session(user_id)
+        # Sanfter Wechsel (22.07.): identisch zum Modell-Zweig — laufender Job
+        # wird nie hart abgebrochen, Prefs greifen ab der nächsten Aufgabe.
         prefs = _USER_PREFS.setdefault(str(user_id), {})
         if new_effort is None:
             prefs.pop("effort", None)
         else:
             prefs["effort"] = new_effort
         _save_prefs(_USER_PREFS)
-        new_sess = await ensure_session(user_id)
-        keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort)
         effort_labels = {None: "🧠 Normal", "low": "⚡ Schnell", "max": "🚀 Max"}
         effort_label = effort_labels.get(new_effort, str(new_effort))
+        mb = MAILBOXES.get(user_id)
+        if mb and mb.current_job is not None:
+            mb.switch_pending = True
+            _p = _USER_PREFS.get(str(user_id), {})
+            keyboard = _main_keyboard(_p.get("tts_enabled", False),
+                                      _p.get("model", DEFAULT_MODEL), new_effort)
+            await update.message.reply_text(
+                f"🔄 Vorgemerkt: Thinking {effort_label} gilt ab der nächsten Aufgabe — "
+                "die laufende wird noch im bisherigen Modus fertiggestellt.",
+                reply_markup=keyboard,
+            )
+            return
+        # Leerlauf: Session sofort neu starten (effort ist ein Session-Start-Parameter)
+        await close_session(user_id)
+        new_sess = await ensure_session(user_id)
+        keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort)
         await update.message.reply_text(
             f"Thinking: {effort_label} aktiv. Session neu gestartet.",
             reply_markup=keyboard,
@@ -4382,7 +4461,11 @@ async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     prefix = _extract_reply_context(update)
     # Antwort + TTS sollen auf die lesbare Transkription zeigen, nicht auf das Audio.
     reply_override = echo_msg.message_id if echo_msg is not None else None
-    await process_user_text(update, prefix + text, reply_to_override=reply_override)
+    _dur = getattr(voice, "duration", None)
+    _note = (f"🎙️ Sprachnachricht ({_dur // 60}:{_dur % 60:02d})"
+             if isinstance(_dur, int) else "🎙️ Sprachnachricht")
+    await process_user_text(update, prefix + text, reply_to_override=reply_override,
+                            log_note=_note)
 
 
 async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -4406,7 +4489,8 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     parts = [f"[Bild hochgeladen: {local_path}]"]
     if caption:
         parts.append(f"Beschriftung: {caption}")
-    await process_user_text(update, prefix + "\n".join(parts))
+    await process_user_text(update, prefix + "\n".join(parts),
+                            log_note=f"📷 Foto: {local_path.name}")
 
 
 async def on_document(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -4474,7 +4558,8 @@ async def on_document(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     await msg.reply_text(f"{filename} ({size_mb:.1f} MB) empfangen — weiterleiten …")
-    await process_user_text(update, prefix + "\n".join(parts))
+    await process_user_text(update, prefix + "\n".join(parts),
+                            log_note=f"📎 Datei: {filename} · {mime} · {size_mb:.1f} MB")
 
 
 async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -4514,7 +4599,8 @@ async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if caption:
         parts.append(f"Beschriftung: {caption}")
     await msg.reply_text(f"🎬 {label} ({size_mb:.1f} MB) empfangen — weiterleiten …")
-    await process_user_text(update, prefix + "\n".join(parts))
+    await process_user_text(update, prefix + "\n".join(parts),
+                            log_note=f"🎬 {label}: {filename} · {size_mb:.1f} MB")
 
 
 # Gängige Abkürzungen für die Sprachausgabe ausschreiben — sonst liest edge-tts

@@ -1,4 +1,8 @@
+<!-- ROLLE: grundregeln -->
 # CLAUDE.md — Projekt-Notizen
+
+**Neu in einer Rolle?** → `WIEDERANLAUF.md` (ROLLE: `wiederanlauf`) setzt eine
+neue Planungs-/Kontrollsitzung vollständig ein — Leseordnung, Rituale, Landkarte.
 
 ## 🗺️ MIGRATION — Status & Drehbuch
 
@@ -69,6 +73,45 @@ benötigt von → Prüfbefehl).
 Verkabelt mit **8.1** (täglicher 4-Uhr-Check arbeitet die Prüfbefehle ab, meldet
 Brüche per Telegram) und **8.2** (Regressionstest nutzt das Register als
 Prüfliste nach Änderungen).
+
+## 📈 AKTUALITÄT ALS QUALITÄTSKRITERIUM (Adam-Grundprinzip 2026-07-22)
+
+**Kontinuierliche Verbesserung ist ein Qualitätskriterium des Systems selbst:
+Aktualität wird überwacht, nicht erinnert.** Neue Errungenschaften (Modelle,
+Komponenten, Verfahren) werden **systematisch** erkannt und eingepflegt — über
+den register-basierten Update-Monitor (5.21) mit dem E5-Komponenten-Register
+als Grundlage; das Register bleibt Pflichtfeld jeder „fertig"-Definition.
+💰-Rahmen unverändert: Updates/Modelle nur aus dem Abo-/Kostenlos-Topf; alles
+Kostenpflichtige nur mit Vorab-Warnung an Adam.
+
+## 🧭 STRUKTUR ÜBER NAMEN (Adam-Grundprinzip 2026-07-22)
+
+Systeme referenzieren einander über **deklarierte Rollen/Muster**, nie
+ausschließlich über konkrete Datei-/Pfadnamen; jede Referenz braucht einen
+Suchweg, der eine Umbenennung überlebt. Konkret: Jedes Schlüsseldokument trägt
+in der ersten Zeile (bzw. direkt nach der Frontmatter) den Marker
+`<!-- ROLLE: <rollen-name> -->`. Startbestand: `master-drehbuch`
+(MIGRATION.md) · `grundregeln` (CLAUDE.md) · `abhaengigkeits-register`
+(ABHAENGIGKEITEN.md) · `blaupause-sammlung` (blaupause-notizen.md) ·
+`wiederanlauf` (WIEDERANLAUF.md) · `reaktions-vokabular`
+(reaktionen-vokabular.md). **Umbenennen/Verschieben eines Schlüsseldokuments
+ist eine Abhängigkeits-Änderung:** im selben Commit Rollen-Marker mitnehmen,
+ABHAENGIGKEITEN.md aktualisieren, Komfort-Namen in WIEDERANLAUF.md/CLAUDE.md
+nachziehen. Gilt über Dokumente hinaus — Skripte, Backups, Hooks, künftige
+Plattformen.
+
+## 💾 LAUFENDE SICHERUNG — gilt für ALLE Instanzen (Adam 2026-07-22)
+
+Nach jedem abgeschlossenen Arbeitsblock darf **nichts Entscheidungs- oder
+Auftragsrelevantes ausschließlich in einem Chatverlauf existieren** — es wird
+sofort externalisiert: Weitergabe-Block, Repo-Eintrag oder ausdrücklicher
+„schwebt noch"-Hinweis an Adam. Damit ist jede Kontext-Verdichtung verlustfrei.
+Mechanismus je Instanz: **Migrations-Sitzung** → Kontext-Kompass + MIGRATION.md
+(besteht, s. u.) · **Web-/Planungs-/Kontrollsitzungen** → diese Regel ·
+**Bot** → technische Sicherung (5.2, last-task, Memory; 5.24 ergänzt die
+Rotation). Sitzungen **ohne Repo-Zugang sind nicht bindbar** — dort keine
+Entscheidungsarbeit; Ergebnisse in eine angebundene Sitzung übertragen
+(Zuständigkeits-Matrix unten).
 
 ## 🧭 Zuständigkeiten der Instanzen — ANTI-PING-PONG-REGEL
 

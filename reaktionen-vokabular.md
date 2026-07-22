@@ -1,3 +1,4 @@
+<!-- ROLLE: reaktions-vokabular -->
 # Reaktions-Vokabular (Emoji) — verbindliche Referenz für MIGRATION.md 5.9
 
 ## Änderungshistorie

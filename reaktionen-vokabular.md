@@ -2,6 +2,12 @@
 
 ## Änderungshistorie
 
+- **2026-07-20 (2)** — **v2.1: beide Umwidmungen zurückgenommen (Adam).**
+  🤔 bedeutet wieder „Unsicher / lass mich überlegen" (v1), die Gruppe
+  „versteh ich nicht" trägt mit 🤨 🤷 🤷‍♂ 🤷‍♀ weiterhin vier Auslöser.
+  💯 bedeutet wieder „Genau so, voll richtig" (v1), die Gruppe „wichtig /
+  merk dir" trägt mit ✍ 👨‍💻 🏆 weiterhin drei. Damit sind alle v1-Bedeutungen
+  UND die neuen Gruppen abgedeckt — nichts teilt sich mehr ein Emoji.
 - **2026-07-20** — **v2 (Adam-Entscheid nach der Telegram-Messung).** Telegram
   erlaubt als Reaktion nur einen festen Satz von 73 Emoji (`scripts/tg_reactions.txt`);
   16 der 27 v1-Einträge waren nicht darunter. Adam hat die Zuordnungen neu
@@ -39,21 +45,21 @@ Ja/Nein hat immer Vorrang, der Rest ist kontextabhängig.
 
 **Feedback & Genuss**
 👏 Stark / Anerkennung
+💯 Genau so, voll richtig
 🍓 Lecker, süß, köstlich `[NEU v2]`
 🍌 Geil `[NEU v2]`
-🤔 🤨 🤷 🤷‍♂ 🤷‍♀ Versteh ich nicht / erklär nochmal
-`[v2: fünf gleichwertige Auslöser; ❓ ist als Reaktion nicht verfügbar. Die
-v1-Bedeutung von 🤔 („Unsicher / lass mich überlegen") geht hierin auf —
-Adam-Zuordnung 20.07.]`
+🤔 Unsicher / lass mich überlegen (kein Ja/Nein)
+🤨 🤷 🤷‍♂ 🤷‍♀ Versteh ich nicht / erklär nochmal
+`[v2.1: vier gleichwertige Auslöser; ❓ ist als Reaktion nicht verfügbar.
+🤔 und 💯 behalten ihre v1-Bedeutungen — Adam 20.07., zweite Runde.]`
 
 **Steuerung & Tempo**
 🔥 ⚡ Los geht's / lass es krachen / kann es kaum erwarten
 `[v2: 🔥 umgewidmet von „Mega / richtig gut" (Lob decken 👍 👌 👏 ❤️ ab);
 ⚡ ersetzt 🚀, das als Reaktion nicht verfügbar ist]`
 👀 Genauer anschauen / besser hinsehen `[v2: präzisiert von „Gesehen / schau ich mir an"]`
-✍ 👨‍💻 💯 🏆 Wichtig / merk dir das
-`[v2: vier gleichwertige Auslöser; ersetzt ⭐. 💯 umgewidmet von „Genau so,
-voll richtig" — Adam-Zuordnung 20.07.]`
+✍ 👨‍💻 🏆 Wichtig / merk dir das
+`[v2.1: drei gleichwertige Auslöser; ersetzt ⭐]`
 😴 Später / erinnere mich `[v2: ersetzt 🕐]`
 
 ## Über gleichwertigen Weg (als Reaktion nicht möglich)

@@ -546,30 +546,41 @@ _TRANSCRIBER: Transcriber | None = None
 
 
 class ConversationLogger:
-    """Appends each exchange to a Markdown file in iCloud (or LOG_DIR)."""
+    """Appends each exchange to a Markdown file in iCloud (or LOG_DIR).
+
+    Tageswechsel-Fix (22.07.2026): Die Zieldatei wird bei JEDEM Schreibvorgang
+    aus dem aktuellen Datum bestimmt — zuvor wurde der Pfad einmalig im
+    __init__ eingefroren, und langlebige Sessions schrieben tagelang in die
+    Datei ihres Starttags (Fund: 2026-07-20.md enthielt Einträge bis 22.07.).
+    Beim ersten Eintrag eines neuen Tages beginnt die neue Tagesdatei mit
+    Kopfzeile; die alte erhält eine Verweiszeile. Turn-Kopfzeilen tragen das
+    volle Datum, damit jeder Eintrag auch für sich genommen eindeutig ist.
+    """
 
     def __init__(self, user_id: int) -> None:
+        self._disabled = False
+        self._date: str | None = None  # Tag der aktuell beschriebenen Datei
+        self._path: Path | None = None
         try:
             LOG_DIR.mkdir(parents=True, exist_ok=True)
-            date_str = time.strftime("%Y-%m-%d")
-            self._path = LOG_DIR / f"{date_str}.md"
-            new_file = not self._path.exists()
+            self._roll_if_needed()
             with self._path.open("a", encoding="utf-8") as f:
-                if new_file:
-                    f.write(f"# Claude Telegram Log – {date_str}\n\n")
-                f.write(
-                    f"## Session · {time.strftime('%H:%M:%S')} · {WORKDIR}\n\n---\n\n"
-                )
+                f.write(f"## Session · {self._stamp()} · {WORKDIR}\n\n---\n\n")
             log.info("conversation log: %s", self._path)
         except Exception:
             log.exception("conversation log init failed (non-fatal)")
-            self._path = None
+            self._disabled = True
+
+    @staticmethod
+    def _stamp() -> str:
+        """Voller Zeitstempel inkl. Datum — Tagesgrenzen waren sonst unsichtbar."""
+        return time.strftime("%Y-%m-%d %H:%M:%S")
 
     def log_user(self, text: str) -> None:
-        self._append(f"## Du · {time.strftime('%H:%M:%S')}\n\n{text}\n\n")
+        self._append(f"## Du · {self._stamp()}\n\n{text}\n\n")
 
     def start_assistant_turn(self) -> None:
-        self._append(f"## Claude · {time.strftime('%H:%M:%S')}\n\n")
+        self._append(f"## Claude · {self._stamp()}\n\n")
 
     def log_assistant_text(self, text: str) -> None:
         self._append(f"{text}\n\n")
@@ -580,10 +591,31 @@ class ConversationLogger:
     def end_turn(self) -> None:
         self._append("---\n\n")
 
+    def _roll_if_needed(self) -> None:
+        """Zieldatei aus dem AKTUELLEN Datum bestimmen (Tageswechsel-Behandlung)."""
+        date_str = time.strftime("%Y-%m-%d")
+        if date_str == self._date and self._path is not None:
+            return
+        old_path = self._path
+        new_path = LOG_DIR / f"{date_str}.md"
+        if old_path is not None and old_path != new_path:
+            # Abschlusszeile in der alten Tagesdatei — der Faden bleibt verfolgbar.
+            try:
+                with old_path.open("a", encoding="utf-8") as f:
+                    f.write(f"\n*→ fortgesetzt in {date_str}.md*\n")
+            except Exception:
+                log.exception("conversation log: Verweiszeile fehlgeschlagen (non-fatal)")
+        if not new_path.exists():
+            with new_path.open("a", encoding="utf-8") as f:
+                f.write(f"# Claude Telegram Log – {date_str}\n\n")
+        self._path = new_path
+        self._date = date_str
+
     def _append(self, text: str) -> None:
-        if self._path is None:
+        if self._disabled:
             return
         try:
+            self._roll_if_needed()
             with self._path.open("a", encoding="utf-8") as f:
                 f.write(text)
         except Exception:

@@ -65,6 +65,7 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | **Kontext-Überlauf abfangen**: Sitzung verwerfen, Nachricht automatisch neu — ohne Verlust für den Nutzer | 5.24-Vorstufe | **universell** |
 | **Ein Sendepfad** für alles, mit einem einzigen Haken für Nachbearbeitung (TTS, Prüfung, Protokoll) | 5.8 | **universell** |
 | **Zustellnachweis**: der Sendepfad meldet zurück, ob wirklich etwas ankam — kein blindes „erledigt" | 5.2 | **universell** |
+| **Zeitgestempelte Ablagen müssen den Wechsel der Zeiteinheit selbst behandeln**, nicht den Start-Zeitpunkt einfrieren — Zieldatei bei jedem Schreiben aus dem aktuellen Datum bestimmen, Einträge mit vollem Datum selbst-eindeutig machen | 4.2 / Fix 22.07. | **universell** |
 
 ## Betrieb & Infrastruktur
 

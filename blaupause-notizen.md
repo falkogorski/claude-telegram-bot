@@ -78,6 +78,7 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | **Konfigurationswechsel wirken auf die nächste Arbeitseinheit, nie destruktiv auf die laufende** — bei besetzter Arbeitseinheit: Präferenz speichern, vormerken, nach Abschluss anwenden | Sanfter Wechsel / 22.07. | **universell** |
 | **Modellwahl ist Konfiguration mit Frische-Wächter, nicht Code** — Modell-Zuordnungen in Laufzeit-Konfig, ein Monitor prüft auf Neueres, Übernahme per Ein-Tap-Bestätigung | 5.21-Baustein | **universell** |
 | **Offline-Vollkopien mit Historie unabhängig von allen Live-Klonen** (git bundle, datiert, rotiert) — schützt gegen „fehlerhafter Inhalt wird überall hin synchronisiert" | 4.1 / 22.07. | **anpassbar** (git-Konzept; das Muster „Snapshot außerhalb der Sync-Kette" ist universell) |
+| **Getrennte Schreib-Schlüssel je Vertrauenszone**: ein Automations-Schlüssel darf nur das anfassen, was er synchronisiert — nie den Code-/Steuerungsbereich (hier: Log-Repo-Key statt Bot-Repo-Key auf dem Server) | 4.2 / 23.07. | **universell** |
 
 ## Betrieb & Infrastruktur
 

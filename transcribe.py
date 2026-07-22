@@ -19,6 +19,14 @@ from pathlib import Path
 
 log = logging.getLogger("claude-tg-bot.transcribe")
 
+# Whisper nutzt alle CPU-Kerne (threads = cpu_count) — mehrere parallele Läufe
+# verdrängen sich gegenseitig und werden ZUSAMMEN langsamer als nacheinander
+# (live 22.07.: drei schnell hintereinander gesendete Voices → Stau, drei
+# whisper-Prozesse gleichzeitig). Ein Semaphore serialisiert die CPU-gebundene
+# Transkription; die billige ffmpeg-Konvertierung läuft bewusst AUSSERHALB der
+# Sperre, damit Wartende ihre WAV schon fertig haben, wenn sie drankommen.
+_WHISPER_SEM = asyncio.Semaphore(1)
+
 
 class Transcriber(ABC):
     @abstractmethod
@@ -100,12 +108,14 @@ class WhisperCppTranscriber(Transcriber):
             ]
             if language:
                 cmd += ["-l", language]
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await proc.communicate()
+            # Serialisierung CPU-gebundener Arbeit: immer nur EIN whisper-Prozess.
+            async with _WHISPER_SEM:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await proc.communicate()
             if proc.returncode != 0:
                 raise RuntimeError(
                     f"whisper-cli failed: {stderr.decode(errors='replace')[:400]}"

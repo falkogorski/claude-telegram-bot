@@ -230,6 +230,7 @@ _MODEL_ALIASES: dict[str, str] = {
     "opus":   "claude-opus-4-7",
     "sonnet": "claude-sonnet-4-6",
     "haiku":  "claude-haiku-4-5-20251001",
+    "fable":  "claude-fable-5",
 }
 # Nachrichten, die während einer Ausfallzeit (Mac-Schlaf, Neustart) reinkamen,
 # MÜSSEN den Neustart überleben — sonst geht z.B. eine Sprachnachricht verloren,
@@ -243,11 +244,13 @@ DROP_PENDING_UPDATES = False
 _BTN_OPUS = "🔵 Opus"
 _BTN_SONNET = "🟡 Sonnet"
 _BTN_HAIKU = "🟣 Haiku"
+_BTN_FABLE = "🟠 Fable"
 _BTN_TTS_ON = "🔊 TTS an"
 _BTN_TTS_OFF = "🔇 TTS aus"
 _BTN_OPUS_ACTIVE = "🔵 Opus ✓"
 _BTN_SONNET_ACTIVE = "🟡 Sonnet ✓"
 _BTN_HAIKU_ACTIVE = "🟣 Haiku ✓"
+_BTN_FABLE_ACTIVE = "🟠 Fable ✓"
 _BTN_RESTART = "🔄 Neustart"
 _BTN_INFO = "ℹ️ Info"
 # Thinking-Effort-Buttons: ⚖️ Normal (default) / ⚡ Schnell (low) / 🚀 Max
@@ -263,9 +266,9 @@ _BTN_STT_ACCURATE = "🎙️ Genau"
 _BTN_STT_FAST = "🎙️ Flott"
 _BTN_STT_ACCURATE_ACTIVE = "🎙️ Genau ✓"
 _BTN_STT_FAST_ACTIVE = "🎙️ Flott ✓"
-# 🎯 Gründlich: einmalig die NÄCHSTE Anfrage mit Opus + hohem Effort + Pflicht-
-# Quellencheck beantworten (für wichtige Fragen, die stimmen müssen). Danach
-# wieder Standard.
+# 🎯 Gründlich: einmalig die NÄCHSTE Anfrage im AKTIV gewählten Modell mit hohem
+# Effort + Pflicht-Quellencheck beantworten (für wichtige Fragen, die stimmen
+# müssen). Danach wieder Standard. Kein Opus-Zwang mehr (Adam-Entscheid 22.07.).
 _BTN_THOROUGH = "🎯 Gründlich"
 _THOROUGH_PENDING: set[int] = set()
 # Ampel-Regel-Erfassungsmodus (/ampel → ➕ Neue Regel → Farbe → nächste Nachricht
@@ -286,12 +289,19 @@ _THOROUGH_PREFIX = (
     "ausdrücklich; keine ungeprüften Behauptungen. Nimm dir Zeit für eine "
     "sorgfältige, belegte Antwort.]\n\n"
 )
+# Ein-Knopf-Toggle (Layout Y, 22.07.): Die Tastatur zeigt nur den AKTIVEN Modus
+# mit ✓; ein Klick darauf wechselt zum jeweils anderen. Die inaktiven Labels
+# bleiben gemappt (Alt-Tastaturen, getippter Text) und aktivieren wie bisher.
 _STT_BTN_TARGET = {
-    _BTN_STT_ACCURATE: "medium", _BTN_STT_ACCURATE_ACTIVE: "medium",
-    _BTN_STT_FAST: "small", _BTN_STT_FAST_ACTIVE: "small",
+    _BTN_STT_ACCURATE: "medium",
+    _BTN_STT_FAST: "small",
+    _BTN_STT_ACCURATE_ACTIVE: "small",   # aktiv geklickt → zum anderen toggeln
+    _BTN_STT_FAST_ACTIVE: "medium",
 }
-_ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_TTS_ON, _BTN_TTS_OFF,
+_ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_FABLE,
+                      _BTN_TTS_ON, _BTN_TTS_OFF,
                       _BTN_OPUS_ACTIVE, _BTN_SONNET_ACTIVE, _BTN_HAIKU_ACTIVE,
+                      _BTN_FABLE_ACTIVE,
                       _BTN_RESTART, _BTN_INFO,
                       _BTN_EFFORT_LOW, _BTN_EFFORT_MED, _BTN_EFFORT_MAX,
                       _BTN_EFFORT_LOW_ACTIVE, _BTN_EFFORT_MED_ACTIVE, _BTN_EFFORT_MAX_ACTIVE,
@@ -307,7 +317,24 @@ _MODEL_IDS = {
     _BTN_SONNET_ACTIVE: "sonnet",
     _BTN_HAIKU: "haiku",
     _BTN_HAIKU_ACTIVE: "haiku",
+    _BTN_FABLE: "fable",
+    _BTN_FABLE_ACTIVE: "fable",
 }
+
+
+def _model_btn_label(m: str) -> str:
+    """Emoji-Label zu einem Modell-Kürzel/-Namen — EINE Stelle für alle Anzeigen."""
+    if "opus" in m:
+        return "🔵 Opus"
+    if "sonnet" in m:
+        return "🟡 Sonnet"
+    if "haiku" in m:
+        return "🟣 Haiku"
+    if "fable" in m:
+        return "🟠 Fable"
+    return f"❓ {m}"
+
+
 # Mapping Button → effort-String (None = SDK-Default)
 _EFFORT_IDS: dict[str, str | None] = {
     _BTN_EFFORT_LOW: "low",
@@ -408,25 +435,29 @@ def _stt_label(name: str) -> str:
 
 
 def _main_keyboard(tts_on: bool, model: str, effort: str | None = None) -> ReplyKeyboardMarkup:
-    opus_label = _BTN_OPUS_ACTIVE if "opus" in model else _BTN_OPUS
-    sonnet_label = _BTN_SONNET_ACTIVE if "sonnet" in model else _BTN_SONNET
+    # Layout Y (Adam-Entscheid 22.07.): Zeile 1+2 = Dauer-Zustand (Modelle,
+    # Effort-Stufen), Zeile 3 = Umschalter/Einmal-Aktionen (STT-Toggle, Gründlich).
     haiku_label = _BTN_HAIKU_ACTIVE if "haiku" in model else _BTN_HAIKU
+    sonnet_label = _BTN_SONNET_ACTIVE if "sonnet" in model else _BTN_SONNET
+    opus_label = _BTN_OPUS_ACTIVE if "opus" in model else _BTN_OPUS
+    fable_label = _BTN_FABLE_ACTIVE if "fable" in model else _BTN_FABLE
     low_label = _BTN_EFFORT_LOW_ACTIVE if effort == "low" else _BTN_EFFORT_LOW
     med_label = _BTN_EFFORT_MED_ACTIVE if effort is None else _BTN_EFFORT_MED
     max_label = _BTN_EFFORT_MAX_ACTIVE if effort == "max" else _BTN_EFFORT_MAX
     rows = [
-        [haiku_label, sonnet_label, opus_label],
-        [med_label, low_label, max_label],
+        [haiku_label, sonnet_label, opus_label, fable_label],
+        [low_label, med_label, max_label],
     ]
     # Neustart / TTS / Info bewusst NICHT mehr als Dauer-Buttons (Adam 17.07.):
-    # sie liegen jetzt im „/"-Befehlsmenü (setMyCommands) → Tastatur schlanker
-    # (9 statt 12 Buttons). `tts_on` bleibt im Signatur-Vertrag (Aufrufer geben es
-    # weiter), wird hier aber nicht mehr für einen Button gebraucht — TTS via /tts.
-    # STT-Umschaltzeile nur zeigen, wenn beide Modelle (small+medium) da sind.
+    # sie liegen jetzt im „/"-Befehlsmenü (setMyCommands) → Tastatur schlank.
+    # `tts_on` bleibt im Signatur-Vertrag (Aufrufer geben es weiter), wird hier
+    # aber nicht mehr für einen Button gebraucht — TTS via /tts.
+    # STT als EIN-Knopf-Toggle: zeigt den aktiven Modus mit ✓, Klick wechselt
+    # zum anderen (Mapping in _STT_BTN_TARGET). Nur wenn beide Modelle da sind.
     if "small" in _STT_MODELS and "medium" in _STT_MODELS:
-        stt_acc = _BTN_STT_ACCURATE_ACTIVE if _ACTIVE_STT == "medium" else _BTN_STT_ACCURATE
-        stt_fast = _BTN_STT_FAST_ACTIVE if _ACTIVE_STT == "small" else _BTN_STT_FAST
-        rows.append([stt_acc, stt_fast, _BTN_THOROUGH])
+        stt_toggle = (_BTN_STT_FAST_ACTIVE if _ACTIVE_STT == "small"
+                      else _BTN_STT_ACCURATE_ACTIVE)
+        rows.append([stt_toggle, _BTN_THOROUGH])
     else:
         rows.append([_BTN_THOROUGH])
     return ReplyKeyboardMarkup(
@@ -630,13 +661,20 @@ def get_transcriber() -> Transcriber:
 
 
 async def _download_tg_file(file_obj, filename: str) -> Path:
-    """Lädt eine Telegram-Datei in UPLOAD_DIR; gibt den lokalen Pfad zurück."""
+    """Lädt eine Telegram-Datei in UPLOAD_DIR; gibt den lokalen Pfad zurück.
+
+    Der Name trägt neben dem Sekunden-Zeitstempel eine eindeutige Kennung —
+    kommen mehrere Dateien in DERSELBEN Sekunde an (live 22.07.: drei erneut
+    gesendete Voices um 14:00:41), kollidierten die Namen sonst: die Downloads
+    überschrieben sich gegenseitig, und die abgeleiteten WAV-Pfade der
+    Transkription zogen sich zusätzlich gegenseitig die Datei weg."""
     out_dir = Path(UPLOAD_DIR)
     out_dir.mkdir(parents=True, exist_ok=True)
     ts = time.strftime("%Y%m%d-%H%M%S")
+    uniq = uuid.uuid4().hex[:6]
     # Sonderzeichen im Dateinamen entschärfen
     safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in filename)
-    dest = out_dir / f"{ts}_{safe}"
+    dest = out_dir / f"{ts}-{uniq}_{safe}"
     await file_obj.download_to_drive(str(dest))
     return dest
 
@@ -705,7 +743,7 @@ class QueuedJob:
     reply_to_override: int | None = None
     received_at: float = field(default_factory=time.time)
     context_retry: bool = False  # True, nachdem wg. Kontext-Überlauf frisch neu gestartet
-    thorough: bool = False       # 🎯 Gründlich: diese Anfrage mit Opus+Max+Quellencheck
+    thorough: bool = False       # 🎯 Gründlich: aktives Modell + Max + Quellencheck
     pending_key: str | None = None  # 5.2: Schlüssel des Persistenz-Records (logs/pending/<key>.json)
     # --- 5.2: Primitive statt update.* (überleben Reboot) ---
     user_id: int = 0
@@ -942,9 +980,11 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
       "offen"       — wg. Kontext-Überlauf re-enqueued (Record bleibt, kommt gleich neu dran)
       "fehler"      — sonstiger Session-Fehler (Record bleibt liegen → Hybrid-Reconcile meldet ihn)"""
     if job.thorough:
-        # 🎯 Gründlich: einmalige frische Session mit Opus + hohem Effort.
-        sess = await ensure_session(user_id, model_override="opus",
-                                    effort_override="max", fresh=True)
+        # 🎯 Gründlich: max Effort + Pflicht-Quellencheck im AKTIV gewählten Modell.
+        # (Zuvor war Opus hart gesetzt — jetzt modell-agnostisch: Fable+Gründlich =
+        # höchste Qualitäts-Kombination, Opus+Gründlich = bewährte Tiefe. Kein
+        # Auto-Upgrade — Adam wählt das Modell bewusst; Adam-Entscheid 22.07.)
+        sess = await ensure_session(user_id, effort_override="max", fresh=True)
     else:
         sess = await ensure_session(user_id)
     # AUSSCHLIESSLICH Primitive (5.2): so läuft dieser Pfad identisch für frische
@@ -2030,10 +2070,12 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/selfcheck — Selbsttest ausführen\n"
         "/hilfe — Diese Befehlsübersicht\n\n"
         "📌 Buttons in der Tastatur (9):\n"
-        "🟣 Haiku / 🟡 Sonnet / 🔵 Opus — Modell wechseln\n"
-        "⚖️ Normal / ⚡ Schnell / 🚀 Max — Denk-Tiefe\n"
-        "🎙️ Genau / 🎙️ Flott — Transkriptions-Tempo\n"
-        "🎯 Gründlich — nächste Frage besonders sorgfältig\n\n"
+        "🟣 Haiku / 🟡 Sonnet / 🔵 Opus / 🟠 Fable — Modell wechseln\n"
+        "⚡ Schnell / ⚖️ Normal / 🚀 Max — Denk-Tiefe\n"
+        "🎙️ Genau/Flott — Transkriptions-Tempo (ein Knopf, zeigt den aktiven "
+        "Modus, Klick wechselt)\n"
+        "🎯 Gründlich — nächste Frage besonders sorgfältig "
+        "(aktives Modell · max. Tiefe · Quellencheck)\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
     )
     await update.message.reply_text(text)
@@ -4038,7 +4080,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         cur_effort = sess.current_effort if sess else _p.get("effort")
         await update.message.reply_text(
             "🎯 Gründlich-Modus für deine NÄCHSTE Nachricht aktiv:\n"
-            "Opus · hoher Effort · Pflicht-Quellencheck. Schick jetzt deine Frage.\n"
+            f"{_model_btn_label(cur_model)} · hoher Effort · Pflicht-Quellencheck. "
+            "Schick jetzt deine Frage.\n"
             "(Danach wieder Standard.)",
             reply_markup=_main_keyboard(tts_on, cur_model, cur_effort),
         )
@@ -4059,7 +4102,10 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         sess = SESSIONS.get(user_id)
         if sess and sess.current_model == new_model:
             keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
-            model_label = "Opus" if "opus" in new_model else ("Haiku" if "haiku" in new_model else "Sonnet")
+            model_label = ("Opus" if "opus" in new_model
+                           else "Haiku" if "haiku" in new_model
+                           else "Fable" if "fable" in new_model
+                           else "Sonnet")
             await update.message.reply_text(f"{model_label} ist bereits aktiv.", reply_markup=keyboard)
             return
         # Modell wechseln: Session neu starten
@@ -4068,7 +4114,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         _save_prefs(_USER_PREFS)
         new_sess = await ensure_session(user_id)
         keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort)
-        model_label = "🔵 Opus" if "opus" in new_model else ("🟣 Haiku" if "haiku" in new_model else "🟡 Sonnet")
+        model_label = _model_btn_label(new_model)
         await update.message.reply_text(
             f"{model_label} aktiv. Session neu gestartet.",
             reply_markup=keyboard,
@@ -4147,16 +4193,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             active_effort = _p.get("effort", None)
             active_tts = _p.get("tts_enabled", False)
 
-        def _model_label(m: str) -> str:
-            if "opus" in m:
-                return "🔵 Opus"
-            if "sonnet" in m:
-                return "🟡 Sonnet"
-            if "haiku" in m:
-                return "🟣 Haiku"
-            return f"❓ {m}"
-
-        model_str = _model_label(active_model)
+        model_str = _model_btn_label(active_model)
         effort_str = {None: "⚖️ Normal", "low": "⚡ Schnell", "max": "🚀 Max"}.get(active_effort, "⚖️ Normal")
         tts_str = "🔊 an" if active_tts else "🔇 aus"
 

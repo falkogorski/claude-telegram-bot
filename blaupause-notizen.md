@@ -66,6 +66,11 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | **Ein Sendepfad** für alles, mit einem einzigen Haken für Nachbearbeitung (TTS, Prüfung, Protokoll) | 5.8 | **universell** |
 | **Zustellnachweis**: der Sendepfad meldet zurück, ob wirklich etwas ankam — kein blindes „erledigt" | 5.2 | **universell** |
 | **Zeitgestempelte Ablagen müssen den Wechsel der Zeiteinheit selbst behandeln**, nicht den Start-Zeitpunkt einfrieren — Zieldatei bei jedem Schreiben aus dem aktuellen Datum bestimmen, Einträge mit vollem Datum selbst-eindeutig machen | 4.2 / Fix 22.07. | **universell** |
+| **Ein-Prozess-Serialisierung CPU-gebundener Arbeit**: was alle Kerne beansprucht, läuft nie parallel zu sich selbst — Wartende erledigen ihre billige Vorarbeit außerhalb der Sperre | 5.22 / 22.07. | **universell** |
+| **Sekundengenaue Zeitstempel sind keine eindeutigen Namen** — generierte Dateinamen brauchen zusätzlich eine Eindeutigkeits-Kennung, sonst überschreiben sich zeitgleiche Vorgänge | 5.22 / 22.07. | **universell** |
+| **Eskalationsleiter „kostenfrei-lokal vor bezahlt-Cloud"**: erst die lokale Optimierung ausmessen, Cloud-Optionen nur mit Kostenschätzung als bewusster Entscheid danach | 5.22 / 22.07. | **universell** |
+| **K.-o.-Kriterium Abo-Auth bei Framework-Wechseln**: ein Plattform-/Framework-Kandidat, der die pauschal bezahlte Auth nicht trägt, scheidet aus, bevor Features verglichen werden | 9.7 | **anpassbar** (der konkrete Auth-Weg ist anbieterspezifisch, das Prüfprinzip nicht) |
+| **Referenz-Artefakte als Qualitätsmaßstab statt abstrakter Kriterien**: ein fachlich bestätigtes Muster-Ergebnis im Repo ablegen und Lieferungen daran messen | 5.25 (e) / 22.07. | **universell** |
 
 ## Betrieb & Infrastruktur
 

@@ -84,6 +84,10 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | **Verhaltensklassen statt Einheitsreaktion**: Antwort-Signale lösen Arbeit aus, reine Wertschätzung wird still verbucht — nicht jede Geste verdient einen (kostenden) Lauf | 5.9 | **universell** |
 | **Plattform-Varianten normalisieren, bevor verglichen wird** (hier: Emoji mit/ohne VS16) — sonst gehen Treffer still verloren | 5.9 | **anpassbar** (das Muster „kanonisieren vor Vergleich" ist universell) |
 | **Zahlen-Anker nie aus LLM-Zusammenfassungen übernehmen** — Sprachmodelle zählen lange Listen unzuverlässig (drei Abfragen, drei Zahlen); zählbare Werte deterministisch aus dem Rohtext zählen | 5.25 (e) / 23.07. | **universell** |
+| **Das Prüfnetz muss auch die eigenen Bauteile überführen** — zweimal am selben Tag fing eine frisch gebaute Selbstcheck-Zeile einen Fehler des Erbauers (Regex-Lücke im Repo-Schutz, fehlende Knopf-Registrierung) | 8.7 / Selbstcheck 23.07. | **universell** |
+| **Kein Neustart/Deploy in Abwesenheit des Nutzers ohne Not** — jede Startmeldung ist eine Push-Störung; Bündel warten auf den Moment, in dem die Meldung zugleich der nächste Handgriff ist | Betriebspraxis 23.07. | **universell** |
+| **Framework-Wechsel haben ein K.-o.-Kriterium VOR allen Feature-Vergleichen**: bleibt der bestehende (Kosten-)Auth-Weg nutzbar? Erst wenn ja, lohnt die Detailprüfung | 9.7 | **universell** |
+| **Ablage-Strukturen aus echter Nutzung ableiten, nicht aus Theorie** — Themenstränge in den realen Logs zählen, klein starten, Erweiterung einplanen | 6.6 | **universell** |
 
 ## Betrieb & Infrastruktur
 

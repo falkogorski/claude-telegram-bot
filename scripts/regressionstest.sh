@@ -29,6 +29,10 @@ run "Syntax transcribe.py"              "$PY" -m py_compile transcribe.py
 run "Syntax reactions.py"               "$PY" -m py_compile reactions.py
 run "Syntax pending.py"                 "$PY" -m py_compile pending.py
 run "Syntax presend.py"                 "$PY" -m py_compile presend.py
+# Auf dem VPS liegen die echten Envs nur in der root-geschuetzten systemd-Env —
+# fuer den reinen Invarianten-Check reichen Platzhalter (kein Telegram-Kontakt).
+export TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-000000:selfcheck-dummy}"
+export ALLOWED_USER_IDS="${ALLOWED_USER_IDS:-1}"
 run "Selbstcheck-Invarianten (run_self_check)" "$PY" -c "
 import bot
 ok, lines = bot.run_self_check()

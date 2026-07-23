@@ -300,16 +300,17 @@ _THOROUGH_PREFIX = (
     "ausdrücklich; keine ungeprüften Behauptungen. Nimm dir Zeit für eine "
     "sorgfältige, belegte Antwort.]\n\n"
 )
-# Ein-Knopf-Toggle (Layout Y, 22.07.; Wechsel-Beschriftung 23.07.): Der Knopf
-# nennt aktiven Modus UND Ziel; ein Klick führt den Wechsel aus. Alt-Labels
-# bleiben gemappt (client-seitig persistierte Tastaturen, getippter Text).
+# Ein-Knopf-Toggle (Layout Y; Beschriftung final 23.07., Adam-Wunsch): Der Knopf
+# zeigt NUR den aktiven Modus („🎙️ Flott"), ein Tipp wechselt zum anderen —
+# den Wechsel-Pfeil („Flott → Genau") trägt die BOT-Bestätigung, nicht der Knopf
+# (bei Reply-Tastaturen ist der Knopftext zwangsläufig die gesendete Nachricht).
 _STT_BTN_TARGET = {
+    _BTN_STT_ACCURATE: "small",   # Knopf zeigt aktiv „Genau" → Tipp wechselt zu Flott
+    _BTN_STT_FAST: "medium",      # Knopf zeigt aktiv „Flott" → Tipp wechselt zu Genau
+    # Übergangs-Labels (Pfeil-Variante vom 23.07. früh) + Alt-Labels mit ✓:
     _BTN_STT_TO_FAST: "small",
     _BTN_STT_TO_ACCURATE: "medium",
-    # Alt-Beschriftungen bis 23.07.:
-    _BTN_STT_ACCURATE: "medium",
-    _BTN_STT_FAST: "small",
-    _BTN_STT_ACCURATE_ACTIVE: "small",   # aktiv geklickt → zum anderen toggeln
+    _BTN_STT_ACCURATE_ACTIVE: "small",
     _BTN_STT_FAST_ACTIVE: "medium",
 }
 _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_FABLE,
@@ -467,11 +468,11 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None) -> Reply
     # sie liegen jetzt im „/"-Befehlsmenü (setMyCommands) → Tastatur schlank.
     # `tts_on` bleibt im Signatur-Vertrag (Aufrufer geben es weiter), wird hier
     # aber nicht mehr für einen Button gebraucht — TTS via /tts.
-    # STT als EIN-Knopf-Toggle mit Wechsel-Beschriftung („aktiv → Ziel"):
-    # ein Klick führt genau den angezeigten Wechsel aus. Nur wenn beide Modelle da.
+    # STT als EIN-Knopf-Toggle: Knopf zeigt NUR den aktiven Modus, ein Tipp
+    # wechselt; den Wechsel benennt die Bot-Bestätigung („Flott → Genau").
+    # Nur wenn beide Modelle da sind.
     if "small" in _STT_MODELS and "medium" in _STT_MODELS:
-        stt_toggle = (_BTN_STT_TO_ACCURATE if _ACTIVE_STT == "small"
-                      else _BTN_STT_TO_FAST)
+        stt_toggle = _BTN_STT_FAST if _ACTIVE_STT == "small" else _BTN_STT_ACCURATE
         rows.append([stt_toggle, _BTN_THOROUGH])
     else:
         rows.append([_BTN_THOROUGH])
@@ -2266,8 +2267,8 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "📌 Buttons in der Tastatur (9):\n"
         "🟣 Haiku / 🟡 Sonnet / 🔵 Opus / 🟠 Fable — Modell wechseln\n"
         "⚡ Schnell / ⚖️ Normal / 🚀 Max — Denk-Tiefe\n"
-        "🎙️ Genau → Flott bzw. Flott → Genau — Transkriptions-Tempo: der Knopf "
-        "nennt aktiven Modus und Wechselziel, ein Tipp schaltet um\n"
+        "🎙️ Genau bzw. Flott — Transkriptions-Tempo: der Knopf zeigt den AKTIVEN "
+        "Modus, ein Tipp wechselt zum anderen (die Bestätigung nennt den Wechsel)\n"
         "🎯 Gründlich — nächste Frage besonders sorgfältig "
         "(aktives Modell · max. Tiefe · Quellencheck)\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
@@ -4631,14 +4632,18 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             await update.message.reply_text(
                 f"🎙️ {_stt_label(want)} ist bereits aktiv.", reply_markup=kb())
             return
+        old = _ACTIVE_STT
         _ACTIVE_STT = want
         _USER_PREFS.setdefault(str(user_id), {})["stt_model"] = want
         _save_prefs(_USER_PREFS)
         hint = ("präziser, etwas langsamer" if want == "medium"
                 else "~2× schneller, etwas ungenauer")
+        # Wechsel-Darstellung gehört in DIESE Nachricht (Adam 23.07.): der Knopf
+        # zeigt nur den Zustand, die Bestätigung macht den Übergang sichtbar.
         await update.message.reply_text(
-            f"🎙️ Voice-Transkription: {_stt_label(want)} aktiv ({hint}). "
-            f"Gilt ab der nächsten Sprachnachricht.", reply_markup=kb())
+            f"🎙️ {_stt_label(old)} → {_stt_label(want)} — jetzt aktiv: "
+            f"{_stt_label(want)} ({hint}). Gilt ab der nächsten Sprachnachricht.",
+            reply_markup=kb())
         return
 
     # --- Info-Button ---

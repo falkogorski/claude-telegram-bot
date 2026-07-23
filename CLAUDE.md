@@ -56,6 +56,24 @@ zuerst auf versteckte Zusatzgebühren prüfen** (wie bei Groq geschehen) —
   NICHT `ANTHROPIC_API_KEY`.** Alles möglichst über das **Abo (kostenfrei)**,
   solange es nicht „professionell/produktiv" wird.
 
+### AGB-Grenze des Abos — Automatik-Regel (übernommen aus adam-agent, 23.07.2026)
+
+Die adam-agent-Doku (Stand Mai 2026) hält fest: Anthropics Nutzungsbedingungen
+untersagen gescriptete, CI-artige Dauernutzung unter den Abo-Plänen.
+⚠️ Ungeprüft gegen den heutigen Stand — vor Verankerung als harte Regel die
+AKTUELLEN Nutzungsbedingungen gegenlesen (Quelle ist 14 Monate alt). Als
+Bau-Leitplanke gilt bis dahin:
+
+- **Erlaubt (Abo):** mensch-initiierte Steuerung — Adam schickt eine Nachricht,
+  daraus folgt ein Modell-Aufruf. Genau so arbeitet der Bot heute.
+- **Grauzone bis Verstoß (Abo):** reine Zeit-Trigger, die ohne Adams Zutun
+  regelmäßig Modell-Aufrufe auslösen („alle fünf Minuten Mails checken").
+- **Konsequenz für zeitgesteuerte Routinen** (4-Uhr-Check 8.1, Erinnerungskanal,
+  geplante Läufe): deterministisch bauen — Skripte ohne Modell-Aufruf — ODER
+  bewusst auf API-Pay-per-Token legen; dann greift die 💰-Warnpflicht
+  (Kostenquelle + Höhe + Adams Freigabe). Bei der Umsetzung von 8.1 ausdrücklich
+  mitprüfen, ob der Erreichbarkeits-Check einen Modell-Aufruf enthält.
+
 ## 🔗 BEZUGS-INTEGRITÄT — Abhängigkeits-Register (Adam-Anweisung 2026-07-16)
 
 Schutz gegen stille Abhängigkeits-Brüche (das „Excel-`#BEZUG!`-Problem"): Eine

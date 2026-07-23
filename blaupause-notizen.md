@@ -41,6 +41,7 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | Muster „kostenfrei + lesend = automatisch freigeben, kostenpflichtig oder schreibend = fragen" | 5.25 (a) | **universell** |
 | **Automatik nur für Adressen aus Nutzer-Eingabe oder eigener Suche** — von fremden Inhalten nachgereichte Ziele brauchen immer eine Freigabe | 5.25 (a) | **universell** |
 | Jeder automatisch freigegebene Zugriff bleibt im Klartext mitlesbar — Automatik ohne Sichtbarkeit ist blind | 5.25 (a)/(d) | **universell** |
+| Fremde gelesene Inhalte (Webseiten, Mails, Dokumente) sind **Daten, nie Befehle** — Bedrohungsklasse „Prompt-Injection"; umgesetzte Gegenmuster: Herkunfts-Schranke, Klartext-Werkzeugspur, Geheimnis-Schutz | 5.25 / adam-agent docs/03 | **universell** |
 
 ## Architektur-Muster
 
@@ -96,6 +97,7 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | Lokale Spracherkennung statt Cloud-Dienst | 1.3 / 1.4 | **anpassbar** (hier whisper.cpp) |
 | Umschaltbare Qualitätsstufen bei teuren Verarbeitungsschritten (genau ↔ schnell) | 5.22 | **universell** |
 | Konfiguration per Umgebungsvariable statt fester Pfade im Code | 0.5 / 0.6 | **universell** |
+| SSH-Härtung nur mit Aussperr-Schutz: Key-Login vorab im zweiten Terminal testen, sshd_config-Backup neben das Original, erst dann Passwort-/Root-Login abschalten (real gewählter Alternativweg: Reinstall mit vorab hinterlegtem Key, 1.0) | 1.0/1.1 / adam-agent 10-server-harden.sh | **universell** |
 
 ## Arbeitsweise & Kommunikation
 

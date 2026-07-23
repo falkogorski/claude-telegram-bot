@@ -264,15 +264,17 @@ _BTN_EFFORT_MAX = "🚀 Max"
 _BTN_EFFORT_LOW_ACTIVE = "⚡ Schnell ✓"
 _BTN_EFFORT_MED_ACTIVE = "⚖️ Normal ✓"
 _BTN_EFFORT_MAX_ACTIVE = "🚀 Max ✓"
-# STT-Tempo-Knopf: EIN Toggle, der den WECHSEL darstellt (Adam 23.07.):
-# „🎙️ Genau → Flott" heißt: Genau ist aktiv, ein Tipp schaltet auf Flott.
-# So ist die im Chat gesendete Knopf-Nachricht identisch mit dem, was passiert —
-# die frühere Zustands-Beschriftung („Flott ✓" drücken → „Genau aktiv") wirkte
-# beim Nachlesen verdreht. Mikrofon-Icon grenzt von den Denk-Tiefe-Knöpfen ab.
-_BTN_STT_TO_FAST = "🎙️ Genau → Flott"      # medium aktiv; Tipp wechselt zu small
-_BTN_STT_TO_ACCURATE = "🎙️ Flott → Genau"  # small aktiv; Tipp wechselt zu medium
+# STT-Tempo-Knopf — FINALE Form (Adam 23.07., zweite Runde): „🎙️ Genau ✓ → Flott"
+# = Genau ist aktiv (✓), ein Tipp wechselt zu Flott. Der Pfeil steht bewusst AUF
+# dem Knopf: Bei Reply-Tastaturen ist der Knopftext wortgleich die gesendete
+# Nachricht — nur so zeigt Adams eigene Chat-Nachricht den Wechsel („Genau ✓ →
+# Flott"), und die Bot-Bestätigung fettet den neuen Zustand.
+_BTN_STT_ACC_TO_FAST = "🎙️ Genau ✓ → Flott"   # medium aktiv; Tipp → small
+_BTN_STT_FAST_TO_ACC = "🎙️ Flott ✓ → Genau"   # small aktiv; Tipp → medium
 # Alt-Beschriftungen (bis 23.07.): bleiben gemappt, weil Telegram-Tastaturen
 # client-seitig weiterleben, bis der Client eine neue bekommt.
+_BTN_STT_TO_FAST = "🎙️ Genau → Flott"
+_BTN_STT_TO_ACCURATE = "🎙️ Flott → Genau"
 _BTN_STT_ACCURATE = "🎙️ Genau"
 _BTN_STT_FAST = "🎙️ Flott"
 _BTN_STT_ACCURATE_ACTIVE = "🎙️ Genau ✓"
@@ -305,9 +307,11 @@ _THOROUGH_PREFIX = (
 # den Wechsel-Pfeil („Flott → Genau") trägt die BOT-Bestätigung, nicht der Knopf
 # (bei Reply-Tastaturen ist der Knopftext zwangsläufig die gesendete Nachricht).
 _STT_BTN_TARGET = {
-    _BTN_STT_ACCURATE: "small",   # Knopf zeigt aktiv „Genau" → Tipp wechselt zu Flott
-    _BTN_STT_FAST: "medium",      # Knopf zeigt aktiv „Flott" → Tipp wechselt zu Genau
-    # Übergangs-Labels (Pfeil-Variante vom 23.07. früh) + Alt-Labels mit ✓:
+    _BTN_STT_ACC_TO_FAST: "small",    # „Genau ✓ → Flott" gedrückt → Flott
+    _BTN_STT_FAST_TO_ACC: "medium",   # „Flott ✓ → Genau" gedrückt → Genau
+    # Übergangs-/Alt-Labels (bleiben gemappt für client-seitige Alt-Tastaturen):
+    _BTN_STT_ACCURATE: "small",
+    _BTN_STT_FAST: "medium",
     _BTN_STT_TO_FAST: "small",
     _BTN_STT_TO_ACCURATE: "medium",
     _BTN_STT_ACCURATE_ACTIVE: "small",
@@ -468,11 +472,12 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None) -> Reply
     # sie liegen jetzt im „/"-Befehlsmenü (setMyCommands) → Tastatur schlank.
     # `tts_on` bleibt im Signatur-Vertrag (Aufrufer geben es weiter), wird hier
     # aber nicht mehr für einen Button gebraucht — TTS via /tts.
-    # STT als EIN-Knopf-Toggle: Knopf zeigt NUR den aktiven Modus, ein Tipp
-    # wechselt; den Wechsel benennt die Bot-Bestätigung („Flott → Genau").
+    # STT als EIN-Knopf-Toggle (finale Form): „🎙️ Genau ✓ → Flott" = Genau aktiv,
+    # Tipp wechselt zu Flott — Adams gesendete Nachricht zeigt so den Wechsel.
     # Nur wenn beide Modelle da sind.
     if "small" in _STT_MODELS and "medium" in _STT_MODELS:
-        stt_toggle = _BTN_STT_FAST if _ACTIVE_STT == "small" else _BTN_STT_ACCURATE
+        stt_toggle = (_BTN_STT_FAST_TO_ACC if _ACTIVE_STT == "small"
+                      else _BTN_STT_ACC_TO_FAST)
         rows.append([stt_toggle, _BTN_THOROUGH])
     else:
         rows.append([_BTN_THOROUGH])
@@ -2267,8 +2272,8 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "📌 Buttons in der Tastatur (9):\n"
         "🟣 Haiku / 🟡 Sonnet / 🔵 Opus / 🟠 Fable — Modell wechseln\n"
         "⚡ Schnell / ⚖️ Normal / 🚀 Max — Denk-Tiefe\n"
-        "🎙️ Genau bzw. Flott — Transkriptions-Tempo: der Knopf zeigt den AKTIVEN "
-        "Modus, ein Tipp wechselt zum anderen (die Bestätigung nennt den Wechsel)\n"
+        "🎙️ Genau ✓ → Flott (bzw. umgekehrt) — Transkriptions-Tempo: ✓ markiert "
+        "den aktiven Modus, ein Tipp führt den gezeigten Wechsel aus\n"
         "🎯 Gründlich — nächste Frage besonders sorgfältig "
         "(aktives Modell · max. Tiefe · Quellencheck)\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
@@ -2785,12 +2790,27 @@ async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             return  # Permission wartet, aber Emoji war keins der beiden → ignorieren
 
     # ── 5.9: Vokabular-Reaktion auf beliebige Bot-Nachricht ──
+    # Delta-Logik (Adam 23.07.): Telegram liefert ALTE und NEUE Reaktionsmenge.
+    # Nur das DELTA zählt — Hinzugefügtes wird behandelt, Entferntes widerrufen,
+    # bei Ersetzen/Ergänzen (Premium: mehrere Reaktionen) wird das benannt.
     chat_id = rx.chat.id
-    emojis = [r.emoji for r in rx.new_reaction if isinstance(r, ReactionTypeEmoji)]
-    if not emojis:
-        return  # z. B. Reaktion entfernt (new_reaction leer) oder Custom-Emoji
-    emoji = emojis[0]
+    old_list = [r.emoji for r in (getattr(rx, "old_reaction", None) or [])
+                if isinstance(r, ReactionTypeEmoji)]
+    new_list = [r.emoji for r in rx.new_reaction if isinstance(r, ReactionTypeEmoji)]
+    old_set = {reactions.normalize(e) for e in old_list}
+    new_set = {reactions.normalize(e) for e in new_list}
+    added = [e for e in new_list if reactions.normalize(e) not in old_set]
+    removed = [e for e in old_list if reactions.normalize(e) not in new_set]
+
+    if not added and removed:
+        await _handle_reaction_withdrawal(user_id, chat_id, rx.message_id,
+                                          removed[0], update.get_bot(), sess)
+        return
+    if not added:
+        return  # keine inhaltliche Änderung (z. B. Custom-Emoji)
+    emoji = added[0]
     entry = reactions.lookup(emoji)
+    kept = [e for e in new_list if reactions.normalize(e) != reactions.normalize(emoji)]
 
     frage = reactions.pop_question(chat_id, rx.message_id)
     bezug = (frage or {}).get("text") or BOT_MSGS.get((chat_id, rx.message_id), "")
@@ -2821,9 +2841,15 @@ async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     # Antwort/Handlung → als Job an den Agenten (5.2-persistiert, Reply-Bezug).
+    if removed:
+        wechsel = f" Sie ERSETZT seine vorherige Reaktion {removed[0]}."
+    elif kept:
+        wechsel = f" Sie kam ZUSÄTZLICH zu {' '.join(kept)} dazu."
+    else:
+        wechsel = ""
     prompt = (
         f"[Adam hat auf deine Nachricht mit {emoji} reagiert. Bedeutung laut "
-        f"verbindlichem Reaktions-Vokabular: „{entry.meaning}“."
+        f"verbindlichem Reaktions-Vokabular: „{entry.meaning}“.{wechsel}"
         + (f" Deine Nachricht war: „{bezug_kurz}“."
            if bezug_kurz else " (Der Wortlaut deiner Nachricht liegt nicht mehr vor.)")
         + (" Das ist die ANTWORT auf deine offene Frage — handle entsprechend."
@@ -2831,6 +2857,38 @@ async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         + "]"
     )
     _enqueue_reaction_job(user_id, chat_id, rx.message_id, prompt, update.get_bot())
+
+
+async def _handle_reaction_withdrawal(user_id: int, chat_id: int, message_id: int,
+                                      emoji: str, bot_obj, sess) -> None:
+    """Adam nimmt eine Reaktion zurück (5.9-Widerruf, 23.07.): Wartet der
+    zugehörige Auftrag noch in der Queue → stornieren; lief er schon → bei
+    Handlungs-Klassen den Agenten informieren, sonst nur still verbuchen."""
+    if sess is not None and sess.logger:
+        sess.logger.log_event(f"{emoji} Reaktion von Adam zurückgenommen")
+    mb = MAILBOXES.get(user_id)
+    if mb is not None:
+        for job in list(mb.queue):
+            if (job.update is None and job.message_id == message_id
+                    and job.text.startswith("[Adam hat")):
+                mb.queue.remove(job)
+                if job.pending_key:
+                    pending.resolve(job.pending_key)
+                try:
+                    await bot_obj.send_message(
+                        chat_id=chat_id,
+                        text=f"{emoji} zurückgenommen — der Auftrag dazu ist storniert.",
+                        reply_to_message_id=message_id)
+                except Exception:
+                    log.exception("Widerruf-Quittung nicht zustellbar")
+                return
+    entry = reactions.lookup(emoji)
+    if entry is not None and entry.active:
+        _enqueue_reaction_job(
+            user_id, chat_id, message_id,
+            f"[Adam hat seine Reaktion {emoji} („{entry.meaning}“) auf deine "
+            "Nachricht ZURÜCKGENOMMEN — behandle die frühere Reaktions-Antwort "
+            "als widerrufen und bestätige das knapp.]", bot_obj)
 
 
 def _enqueue_reaction_job(user_id: int, chat_id: int, message_id: int,
@@ -4102,7 +4160,12 @@ async def post_init(app: Application) -> None:
                             reply_markup=kb if i == 0 else None,
                         )
                 else:
-                    await app.bot.send_message(chat_id=uid, text=startup_msg, reply_markup=kb)
+                    m = await app.bot.send_message(chat_id=uid, text=startup_msg,
+                                                   reply_markup=kb)
+                    # 5.9: Auch die Startnachricht ist reaktionsfähig — Bezug
+                    # merken und (falls sie fragt) als offene Frage registrieren.
+                    _remember_bot_msg(uid, m.message_id, startup_msg)
+                    reactions.register_question(uid, m.message_id, startup_msg)
             except Exception:
                 log.warning("startup message to user %s failed", uid)
         # 5.2 Schritt 2: Die Worker für nachgeholte Nachrichten erst JETZT
@@ -4638,12 +4701,12 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         _save_prefs(_USER_PREFS)
         hint = ("präziser, etwas langsamer" if want == "medium"
                 else "~2× schneller, etwas ungenauer")
-        # Wechsel-Darstellung gehört in DIESE Nachricht (Adam 23.07.): der Knopf
-        # zeigt nur den Zustand, die Bestätigung macht den Übergang sichtbar.
+        # Bestätigung mit gefettetem NEUEN Zustand (Adam 23.07.): auf einen Blick
+        # erkennbar, „was gerade Phase ist" — der Rest beschreibt den Übergang.
         await update.message.reply_text(
-            f"🎙️ {_stt_label(old)} → {_stt_label(want)} — jetzt aktiv: "
-            f"{_stt_label(want)} ({hint}). Gilt ab der nächsten Sprachnachricht.",
-            reply_markup=kb())
+            f"🎙️ {_stt_label(old)} → <b>{_stt_label(want)}</b> — jetzt aktiv: "
+            f"<b>{_stt_label(want)}</b> ({hint}). Gilt ab der nächsten Sprachnachricht.",
+            reply_markup=kb(), parse_mode=ParseMode.HTML)
         return
 
     # --- Info-Button ---

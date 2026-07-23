@@ -47,12 +47,14 @@ class FakeBot:
         return SimpleNamespace(message_id=777)
 
 
-def _rx_update(emoji: str, message_id: int, fake_bot: FakeBot):
+def _rx_update(emoji: str, message_id: int, fake_bot: FakeBot,
+               old: list[str] | None = None):
     rx = SimpleNamespace(
         chat=SimpleNamespace(id=CHAT),
         user=SimpleNamespace(id=UID),
         message_id=message_id,
-        new_reaction=[ReactionTypeEmoji(emoji=emoji)],
+        old_reaction=[ReactionTypeEmoji(emoji=e) for e in (old or [])],
+        new_reaction=[ReactionTypeEmoji(emoji=emoji)] if emoji else [],
     )
     return SimpleNamespace(message_reaction=rx, get_bot=lambda: fake_bot)
 
@@ -146,6 +148,29 @@ async def main() -> None:
         _fail("Options-Job nennt die gewählte Option nicht")
     pending.resolve(job.pending_key)
     print("✓ Ziffern-Knopf → Job mit gewählter Option")
+
+    # (7) Widerruf: Reaktion entfernt, Job wartet noch → storniert + Quittung
+    reactions.register_question(CHAT, 800, "Passt der Plan so?")
+    await bot.on_reaction(_rx_update("👍", 800, fake), None)
+    assert len(mb.queue) == 1
+    fake.sent.clear()
+    await bot.on_reaction(_rx_update("", 800, fake, old=["👍"]), None)
+    if mb.queue:
+        _fail("Widerruf hat den wartenden Job nicht storniert")
+    if not fake.sent or "storniert" not in fake.sent[-1]["text"]:
+        _fail("Widerruf ohne Quittung")
+    print("✓ Widerruf: wartender Job storniert + Quittung")
+
+    # (8) Ersetzen: 👍 → 👎 in einem Update → neuer Job nennt die Ersetzung
+    fake.sent.clear()
+    await bot.on_reaction(_rx_update("👎", 801, fake, old=["👍"]), None)
+    if len(mb.queue) != 1:
+        _fail("Ersetzte Reaktion hat keinen Job erzeugt")
+    job = mb.queue.pop()
+    if "ERSETZT" not in job.text or "Nein" not in job.text:
+        _fail("Ersetzungs-Job nennt Wechsel/Bedeutung nicht")
+    pending.resolve(job.pending_key)
+    print("✓ Ersetzen: neuer Job mit Ersetzungs-Vermerk")
 
     print("\nALLE TEILPRÜFUNGEN BESTANDEN")
 

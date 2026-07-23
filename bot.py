@@ -53,6 +53,7 @@ from transcribe import Transcriber, build_transcriber
 import ampel
 import pending
 import presend
+import reactions
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -2124,9 +2125,16 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/setkanal — Ausgabekanal setzen\n"
         "/whereami — Kanal-Info anzeigen\n"
         "/whoami — User-Info\n"
+        "/stopp — ✋ Laufende Aufgabe abbrechen\n"
         "/restart — Bot neu starten\n"
         "/selfcheck — Selbsttest ausführen\n"
         "/hilfe — Diese Befehlsübersicht\n\n"
+        "💬 Emoji-Reaktionen: Du kannst auf meine Nachrichten reagieren — "
+        "ich verstehe das feste Vokabular (👍 👌 🫡 = Ja/erledigt, 👎 = Nein, "
+        "🤔 = unsicher, 🤨 🤷 = erklär nochmal, 🔥 ⚡ = los geht's, 👀 = genauer "
+        "anschauen, ✍ 👨‍💻 🏆 = merk dir das, 😴 = später, ❤️ 🎉 👏 💯 🍓 🍌 = "
+        "Wertschätzung). Auf offene Fragen ist die Reaktion die Antwort. "
+        "Nummerierte Optionslisten bekommen 1️⃣–9️⃣-Knöpfe.\n\n"
         "📌 Buttons in der Tastatur (9):\n"
         "🟣 Haiku / 🟡 Sonnet / 🔵 Opus / 🟠 Fable — Modell wechseln\n"
         "⚡ Schnell / ⚖️ Normal / 🚀 Max — Denk-Tiefe\n"
@@ -2609,7 +2617,13 @@ _REACTION_DECISIONS = {"👍": "allow", "👎": "deny"}
 
 
 async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
-    """Resolve a pending permission via 👍 (allow) or 👎 (deny) reaction."""
+    """Reaktionen auswerten: erst Permission-Flow (Vorrang), dann 5.9-Vokabular.
+
+    5.9 (Vokabular v2.1): Eine Reaktion auf eine registrierte offene Frage ist
+    deren ANTWORT und geht immer an den Agenten. Auf sonstige Bot-Nachrichten
+    lösen nur Handlungs-Klassen einen Lauf aus (ja/nein/unklar/los/…); stille
+    Wertschätzung (❤️ 🎉 👏 💯 🍓 🍌 …) landet nur im Gesprächs-Log — kein
+    Lärm, kein Kontingent. Unbekanntes → freundlich nachfragen, nie raten."""
     rx = update.message_reaction
     if rx is None:
         return
@@ -2618,29 +2632,158 @@ async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     sess = SESSIONS.get(user_id)
-    if sess is None:
+
+    # ── Vorrang: wartende Permission (👍 Allow / 👎 Deny) — unverändert ──
+    if sess is not None:
+        request_id = sess.message_permissions.get(rx.message_id)
+        if request_id is not None:
+            for reaction in rx.new_reaction:
+                if not isinstance(reaction, ReactionTypeEmoji):
+                    continue
+                decision = _REACTION_DECISIONS.get(reaction.emoji)
+                if decision is None:
+                    continue
+                sess.message_permissions.pop(rx.message_id, None)
+                entry = sess.pending_permissions.pop(request_id, None)
+                if entry is None:
+                    return
+                target_loop, fut = entry
+                if not fut.done():
+                    target_loop.call_soon_threadsafe(fut.set_result, decision)
+                log.info("reaction permission: user=%s req=%s decision=%s",
+                         user_id, request_id, decision)
+                return
+            return  # Permission wartet, aber Emoji war keins der beiden → ignorieren
+
+    # ── 5.9: Vokabular-Reaktion auf beliebige Bot-Nachricht ──
+    chat_id = rx.chat.id
+    emojis = [r.emoji for r in rx.new_reaction if isinstance(r, ReactionTypeEmoji)]
+    if not emojis:
+        return  # z. B. Reaktion entfernt (new_reaction leer) oder Custom-Emoji
+    emoji = emojis[0]
+    entry = reactions.lookup(emoji)
+
+    frage = reactions.pop_question(chat_id, rx.message_id)
+    bezug = (frage or {}).get("text") or BOT_MSGS.get((chat_id, rx.message_id), "")
+    bezug_kurz = _job_preview(bezug, 220) if bezug else ""
+
+    if entry is None:
+        # Außerhalb des Vokabulars: nicht raten — freundlich nachfragen.
+        try:
+            await update.get_bot().send_message(
+                chat_id=chat_id,
+                text=(f"{emoji} — diese Reaktion kenne ich noch nicht. "
+                      "Was möchtest du mir damit sagen? (Wenn sie eine feste "
+                      "Bedeutung bekommen soll, nehmen wir sie ins Vokabular auf.)"),
+                reply_to_message_id=rx.message_id,
+            )
+        except Exception:
+            log.exception("Nachfrage zu unbekannter Reaktion nicht zustellbar")
         return
 
-    request_id = sess.message_permissions.get(rx.message_id)
-    if request_id is None:
+    # Ins Gesprächs-Log — Reaktionen sind sonst unsichtbar für die Kontrollsitzung.
+    if sess is not None and sess.logger:
+        sess.logger.log_event(f"{emoji} Reaktion von Adam: {entry.meaning}"
+                              + (f" — auf: „{bezug_kurz}“" if bezug_kurz else ""))
+
+    if frage is None and not entry.active:
+        log.info("Reaktion %s (%s) ohne offene Frage — stille Wertschätzung, kein Lauf",
+                 emoji, entry.kind)
         return
 
-    for reaction in rx.new_reaction:
-        if not isinstance(reaction, ReactionTypeEmoji):
-            continue
-        decision = _REACTION_DECISIONS.get(reaction.emoji)
-        if decision is None:
-            continue
+    # Antwort/Handlung → als Job an den Agenten (5.2-persistiert, Reply-Bezug).
+    prompt = (
+        f"[Adam hat auf deine Nachricht mit {emoji} reagiert. Bedeutung laut "
+        f"verbindlichem Reaktions-Vokabular: „{entry.meaning}“."
+        + (f" Deine Nachricht war: „{bezug_kurz}“."
+           if bezug_kurz else " (Der Wortlaut deiner Nachricht liegt nicht mehr vor.)")
+        + (" Das ist die ANTWORT auf deine offene Frage — handle entsprechend."
+           if frage is not None else " Reagiere angemessen knapp.")
+        + "]"
+    )
+    _enqueue_reaction_job(user_id, chat_id, rx.message_id, prompt, update.get_bot())
 
-        sess.message_permissions.pop(rx.message_id, None)
-        entry = sess.pending_permissions.pop(request_id, None)
-        if entry is None:
-            return
-        target_loop, fut = entry
-        if not fut.done():
-            target_loop.call_soon_threadsafe(fut.set_result, decision)
-        log.info("reaction permission: user=%s req=%s decision=%s", user_id, request_id, decision)
+
+def _enqueue_reaction_job(user_id: int, chat_id: int, message_id: int,
+                          text: str, bot_obj) -> None:
+    """Baut aus einer Reaktion einen normalen Queue-Job (ohne Update-Objekt,
+    wie die Reconcile-Jobs) — sofort 5.2-persistiert, Antwort als Reply auf
+    die reagierte Nachricht."""
+    key = f"{chat_id}_r{message_id}_{int(time.time())}"
+    job = QueuedJob(
+        update=None,
+        text=text,
+        user_id=user_id,
+        chat_id=chat_id,
+        message_id=message_id,           # → Antwort zeigt per Reply auf die Nachricht
+        pending_key=key,
+        bot=bot_obj,
+    )
+    try:
+        pending.record(key, {
+            "user_id": user_id, "chat_id": chat_id, "message_id": message_id,
+            "text": text, "received_at": job.received_at,
+            "message_date": job.received_at,
+        })
+    except Exception:
+        log.exception("Reaktions-Job nicht persistierbar (nicht-fatal)")
+    mb = _get_mailbox(user_id)
+    mb.queue.append(job)
+    _ensure_worker(user_id)
+
+
+async def on_option_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """5.9: Ziffern-Inline-Knopf an einer nummerierten Liste → Option als
+    Antwort in die Queue (Telegram bietet keine Ziffern-Reaktionen)."""
+    query = update.callback_query
+    user_id = query.from_user.id if query.from_user else None
+    if user_id not in ALLOWED_USER_IDS:
+        await query.answer()
         return
+    try:
+        n = int((query.data or "opt:0").split(":", 1)[1])
+    except ValueError:
+        await query.answer()
+        return
+    await query.answer(f"Option {n} gewählt")
+    msg = query.message
+    chat_id = msg.chat_id if msg is not None else user_id
+    message_id = msg.message_id if msg is not None else 0
+    bezug = ""
+    if msg is not None:
+        reactions.pop_question(chat_id, message_id)  # Frage gilt als beantwortet
+        bezug = _job_preview(msg.text or BOT_MSGS.get((chat_id, message_id), ""), 220)
+    prompt = (
+        f"[Adam hat per Knopf Option {n} gewählt"
+        + (f" — zu deiner Nachricht: „{bezug}“" if bezug else "")
+        + ". Führe die gewählte Option aus bzw. antworte entsprechend.]"
+    )
+    _enqueue_reaction_job(user_id, chat_id, message_id, prompt, query.get_bot())
+
+
+async def cmd_stopp(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """✋ Stopp (5.9): Abbruchsignal per Befehl — bewusst KEIN Reaktions-Emoji,
+    weil ein Abbruch eindeutig sein muss (reaktionen-vokabular.md)."""
+    if not authorized(update):
+        return
+    user_id = update.effective_user.id
+    mb = MAILBOXES.get(user_id)
+    if mb is None or mb.current_job is None:
+        await update.message.reply_text("✋ Gerade läuft nichts, das ich stoppen könnte.")
+        return
+    stopped = _job_preview(mb.current_job.text)
+    try:
+        sess = SESSIONS.get(user_id)
+        if sess is not None:
+            await sess.client.interrupt()
+        await update.message.reply_text(
+            f"✋ Gestoppt: „{stopped}“ — die Aufgabe wird nicht weitergeführt. "
+            "Schick sie neu, falls sie doch noch gebraucht wird.")
+    except Exception:
+        log.exception("Stopp-Interrupt fehlgeschlagen")
+        await update.message.reply_text(
+            "⚠️ Stopp-Signal gesendet, aber die Aufgabe hat nicht sauber reagiert — "
+            "notfalls hilft /reset.")
 
 
 _PERSONAL_NOTES_FILE = Path.home() / "notes" / "telegram-notes.md"
@@ -3409,6 +3552,35 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert hasattr(pending, "merge"), "pending.merge fehlt — Audio-Pfad nicht nachtragbar"
     check("Voice-Eingangsschutz (5.2)", _c_voice_entry_guard)
 
+    # 15. Emoji-Reaktionen (5.9) — Vokabular v2.1 vollständig, VS16-normalisiert,
+    # Registratur-Roundtrip funktioniert, Optionslisten werden erkannt.
+    def _c_reactions() -> None:
+        # Jede v2.1-Bedeutungsgruppe muss erreichbar sein (kein stilles Schrumpfen).
+        for e, kind in [("👍", "ja"), ("👎", "nein"), ("🫡", "ja"), ("🤔", "unsicher"),
+                        ("🤨", "unklar"), ("🤷", "unklar"), ("🔥", "los"), ("⚡", "los"),
+                        ("👀", "anschauen"), ("🏆", "merken"), ("😴", "spaeter"),
+                        ("💯", "genau"), ("❤️", "dank"), ("🍓", "dank"), ("🍌", "dank")]:
+            entry = reactions.lookup(e)
+            assert entry is not None and entry.kind == kind, f"{e} → {kind} fehlt/falsch"
+        # VS16-Normalisierung: beide Formen treffen denselben Eintrag.
+        assert reactions.lookup("❤") is reactions.lookup("❤️"), "VS16-Normalisierung kaputt"
+        assert reactions.lookup("✍") is not None and reactions.lookup("🤷‍♂") is not None
+        # Wertschätzung bleibt still (kein Kontingent-Verbrauch ohne Frage).
+        assert not reactions.lookup("💯").active and reactions.lookup("👍").active
+        # Registratur-Roundtrip (persistent, atomar).
+        reactions.register_question(0, 999999, "Selbstcheck-Frage — passt das so?")
+        q = reactions.pop_question(0, 999999)
+        assert q and "Selbstcheck" in q["text"], "Registratur-Roundtrip kaputt"
+        assert reactions.pop_question(0, 999999) is None, "Frage nicht ausgetragen"
+        # Optionslisten-Erkennung (1️⃣–9️⃣-Knöpfe).
+        assert reactions.detect_numbered_options("1. A\n2. B\nWelche?") == 2
+        assert reactions.detect_numbered_options("Fließtext ohne Liste") == 0
+        # Der Handler ist als Reply-Antwort verdrahtet (Registratur am Sendepfad).
+        import inspect as _insp
+        src = _insp.getsource(send_answer_to_user)
+        assert "register_question" in src, "Sendepfad registriert keine Fragen"
+    check("Emoji-Reaktionen (5.9)", _c_reactions)
+
     return state["ok"], results
 
 
@@ -3602,6 +3774,7 @@ async def post_init(app: Application) -> None:
     try:
         await app.bot.set_my_commands([
             BotCommand("hilfe", "Alle Befehle anzeigen"),
+            BotCommand("stopp", "✋ Laufende Aufgabe abbrechen"),
             BotCommand("status", "Queue & Session-Übersicht"),
             BotCommand("presend", "Pre-Send-Hook — Kennzahlen"),
             BotCommand("ampel", "Ampel — Regeln & Status"),
@@ -5489,17 +5662,32 @@ async def send_answer_to_user(
     first_pending = reply_to is not None
     kb = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
 
+    # 5.9: Nummerierte Optionsliste → Inline-Ziffern-Knöpfe direkt an der
+    # Nachricht (Telegram bietet keine Ziffern-Reaktionen; Adam-Entscheid).
+    # Nur im Text-Modus — bei TTS bleibt die Wahl per Text/Reaktion.
+    n_opts = reactions.detect_numbered_options(text) if not use_tts else 0
+    opt_kb = None
+    if n_opts:
+        digits = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"]
+        row = [InlineKeyboardButton(digits[i], callback_data=f"opt:{i + 1}")
+               for i in range(n_opts)]
+        opt_kb = InlineKeyboardMarkup([row[:5], row[5:]] if n_opts > 5 else [row])
+
     if not use_tts:
         sent = await send_chunked(
-            sess.bot, chat_id, text, reply_markup=kb,
+            sess.bot, chat_id, text, reply_markup=opt_kb or kb,
             reply_to=reply_to if first_pending else None,
             thread_id=thread_id,
         )
         if sent is not None:
             _remember_bot_msg(chat_id, sent.message_id, text)
+            # 5.9: Sieht die Antwort nach einer offenen Frage aus → registrieren,
+            # damit eine spätere Reaktion ihr zugeordnet werden kann (persistent).
+            reactions.register_question(chat_id, sent.message_id, text)
         return sent is not None
 
     delivered = False
+    last_sent_id: int | None = None
     rest = text
     while rest:
         if len(rest) <= TTS_SYNC_CHUNK:
@@ -5540,7 +5728,14 @@ async def send_answer_to_user(
             if sent is not None:
                 _remember_bot_msg(chat_id, sent.message_id, chunk)
         delivered = delivered or (sent is not None)
+        if sent is not None:
+            last_sent_id = getattr(sent, "message_id", None) or last_sent_id
         first_pending = False
+
+    # 5.9: Auch im TTS-Modus muss eine offene Frage registriert werden — die
+    # Reaktion landet auf der LETZTEN gesendeten Nachricht (dort steht der Schluss).
+    if delivered and last_sent_id is not None:
+        reactions.register_question(chat_id, last_sent_id, text)
 
     return delivered
 
@@ -5598,6 +5793,8 @@ def main() -> None:
     app.add_handler(CommandHandler("restart", cmd_restart))
     app.add_handler(CommandHandler("setkanal", cmd_setkanal))
     app.add_handler(CommandHandler("selfcheck", cmd_selfcheck))
+    app.add_handler(CommandHandler("stopp", cmd_stopp))
+    app.add_handler(CallbackQueryHandler(on_option_callback, pattern=r"^opt:"))
     app.add_handler(CallbackQueryHandler(on_permission_callback, pattern=r"^p:"))
     app.add_handler(CallbackQueryHandler(on_ampel_callback, pattern=r"^amp:"))
     app.add_handler(CallbackQueryHandler(on_pdf_callback, pattern=r"^pdf:"))

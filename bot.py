@@ -260,8 +260,15 @@ _BTN_EFFORT_MAX = "🚀 Max"
 _BTN_EFFORT_LOW_ACTIVE = "⚡ Schnell ✓"
 _BTN_EFFORT_MED_ACTIVE = "⚖️ Normal ✓"
 _BTN_EFFORT_MAX_ACTIVE = "🚀 Max ✓"
-# STT-Tempo-Buttons: 🎙️ Genau (medium, präziser) / 🎙️ Flott (small, ~2× schneller).
-# Mikrofon-Icon zur klaren Abgrenzung von den Denk-Tempo-Buttons (⚡/🚀).
+# STT-Tempo-Knopf: EIN Toggle, der den WECHSEL darstellt (Adam 23.07.):
+# „🎙️ Genau → Flott" heißt: Genau ist aktiv, ein Tipp schaltet auf Flott.
+# So ist die im Chat gesendete Knopf-Nachricht identisch mit dem, was passiert —
+# die frühere Zustands-Beschriftung („Flott ✓" drücken → „Genau aktiv") wirkte
+# beim Nachlesen verdreht. Mikrofon-Icon grenzt von den Denk-Tiefe-Knöpfen ab.
+_BTN_STT_TO_FAST = "🎙️ Genau → Flott"      # medium aktiv; Tipp wechselt zu small
+_BTN_STT_TO_ACCURATE = "🎙️ Flott → Genau"  # small aktiv; Tipp wechselt zu medium
+# Alt-Beschriftungen (bis 23.07.): bleiben gemappt, weil Telegram-Tastaturen
+# client-seitig weiterleben, bis der Client eine neue bekommt.
 _BTN_STT_ACCURATE = "🎙️ Genau"
 _BTN_STT_FAST = "🎙️ Flott"
 _BTN_STT_ACCURATE_ACTIVE = "🎙️ Genau ✓"
@@ -289,10 +296,13 @@ _THOROUGH_PREFIX = (
     "ausdrücklich; keine ungeprüften Behauptungen. Nimm dir Zeit für eine "
     "sorgfältige, belegte Antwort.]\n\n"
 )
-# Ein-Knopf-Toggle (Layout Y, 22.07.): Die Tastatur zeigt nur den AKTIVEN Modus
-# mit ✓; ein Klick darauf wechselt zum jeweils anderen. Die inaktiven Labels
-# bleiben gemappt (Alt-Tastaturen, getippter Text) und aktivieren wie bisher.
+# Ein-Knopf-Toggle (Layout Y, 22.07.; Wechsel-Beschriftung 23.07.): Der Knopf
+# nennt aktiven Modus UND Ziel; ein Klick führt den Wechsel aus. Alt-Labels
+# bleiben gemappt (client-seitig persistierte Tastaturen, getippter Text).
 _STT_BTN_TARGET = {
+    _BTN_STT_TO_FAST: "small",
+    _BTN_STT_TO_ACCURATE: "medium",
+    # Alt-Beschriftungen bis 23.07.:
     _BTN_STT_ACCURATE: "medium",
     _BTN_STT_FAST: "small",
     _BTN_STT_ACCURATE_ACTIVE: "small",   # aktiv geklickt → zum anderen toggeln
@@ -305,6 +315,7 @@ _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_FABLE,
                       _BTN_RESTART, _BTN_INFO,
                       _BTN_EFFORT_LOW, _BTN_EFFORT_MED, _BTN_EFFORT_MAX,
                       _BTN_EFFORT_LOW_ACTIVE, _BTN_EFFORT_MED_ACTIVE, _BTN_EFFORT_MAX_ACTIVE,
+                      _BTN_STT_TO_FAST, _BTN_STT_TO_ACCURATE,
                       _BTN_STT_ACCURATE, _BTN_STT_FAST,
                       _BTN_STT_ACCURATE_ACTIVE, _BTN_STT_FAST_ACTIVE,
                       _BTN_THOROUGH}
@@ -452,11 +463,11 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None) -> Reply
     # sie liegen jetzt im „/"-Befehlsmenü (setMyCommands) → Tastatur schlank.
     # `tts_on` bleibt im Signatur-Vertrag (Aufrufer geben es weiter), wird hier
     # aber nicht mehr für einen Button gebraucht — TTS via /tts.
-    # STT als EIN-Knopf-Toggle: zeigt den aktiven Modus mit ✓, Klick wechselt
-    # zum anderen (Mapping in _STT_BTN_TARGET). Nur wenn beide Modelle da sind.
+    # STT als EIN-Knopf-Toggle mit Wechsel-Beschriftung („aktiv → Ziel"):
+    # ein Klick führt genau den angezeigten Wechsel aus. Nur wenn beide Modelle da.
     if "small" in _STT_MODELS and "medium" in _STT_MODELS:
-        stt_toggle = (_BTN_STT_FAST_ACTIVE if _ACTIVE_STT == "small"
-                      else _BTN_STT_ACCURATE_ACTIVE)
+        stt_toggle = (_BTN_STT_TO_ACCURATE if _ACTIVE_STT == "small"
+                      else _BTN_STT_TO_FAST)
         rows.append([stt_toggle, _BTN_THOROUGH])
     else:
         rows.append([_BTN_THOROUGH])
@@ -2119,8 +2130,8 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "📌 Buttons in der Tastatur (9):\n"
         "🟣 Haiku / 🟡 Sonnet / 🔵 Opus / 🟠 Fable — Modell wechseln\n"
         "⚡ Schnell / ⚖️ Normal / 🚀 Max — Denk-Tiefe\n"
-        "🎙️ Genau/Flott — Transkriptions-Tempo (ein Knopf, zeigt den aktiven "
-        "Modus, Klick wechselt)\n"
+        "🎙️ Genau → Flott bzw. Flott → Genau — Transkriptions-Tempo: der Knopf "
+        "nennt aktiven Modus und Wechselziel, ein Tipp schaltet um\n"
         "🎯 Gründlich — nächste Frage besonders sorgfältig "
         "(aktives Modell · max. Tiefe · Quellencheck)\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
@@ -4193,7 +4204,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         if sess and sess.current_effort == new_effort:
             keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
             effort_name = {None: "Normal", "low": "Schnell", "max": "Max"}.get(new_effort, str(new_effort))
-            await update.message.reply_text(f"Thinking: {effort_name} ist bereits aktiv.", reply_markup=keyboard)
+            await update.message.reply_text(f"Denke nach: {effort_name} ist bereits aktiv.", reply_markup=keyboard)
             return
         # Sanfter Wechsel (22.07.): identisch zum Modell-Zweig — laufender Job
         # wird nie hart abgebrochen, Prefs greifen ab der nächsten Aufgabe.
@@ -4212,7 +4223,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             keyboard = _main_keyboard(_p.get("tts_enabled", False),
                                       _p.get("model", DEFAULT_MODEL), new_effort)
             await update.message.reply_text(
-                f"🔄 Vorgemerkt: Thinking {effort_label} gilt ab der nächsten Aufgabe — "
+                f"🔄 Vorgemerkt: Denke nach {effort_label} gilt ab der nächsten Aufgabe — "
                 "die laufende wird noch im bisherigen Modus fertiggestellt.",
                 reply_markup=keyboard,
             )
@@ -4222,7 +4233,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         new_sess = await ensure_session(user_id)
         keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort)
         await update.message.reply_text(
-            f"Thinking: {effort_label} aktiv. Session neu gestartet.",
+            f"Denke nach: {effort_label} aktiv. Session neu gestartet.",
             reply_markup=keyboard,
         )
         return

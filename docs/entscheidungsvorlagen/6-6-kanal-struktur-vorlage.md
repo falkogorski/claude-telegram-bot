@@ -1,47 +1,64 @@
 <!-- ROLLE: entscheidungsvorlage-kanalstruktur -->
-# 6.6 Telegram-Kanalstruktur — Entscheidungsvorlage (Daumen-Liste)
+# 6.6 Telegram-Struktur — Entscheidungsvorlage v2 (Gruppen mit Themen-Topics)
 
-**Erstellt:** 23.07.2026, autonomer Lauf. **Noch NICHTS angelegt** — der Bau folgt
-gemeinsam nach Phase 3. **Datengrundlage:** Häufigkeits-Analyse der acht
-Tagesdateien in `claude-bot-logs/conversations/` (17.–23.07.): Technik/Migration
-dominiert (270 Treffer, in allen Dateien), Recherchen/PDFs (102) und Fußball (99)
-stark, Business/Blaupause (66) wachsend, Rechnungen (12) und Termine (12)
-regelmäßig-klein, rote Themen (Klienten/Human Design) praktisch abwesend (4) —
-wie es die Ampel will.
+**v2 vom 23.07.2026 nach Adam-Review.** Grundmodell sind **Gruppen mit
+Themen-Topics** („Häuser mit Zimmern"), keine Einzelkanäle — Kanäle allenfalls
+später für reine Ausgabe-Feeds. Orientierung an **Projekten und Lebensbereichen**,
+nicht an Test-Themen: Der Fußball-Schwerpunkt der Log-Zählung (99 Treffer) war
+Recherche-**Testmaterial**, kein echter Fokus — er wird ein Zimmer unter
+„Interessen", kein eigenes Haus. **Angelegt wird weiterhin nichts ohne Adams
+Daumen.** Klammerwerte = 4.3-Ordner-Spiegelung, identische Terminologie
+(„Struktur über Namen": Häuser/Zimmer = Ordner/Unterordner — die bespielende KI
+dahinter ist austauschbar).
 
-**Prinzipien:** Klein starten (sechs lebende statt fünfzehn verödende Orte),
-erweiterbar (6.5 kann später Topics selbst anlegen), **gleiche Terminologie wie
-die portable Ordnerstruktur 4.3** („Struktur über Namen") — Klammerwert = 4.3-Ordner.
-Der Bot-Chat selbst bleibt die Kommandobrücke (Dialog); die Kanäle sind Ablage.
+**Wachstums-Regel:** Ein Projekt bleibt Topic, bis es erkennbar herauswächst —
+erst dann eigene Gruppe. Lieber wenige lebende Zimmer als viele verödende.
 
-## Vorschläge — bitte je Zeile 👍/👎
+## Haus 1 — 🏠 „Jakuna-San" (BESTAND — bleibt unverändert)
 
-- [ ] **1. 📦 Recherchen & Referenzen** (`recherchen/`) — Zweck: alle
-  Recherche-Lieferungen, Referenz-PDFs, Quellen-Berichte. **Automatisch:** jede
-  PDF-/Recherche-Ausgabe des Bots (heutiges 6.1-Routing). Manuell: von dir
-  geteilte Fundstücke. *Meistgenutzter Ablage-Fall deiner echten Nutzung.*
-- [ ] **2. ⚽ Fußball** (`fussball/`) — Zweck: FC-Köln-/Fußball-Recherchen
-  (Trainer-/Kapitäns-Chroniken, Spielanalysen); später Andockpunkt für Fanpost.
-  **Automatisch:** Recherchen mit Fußball-Erkennung. *Größter Einzel-Themenstrang
-  außerhalb der Technik — verdient den eigenen Ort, sonst flutet er Nr. 1.*
-- [ ] **3. 🛠️ Technik & Migration** (`technik/`) — Zweck: Statusberichte,
-  Weitergabe-Blöcke, Deploy-/Testprotokolle — auch als Lese-Ort der
-  Kontrollsitzung. **Automatisch:** auf Zuruf geroutete Statusübersichten.
-  Manuell: angepinnte Beschlüsse. *Nach der Migration ruhiger — bleibt als
-  Systemgedächtnis.*
-- [ ] **4. 💼 Business & Blaupause** (`business/`) — Zweck: Markt-Checks,
-  Produkt-/Blaupause-Gedanken, Fairführung-Abstraktes (gelb — Konkretes bleibt
-  im sicheren Kanal). Überwiegend manuell + gezielte Recherchen.
-- [ ] **5. 🧾 Rechnungen & Papierkram** (`rechnungen/`) — Zweck: Ablage der
-  5.19-Ausgaben (Aufstellungen, Rechnungs-PDFs) zur schnellen Kontrolle.
-  **Automatisch:** sobald 5.19 gebaut ist. *Klein, aber klar abgegrenzt.*
-- [ ] **6. 🗄️ Archiv** (`archiv/`) — Zweck: Abgeschlossenes aus 1–5, manuell
-  verschoben, damit die lebenden Orte schlank bleiben. Kein Auto-Routing.
+Persönliche Gruppe, der Bot ist bereits Mitglied. Wird nur **erfasst**, nicht
+umgebaut: Dialog-Ort neben der Kommandobrücke (Bot-Direktchat). Kein Auto-Routing
+dorthin ohne gesonderten Entscheid.
 
-**Bewusst NICHT dabei:** Erinnerungen/Routinen (bekommen mit Phase 7 den eigenen
-Erinnerungskanal) · rote Inhalte (Klienten, Human Design konkret — laufen laut
-Ampel nie durch Telegram) · ein „Sonstiges" (erzeugt nur einen Müllschlucker).
+## Haus 2 — 🛠️ „Werkstatt" (`werkstatt/`) — NEU, bitte je Zimmer 👍/👎
 
-**Nächster Schritt nach deinem Daumen:** Struktur gemeinsam anlegen (Bau nach
-Phase 3), Routing-Regeln je Kanal in 6.1 verdrahten, 4.3-Ordner mit denselben
-Namen anlegen.
+Alles, woran aktiv gebaut wird:
+- [ ] **Migration & Technik** (`werkstatt/migration-technik/`) — Statusberichte,
+  Weitergabe-Blöcke, Deploy-/Testprotokolle; Lese-Ort der Kontrollsitzung.
+  Auto: angeforderte Statusübersichten · Manuell: angepinnte Beschlüsse.
+- [ ] **Fanpost** (`werkstatt/fanpost/`) — das Fanpost-Projekt (Läufe, Ausgaben,
+  Ideen). Auto: künftige Fanpost-Ausgaben · Manuell: Projektnotizen.
+- [ ] **Business & Blaupause** (`werkstatt/business-blaupause/`) — Markt-Checks,
+  Produkt-/Blaupause-Gedanken (gelb; Konkret-Sensibles bleibt im sicheren Kanal).
+  Überwiegend manuell + gezielte Recherchen.
+- [ ] **Rechnungen & Büro** (`werkstatt/rechnungen-buero/`) — 5.19-Ausgaben
+  (Aufstellungen, Rechnungs-PDFs), Papierkram. Auto: sobald 5.19 gebaut ist.
+
+## Haus 3 — 📚 „Archiv & Wissen" (`archiv-wissen/`) — NEU, bitte je Zimmer 👍/👎
+
+Alles, was gefunden, bewahrt und nachgeschlagen wird:
+- [ ] **Recherchen & Referenzen** (`archiv-wissen/recherchen-referenzen/`) —
+  Recherche-Lieferungen, Referenz-PDFs, Quellen-Berichte. **Auto: jede
+  PDF-/Recherche-Ausgabe des Bots** (heutiges 6.1-Routing zeigt hierhin).
+- [ ] **Link-Inbox** (`archiv-wissen/link-inbox/`) — Andockpunkt für 5.14
+  (Link rein → Index, Buttons Zusammenfassen/Vertiefen/Volltranskript).
+  Auto: Link-Verarbeitungen, sobald 5.14 gebaut ist.
+- [ ] **Interessen** (`archiv-wissen/interessen/`) — inkl. Fußball/FC Köln,
+  weitere Themen nach Bedarf. Auto: Recherchen mit Interessen-Erkennung ·
+  Manuell: Fundstücke.
+
+## Bewusst NICHT dabei
+
+Erinnerungen/Routinen (eigener Kanal in Phase 7) · rote Inhalte (laufen laut
+Ampel nie durch Telegram) · ein „Sonstiges"-Zimmer (Müllschlucker).
+
+## Notierte Ausbauwünsche
+
+- **6.5-Ergänzung (Adam 23.07.):** Vom Projekt-Topic direkt in die zugehörige
+  Code-Sitzung springen; **vorerst: gepinnter Link je Topic.**
+- Kanäle als reine Ausgabe-Feeds: erst, wenn ein Zimmer erkennbar zum
+  Broadcast-Fall wird.
+
+**Nächster Schritt nach deinem Daumen:** Häuser/Zimmer gemeinsam anlegen (Bau
+nach Phase 3), Routing je Zimmer in 6.1 verdrahten, 4.3-Ordner mit identischen
+Namen anlegen, gepinnte Sitzungs-Links setzen.

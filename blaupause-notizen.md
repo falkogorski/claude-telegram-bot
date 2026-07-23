@@ -87,7 +87,8 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | **Das Prüfnetz muss auch die eigenen Bauteile überführen** — zweimal am selben Tag fing eine frisch gebaute Selbstcheck-Zeile einen Fehler des Erbauers (Regex-Lücke im Repo-Schutz, fehlende Knopf-Registrierung) | 8.7 / Selbstcheck 23.07. | **universell** |
 | **Kein Neustart/Deploy in Abwesenheit des Nutzers ohne Not** — jede Startmeldung ist eine Push-Störung; Bündel warten auf den Moment, in dem die Meldung zugleich der nächste Handgriff ist | Betriebspraxis 23.07. | **universell** |
 | **Framework-Wechsel haben ein K.-o.-Kriterium VOR allen Feature-Vergleichen**: bleibt der bestehende (Kosten-)Auth-Weg nutzbar? Erst wenn ja, lohnt die Detailprüfung | 9.7 | **universell** |
-| **Ablage-Strukturen aus echter Nutzung ableiten, nicht aus Theorie** — Themenstränge in den realen Logs zählen, klein starten, Erweiterung einplanen | 6.6 | **universell** |
+| **Ablage-Strukturen aus echter Nutzung ableiten, nicht aus Theorie** — Themenstränge in den realen Logs zählen, klein starten, Erweiterung einplanen; ABER Nutzungs-Zahlen auf Test-Artefakte prüfen (der Fußball-Peak war Testmaterial, kein Fokus) | 6.6 / v2 23.07. | **universell** |
+| **Ablage-Struktur ist plattformneutral**: Häuser/Zimmer = Ordner/Unterordner mit identischer Terminologie — die bespielende KI dahinter ist austauschbar | 6.6 / 4.3 | **universell** |
 
 ## Betrieb & Infrastruktur
 

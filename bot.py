@@ -324,6 +324,7 @@ _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_FABLE,
                       _BTN_RESTART, _BTN_INFO,
                       _BTN_EFFORT_LOW, _BTN_EFFORT_MED, _BTN_EFFORT_MAX,
                       _BTN_EFFORT_LOW_ACTIVE, _BTN_EFFORT_MED_ACTIVE, _BTN_EFFORT_MAX_ACTIVE,
+                      _BTN_STT_ACC_TO_FAST, _BTN_STT_FAST_TO_ACC,
                       _BTN_STT_TO_FAST, _BTN_STT_TO_ACCURATE,
                       _BTN_STT_ACCURATE, _BTN_STT_FAST,
                       _BTN_STT_ACCURATE_ACTIVE, _BTN_STT_FAST_ACTIVE,
@@ -3813,6 +3814,33 @@ def run_self_check() -> tuple[bool, list[str]]:
         src = _insp.getsource(send_answer_to_user)
         assert "register_question" in src, "Sendepfad registriert keine Fragen"
     check("Emoji-Reaktionen (5.9)", _c_reactions)
+
+    # 15b. Tastatur-Vollständigkeit — JEDER Knopf, den _main_keyboard rendern
+    # kann, MUSS in _ALL_KEYBOARD_BTNS stehen (sonst geht der Druck als normale
+    # Nachricht an den Agenten — live passiert am 23.07. mit dem STT-Knopf) und
+    # jeder STT-Knopf zusätzlich in _STT_BTN_TARGET.
+    def _c_keyboard_complete() -> None:
+        global _ACTIVE_STT
+        saved_models, saved_active = dict(_STT_MODELS), _ACTIVE_STT
+        try:
+            _STT_MODELS.clear()
+            _STT_MODELS.update({"small": "x", "medium": "y"})
+            for active in ("small", "medium"):
+                _ACTIVE_STT = active
+                for model in ("haiku", "sonnet", "opus", "fable"):
+                    for effort in (None, "low", "max"):
+                        for row in _main_keyboard(False, model, effort).keyboard:
+                            for btn in row:
+                                assert btn.text in _ALL_KEYBOARD_BTNS, \
+                                    f"Knopf „{btn.text}“ fehlt in _ALL_KEYBOARD_BTNS"
+                                if btn.text.startswith("🎙️"):
+                                    assert btn.text in _STT_BTN_TARGET, \
+                                        f"STT-Knopf „{btn.text}“ fehlt in _STT_BTN_TARGET"
+        finally:
+            _STT_MODELS.clear()
+            _STT_MODELS.update(saved_models)
+            _ACTIVE_STT = saved_active
+    check("Tastatur-Vollständigkeit", _c_keyboard_complete)
 
     # 16. Reibungslose Recherche (5.25) — Herkunfts-Schranke + Geheimnis-Schutz.
     def _c_research() -> None:

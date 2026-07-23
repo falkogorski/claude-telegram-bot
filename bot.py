@@ -1375,6 +1375,24 @@ def _is_sensitive_ref(raw: str) -> bool:
     return any(m in s for m in _SENSITIVE_MARKERS)
 
 
+# 8.7 Governance-Härtung: Der Bot editiert sein eigenes Repo NIE — auch nicht
+# per Bash. Edit/Write dorthin lehnt der Callback längst ab; dieses Muster
+# schließt den Bash-Seitenweg (git commit/push, Redirects, in-place-sed …).
+# Lesen (cat, grep, git log/status/diff) bleibt frei. Bewusst konservativ:
+# ein Misch-Befehl (Repo-Pfad + Schreibmuster woanders) wird ebenfalls
+# abgelehnt — der Agent kann ihn aufteilen.
+_REPO_WRITE_RE = re.compile(
+    # git mit beliebigen Optionen (z. B. -C <pfad>) vor dem schreibenden Subcommand
+    r"\bgit\b[^|;&]*\b(?:commit|push|merge|rebase|reset|checkout|restore|clean|add|rm|mv|stash|am|apply|cherry-pick)\b"
+    r"|>{1,2}|\bsed\s+(?:-\S*\s+)*-i|\btee\b|\brm\b|\bmv\b|\bcp\b|\btouch\b|\bmkdir\b|\bchmod\b|\bln\b"
+)
+
+
+def _is_repo_write_cmd(cmd: str) -> bool:
+    c = cmd or ""
+    return "claude-telegram-bot" in c and bool(_REPO_WRITE_RE.search(c))
+
+
 def _tool_trace_line(chat_id: int, name: str, tool_input: dict) -> str:
     """5.25 (d): Klartext-Werkzeug-Spur — deutsche Tätigkeitszeile statt Tool-Name
     und Argumente (Adam-Entscheid, bewusste Revision der 17.07.-Rohform). Rohform
@@ -1475,6 +1493,15 @@ def make_permission_callback(user_id: int):
                     )
             except Exception:
                 pass
+
+        # 8.7: derselbe Schutz für den Bash-Seitenweg (git commit/push, >, sed -i …).
+        if tool_name == "Bash" and _is_repo_write_cmd(str(tool_input.get("command") or "")):
+            return PermissionResultDeny(
+                message="Schreibender Befehl ins Bot-Repo abgelehnt (8.7: der Bot "
+                        "editiert sein Repo nie — Deploys nur per git pull durch "
+                        "Adam/die Migrations-Sitzung). Lesen ist weiterhin frei; "
+                        "Misch-Befehle bitte aufteilen."
+            )
 
         # 5.25 (b) Geheimnis-Schutz: Verweise auf Secrets fallen IMMER in den
         # Dialog — vor jeder Auto-Freigabe geprüft, auch vor Always-Allow.
@@ -3867,6 +3894,28 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert src.index("sensitive = _is_sensitive_ref") < src.index(
             "sess.always_allowed_tools and"), "Geheimnis-Check muss VOR Always-Allow stehen"
     check("Reibungslose Recherche (5.25)", _c_research)
+
+    # 17. Governance 8.7 — der Bot kann sein Repo nicht beschreiben, und der
+    # VPS-Klon IST nachweislich unangetastet (auf dem Mac: nur Logik-Prüfung).
+    def _c_repo_readonly() -> None:
+        repo = "/home/claudebot/claude-telegram-bot"
+        # Schreibmuster werden erkannt, Lesen bleibt frei.
+        for bad in (f"cd {repo} && git commit -am x", f"git -C {repo} push",
+                    f"echo x > {repo}/bot.py", f"sed -i s/a/b/ {repo}/bot.py",
+                    f"rm {repo}/MIGRATION.md"):
+            assert _is_repo_write_cmd(bad), f"Schreibmuster nicht erkannt: {bad}"
+        for good in (f"git -C {repo} log --oneline", f"cat {repo}/MIGRATION.md",
+                     f"grep -r Ampel {repo}", "echo hallo > /tmp/x.txt"):
+            assert not _is_repo_write_cmd(good), f"Fehlalarm bei Lese-Befehl: {good}"
+        # Auf dem VPS zusätzlich: Klon hat keine lokalen Veränderungen.
+        if Path(repo).is_dir():
+            import subprocess
+            out = subprocess.run(["git", "-C", repo, "status", "--porcelain"],
+                                 capture_output=True, text=True, timeout=20)
+            dirty = [l for l in out.stdout.splitlines()
+                     if l.strip() and not l.strip().endswith("logs/")]
+            assert not dirty, f"VPS-Klon hat lokale Veränderungen: {dirty[:3]}"
+    check("Repo NUR-LESEN (8.7)", _c_repo_readonly)
 
     return state["ok"], results
 

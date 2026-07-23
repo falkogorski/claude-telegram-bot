@@ -1358,8 +1358,20 @@ def _url_host(url: str) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
+# Schemalose Domains („de.wikipedia.org/wiki/…", „fc.de") — so schreiben
+# Menschen Adressen. Live-Fund 23.07. (Test 6): Adams Wikipedia-Angabe ohne
+# https:// wurde nicht erkannt → die eigene Domain fragte fälschlich nach.
+# Letztes Label muss alphabetisch sein (schließt „5.9"/„2.7" aus); harmlose
+# Dateinamen-Treffer wie „bot.py" sind bewusst toleriert (niemand ruft sie ab).
+_BARE_DOMAIN_RE = re.compile(
+    r"(?<![\w@.\-])((?:[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?\.)+[a-z]{2,24})"
+    r"(?=[/\s.,;:!?)\"'»«]|$)",
+    re.IGNORECASE)
+
+
 def _extract_hosts(text: str) -> set[str]:
-    """Alle Hostnamen aus einem Text (Adams Nachricht, Suchtreffer)."""
+    """Alle Hostnamen aus einem Text (Adams Nachricht, Suchtreffer) —
+    mit UND ohne Schema/www-Präfix."""
     hosts = set()
     for m in _URL_RE.finditer(text or ""):
         h = m.group(1).split("/")[0].split(":")[0].lower()
@@ -1367,6 +1379,11 @@ def _extract_hosts(text: str) -> set[str]:
             h = h[4:]
         if "." in h:
             hosts.add(h)
+    for m in _BARE_DOMAIN_RE.finditer(text or ""):
+        h = m.group(1).lower()
+        if h.startswith("www."):
+            h = h[4:]
+        hosts.add(h)
     return hosts
 
 
@@ -1433,6 +1450,8 @@ def _tool_trace_line(chat_id: int, name: str, tool_input: dict) -> str:
         return "🗒️ aktualisiere meine Aufgabenliste"
     if name == "ToolSearch":
         return "🧰 lade Werkzeug nach …"
+    if name == "ScheduleWakeup":
+        return "⏲️ plane kurze Wartezeit …"
     if name == "WebSearch":
         return "🌐 Anthropic-Websuche (💰 kostenpflichtig)"
     return f"🔧 {name}"
@@ -3936,6 +3955,11 @@ def run_self_check() -> tuple[bool, list[str]]:
         hosts = _extract_hosts("Schau mal auf https://www.kicker.de/artikel und http://fc.de/x")
         assert hosts == {"kicker.de", "fc.de"}, f"Host-Extraktion falsch: {hosts}"
         assert _url_host("https://www.heise.de/news/1.html") == "heise.de"
+        # SCHEMALOSE Adressen — so schreiben Menschen (Live-Fund Test 6, 23.07.):
+        bare = _extract_hosts("Ruf de.wikipedia.org/wiki/1._FC_Köln ab, dann (fc.de).")
+        assert {"de.wikipedia.org", "fc.de"} <= bare, f"schemalose Domains fehlen: {bare}"
+        assert _extract_hosts("Punkt 5.9 gilt, Version 2.7 auch.") == set(), \
+            "Zahlen-Artefakte werden fälschlich zu Hosts"
         # Geheimnis-Schutz: sensible Verweise dürfen NIE als harmlos gelten.
         for bad in ("/home/claudebot/claude-telegram-bot/.env",
                     "/etc/claude-telegram-bot.env",

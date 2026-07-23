@@ -83,6 +83,16 @@ Befehle oder fertiger Nachrichtentext samt Empfänger-Instanz).
 - **Bei jeder Auth-/Modell-/Dienst-Änderung zuerst die Kostenfrage stellen:**
   „Kann hierdurch irgendwo Geld abgebucht werden — jetzt oder später?"
 
+## 4b. Bus-Faktor 1 — warum es dieses Dokument gibt
+
+Das System wird von **einer Person plus KI** getragen (Rotes-Team-Bericht A.3:
+Einzel-Maintainer-Verwaisung ist in dieser Projektklasse der Normalfall).
+Dieses Dokument, die Blaupause (9.6), `docs/REBUILD.md` und die Register sind
+das Gegenmittel: Jede neue Sitzung — und im Ernstfall ein fremder Mensch —
+muss allein aus dem Repo heraus arbeitsfähig werden. Deshalb gilt: Wissen, das
+nur in einem Chatverlauf oder einem Kopf existiert, ist nicht gesichert
+(CLAUDE.md „Laufende Sicherung").
+
 ## 5. Verweis statt Kopie
 
 Der aktuelle Sachstand (Phasen, offene Punkte, Entscheidungen) steht **immer**

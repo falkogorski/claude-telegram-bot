@@ -119,6 +119,19 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | **Jede Messung braucht eine Kontrollprobe**, die durchfallen muss — sonst misst man womöglich nichts (hier: die Emoji-Sonde meldete alles als gültig, auch Unsinn) | 5.9 | **universell** |
 | Abbruch-/Stopp-Signale nie auf ein sinnverwandtes Ersatzzeichen legen — Eindeutigkeit schlägt Bequemlichkeit | 5.9 | **universell** |
 | Test erst nach Deploy-Beweis (Selbstcheck-Zahl als Beleg, dass der neue Stand wirklich läuft) | 5.2 (Merkregel) | **universell** |
+| Kundenfähigkeit = **Klon-pro-Kunde** mit API-Backend (eigener Prozess, eigener Token, eigene Ablage), nie Multi-Tenant-Umbau des Einzelnutzer-Systems | Rotes Team D | **universell** |
+| Keine neuen globalen Singletons — `user_id` in neuen Funktionen als Parameter führen, auch im Einzelnutzer-Betrieb | Rotes Team D | **universell** |
+| Backend-Schalter `abo\|api` per env als **dokumentierte Sollbruchstelle** (Fanpost-Muster) — dokumentieren reicht, kein Vorab-Umbau | Rotes Team D / Strategie C | **universell** |
+| **Fundament-Updates sind Wartungsereignisse:** Version pinnen, Update nur im Wartungsfenster nach gebündeltem Regressionslauf | Rotes Team B.1 / 8.2 | **universell** |
+| **Abo nur fürs Arbeitspferd** mit hohem Dauervolumen; Spezialisten-/Neben-Rollen nie per Abo (lokal, Free-Tier oder Cent-Tokens mit 💰-Freigabe) | Strategie C.3 | **universell** |
+| Rollenprofil „Hauptagent" **modellneutral** beschreiben (Werkzeuge, Freigabe-Schleife, Streaming, Kontext, Sprache) — macht jeden Kandidaten in Stunden prüfbar | Strategie D.2 | **universell** |
+| **Daten und Regeln sind portabel, Modellgewichte nicht** — Weiterentwicklung in Memory/Regeln/Playbooks/Logs (RAG statt Gewichte) | Strategie D.3 | **universell** |
+| Klienten-Setups laufen NIE über das persönliche Abo des Betreibers | Strategie / 9.3 | **universell** |
+| Plattform-Limits (hier: Bot-Download 20 MB) beim Feature-Bau einpreisen; Ausweg dokumentieren statt still scheitern | Rotes Team B.4 / 5.12 | **anpassbar** (Telegram-Wert) |
+| Web-Panels auf dem eigenen Server **nie öffentlich** — nur VPN/SSH-Tunnel; öffentliche Ports nur mit Secret + unerratbarem Pfad + Firewall-Eingrenzung | Rotes Team C.1 / 1.9 / 3.1 | **universell** |
+| Dienst-Sandboxing auf Betriebssystem-Ebene (Schreibrechte nur aufs Arbeitsverzeichnis) als billige Schadensradius-Begrenzung | Rotes Team C.2 / 4d | **anpassbar** (hier systemd) |
+| Geplanter nächtlicher Prozess-Hygiene-Neustart gegen Langzeit-Degradation, mit stiller Startmeldung bei sauberem Lauf | Rotes Team C.3 / 4d | **universell** |
+| **Autonome Läufe takten sich nach der Ressource, die zuerst ausgeht** (Kontingent-Ökonomie: Durchhalten schlägt Klotzen; Eskalations-Kandidaten parken statt hochschalten) | CLAUDE.md Arbeitsprinzip | **universell** |
 
 ---
 

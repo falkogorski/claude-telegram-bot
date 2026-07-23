@@ -56,13 +56,20 @@ zuerst auf versteckte Zusatzgebühren prüfen** (wie bei Groq geschehen) —
   NICHT `ANTHROPIC_API_KEY`.** Alles möglichst über das **Abo (kostenfrei)**,
   solange es nicht „professionell/produktiv" wird.
 
-### AGB-Grenze des Abos — Automatik-Regel (übernommen aus adam-agent, 23.07.2026)
+### AGB-Grenze des Abos — Automatik-Regel (Stand 07/2026, Primärquelle geprüft)
 
-Die adam-agent-Doku (Stand Mai 2026) hält fest: Anthropics Nutzungsbedingungen
-untersagen gescriptete, CI-artige Dauernutzung unter den Abo-Plänen.
-⚠️ Ungeprüft gegen den heutigen Stand — vor Verankerung als harte Regel die
-AKTUELLEN Nutzungsbedingungen gegenlesen (Quelle ist 14 Monate alt). Als
-Bau-Leitplanke gilt bis dahin:
+**Aktualisiert 23.07.2026** gegen die Primärquelle
+`code.claude.com/docs/en/legal-and-compliance` (Abschnitt „Authentication and
+credential use", via Strategie-Bericht `docs/entscheidungsvorlagen/
+modell-plattform-strategie-bericht.md` A.2/D.1): OAuth-Auth ist „intended
+exclusively … to support ordinary use of Claude Code and other native Anthropic
+applications"; die Abo-Limits decken ausdrücklich „ordinary, individual usage
+of Claude Code and the Agent SDK". **Verboten ist Drittanbieter-Routing** „on
+behalf of their users" (seit 04.04.2026 auch technisch durchgesetzt, Sperrungen
+„without prior notice"). **Unser Einzelnutzer-Eigenbetrieb über die offizielle
+CLI/SDK ist die verträglichste Lesart — Restrisiko nicht null.** Der
+AGB-Wachposten (5.21) überwacht die Legal-Seite auf Änderungen der
+Auth-Passage. Als Bau-Leitplanke gilt:
 
 - **Erlaubt (Abo):** mensch-initiierte Steuerung — Adam schickt eine Nachricht,
   daraus folgt ein Modell-Aufruf. Genau so arbeitet der Bot heute.
@@ -73,6 +80,35 @@ Bau-Leitplanke gilt bis dahin:
   bewusst auf API-Pay-per-Token legen; dann greift die 💰-Warnpflicht
   (Kostenquelle + Höhe + Adams Freigabe). Bei der Umsetzung von 8.1 ausdrücklich
   mitprüfen, ob der Erreichbarkeits-Check einen Modell-Aufruf enthält.
+
+## 🌙 ARBEITSPRINZIP „NÄCHTE ARBEITEN, TAGE ENTSCHEIDEN" (Adam/Kontrolle 2026-07-23)
+
+Automatisierbares läuft **nachts autonom**; Adams Tageszeit ist für
+**Entscheidungen, Abnahmen und die Vorbereitung des nächsten Nachtblocks**
+reserviert. Regeln:
+
+- **Schwere Blöcke früh in die Nacht** legen; bei Kontingent-Stopp Stand
+  sichern und im nächsten Fenster bzw. nach Morgen-Anstoß nahtlos weiter.
+- **Jeder Nachtblock endet mit einem Morgen-Bericht** (erledigt / geparkt /
+  Fragen / heutige Adam-Aufgaben, max. 10 Zeilen).
+- **Akzeptanzkriterien sind unantastbar** — bei Zeitnot wird hinten gekürzt,
+  nie gepfuscht.
+- Nach der Migration: wiederkehrende Läufe **serverseitig** verankern
+  (Backlog „Cowork/Mac-Unabhängigkeit", Audit 9→10). Im Sprint bleibt der
+  Mac nachts an.
+
+### Kontingent-Ökonomie bei Nachtläufen (Adam-Nachtrag 23.07.)
+
+Autonome Nachtblöcke laufen standardmäßig auf **normaler/mittlerer
+Aufwandsstufe ohne Schnellmodus** — Durchhalten schlägt Klotzen: Ein Fenster,
+das acht Stunden trägt, schafft mehr als eine Maximalstufe, die nach 90
+Minuten leer ist. Stößt die Sitzung nachts auf eine Aufgabe, die erkennbar
+eine höhere Stufe oder ein stärkeres Modell bräuchte (hartes Debugging,
+Architektur-Abwägung): **Punkt parken** und im Morgen-Bericht mit Begründung
+als **„Eskalations-Kandidat"** melden — Adam schaltet dann gezielt für diese
+eine Aufgabe hoch (analog zur Park-Regel für Entscheidungsfragen).
+Abweichungen vom Standard nur, wenn Adam sie **vor** einem Lauf ausdrücklich
+festlegt. Gilt für alle künftigen Nacht-/Autonomie-Läufe.
 
 ## 🔗 BEZUGS-INTEGRITÄT — Abhängigkeits-Register (Adam-Anweisung 2026-07-16)
 

@@ -1,4 +1,7 @@
-claude-agent-sdk>=0.2.87
+# Fundament-Pinning (Rotes-Team-Bericht B.1, 23.07.2026): Das SDK buendelt die
+# Claude-Code-CLI (0.2.118 -> CLI 2.1.209). Update NUR im Wartungsfenster nach
+# scripts/regressionstest.sh (8.2-Minimaltest) — nie beilaeufig hochziehen.
+claude-agent-sdk==0.2.118
 python-telegram-bot>=22.7
 python-dotenv>=1.0
 edge-tts>=7.0

@@ -4231,9 +4231,17 @@ async def post_init(app: Application) -> None:
     # eigenständige Claude-Anfrage direkt nach der Startup-Nachricht ausgeführt.
     autorun_tasks: list[tuple[int, str]] = []  # (uid, autorun_text)
     try:
+        silent_ok = False  # [STILL]-Marker: planmäßiger Hygiene-Neustart —
+        # bei sauberem Start KEINE Telegram-Meldung (4-Uhr-Fenster, Rotes-Team
+        # C.3); Auffälligkeiten (Selbstcheck, Reconcile, Restart-Fenster-
+        # Eingänge) werden trotzdem gebündelt gemeldet.
         if _RESTART_REASON_FILE.exists():
             startup_msg = _RESTART_REASON_FILE.read_text(encoding="utf-8").strip()
             _RESTART_REASON_FILE.unlink(missing_ok=True)
+            if startup_msg.startswith("[STILL]"):
+                silent_ok = True
+                startup_msg = startup_msg[len("[STILL]"):].strip() or (
+                    "🌙 Nächtlicher Hygiene-Neustart (4-Uhr-Fenster).")
             # AUTORUN-Marker extrahieren
             if "[AUTORUN]:" in startup_msg:
                 parts = startup_msg.split("[AUTORUN]:", 1)
@@ -4285,6 +4293,7 @@ async def post_init(app: Application) -> None:
         # 5.2 Schritt 2: liegengebliebene Nachrichten aufgreifen (Hybrid). Steht
         # ganz oben in der Startup-Nachricht — es ist die wichtigste Information
         # nach einem unsauberen Neustart („ist etwas von mir untergegangen?").
+        reconcile_line = ""
         try:
             reconcile_line = _reconcile_pending(app)
             if reconcile_line:
@@ -4293,16 +4302,26 @@ async def post_init(app: Application) -> None:
             log.exception("Reconcile beim Start fehlgeschlagen (nicht-fatal)")
         # Selbstcheck der Kern-Invarianten bei JEDEM Start — fängt Regressionen ab.
         # Bei Erfolg eine knappe Zeile, bei Fehler laut + auffällig.
+        selfcheck_trouble = False
         try:
             ok, lines = run_self_check()
             if ok:
                 startup_msg += f"\n\nSelbstcheck: alle {len(lines)} Kernfunktionen ok."
             else:
+                selfcheck_trouble = True
                 fails = [l for l in lines if l.startswith("✗")]
                 startup_msg += ("\n\n⚠️ SELBSTCHECK-WARNUNG — bitte prüfen:\n" + "\n".join(fails))
         except Exception as e:
+            selfcheck_trouble = True
             startup_msg += f"\n\n⚠️ Selbstcheck konnte nicht laufen: {e}"
-        for uid in ALLOWED_USER_IDS:
+        # Stiller Hygiene-Neustart: sauber (kein Befund) → nur Log, kein Telegram.
+        noteworthy = bool(pending_info_line) or bool(reconcile_line) or selfcheck_trouble
+        if silent_ok and not noteworthy:
+            log.info("Hygiene-Neustart sauber — Startmeldung unterdrückt ([STILL]).")
+            send_targets: list[int] = []
+        else:
+            send_targets = list(ALLOWED_USER_IDS)
+        for uid in send_targets:
             try:
                 prefs = _USER_PREFS.get(str(uid), {})
                 kb = _main_keyboard(prefs.get("tts_enabled", False),

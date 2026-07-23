@@ -82,6 +82,7 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | **Kurzsignale brauchen eine persistente Bezugs-Registratur**: eine Reaktion/Geste ist nur mit ihrem Bezug (welche Frage?) eine Antwort — der Bezug muss Neustarts überleben | 5.9 | **universell** |
 | **Verhaltensklassen statt Einheitsreaktion**: Antwort-Signale lösen Arbeit aus, reine Wertschätzung wird still verbucht — nicht jede Geste verdient einen (kostenden) Lauf | 5.9 | **universell** |
 | **Plattform-Varianten normalisieren, bevor verglichen wird** (hier: Emoji mit/ohne VS16) — sonst gehen Treffer still verloren | 5.9 | **anpassbar** (das Muster „kanonisieren vor Vergleich" ist universell) |
+| **Zahlen-Anker nie aus LLM-Zusammenfassungen übernehmen** — Sprachmodelle zählen lange Listen unzuverlässig (drei Abfragen, drei Zahlen); zählbare Werte deterministisch aus dem Rohtext zählen | 5.25 (e) / 23.07. | **universell** |
 
 ## Betrieb & Infrastruktur
 

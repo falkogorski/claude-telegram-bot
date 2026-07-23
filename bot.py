@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json as _json
+import re
 import logging
 import os
 import socket
@@ -42,7 +43,9 @@ from claude_agent_sdk import (
     ResultMessage,
     TextBlock,
     ToolPermissionContext,
+    ToolResultBlock,
     ToolUseBlock,
+    UserMessage,
     tool,
     create_sdk_mcp_server,
 )
@@ -708,6 +711,11 @@ class UserSession:
     # NUR den Indikator ab; die 🔧-Werkzeug-Spur bleibt in jedem Fall sichtbar.
     quiet: bool = False
     tts_enabled: bool = False
+    # 5.25 (a) Herkunfts-Schranke: Hosts aus Adams Nachricht + Suchtreffern der
+    # LAUFENDEN Aufgabe. Nur dorthin darf WebFetch ohne Rückfrage. Wird bei jedem
+    # Job-Start neu befüllt (pro Aufgabe — eine wachsende Liste höhlte die
+    # Schranke aus, Umsetzungs-Hinweis im Drehbuch).
+    task_origins: set[str] = field(default_factory=set)
     current_model: str = field(default_factory=lambda: DEFAULT_MODEL)
     current_effort: str | None = None  # "low" / None (default) / "max"
     logger: ConversationLogger | None = None
@@ -1041,6 +1049,10 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
         sess = await ensure_session(user_id, effort_override="max", fresh=True)
     else:
         sess = await ensure_session(user_id)
+    # 5.25 (a): Herkunfts-Menge PRO AUFGABE frisch aufsetzen — Adressen aus Adams
+    # Nachricht; Suchtreffer der Aufgabe kommen in stream_response dazu. Nur
+    # dorthin darf WebFetch ohne Rückfrage.
+    sess.task_origins = _extract_hosts(job.text)
     # AUSSCHLIESSLICH Primitive (5.2): so läuft dieser Pfad identisch für frische
     # und für nach einem Neustart wiederaufgenommene Jobs (dort gibt es kein Update).
     sess.chat_id = job.chat_id
@@ -1320,6 +1332,77 @@ _COST_TOOLS = {
     "WebSearch": "⚠️ kostet ~1 Cent pro Suche (Anthropic-Werkzeuggebühr) — erlauben?",
 }
 
+# ---------- 5.25: Herkunfts-Schranke + Geheimnis-Schutz ----------
+
+_URL_RE = re.compile(r"(?:https?://|www\.)([^\s/<>\")\]]+)", re.IGNORECASE)
+
+
+def _url_host(url: str) -> str:
+    """Hostname einer URL, kleingeschrieben, ohne führendes www."""
+    m = _URL_RE.search(url or "")
+    host = (m.group(1) if m else "").split("/")[0].split(":")[0].lower()
+    return host[4:] if host.startswith("www.") else host
+
+
+def _extract_hosts(text: str) -> set[str]:
+    """Alle Hostnamen aus einem Text (Adams Nachricht, Suchtreffer)."""
+    hosts = set()
+    for m in _URL_RE.finditer(text or ""):
+        h = m.group(1).split("/")[0].split(":")[0].lower()
+        if h.startswith("www."):
+            h = h[4:]
+        if "." in h:
+            hosts.add(h)
+    return hosts
+
+
+# 5.25 (b) Geheimnis-Schutz: Verweise auf diese Muster werden NIE automatisch
+# freigegeben — sie fallen immer in den normalen Freigabe-Dialog (Adam sieht
+# und entscheidet). Kein Token darf je in Sitzungskontext oder Chat geraten.
+_SENSITIVE_MARKERS = (".env", "credentials", "token", "secret", "_key", "key.",
+                      "keys.", "id_ed25519", "id_rsa", "/etc/claude-telegram-bot")
+
+
+def _is_sensitive_ref(raw: str) -> bool:
+    s = (raw or "").lower()
+    return any(m in s for m in _SENSITIVE_MARKERS)
+
+
+def _tool_trace_line(chat_id: int, name: str, tool_input: dict) -> str:
+    """5.25 (d): Klartext-Werkzeug-Spur — deutsche Tätigkeitszeile statt Tool-Name
+    und Argumente (Adam-Entscheid, bewusste Revision der 17.07.-Rohform). Rohform
+    jederzeit per /technik. Jede Web-Adresse bleibt sichtbar (Herkunfts-Schranke)."""
+    if _USER_PREFS.get(str(chat_id), {}).get("raw_tools"):
+        return f"🔧 {name}"
+    if name == _SEARCH_TOOL_NAME:
+        q = " ".join(str(tool_input.get("query") or "").split())[:60]
+        return f"🔎 recherchiere: „{q}“ …" if q else "🔎 recherchiere im Web …"
+    if name == "WebFetch":
+        host = _url_host(str(tool_input.get("url") or ""))
+        return f"📄 lese {host} …" if host else "📄 lese Webseite …"
+    if name == "Read":
+        raw = str(tool_input.get("file_path") or "")
+        try:
+            if raw and _MEMORY_DIR.resolve() in Path(raw).expanduser().resolve().parents:
+                return "📂 schaue in meinen Notizen nach …"
+        except Exception:
+            pass
+        base = Path(raw).name
+        return f"📖 lese {base} …" if base else "📖 lese Datei …"
+    if name in ("Grep", "Glob"):
+        return "🔍 durchsuche Dateien …"
+    if name == "Bash":
+        cmd = " ".join(str(tool_input.get("command") or "").split())[:60]
+        return f"🖥️ führe aus: {cmd}" if cmd else "🖥️ führe Befehl aus …"
+    if name in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
+        base = Path(str(tool_input.get("file_path") or "")).name
+        return f"✏️ bearbeite {base}" if base else "✏️ bearbeite Datei"
+    if name == "TodoWrite":
+        return "🗒️ aktualisiere meine Aufgabenliste"
+    if name == "WebSearch":
+        return "🌐 Anthropic-Websuche (💰 kostenpflichtig)"
+    return f"🔧 {name}"
+
 
 def format_tool_call(tool_name: str, tool_input: dict[str, Any]) -> str:
     """Pretty-print a tool call for the permission prompt (plain text only)."""
@@ -1386,21 +1469,41 @@ def make_permission_callback(user_id: int):
             except Exception:
                 pass
 
+        # 5.25 (b) Geheimnis-Schutz: Verweise auf Secrets fallen IMMER in den
+        # Dialog — vor jeder Auto-Freigabe geprüft, auch vor Always-Allow.
+        _ref = str(tool_input.get("file_path") or tool_input.get("path")
+                   or tool_input.get("pattern") or tool_input.get("command")
+                   or tool_input.get("url") or "")
+        sensitive = _is_sensitive_ref(_ref)
+
         # Kosten-Tools (z. B. WebSearch) NIE über die Always-Allow-Liste durchwinken —
         # jede Nutzung muss einzeln mit Kostenhinweis bestätigt werden (Kostenregel).
-        if tool_name in sess.always_allowed_tools and tool_name not in _COST_TOOLS:
+        if (tool_name in sess.always_allowed_tools and tool_name not in _COST_TOOLS
+                and not sensitive):
             return PermissionResultAllow()
 
-        # Session-Diät (5.23): Lesen im Memory-Ordner ohne Rückfrage erlauben —
-        # der Agent lädt Detailwissen bei Bedarf selbst nach (nur lesend, eigener
-        # Memory-Ordner, kein Risiko).
-        if tool_name in ("Read", "Grep", "Glob"):
+        # 5.25 (a) WebFetch mit Herkunfts-Schranke: kostenfrei + lesend, aber nur
+        # zu Adressen aus Adams Nachricht oder Suchtreffern der LAUFENDEN Aufgabe.
+        # Von abgerufenen Webseiten nachgereichte Ziele → normaler Dialog (sonst
+        # könnte eine gelesene Seite den Agenten zu Folge-Abrufen dirigieren).
+        # Sichtbar bleibt jeder Abruf über die Klartext-Werkzeug-Spur.
+        if tool_name == "WebFetch" and not sensitive:
+            host = _url_host(str(tool_input.get("url") or ""))
+            if host and host in sess.task_origins:
+                return PermissionResultAllow()
+
+        # 5.25 (a) + Session-Diät (5.23): Lesen in Workspace + Memory-Ordner ohne
+        # Rückfrage — der Agent recherchiert/liest selbst nach (nur lesend).
+        # Schreibende/ausführende Werkzeuge bleiben freigabepflichtig.
+        if tool_name in ("Read", "Grep", "Glob") and not sensitive:
             raw = tool_input.get("file_path") or tool_input.get("path") or ""
             try:
-                if raw:
-                    p = Path(raw).expanduser().resolve()
-                    md = _MEMORY_DIR.resolve()
-                    if p == md or md in p.parents:
+                if not raw:
+                    # Grep/Glob ohne Pfad durchsuchen den Workspace (cwd).
+                    return PermissionResultAllow()
+                p = Path(raw).expanduser().resolve()
+                for base in (_MEMORY_DIR.resolve(), Path(WORKDIR).expanduser().resolve()):
+                    if p == base or base in p.parents:
                         return PermissionResultAllow()
             except Exception:
                 pass
@@ -1412,7 +1515,9 @@ def make_permission_callback(user_id: int):
         log.info("permission requested: user=%s req=%s tool=%s",
                  user_id, request_id, tool_name)
 
-        body = format_tool_call(tool_name, tool_input)
+        # 5.25 (d): Klartext zuerst, technische Details darunter.
+        body = (f"{_tool_trace_line(user_id, tool_name, tool_input)}\n\n"
+                f"{format_tool_call(tool_name, tool_input)}")
         if tool_name in _COST_TOOLS:
             body = f"💰 {_COST_TOOLS[tool_name]}\n\n{body}"
         rows = [
@@ -1466,7 +1571,16 @@ def make_permission_callback(user_id: int):
         if decision == "deny":
             return PermissionResultDeny(message="denied by user")
         if decision.startswith("always:"):
-            sess.always_allowed_tools.add(decision.split(":", 1)[1])
+            tname = decision.split(":", 1)[1]
+            sess.always_allowed_tools.add(tname)
+            # 5.25 (c): dauerhaft merken — überlebt Reset/Neustart. 💰-Tools
+            # kommen hier nie an (kein Always-Knopf im Dialog).
+            prefs = _USER_PREFS.setdefault(str(user_id), {})
+            stored = set(prefs.get("always_allow", []))
+            if tname not in stored:
+                stored.add(tname)
+                prefs["always_allow"] = sorted(stored)
+                _save_prefs(_USER_PREFS)
             return PermissionResultAllow()
         return PermissionResultDeny(message="unknown decision")
 
@@ -1554,6 +1668,11 @@ _QUALITY_GUIDANCE = (
     "- Für Websuche das Tool **`web_search`** nutzen (lokale private Suche, "
     "**kostenfrei**) — NICHT die kostenpflichtige WebSearch. Treffer-URLs bei "
     "Bedarf mit WebFetch vertiefen (ebenfalls kostenfrei).\n"
+    "- **Mehrquellen-Regel für Faktenlisten** (Chronologien, Aufzählungen, "
+    "Zahlenreihen): mindestens zwei unabhängige Quellen abgleichen, die Quellen "
+    "in der Antwort NENNEN, Lücken und Widersprüche ausdrücklich kennzeichnen "
+    "statt still zu raten. Bei erkennbaren Listen-Fragen von selbst gründlicher "
+    "suchen statt aus einer Einzelquelle zu bauen.\n"
     "\n"
     "# REPO-ZUGRIFF (Führungs-Register, siehe CLAUDE.md im Repo)\n"
     "- Du darfst das Projekt-Repo (/home/claudebot/claude-telegram-bot) LESEN — "
@@ -1714,6 +1833,8 @@ async def ensure_session(
         current_model=model_short,  # Kurzname für Anzeige und Vergleiche
         current_effort=effort,
         logger=ConversationLogger(user_id),
+        # 5.25 (c): dauerhaft gemerkte Freigaben laden (überleben Reset/Neustart).
+        always_allowed_tools=set(user_prefs.get("always_allow", [])),
     )
     SESSIONS[user_id] = sess
     log.info("opened session for user_id=%s in %s", user_id, WORKDIR)
@@ -1890,6 +2011,11 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
     if "small" in _STT_MODELS and "medium" in _STT_MODELS:
         lines.append(f"🎙️ Voice-Transkription: {_stt_label(_ACTIVE_STT)}")
+
+    # 5.25 (c): dauerhaft gemerkte Freigaben sichtbar machen.
+    _aa = _USER_PREFS.get(str(user_id), {}).get("always_allow", [])
+    if _aa:
+        lines.append(f"🔓 Dauerfreigaben: {', '.join(_aa)} (/freigaben)")
 
     # 5.2: liegende Persistenz-Records (Normalbetrieb: leer; nach hartem Reboot
     # zeigt sich hier, was noch nicht abgearbeitet ist).
@@ -2126,6 +2252,8 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/whereami — Kanal-Info anzeigen\n"
         "/whoami — User-Info\n"
         "/stopp — ✋ Laufende Aufgabe abbrechen\n"
+        "/freigaben — Dauerhafte Werkzeug-Freigaben zeigen (reset zum Löschen)\n"
+        "/technik — Werkzeug-Spur: Klartext ↔ technische Rohform\n"
         "/restart — Bot neu starten\n"
         "/selfcheck — Selbsttest ausführen\n"
         "/hilfe — Diese Befehlsübersicht\n\n"
@@ -2759,6 +2887,52 @@ async def on_option_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
         + ". Führe die gewählte Option aus bzw. antworte entsprechend.]"
     )
     _enqueue_reaction_job(user_id, chat_id, message_id, prompt, query.get_bot())
+
+
+async def cmd_technik(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """5.25 (d): Werkzeug-Spur zwischen Klartext (Standard) und Rohform umschalten."""
+    if not authorized(update):
+        return
+    user_id = update.effective_user.id
+    prefs = _USER_PREFS.setdefault(str(user_id), {})
+    prefs["raw_tools"] = not prefs.get("raw_tools", False)
+    _save_prefs(_USER_PREFS)
+    if prefs["raw_tools"]:
+        await update.message.reply_text(
+            "🔧 Werkzeug-Spur zeigt jetzt die technische Rohform (Tool-Namen). "
+            "Zurück mit /technik.")
+    else:
+        await update.message.reply_text(
+            "💬 Werkzeug-Spur zeigt jetzt Klartext (z. B. 🔎 recherchiere …). "
+            "Rohform mit /technik.")
+
+
+async def cmd_freigaben(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """5.25 (c): dauerhaft gemerkte Always-Allow-Freigaben zeigen / zurücksetzen."""
+    if not authorized(update):
+        return
+    user_id = update.effective_user.id
+    prefs = _USER_PREFS.setdefault(str(user_id), {})
+    args = (update.message.text or "").split()
+    if len(args) > 1 and args[1].lower() in ("reset", "weg", "löschen", "loeschen"):
+        prefs.pop("always_allow", None)
+        _save_prefs(_USER_PREFS)
+        sess = SESSIONS.get(user_id)
+        if sess is not None:
+            sess.always_allowed_tools.clear()
+        await update.message.reply_text(
+            "🔒 Alle dauerhaften Freigaben gelöscht — jedes Werkzeug fragt wieder nach.")
+        return
+    stored = prefs.get("always_allow", [])
+    if stored:
+        await update.message.reply_text(
+            "🔓 Dauerhaft freigegebene Werkzeuge:\n"
+            + "\n".join(f"  • {t}" for t in stored)
+            + "\n\nZurücksetzen mit: /freigaben reset")
+    else:
+        await update.message.reply_text(
+            "🔒 Keine dauerhaften Freigaben gespeichert — jedes Werkzeug fragt nach "
+            "(außer den automatisch erlaubten Lese-Werkzeugen).")
 
 
 async def cmd_stopp(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3581,6 +3755,32 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert "register_question" in src, "Sendepfad registriert keine Fragen"
     check("Emoji-Reaktionen (5.9)", _c_reactions)
 
+    # 16. Reibungslose Recherche (5.25) — Herkunfts-Schranke + Geheimnis-Schutz.
+    def _c_research() -> None:
+        # Host-Extraktion (Grundlage der Herkunfts-Schranke).
+        hosts = _extract_hosts("Schau mal auf https://www.kicker.de/artikel und http://fc.de/x")
+        assert hosts == {"kicker.de", "fc.de"}, f"Host-Extraktion falsch: {hosts}"
+        assert _url_host("https://www.heise.de/news/1.html") == "heise.de"
+        # Geheimnis-Schutz: sensible Verweise dürfen NIE als harmlos gelten.
+        for bad in ("/home/claudebot/claude-telegram-bot/.env",
+                    "/etc/claude-telegram-bot.env",
+                    "/home/claudebot/.claude/.credentials.json",
+                    "cat ~/.ssh/id_ed25519_logsync",
+                    "logs/api_token.txt"):
+            assert _is_sensitive_ref(bad), f"Geheimnis-Schutz greift nicht: {bad}"
+        assert not _is_sensitive_ref("/home/claudebot/workspace/notizen.md"), \
+            "Geheimnis-Schutz überzieht auf harmlose Pfade"
+        # Struktur-Invarianten im Callback: Schranke + Schutz sind verdrahtet,
+        # WebSearch bleibt Kosten-Dialog, Always-Allow prüft sensitive.
+        import inspect as _insp
+        src = _insp.getsource(make_permission_callback)
+        assert "task_origins" in src, "Herkunfts-Schranke nicht im Callback"
+        assert "_is_sensitive_ref" in src, "Geheimnis-Schutz nicht im Callback"
+        assert "WebSearch" in _COST_TOOLS, "WebSearch-Kostendialog entfernt"
+        assert src.index("sensitive = _is_sensitive_ref") < src.index(
+            "sess.always_allowed_tools and"), "Geheimnis-Check muss VOR Always-Allow stehen"
+    check("Reibungslose Recherche (5.25)", _c_research)
+
     return state["ok"], results
 
 
@@ -3776,6 +3976,8 @@ async def post_init(app: Application) -> None:
             BotCommand("hilfe", "Alle Befehle anzeigen"),
             BotCommand("stopp", "✋ Laufende Aufgabe abbrechen"),
             BotCommand("status", "Queue & Session-Übersicht"),
+            BotCommand("freigaben", "Dauerhafte Werkzeug-Freigaben"),
+            BotCommand("technik", "Werkzeug-Spur: Klartext ↔ Rohform"),
             BotCommand("presend", "Pre-Send-Hook — Kennzahlen"),
             BotCommand("ampel", "Ampel — Regeln & Status"),
             BotCommand("usage", "Token-Verbrauch heute"),
@@ -5616,13 +5818,26 @@ async def stream_response(
                             sess.logger.log_assistant_text(block.text)
                         parts.append(block.text)
                     elif isinstance(block, ToolUseBlock):
-                        # 🔧-Lebenszeichen — BEWUSST unabhängig von quiet: ohne
-                        # Live-Textstrom ist die Werkzeug-Spur bei langen Recherche-
-                        # Turns das einzige Zeichen, dass überhaupt gearbeitet wird.
-                        await send_chunked(sess.bot, chat_id, f"🔧 {block.name}",
-                                           thread_id=thread_id)
+                        # Werkzeug-Lebenszeichen — BEWUSST unabhängig von quiet:
+                        # ohne Live-Textstrom ist die Spur bei langen Recherche-
+                        # Turns das einzige Zeichen, dass gearbeitet wird.
+                        # 5.25 (d): Klartext statt Tool-Name; Rohform via /technik.
+                        await send_chunked(
+                            sess.bot, chat_id,
+                            _tool_trace_line(chat_id, block.name, block.input or {}),
+                            thread_id=thread_id)
                         if sess.logger:
                             sess.logger.log_tool(block.name)
+            elif isinstance(msg, UserMessage):
+                # 5.25 (a): Suchtreffer der laufenden Aufgabe erweitern die
+                # Herkunfts-Menge — deren Adressen darf WebFetch ohne Klick abrufen.
+                sess.last_activity = time.monotonic()
+                try:
+                    for block in (getattr(msg, "content", None) or []):
+                        if isinstance(block, ToolResultBlock):
+                            sess.task_origins |= _extract_hosts(str(block.content))
+                except Exception:
+                    pass
             elif isinstance(msg, ResultMessage):
                 if sess.logger and claude_turn_started:
                     sess.logger.end_turn()
@@ -5794,6 +6009,8 @@ def main() -> None:
     app.add_handler(CommandHandler("setkanal", cmd_setkanal))
     app.add_handler(CommandHandler("selfcheck", cmd_selfcheck))
     app.add_handler(CommandHandler("stopp", cmd_stopp))
+    app.add_handler(CommandHandler("technik", cmd_technik))
+    app.add_handler(CommandHandler("freigaben", cmd_freigaben))
     app.add_handler(CallbackQueryHandler(on_option_callback, pattern=r"^opt:"))
     app.add_handler(CallbackQueryHandler(on_permission_callback, pattern=r"^p:"))
     app.add_handler(CallbackQueryHandler(on_ampel_callback, pattern=r"^amp:"))

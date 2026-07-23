@@ -33,9 +33,14 @@ run "Syntax presend.py"                 "$PY" -m py_compile presend.py
 # fuer den reinen Invarianten-Check reichen Platzhalter (kein Telegram-Kontakt).
 # WICHTIG: nur fuer DIESEN einen Aufruf setzen, nicht global exportieren —
 # die Verhaltenstests bringen eigene Fixture-Envs mit (Kollisions-Lehre 23.07.).
+MEMDIR="${CLAUDE_MEMORY_DIR:-}"
+if [ -z "$MEMDIR" ] && [ -f "$HOME/.claude/memory/MEMORY.md" ]; then
+  MEMDIR="$HOME/.claude/memory"
+fi
 run "Selbstcheck-Invarianten (run_self_check)" env \
   TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-000000:selfcheck-dummy}" \
   ALLOWED_USER_IDS="${ALLOWED_USER_IDS:-1}" \
+  ${MEMDIR:+CLAUDE_MEMORY_DIR="$MEMDIR"} \
   "$PY" -c "
 import bot
 ok, lines = bot.run_self_check()

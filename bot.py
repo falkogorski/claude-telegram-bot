@@ -1424,6 +1424,8 @@ def _tool_trace_line(chat_id: int, name: str, tool_input: dict) -> str:
         return f"✏️ bearbeite {base}" if base else "✏️ bearbeite Datei"
     if name == "TodoWrite":
         return "🗒️ aktualisiere meine Aufgabenliste"
+    if name == "ToolSearch":
+        return "🧰 lade Werkzeug nach …"
     if name == "WebSearch":
         return "🌐 Anthropic-Websuche (💰 kostenpflichtig)"
     return f"🔧 {name}"
@@ -1700,8 +1702,10 @@ _QUALITY_GUIDANCE = (
     "'bitte gegenprüfen') — lieber ehrlich unsicher als selbstbewusst falsch.\n"
     "- **Keine ungeprüften Behauptungen** als Tatsache ausgeben.\n"
     "- Für Websuche das Tool **`web_search`** nutzen (lokale private Suche, "
-    "**kostenfrei**) — NICHT die kostenpflichtige WebSearch. Treffer-URLs bei "
-    "Bedarf mit WebFetch vertiefen (ebenfalls kostenfrei).\n"
+    "**kostenfrei**) — die kostenpflichtige WebSearch ist reine NOTFALL-Option "
+    "(nur wenn ausdrücklich verlangt oder web_search versagt; Adam bestätigt "
+    "jede Nutzung einzeln im 💰-Dialog). Treffer-URLs bei Bedarf mit WebFetch "
+    "vertiefen (kostenfrei).\n"
     "- **Mehrquellen-Regel für Faktenlisten** (Chronologien, Aufzählungen, "
     "Zahlenreihen): mindestens zwei unabhängige Quellen abgleichen, die Quellen "
     "in der Antwort NENNEN, Lücken und Widersprüche ausdrücklich kennzeichnen "
@@ -1849,9 +1853,11 @@ async def ensure_session(
         model=model_full,
         effort=effort,
         add_dirs=add_dirs,
-        # Private, kostenfreie Websuche (2.7) statt kostenpflichtiger Anthropic-WebSearch.
+        # Private, kostenfreie Websuche (2.7) als Standardweg. Anthropic-WebSearch
+        # ist seit 23.07. (Adam-Entscheid „Variante 2") NICHT mehr hart deaktiviert,
+        # sondern bewusste Notfall-Option: _COST_TOOLS erzwingt für JEDE Nutzung
+        # den 💰-Einzeldialog mit Kostenhinweis — nie Always-Allow, nie automatisch.
         mcp_servers={"suche": _SEARCH_MCP},
-        disallowed_tools=["WebSearch"],
         setting_sources=["project"] if context_via_file else None,
         system_prompt={
             "type": "preset",

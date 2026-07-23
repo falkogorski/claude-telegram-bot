@@ -6289,10 +6289,39 @@ def main() -> None:
     # während der Downtime gesendete Sprach-/Textnachricht verloren, bevor sie
     # je transkribiert/geloggt wird. Veraltete Permission-Klicks sind ungefährlich,
     # weil on_permission_callback fehlende Futures sauber abfängt.
-    app.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=DROP_PENDING_UPDATES,
-    )
+    # 1.9-Vorbereitung (23.07.2026): Webhook-Modus als env-Schalter — Default
+    # bleibt Polling. Umschalten NUR gemeinsam mit Adam (Umschaltmoment!).
+    # Rote Auflagen (Rotes-Team C.1): secret_token Pflicht, unerratbarer Pfad,
+    # Firewall-Eingrenzung auf Telegram-Netze (149.154.160.0/20, 91.108.4.0/22).
+    # Der Bot lauscht nur auf 127.0.0.1; TLS terminiert der Reverse-Proxy.
+    bot_mode = (os.environ.get("BOT_MODE") or "polling").strip().lower()
+    if bot_mode == "webhook":
+        webhook_url = os.environ.get("WEBHOOK_URL", "").strip()
+        secret_token = os.environ.get("WEBHOOK_SECRET_TOKEN", "").strip()
+        url_path = os.environ.get("WEBHOOK_PATH", "").strip().lstrip("/")
+        listen_port = int(os.environ.get("WEBHOOK_LISTEN_PORT") or "8081")
+        missing = [n for n, v in (("WEBHOOK_URL", webhook_url),
+                                  ("WEBHOOK_SECRET_TOKEN", secret_token),
+                                  ("WEBHOOK_PATH", url_path)) if not v]
+        if missing:
+            raise SystemExit(
+                "BOT_MODE=webhook, aber Pflicht-Envs fehlen (rote Auflagen 1.9): "
+                + ", ".join(missing))
+        log.info("Starte im WEBHOOK-Modus (Port %d, Pfad /%s…)", listen_port, url_path[:8])
+        app.run_webhook(
+            listen="127.0.0.1",
+            port=listen_port,
+            url_path=url_path,
+            webhook_url=webhook_url.rstrip("/") + "/" + url_path,
+            secret_token=secret_token,
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=DROP_PENDING_UPDATES,
+        )
+    else:
+        app.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=DROP_PENDING_UPDATES,
+        )
 
 
 if __name__ == "__main__":

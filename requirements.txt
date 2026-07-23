@@ -2,7 +2,8 @@
 # Claude-Code-CLI (0.2.118 -> CLI 2.1.209). Update NUR im Wartungsfenster nach
 # scripts/regressionstest.sh (8.2-Minimaltest) — nie beilaeufig hochziehen.
 claude-agent-sdk==0.2.118
-python-telegram-bot>=22.7
+# [webhooks]-Extra (tornado) fuer den 1.9-Webhook-Modus — Umschalten nur mit Adam
+python-telegram-bot[webhooks]>=22.7
 python-dotenv>=1.0
 edge-tts>=7.0
 pymupdf>=1.24

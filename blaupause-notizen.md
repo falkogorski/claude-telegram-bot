@@ -89,6 +89,7 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 | **Framework-Wechsel haben ein K.-o.-Kriterium VOR allen Feature-Vergleichen**: bleibt der bestehende (Kosten-)Auth-Weg nutzbar? Erst wenn ja, lohnt die Detailprüfung | 9.7 | **universell** |
 | **Ablage-Strukturen aus echter Nutzung ableiten, nicht aus Theorie** — Themenstränge in den realen Logs zählen, klein starten, Erweiterung einplanen; ABER Nutzungs-Zahlen auf Test-Artefakte prüfen (der Fußball-Peak war Testmaterial, kein Fokus) | 6.6 / v2 23.07. | **universell** |
 | **Ablage-Struktur ist plattformneutral**: Häuser/Zimmer = Ordner/Unterordner mit identischer Terminologie — die bespielende KI dahinter ist austauschbar | 6.6 / 4.3 | **universell** |
+| **Vertrauen pro Quelle statt pro Werkzeug**: Ein pauschales „immer erlauben" auf ein Abruf-Werkzeug entfernt genau den Wächter gegen fremdgesteuerte Ziele — dauerhafte Freigaben gehören an die Domain/Quelle, nie ans Werkzeug; Alt-Einträge heilen sich beim Laden selbst | 5.25 (a) / 23.07. | **universell** |
 
 ## Betrieb & Infrastruktur
 

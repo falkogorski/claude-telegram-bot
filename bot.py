@@ -1339,6 +1339,13 @@ _COST_TOOLS = {
     "WebSearch": "⚠️ kostet ~1 Cent pro Suche (Anthropic-Werkzeuggebühr) — erlauben?",
 }
 
+# Werkzeuge, die NIE pauschal dauerfreigebbar sind (23.07., Adam-Entscheid nach
+# Live-Fund): 💰-Tools sowieso — und WebFetch, weil ein pauschales Always genau
+# den einen Wächter entfernt, den die Herkunfts-Schranke darstellt (fremde
+# Seiten könnten dann klicklos Folge-Abrufe steuern/exfiltrieren). Vertrauen
+# wird stattdessen PRO DOMAIN vergeben (trusted_domains in den Prefs).
+_NO_ALWAYS_TOOLS = {"WebFetch"} | set(_COST_TOOLS)
+
 # ---------- 5.25: Herkunfts-Schranke + Geheimnis-Schutz ----------
 
 _URL_RE = re.compile(r"(?:https?://|www\.)([^\s/<>\")\]]+)", re.IGNORECASE)
@@ -1512,20 +1519,22 @@ def make_permission_callback(user_id: int):
                    or tool_input.get("url") or "")
         sensitive = _is_sensitive_ref(_ref)
 
-        # Kosten-Tools (z. B. WebSearch) NIE über die Always-Allow-Liste durchwinken —
-        # jede Nutzung muss einzeln mit Kostenhinweis bestätigt werden (Kostenregel).
-        if (tool_name in sess.always_allowed_tools and tool_name not in _COST_TOOLS
-                and not sensitive):
+        # Kosten-Tools + WebFetch NIE über die Always-Allow-Liste durchwinken
+        # (_NO_ALWAYS_TOOLS): 💰 wegen der Kostenregel, WebFetch wegen der
+        # Herkunfts-Schranke. Alt-Einträge werden beim Session-Aufbau gefiltert.
+        if (tool_name in sess.always_allowed_tools
+                and tool_name not in _NO_ALWAYS_TOOLS and not sensitive):
             return PermissionResultAllow()
 
         # 5.25 (a) WebFetch mit Herkunfts-Schranke: kostenfrei + lesend, aber nur
-        # zu Adressen aus Adams Nachricht oder Suchtreffern der LAUFENDEN Aufgabe.
-        # Von abgerufenen Webseiten nachgereichte Ziele → normaler Dialog (sonst
-        # könnte eine gelesene Seite den Agenten zu Folge-Abrufen dirigieren).
-        # Sichtbar bleibt jeder Abruf über die Klartext-Werkzeug-Spur.
+        # zu Adressen aus Adams Nachricht, Suchtreffern der LAUFENDEN Aufgabe —
+        # oder von Adam PRO DOMAIN dauerhaft freigegebenen Quellen. Von Webseiten
+        # nachgereichte fremde Ziele → Dialog (sonst könnte eine gelesene Seite
+        # den Agenten zu Folge-Abrufen dirigieren). Spur bleibt immer sichtbar.
         if tool_name == "WebFetch" and not sensitive:
             host = _url_host(str(tool_input.get("url") or ""))
-            if host and host in sess.task_origins:
+            trusted = set(_USER_PREFS.get(str(user_id), {}).get("trusted_domains", []))
+            if host and (host in sess.task_origins or host in trusted):
                 return PermissionResultAllow()
 
         # 5.25 (a) + Session-Diät (5.23): Lesen in Workspace + Memory-Ordner ohne
@@ -1562,8 +1571,18 @@ def make_permission_callback(user_id: int):
                 InlineKeyboardButton("❌ Deny", callback_data=f"p:{request_id}:deny"),
             ],
         ]
-        # „Always allow" NICHT für Kosten-Tools anbieten (muss jedes Mal bestätigt werden).
-        if tool_name not in _COST_TOOLS:
+        # „Always allow" NICHT für 💰-Tools und WebFetch anbieten (_NO_ALWAYS_TOOLS).
+        # Bei WebFetch stattdessen: Vertrauen PRO DOMAIN (Adam-Entscheid 23.07.).
+        if tool_name == "WebFetch":
+            _host = _url_host(str(tool_input.get("url") or ""))
+            if _host and len(_host) <= 40:
+                rows.append([
+                    InlineKeyboardButton(
+                        f"🔓 {_host} immer erlauben",
+                        callback_data=f"p:{request_id}:domain:{_host}",
+                    ),
+                ])
+        elif tool_name not in _NO_ALWAYS_TOOLS:
             rows.append([
                 InlineKeyboardButton(
                     f"🔓 Always allow {tool_name}",
@@ -1608,15 +1627,31 @@ def make_permission_callback(user_id: int):
             return PermissionResultDeny(message="denied by user")
         if decision.startswith("always:"):
             tname = decision.split(":", 1)[1]
+            # Doppelter Boden: _NO_ALWAYS_TOOLS (WebFetch, 💰) sind nie pauschal
+            # dauerfreigebbar — auch nicht über einen manipulierten Callback.
+            if tname in _NO_ALWAYS_TOOLS:
+                return PermissionResultAllow()  # gilt nur für DIESE eine Anfrage
             sess.always_allowed_tools.add(tname)
-            # 5.25 (c): dauerhaft merken — überlebt Reset/Neustart. 💰-Tools
-            # kommen hier nie an (kein Always-Knopf im Dialog).
+            # 5.25 (c): dauerhaft merken — überlebt Reset/Neustart.
             prefs = _USER_PREFS.setdefault(str(user_id), {})
             stored = set(prefs.get("always_allow", []))
             if tname not in stored:
                 stored.add(tname)
                 prefs["always_allow"] = sorted(stored)
                 _save_prefs(_USER_PREFS)
+            return PermissionResultAllow()
+        if decision.startswith("domain:"):
+            # 🔓 Domain-Merkliste (23.07.): Vertrauen pro QUELLE statt pauschal
+            # pro Werkzeug — ergänzt die Herkunfts-Schranke, hebelt sie nie aus.
+            host = decision.split(":", 1)[1].strip().lower()
+            if host:
+                prefs = _USER_PREFS.setdefault(str(user_id), {})
+                trusted = set(prefs.get("trusted_domains", []))
+                if host not in trusted:
+                    trusted.add(host)
+                    prefs["trusted_domains"] = sorted(trusted)
+                    _save_prefs(_USER_PREFS)
+                log.info("trusted domain hinzugefügt: user=%s host=%s", user_id, host)
             return PermissionResultAllow()
         return PermissionResultDeny(message="unknown decision")
 
@@ -1867,14 +1902,24 @@ async def ensure_session(
     )
     client = ClaudeSDKClient(options=options)
     await client.connect()
+    # 5.25 (c): dauerhaft gemerkte Freigaben laden — dabei SELBSTHEILUNG:
+    # Einträge aus _NO_ALWAYS_TOOLS (WebFetch, 💰) werden entfernt und die
+    # bereinigte Liste zurückgeschrieben (Adams Live-Klick „Always allow
+    # WebFetch" vom 23.07. hätte sonst die Herkunfts-Schranke ausgehebelt).
+    _stored_allow = set(user_prefs.get("always_allow", []))
+    _cleaned_allow = _stored_allow - _NO_ALWAYS_TOOLS
+    if _cleaned_allow != _stored_allow:
+        _USER_PREFS.setdefault(str(user_id), {})["always_allow"] = sorted(_cleaned_allow)
+        _save_prefs(_USER_PREFS)
+        log.info("always_allow bereinigt (user=%s): %s entfernt", user_id,
+                 sorted(_stored_allow - _cleaned_allow))
     sess = UserSession(
         client=client,
         tts_enabled=user_prefs.get("tts_enabled", False),
         current_model=model_short,  # Kurzname für Anzeige und Vergleiche
         current_effort=effort,
         logger=ConversationLogger(user_id),
-        # 5.25 (c): dauerhaft gemerkte Freigaben laden (überleben Reset/Neustart).
-        always_allowed_tools=set(user_prefs.get("always_allow", [])),
+        always_allowed_tools=_cleaned_allow,
     )
     SESSIONS[user_id] = sess
     log.info("opened session for user_id=%s in %s", user_id, WORKDIR)
@@ -2292,7 +2337,8 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/whereami — Kanal-Info anzeigen\n"
         "/whoami — User-Info\n"
         "/stopp — ✋ Laufende Aufgabe abbrechen\n"
-        "/freigaben — Dauerhafte Werkzeug-Freigaben zeigen (reset zum Löschen)\n"
+        "/freigaben — Dauerfreigaben zeigen: Werkzeuge + vertraute Domains "
+        "(reset zum Löschen)\n"
         "/technik — Werkzeug-Spur: Klartext ↔ technische Rohform\n"
         "/restart — Bot neu starten\n"
         "/selfcheck — Selbsttest ausführen\n"
@@ -3009,23 +3055,32 @@ async def cmd_freigaben(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     args = (update.message.text or "").split()
     if len(args) > 1 and args[1].lower() in ("reset", "weg", "löschen", "loeschen"):
         prefs.pop("always_allow", None)
+        prefs.pop("trusted_domains", None)
         _save_prefs(_USER_PREFS)
         sess = SESSIONS.get(user_id)
         if sess is not None:
             sess.always_allowed_tools.clear()
         await update.message.reply_text(
-            "🔒 Alle dauerhaften Freigaben gelöscht — jedes Werkzeug fragt wieder nach.")
+            "🔒 Alle dauerhaften Freigaben gelöscht (Werkzeuge UND vertraute "
+            "Domains) — es wird wieder gefragt.")
         return
     stored = prefs.get("always_allow", [])
+    domains = prefs.get("trusted_domains", [])
+    lines = []
     if stored:
-        await update.message.reply_text(
-            "🔓 Dauerhaft freigegebene Werkzeuge:\n"
-            + "\n".join(f"  • {t}" for t in stored)
-            + "\n\nZurücksetzen mit: /freigaben reset")
+        lines.append("🔓 Dauerhaft freigegebene Werkzeuge:")
+        lines += [f"  • {t}" for t in stored]
+    if domains:
+        lines.append("🌐 Vertraute Domains (WebFetch fragt dort nie):")
+        lines += [f"  • {d}" for d in domains]
+    if lines:
+        lines.append("\nZurücksetzen mit: /freigaben reset")
+        await update.message.reply_text("\n".join(lines))
     else:
         await update.message.reply_text(
-            "🔒 Keine dauerhaften Freigaben gespeichert — jedes Werkzeug fragt nach "
-            "(außer den automatisch erlaubten Lese-Werkzeugen).")
+            "🔒 Keine dauerhaften Freigaben gespeichert — es wird gefragt "
+            "(außer den automatisch erlaubten Lese-Werkzeugen und der "
+            "Herkunfts-Schranke bei Recherchen).")
 
 
 async def cmd_stopp(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3898,7 +3953,16 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert "_is_sensitive_ref" in src, "Geheimnis-Schutz nicht im Callback"
         assert "WebSearch" in _COST_TOOLS, "WebSearch-Kostendialog entfernt"
         assert src.index("sensitive = _is_sensitive_ref") < src.index(
-            "sess.always_allowed_tools and"), "Geheimnis-Check muss VOR Always-Allow stehen"
+            "sess.always_allowed_tools\n"), "Geheimnis-Check muss VOR Always-Allow stehen"
+        # WebFetch darf NIE pauschal dauerfreigebbar sein (23.07.): die Menge
+        # ist verdrahtet im Always-Zweig, im Knopf-Angebot UND in der
+        # Selbstheilung beim Session-Aufbau; Vertrauen läuft pro Domain.
+        assert "WebFetch" in _NO_ALWAYS_TOOLS and "WebSearch" in _NO_ALWAYS_TOOLS
+        assert src.count("_NO_ALWAYS_TOOLS") >= 3, \
+            "_NO_ALWAYS_TOOLS nicht überall verdrahtet (Always-Zweig/Knopf/Callback)"
+        assert "trusted_domains" in src, "Domain-Merkliste nicht im Callback"
+        assert "_NO_ALWAYS_TOOLS" in _insp.getsource(ensure_session), \
+            "Selbstheilung alter Always-Einträge fehlt im Session-Aufbau"
     check("Reibungslose Recherche (5.25)", _c_research)
 
     # 17. Governance 8.7 — der Bot kann sein Repo nicht beschreiben, und der

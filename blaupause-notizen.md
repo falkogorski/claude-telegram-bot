@@ -82,6 +82,9 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 | **Bot-eigenes Fehlerlog statt Systemlog-Zugriff für die Kontrollinstanz** (least privilege: kein journalctl-Recht, Fehler wandern über den Log-Sync) | 5.15 | **anpassbar** |
 | **Kontingent-Sichtbarkeit als Relay echter Anbieter-Warnungen**, nicht als selbstgebauter Zähler — und ehrliches „technisch nicht verfügbar" statt Näherung | 5.20 | **universell** |
 | **Voll-Stummschalter für Fortschritts-FYI, Sicherheits-Rückfragen bleiben** — Ruhe ist wählbar, aber nie auf Kosten der Freigabe-Kontrolle | 5.25 d | **universell** |
+| **Zeitgesteuerte Selbstüberwachung ohne teure Inferenz**: der tägliche Funktionscheck läuft rein deterministisch (Status/Test/Alter/Redelivery), meldet nur bei Problemen, protokolliert immer | 8.1 | **universell** |
+| **Gesundheit am Rückstau messen, nicht am letzten Fehler**: ein alter, eingefrorener Fehler bei leerer Warteschlange ist gesund — der echte Alarm ist der wachsende Stau | 8.1 | **universell** |
+| **Übergangs-Modi kennen ihre Eigenheiten**: nach dem Umstieg auf Push-Zustellung entfällt der Pull-Peek — der Verlust-Schutz wandert auf die native Redelivery + die eigene Persistenz | 8.3/1.9 | **anpassbar** (Telegram) |
 | **Wächter müssen sperrfrei arbeiten** — wer auf die Sperre des Hängenden wartet, hängt mit | 5.18 | **universell** |
 | **Wartende Rückfragen sind kein Stillstand** — Stille auf eine offene Frage ist gewollt | 5.18 | **universell** |
 | **Pre-Send-Prüfung**: vollständige Antwort erst prüfen, dann senden (setzt Sammeln statt Durchreichen voraus) | 8.5 | **universell** |

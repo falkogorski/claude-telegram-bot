@@ -4467,24 +4467,32 @@ async def post_init(app: Application) -> None:
         # Der Peek konsumiert die Updates nicht (kein Folge-getUpdates mit
         # höherem offset), das normale run_polling holt sie regulär ab und
         # verarbeitet sie über die Handler.
+        # 8.3/1.9: Im WEBHOOK-Modus ist getUpdates NICHT nutzbar (Telegram gibt 409,
+        # solange ein Webhook gesetzt ist) — Telegram stellt die im Restart-Fenster
+        # aufgelaufenen Updates ohnehin selbst über den Webhook nach. Peek überspringen.
         pending_info_line = ""
-        try:
-            pending_updates = await app.bot.get_updates(timeout=0, limit=100)
-            relevant = [
-                u for u in pending_updates
-                if u.message is not None
-                or u.edited_message is not None
-                or u.message_reaction is not None
-            ]
-            if relevant:
-                n = len(relevant)
-                word = "Nachricht" if n == 1 else "Nachrichten"
-                pending_info_line = (
-                    f"📨 {n} {word} aus dem Restart-Fenster — wird gleich abgearbeitet."
-                )
-                log.info("pending-updates-check: %d update(s) warten in der Pipeline", n)
-        except Exception:
-            log.warning("pending-updates-check failed (ignored)", exc_info=True)
+        _webhook_mode = (os.environ.get("BOT_MODE") or "polling").strip().lower() == "webhook"
+        if _webhook_mode:
+            log.info("Webhook-Modus: getUpdates-Peek übersprungen (Telegram stellt "
+                     "Restart-Fenster-Updates selbst nach).")
+        else:
+            try:
+                pending_updates = await app.bot.get_updates(timeout=0, limit=100)
+                relevant = [
+                    u for u in pending_updates
+                    if u.message is not None
+                    or u.edited_message is not None
+                    or u.message_reaction is not None
+                ]
+                if relevant:
+                    n = len(relevant)
+                    word = "Nachricht" if n == 1 else "Nachrichten"
+                    pending_info_line = (
+                        f"📨 {n} {word} aus dem Restart-Fenster — wird gleich abgearbeitet."
+                    )
+                    log.info("pending-updates-check: %d update(s) warten in der Pipeline", n)
+            except Exception:
+                log.warning("pending-updates-check failed (ignored)", exc_info=True)
         if pending_info_line:
             startup_msg = pending_info_line + "\n\n" + startup_msg
 

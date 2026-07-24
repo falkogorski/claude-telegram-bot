@@ -33,6 +33,11 @@ ERRLOG="${LOG_SYNC_ERRLOG:-$(dirname "$SRC")/bot-errors.log}"
 if [ -f "$ERRLOG" ]; then
   cp "$ERRLOG" bot-errors.log
 fi
+# 8.1: tägliches Check-Protokoll mitsyncen (Kontrollsitzung sieht die 4-Uhr-Läufe).
+CHECKLOG="${LOG_SYNC_CHECKLOG:-$(dirname "$SRC")/daily-check.log}"
+if [ -f "$CHECKLOG" ]; then
+  cp "$CHECKLOG" daily-check.log
+fi
 
 git add -A
 if git diff --cached --quiet; then

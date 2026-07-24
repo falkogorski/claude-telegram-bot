@@ -28,8 +28,8 @@ Kenntnis. Einschätzung: **anpassbar** (Namensebene, von der Technik entkoppelt)
 
 **Bewahrte Gründungs-/Geschäftsdokumente** (reine Ablage — inhaltlich hier NICHT
 umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
-- „Momo — Geschäftsmodell-Skizze v13" → `docs/entscheidungsvorlagen/` (ROLLE: `entscheidungsvorlage-momo-business`) — *wird verlinkt, sobald Adam die Datei liefert.*
-- „Der Abend, an dem Momo seinen Namen fand" → `docs/entscheidungsvorlagen/` (ROLLE: `gruendungs-erzaehlung-momo`) — *wird verlinkt, sobald Adam die Datei liefert.*
+- „Momo — Geschäftsmodell-Skizze (Klon-Concierge, v13)" → [`docs/entscheidungsvorlagen/momo-business-skizze.md`](docs/entscheidungsvorlagen/momo-business-skizze.md) (ROLLE: `entscheidungsvorlage-momo-business`)
+- „Der Abend, an dem Momo seinen Namen fand" (Gründungserzählung) → [`docs/entscheidungsvorlagen/momo-gruendungserzaehlung.md`](docs/entscheidungsvorlagen/momo-gruendungserzaehlung.md) (ROLLE: `gruendungs-erzaehlung-momo`) · Lesefassung [`.pdf`](docs/entscheidungsvorlagen/momo-gruendungserzaehlung.pdf)
 
 ---
 

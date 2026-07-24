@@ -91,6 +91,9 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 | **Aktualität register-getrieben, nicht erinnerungsgetrieben**: ein zentrales Komponenten-Register + deterministischer Monitor (kostenfreie Versionsquellen) meldet Updates; Installation bleibt bewusste Handlung, Major-Sprünge markiert | 5.21/E5 | **universell** |
 | **Register-Pflege als Teil der „fertig"-Definition**: jede neue versionierte Komponente wird beim Einbau eingetragen — sonst altert sie unbemerkt | 5.21/E5 | **universell** |
 | **Zeit-Trigger bleiben inferenzfrei**: was die Uhr auslöst, ruft nie das Abo-Modell (AGB) — Prüfungen, die ein Modell bräuchten, laufen menschgetriggert | 5.21/8.1 | **anpassbar** (Anbieter-AGB) |
+| **Token-Bündelung an einer Stelle**: nur der Kanal-Inhaber hält das Geheimnis; andere Instanzen legen Aufträge in ein Postfach, statt selbst zu senden — das Geheimnis verlässt nie seinen Prozess | B/Postfach | **universell** |
+| **Postfach mit Ziel-Allowlist + Geheimnis-Filter**: ein Versand-Dienst prüft, WOHIN und WAS gesendet werden darf — sonst wird er zum Exfiltrations-Kanal | B/Postfach | **universell** |
+| **Governance heißt, was sie sagt**: „lesen ja, schreiben nie" darf Lesen nicht faktisch mitsperren — die Schranke sitzt exakt am Schreiben, nicht am Zugriff | 8.7 | **universell** |
 | **Wächter müssen sperrfrei arbeiten** — wer auf die Sperre des Hängenden wartet, hängt mit | 5.18 | **universell** |
 | **Wartende Rückfragen sind kein Stillstand** — Stille auf eine offene Frage ist gewollt | 5.18 | **universell** |
 | **Pre-Send-Prüfung**: vollständige Antwort erst prüfen, dann senden (setzt Sammeln statt Durchreichen voraus) | 8.5 | **universell** |

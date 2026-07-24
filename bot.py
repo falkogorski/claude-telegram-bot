@@ -3450,6 +3450,117 @@ async def heartbeat_writer() -> None:
         await asyncio.sleep(HEARTBEAT_INTERVAL_S)
 
 
+# ---------- Boten-Postfach (B, Ausgang) ----------
+# Ein Postfach-Ordner AUSSERHALB des Repos: andere Instanzen (Bot-Sitzung,
+# Kontrollsitzung …) legen einen Auftrag als *.json in outbox/ ab — Ziel
+# (chat_id [+ thread_id]) + Text und/oder Datei + Caption. Der Bot (der den
+# Token OHNEHIN hält) versendet; so kommt der Token NIE in einen fremden
+# Sitzungskontext. Verarbeitete Aufträge wandern nach sent/ bzw. failed/.
+# Konvention für Ableger: erst .tmp schreiben, dann → *.json umbenennen (atomar).
+_POSTFACH_DIR = Path(os.environ.get("POSTFACH_DIR") or (Path.home() / "postfach"))
+POSTFACH_INTERVAL_S = 15
+
+
+def _postfach_target_ok(chat_id: int) -> bool:
+    """Ziel-Allowlist: nur an Adam, den Ausgabekanal oder ein registriertes
+    Haus (Phase 6) — nie an beliebige fremde Chats."""
+    if chat_id in ALLOWED_USER_IDS:
+        return True
+    if OUTPUT_CHANNEL_ID and chat_id == OUTPUT_CHANNEL_ID:
+        return True
+    if _USER_PREFS.get("output_channel_id") and chat_id == int(_USER_PREFS["output_channel_id"]):
+        return True
+    try:
+        for h in channels.house_overview(_USER_PREFS):
+            if h.get("chat_id") and int(h["chat_id"]) == chat_id:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+async def _postfach_send_one(app: Application, claimed: Path,
+                             sent_dir: Path, failed_dir: Path) -> None:
+    orig = claimed.name[:-len(".processing")] if claimed.name.endswith(".processing") else claimed.name
+
+    def _move(dest_dir: Path, note: str = "") -> None:
+        try:
+            if note:
+                (dest_dir / (orig + ".note")).write_text(note, encoding="utf-8")
+            claimed.rename(dest_dir / orig)
+        except Exception:
+            log.warning("postfach move failed", exc_info=True)
+
+    try:
+        data = _json.loads(claimed.read_text(encoding="utf-8"))
+    except Exception as e:
+        _log_bot_error("postfach parse", e)
+        _move(failed_dir, f"parse-Fehler: {e}")
+        return
+
+    try:
+        chat_id = int(data["target_chat_id"])
+    except Exception as e:
+        _move(failed_dir, f"target_chat_id fehlt/ungültig: {e}")
+        return
+    if not _postfach_target_ok(chat_id):
+        _move(failed_dir, f"Ziel {chat_id} nicht in der Allowlist (Adam/Ausgabekanal/Haus).")
+        return
+
+    thread_id = data.get("thread_id")
+    text = data.get("text")
+    filep = data.get("file")
+    caption = data.get("caption")
+
+    # Geheimnis-Schutz: keine sensiblen Dateien über das Postfach versenden.
+    if filep and _is_sensitive_ref(str(filep)):
+        _move(failed_dir, f"Datei ist ein Geheimnis-Pfad — Versand verweigert: {filep}")
+        return
+    if filep and not Path(filep).is_file():
+        _move(failed_dir, f"Datei nicht gefunden: {filep}")
+        return
+    if not filep and not text:
+        _move(failed_dir, "Auftrag ohne text UND ohne file.")
+        return
+
+    try:
+        if filep:
+            with open(filep, "rb") as fh:
+                await app.bot.send_document(
+                    chat_id=chat_id, document=fh, filename=Path(filep).name,
+                    caption=(caption or None), message_thread_id=thread_id)
+        if text:
+            await app.bot.send_message(
+                chat_id=chat_id, text=text, message_thread_id=thread_id)
+        _move(sent_dir)
+        log.info("postfach: Auftrag %s an %s zugestellt.", orig, chat_id)
+    except Exception as e:
+        _log_bot_error("postfach send", e)
+        _move(failed_dir, f"Sende-Fehler: {e}")
+
+
+async def postfach_worker(app: Application) -> None:
+    """Scannt outbox/ und stellt Aufträge zu (B, Ausgangs-Richtung)."""
+    outbox = _POSTFACH_DIR / "outbox"
+    sent_dir = _POSTFACH_DIR / "sent"
+    failed_dir = _POSTFACH_DIR / "failed"
+    for d in (outbox, sent_dir, failed_dir):
+        d.mkdir(parents=True, exist_ok=True)
+    log.info("Boten-Postfach aktiv: %s", outbox)
+    while True:
+        try:
+            for job in sorted(outbox.glob("*.json")):
+                claimed = job.with_name(job.name + ".processing")
+                try:
+                    job.rename(claimed)  # atomarer Claim
+                except Exception:
+                    continue
+                await _postfach_send_one(app, claimed, sent_dir, failed_dir)
+        except Exception:
+            log.warning("postfach worker loop error", exc_info=True)
+        await asyncio.sleep(POSTFACH_INTERVAL_S)
+
+
 # ---------- watchdog ----------
 # Long Mac sleeps occasionally leave python-telegram-bot's getUpdates loop in
 # a wedged state — process alive, polling silently dead. We periodically ping
@@ -4263,6 +4374,19 @@ def run_self_check() -> tuple[bool, list[str]]:
             assert not dirty, f"VPS-Klon hat lokale Veränderungen: {dirty[:3]}"
     check("Repo NUR-LESEN (8.7)", _c_repo_readonly)
 
+    # 18. Boten-Postfach (B): Ziel-Allowlist greift + Geheimnis-Dateien werden
+    # nicht versendet (Verdrahtung im Sende-Pfad).
+    def _c_postfach() -> None:
+        import inspect as _insp
+        assert ALLOWED_USER_IDS, "ALLOWED_USER_IDS leer"
+        any_uid = next(iter(ALLOWED_USER_IDS))
+        assert _postfach_target_ok(any_uid), "Adam nicht in Postfach-Allowlist"
+        assert not _postfach_target_ok(999999999), "Postfach-Allowlist zu offen"
+        s = _insp.getsource(_postfach_send_one)
+        assert "_is_sensitive_ref" in s, "Postfach sendet Geheimnis-Dateien ungeprüft"
+        assert "_postfach_target_ok" in s, "Postfach prüft Ziel nicht"
+    check("Boten-Postfach (B)", _c_postfach)
+
     return state["ok"], results
 
 
@@ -4439,6 +4563,8 @@ async def post_init(app: Application) -> None:
     app.create_task(stall_watchdog(app), name="stall_watchdog")
     log.info("Stall-Wächter gestartet (Intervall=%ds, Limit=%ds, Wiederholungen=%d)",
              STALL_CHECK_INTERVAL_S, STALL_LIMIT_S, MAX_STALL_RETRIES)
+    # B: Boten-Postfach — Ausgangs-Aufträge anderer Instanzen zustellen.
+    app.create_task(postfach_worker(app), name="postfach")
 
     # Bot-Username für Rücksprung-Links (Ausgabekanal → Bot-Chat) einmalig cachen.
     global _BOT_USERNAME

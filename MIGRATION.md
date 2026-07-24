@@ -741,6 +741,7 @@ Absturzfall ausdrücklich auf 5.18).
 ### 6.1 Ausgabekanal generisch für ALLE Auswertungen
 - **Status:** OFFEN
 - **Akzeptanzkriterium:** PDF, Video, Foto, Recherche landen alle im Ausgabekanal; Hinweis im Bot-Chat mit Deep-Link. `[NEU 2026-07-22]` Bei der Ausgestaltung mitdenken: **intelligentes Zwischenablagesystem** (Bot-Sitzung 22.07.) — eine Ablage-Zwischenstufe, aus der Fundstücke gezielt in Kanäle/Ordner weiterwandern, statt alles sofort final einzusortieren (Feinkonzept mit Phase 6 + 4.3).
+- `[NEU 2026-07-24]` **Merk-Notiz „Instanzen-Postfach" (Adam, nach dem Audit — hier nur registriert, kein Sprint-Punkt):** Umkehrrichtung des Log-Syncs — Web-/Kontrollsitzungen (ohne Telegram-Zugang) sollen über einen **Repo-Inbox-Ordner** Nachrichten an den Bot übergeben können, den der Bot in definierte Telegram-Topics zustellt. Anwendungsfall Nr. 1: einen Gedanken direkt nach „Jakuna-San" pinnen. Verzahnt mit dem Kanal-/Topic-Routing dieser Phase und der Log-Sync-Kette (4.2). Ausarbeitung erst beim Phase-6-Bau.
 - **Test:** Je eine Auswertung pro Typ.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —

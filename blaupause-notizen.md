@@ -19,6 +19,20 @@ ergänzt — fester Teil der „fertig"-Definition jedes Punkts.
 
 ---
 
+## Business & Gründung (9.6-Kapitel) `[NEU 2026-07-24]`
+
+**Arbeitsname des Projekts: „Momo"** (intern, ab 24.07.2026). **Keine Umbenennung
+im Bestand** — Repo, Dienste, Pfade, systemd-Units behalten ihre Namen;
+Umbenennen mitten im Sprint wäre reines Risiko ohne Nutzen. Nur diese Notiz zur
+Kenntnis. Einschätzung: **anpassbar** (Namensebene, von der Technik entkoppelt).
+
+**Bewahrte Gründungs-/Geschäftsdokumente** (reine Ablage — inhaltlich hier NICHT
+umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
+- „Momo — Geschäftsmodell-Skizze v13" → `docs/entscheidungsvorlagen/` (ROLLE: `entscheidungsvorlage-momo-business`) — *wird verlinkt, sobald Adam die Datei liefert.*
+- „Der Abend, an dem Momo seinen Namen fand" → `docs/entscheidungsvorlagen/` (ROLLE: `gruendungs-erzaehlung-momo`) — *wird verlinkt, sobald Adam die Datei liefert.*
+
+---
+
 ## Regeln, Werte, Leitplanken
 
 | Was | Punkt | Einschätzung |

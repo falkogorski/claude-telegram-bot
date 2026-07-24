@@ -64,6 +64,21 @@
       "note": "Docker-Image lobehub/lobe-chat:latest. Update = docker pull + Container neu (nur localhost pruefen!)."
     },
     {
+      "name": "pandoc",
+      "kind": "manual",
+      "note": "PDF-Kette (C, apt). Sicherheits-Updates via unattended-upgrades; Major bewusst."
+    },
+    {
+      "name": "weasyprint",
+      "kind": "manual",
+      "note": "PDF-Engine (C, apt). Sicherheits-Updates via unattended-upgrades; Major bewusst."
+    },
+    {
+      "name": "docker.io",
+      "kind": "manual",
+      "note": "Container-Laufzeit (LobeChat 3.1, apt). Sicherheits-Updates via unattended-upgrades."
+    },
+    {
       "name": "debian",
       "kind": "manual",
       "note": "OS. Sicherheits-Updates via unattended-upgrades automatisch; Point-Release-Upgrades bewusst."

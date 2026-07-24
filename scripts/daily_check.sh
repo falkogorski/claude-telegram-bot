@@ -87,6 +87,17 @@ else
   add "ℹ️ Polling-Modus (kein Webhook-Check)"
 fi
 
+# --- 6. LobeChat-Sicherheits-Invariante (3.1): nur localhost, nie öffentlich --
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^lobe-chat$'; then
+  bind="$(ss -tlnH 'sport = :3210' 2>/dev/null | awk '{print $4}' | head -1)"
+  if echo "$bind" | grep -q '^127\.0\.0\.1:'; then
+    add "✅ LobeChat nur localhost ($bind)"
+  else
+    red "LobeChat lauscht NICHT nur auf localhost: '${bind:-?}' — OpenClaw-Risiko!"
+  fi
+  if ufw status 2>/dev/null | grep -q '3210'; then red "ufw: Port 3210 offen — LobeChat darf NIE öffentlich sein!"; fi
+fi
+
 # --- Protokoll + Meldung ------------------------------------------------------
 {
   echo "===== 4-Uhr-Check $STAMP ====="

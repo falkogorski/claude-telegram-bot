@@ -85,6 +85,9 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 | **Zeitgesteuerte Selbstüberwachung ohne teure Inferenz**: der tägliche Funktionscheck läuft rein deterministisch (Status/Test/Alter/Redelivery), meldet nur bei Problemen, protokolliert immer | 8.1 | **universell** |
 | **Gesundheit am Rückstau messen, nicht am letzten Fehler**: ein alter, eingefrorener Fehler bei leerer Warteschlange ist gesund — der echte Alarm ist der wachsende Stau | 8.1 | **universell** |
 | **Übergangs-Modi kennen ihre Eigenheiten**: nach dem Umstieg auf Push-Zustellung entfällt der Pull-Peek — der Verlust-Schutz wandert auf die native Redelivery + die eigene Persistenz | 8.3/1.9 | **anpassbar** (Telegram) |
+| **Web-Panel nur hinter dem Tunnel**: das Interface bindet an localhost, kein offener Port, Zugang ausschließlich über verschlüsselten Tunnel (SSH/VPN) — der Tunnel ist die Verschlüsselung, extra-TLS optional | 3.1 | **universell** |
+| **Sicherheits-Invarianten aktiv überwachen, nicht nur einmal setzen**: der tägliche Check verifiziert, dass das Panel weiter nur auf localhost lauscht — eine Fehlkonfiguration meldet sich selbst | 3.1/8.1 | **universell** |
+| **Zweitinterface ohne Abo-Zugang**: das Web-Frontend spricht nur lokale/Neben-Modelle, der teure Hauptagent bleibt dem kontrollierten Kanal vorbehalten | 3.1 | **anpassbar** |
 | **Wächter müssen sperrfrei arbeiten** — wer auf die Sperre des Hängenden wartet, hängt mit | 5.18 | **universell** |
 | **Wartende Rückfragen sind kein Stillstand** — Stille auf eine offene Frage ist gewollt | 5.18 | **universell** |
 | **Pre-Send-Prüfung**: vollständige Antwort erst prüfen, dann senden (setzt Sammeln statt Durchreichen voraus) | 8.5 | **universell** |

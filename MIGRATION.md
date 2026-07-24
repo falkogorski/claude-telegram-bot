@@ -386,7 +386,7 @@ Absturzfall ausdrücklich auf 5.18).
   Session fängt sich selbst"), 5.1 später. → **Adam-Entscheid offen.**
 
 ### 3.1 LobeChat als PWA (Web-Interface)
-- **Status:** OFFEN
+- **Status:** 🔄 **GRUNDINSTALLATION LIVE (24.07.2026, autonom):** Docker (`docker.io` aus Debian-Repos) installiert; Container `lobehub/lobe-chat` (`--restart always`) läuft. **Rote Auflage strikt erfüllt:** bindet NUR an `127.0.0.1:3210` (via `--network host` + `HOSTNAME=127.0.0.1`, hart verifiziert mit `ss`), **kein ufw-Port offen** — Zugang ausschließlich per SSH-Tunnel. **Mit LiteLLM verbunden** (sieht Modell `local` = Ollama phi4-mini; HTTP 307 = Server lebt). Access-Code als zweite Schicht in `/etc/lobe-chat.env` (root-only). Zugangs-Anleitung: [`docs/lobechat-zugang.md`](docs/lobechat-zugang.md). ⚠️ **Supply-Chain-Hinweis:** LobeChat ist ein Drittanbieter-Docker-Image (well-known Projekt) — bewusst nur localhost/Tunnel, kein Claude-Abo-Zugang (nur lokale/Neben-Modelle über LiteLLM). **Offen (joint step, Sprint SA-Tag):** Adams Login-Test via Tunnel vom Mac + iPhone; HTTPS im Tunnel optional (der SSH-Tunnel ist bereits verschlüsselt).
 - 🔴 **ROTE AUFLAGE (Rotes-Team-Bericht C.1/III, verbindlich):** LobeChat ist exakt die OpenClaw-Vorfallsklasse „Web-Panel auf dem VPS" — **NIE öffentlich erreichbar machen.** Zugang ausschließlich via **VPN oder SSH-Tunnel**; ein Adam-tauglicher Zugangsweg (Ein-Klick/gespeichertes Profil am Mac + iPhone) wird dokumentiert und gehört zur „fertig"-Definition.
 - **Akzeptanzkriterium:** LobeChat unter HTTPS erreichbar (nur via VPN/Tunnel, s. rote Auflage); mit LiteLLM verbunden; Login geschützt.
 - **Test:** Vom Mac und vom iPhone öffnen, jeweils eine kurze Anfrage stellen.

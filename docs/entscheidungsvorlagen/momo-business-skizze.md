@@ -207,8 +207,22 @@ wachsende Expertise ohne Maschinenraum-Bastelei.
 5. Pilotkunde Nr. 1 (der Freund): Intake-Gespräch als ersten echten Case führen —
    dokumentiert als Fallstudie Nr. 1 (nach Nr. 0: Adam).
 
+## 11. Merkzeilen (Nachmittag 24.07., Entscheid später)
+
+- **ChatGPT/Codex-Kundenfrage:** Viele künftige Kunden nutzen ChatGPT/Codex; ein
+  strikter Ausschluss könnte Marktfähigkeit kosten (vs. Werte-Klarheit). **Von
+  Adams persönlicher Werkzeugwahl getrennt halten** (kein OpenAI in Adams eigenem
+  Stack ist entschieden; die Produktfrage ist eine andere). Intensive Diskussion
+  vorgemerkt — nicht heute entscheiden.
+- **Endausbau-Interface:** perspektivisch eine **eigene App** statt Telegram-
+  Pflicht — zahlt direkt auf „Unsichtbare Komplexität" ein (so einfach/angenehm
+  wie möglich, ohne Fremd-Interface-Abhängigkeit).
+- **Einpflege-Prozess (E3) ist zugleich Kunden-Onboarding:** „was gibt es schon,
+  was ziehen wir woher" — der geführte Alt-Archiv-Import ist ein Produkt-Baustein,
+  nicht nur eine interne Aufräumarbeit.
+
 ---
 
 *Konsolidiert aus den Merk-Zeilen v1–v13 des Abends vom 23./24.07.2026.
 Schwesterdokument: „Der Abend, an dem Momo seinen Namen fand"
-(ROLLE: gruendungs-erzaehlung-momo).*
+(ROLLE: gruendungs-erzaehlung-momo). Wertegrund: `werte-charta-momo.md`.*

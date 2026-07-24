@@ -138,6 +138,28 @@ Trefferquote über die Zeit erhöhen. Gilt interface- und rollenübergreifend. F
 das spätere Produkt (Momo) ist genau das ein Kernversprechen. Blaupause-Zeile
 gesetzt.
 
+## 🪄 UNSICHTBARE KOMPLEXITÄT (Adam-Grundprinzip 2026-07-24, hohe Priorität)
+
+Eine der **Grundideen des ganzen Projekts** — von Anfang an mitzudenken, nicht
+nebenbei. Der spätere Endnutzer (Maßfigur „Oma Lieschen": kann gerade einen
+Messenger bedienen) bekommt von der dahinterliegenden Komplexität **nichts** mit
+— keine Sitzungen, Chats/Protokolle, Drehbücher, Tool-/Modellnamen, APIs oder
+Rechte-Verwaltung. Er interagiert mit **jemandem, der sich menschlich verhält**,
+sagt, was er braucht — der Rest geschieht unsichtbar. **Das System sucht selbst
+nach Lösungen**, statt Optionen und Limitierungen vorzutragen; Sätze wie „darauf
+habe ich keinen Zugriff" oder „dafür fehlen mir Rechte" gehören **nie** in die
+Endausbaustufe beim Kunden (es wählt selbst das passende Werkzeug/Modell, Vorbild
+Perplexity/Manus).
+
+**Blaupause-Zeile:** „Komplexität gehört dem System, Einfachheit dem Menschen."
+
+**Ausnahme Entwicklungsmodus:** Zwischen Adam und mir sind technische Sichtbarkeit
+und Entwickler-Schalter (`/spur`, `/technik`, Modell-/Effort-Knöpfe, Klartext-
+Werkzeugspur) ausdrücklich erwünscht und bleiben — das ist die bewusste Ausnahme,
+nicht der Normalfall für Endnutzer. Verzahnt mit „Selbstlernende Assistenz",
+Kanal-Routing (ein Kern, mehrere Frontends → perspektivisch eigene App statt
+Telegram-Pflicht) und der Werte-Charta (`docs/entscheidungsvorlagen/werte-charta-momo.md` §7).
+
 ## 🕒 FORMAT-REGEL — Zeitstempel im Kopf von Übergaben (Adam 2026-07-24)
 
 Übergabe-Blöcke und Kontroll-/Sitzungs-Ausgaben tragen im **Kopf einen geprüften

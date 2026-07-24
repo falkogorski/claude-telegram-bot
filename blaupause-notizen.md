@@ -95,6 +95,10 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 | **Token-Bündelung an einer Stelle**: nur der Kanal-Inhaber hält das Geheimnis; andere Instanzen legen Aufträge in ein Postfach, statt selbst zu senden — das Geheimnis verlässt nie seinen Prozess | B/Postfach | **universell** |
 | **Postfach mit Ziel-Allowlist + Geheimnis-Filter**: ein Versand-Dienst prüft, WOHIN und WAS gesendet werden darf — sonst wird er zum Exfiltrations-Kanal | B/Postfach | **universell** |
 | **Governance heißt, was sie sagt**: „lesen ja, schreiben nie" darf Lesen nicht faktisch mitsperren — die Schranke sitzt exakt am Schreiben, nicht am Zugriff | 8.7 | **universell** |
+| **Komplexität gehört dem System, Einfachheit dem Menschen**: der Endnutzer sieht nie Sitzungen/Modelle/Rechte; das System sucht selbst Lösungen statt Limitierungen vorzutragen (Entwickler-Schalter sind die bewusste Ausnahme) | F/unsichtbare Komplexität | **universell** |
+| **Gestufte Autonomie mit Hand-drauf-Prinzip**: schreibende Aktionen zuerst immer mit Bestätigung; höhere Stufen (budgetiertes Eigenhandeln) nur als bewusst freigeschalteter Möglichkeitsraum; der Mensch weiß stets, wo welche Daten sind | E4/Sekretärin | **universell** |
+| **Alt-Bestände selektiv & geführt einpflegen**: nicht alles zwangsweise; ein Coaching-Prozess ordnet Konto für Konto, Verknüpfungen zu schaffen ist Assistenten-Aufgabe — zugleich Kunden-Onboarding | E3 | **universell** |
+| **Ehrliche Anbindungs-Grenzen benennen**: fremde Anbieter-Historien ohne API sind nicht auto-durchsuchbar — kein Schönreden, stattdessen der manuelle Import-Weg | 5.11/E2 | **universell** |
 | **Wächter müssen sperrfrei arbeiten** — wer auf die Sperre des Hängenden wartet, hängt mit | 5.18 | **universell** |
 | **Wartende Rückfragen sind kein Stillstand** — Stille auf eine offene Frage ist gewollt | 5.18 | **universell** |
 | **Pre-Send-Prüfung**: vollständige Antwort erst prüfen, dann senden (setzt Sammeln statt Durchreichen voraus) | 8.5 | **universell** |

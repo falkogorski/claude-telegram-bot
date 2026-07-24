@@ -504,7 +504,7 @@ Absturzfall ausdrücklich auf 5.18).
 - **Verifiziert am:** —
 
 ### 5.6 Modell-Persistenz + Modell-Empfehlung
-- **Status:** OFFEN
+- **Status:** 🔄 **PERSISTENZ ERFÜLLT (code-verifiziert 24.07.):** Modellwechsel speichert nach `prefs["model"]` (`bot.py` ~5013), Session-Start lädt es (`user_prefs.get("model", DEFAULT_MODEL)`, ~1973/2065) → **Bot startet nach Neustart im zuletzt genutzten Modell.** Auch der 🎯 Gründlich-Modus (einmalig hochwertig) ist da. **Offen: die proaktive Modell-Empfehlung** (vor anspruchsvollen Prozessen empfehlen statt wechseln) — verhaltensbasiert und bewusst mit dem 5.21-Baustein „Modell-Aktualität automatisch" (👍-Übernahme) verzahnt; Bau dort.
 - **Akzeptanzkriterium:** Bot startet nach Neustart im zuletzt genutzten Modell; bei neuen anspruchsvollen Prozessen kommt eine Empfehlung statt eigenmächtigem Wechsel. `[NEU 2026-07-12]` Grundeinstellung Sonnet (0.6/E3); Empfehlungen können auch nach unten zeigen („Trivial-Anfrage → eher Haiku?"). Vollautomatischer Wechsel bleibt bewusst AUS (Adam-Entscheid E3); falls später gewünscht → Backlog. `[NEU 2026-07-22]` Verzahnt mit dem 5.21-Baustein „Modell-Aktualität automatisch" (Frische-Wächter + 👍-Übernahme + Optional-Vollautomatik, E3 fortgeschrieben).
 - **Test:** Modell wechseln, Bot killen, wieder hoch → gleiches Modell; eine Trivial-Anfrage in Opus → Empfehlung „eher Sonnet?".
 - **`[NEU 2026-07-16]` Verwandt — 🎯 Gründlich-Modus (umgesetzt `2f37658`):** Ein-Klick-Button, der die NÄCHSTE Anfrage einmalig mit Opus + hohem Effort + Pflicht-Quellencheck beantwortet, danach zurück zu Standard. Adressiert (mit 8.5) Adams **Verlässlichkeits-Anforderung**: für wichtige Fragen bewusst „auf Nummer sicher".

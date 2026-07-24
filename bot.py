@@ -702,6 +702,37 @@ def get_transcriber() -> Transcriber:
     return _TRANSCRIBER
 
 
+# 5.15/Zuverlässigkeit (24.07.): bot-eigenes Fehlerlog — die Kontrollsitzung
+# liest es über den Log-Sync, ohne journalctl-Zugriff zu brauchen.
+_BOT_ERROR_LOG = Path(LOG_DIR).parent / "bot-errors.log"
+
+
+def _log_bot_error(context: str, exc: BaseException) -> None:
+    """Hängt einen Fehler ans bot-eigene Fehlerlog (best effort, nie fatal)."""
+    try:
+        _BOT_ERROR_LOG.parent.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        with _BOT_ERROR_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(f"{stamp} | {context} | {type(exc).__name__}: {exc}\n")
+    except Exception:
+        log.warning("konnte bot-errors.log nicht schreiben", exc_info=True)
+
+
+async def _with_one_retry(factory, what: str, pause: float = 2.0):
+    """Führt eine Netz-Operation aus; bei Fehler EINMAL nach kurzer Pause erneut.
+    5.15: transiente getFile-/Download-Timeouts sollen nicht sofort scheitern —
+    NUR dieser Pfad (kein globaler Retry). Scheitert auch der zweite Versuch,
+    propagiert der Fehler an den Aufrufer (der die ❌-Meldung schickt)."""
+    try:
+        return await factory()
+    except Exception as e:
+        _log_bot_error(f"{what} (1. Versuch)", e)
+        log.warning("%s fehlgeschlagen (%s) — ein Wiederholversuch in %.1fs",
+                    what, e, pause)
+        await asyncio.sleep(pause)
+        return await factory()
+
+
 async def _download_tg_file(file_obj, filename: str) -> Path:
     """Lädt eine Telegram-Datei in UPLOAD_DIR; gibt den lokalen Pfad zurück.
 
@@ -724,6 +755,7 @@ async def _download_tg_file(file_obj, filename: str) -> Path:
 @dataclass
 class UserSession:
     client: ClaudeSDKClient
+    user_id: int = 0  # Besitzer der Session — für per-User-Prefs (z. B. /spur)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     always_allowed_tools: set[str] = field(default_factory=set)
     # Default verbose: der Tipp-Indikator (Lebenszeichen bei werkzeuglosen Turns)
@@ -774,7 +806,18 @@ SESSIONS: dict[int, UserSession] = {}
 # Die Queue lebt im RAM — ein harter Bot-Neustart leert sie (run_polling nutzt
 # drop_pending_updates). Persistenz + echte parallele Sessions kommen mit Netcup.
 
-CORRECTION_PREFIXES = ("korrektur", "weitere info", "zusatzinfo", "nachtrag", "ergänzung", "ergaenzung")
+# 5.5 [GEÄNDERT 2026-07-24]: Warteschlange ist jetzt FIFO (chronologisch) —
+# bewusste Umkehr der früheren LIFO-Entscheidung. Nur ECHTE Stopp/Korrektur-
+# Signale brechen den laufenden Vorgang ab und dürfen vor. Nachtrag/Ergänzung/
+# Zusatzinfo sind KEIN Interrupt mehr — sie reihen sich normal hinten ein
+# (der Self-Reply-Zweig behandelt sie ohnehin als Nachtrag/Ergänzung/Widerruf).
+INTERRUPT_PREFIXES = (
+    "korrektur", "stopp", "stop", "halt", "abbrechen", "abbruch",
+    "brich das ab", "brich ab", "brich es ab", "warte stopp", "warte, stopp",
+    "nein das war falsch", "nein, das war falsch",
+    "nee das war falsch", "nee, das war falsch",
+    "das war falsch", "falscher auftrag", "vergiss das",
+)
 
 
 @dataclass
@@ -912,8 +955,10 @@ def _job_preview(text: str, n: int = 60) -> str:
     return one_line if len(one_line) <= n else one_line[: n - 1] + "…"
 
 
-def _is_correction(text: str) -> bool:
-    return (text or "").lstrip().lower().startswith(CORRECTION_PREFIXES)
+def _is_interrupt(text: str) -> bool:
+    """True nur bei echten Stopp-/Korrektur-Signalen (5.5) — bricht den laufenden
+    Vorgang ab und reiht die Nachricht vor. Nachtrag/Ergänzung zählen NICHT."""
+    return (text or "").lstrip().lower().startswith(INTERRUPT_PREFIXES)
 
 
 def _ensure_worker(user_id: int) -> None:
@@ -1440,6 +1485,15 @@ def _is_repo_write_cmd(cmd: str) -> bool:
     return "claude-telegram-bot" in c and bool(_REPO_WRITE_RE.search(c))
 
 
+def _trace_off(user_id: int) -> bool:
+    """5.25 (d) /spur: True, wenn Adam die 🔧-FYI-Werkzeug-Spur stummgeschaltet hat.
+    Per-User (user_id), NICHT chat_id. Betrifft NUR die reine FYI-Zeile — die
+    Allow/Deny-Rückfragen bleiben davon unberührt und immer sichtbar.
+    Default AUS (Adam 24.07.): ohne gesetzte Pref ist die FYI-Spur stumm — Adam
+    schaltet sie mit /spur bewusst an, wenn er beim Audit mitschauen will."""
+    return bool(_USER_PREFS.get(str(user_id), {}).get("trace_off", True))
+
+
 def _tool_trace_line(chat_id: int, name: str, tool_input: dict) -> str:
     """5.25 (d): Klartext-Werkzeug-Spur — deutsche Tätigkeitszeile statt Tool-Name
     und Argumente (Adam-Entscheid, bewusste Revision der 17.07.-Rohform). Rohform
@@ -1957,6 +2011,7 @@ async def ensure_session(
                  sorted(_stored_allow - _cleaned_allow))
     sess = UserSession(
         client=client,
+        user_id=user_id,
         tts_enabled=user_prefs.get("tts_enabled", False),
         current_model=model_short,  # Kurzname für Anzeige und Vergleiche
         current_effort=effort,
@@ -2382,6 +2437,7 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/freigaben — Dauerfreigaben zeigen: Werkzeuge + vertraute Domains "
         "(reset zum Löschen)\n"
         "/technik — Werkzeug-Spur: Klartext ↔ technische Rohform\n"
+        "/spur — Werkzeug-Spur ganz aus/an (Rückfragen bleiben)\n"
         "/restart — Bot neu starten\n"
         "/selfcheck — Selbsttest ausführen\n"
         "/hilfe — Diese Befehlsübersicht\n\n"
@@ -2839,6 +2895,26 @@ async def cmd_verbose(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "🔔 Verbose-Modus an — Tipp-Indikator läuft wieder mit (die 🔧-Spur ist "
         "ohnehin immer sichtbar).")
+
+
+async def cmd_spur(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """5.25 (d) /spur: schaltet die 🔧-FYI-Werkzeug-Spur pro Aufruf komplett stumm
+    (Toggle, per-User). Allow/Deny-Rückfragen bleiben IMMER sichtbar."""
+    if not authorized(update):
+        return
+    user_id = update.effective_user.id
+    prefs = _USER_PREFS.setdefault(str(user_id), {})
+    now_off = not prefs.get("trace_off", True)  # Default aus (24.07.)
+    prefs["trace_off"] = now_off
+    _save_prefs(_USER_PREFS)
+    if now_off:
+        await update.message.reply_text(
+            "🔇 Werkzeug-Spur aus — die 🔧-FYI-Zeilen pro Tool-Aufruf sind still. "
+            "Sicherheits-Rückfragen (Allow/Deny) kommen weiter. "
+            "Mit /spur wieder anschalten.")
+    else:
+        await update.message.reply_text(
+            "🔧 Werkzeug-Spur an — du siehst wieder pro Aufruf, was ich tue.")
 
 
 async def cmd_setkanal(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -4329,6 +4405,7 @@ async def post_init(app: Application) -> None:
             BotCommand("status", "Queue & Session-Übersicht"),
             BotCommand("freigaben", "Dauerhafte Werkzeug-Freigaben"),
             BotCommand("technik", "Werkzeug-Spur: Klartext ↔ Rohform"),
+            BotCommand("spur", "Werkzeug-Spur ganz aus/an"),
             BotCommand("presend", "Pre-Send-Hook — Kennzahlen"),
             BotCommand("ampel", "Ampel — Regeln & Status"),
             BotCommand("usage", "Token-Verbrauch heute"),
@@ -4599,10 +4676,11 @@ async def process_user_text(
         log.exception("5.2 Persistenz beim Empfang übersprungen (nicht-fatal)")
 
     busy = mb.current_job is not None
-    correction = _is_correction(text)
+    interrupt = _is_interrupt(text)
 
-    if correction and busy:
-        # Laufenden Vorgang stoppen, Zusatz sofort als Nächstes einarbeiten.
+    if interrupt and busy:
+        # Echtes Stopp/Korrektur-Signal: laufenden Vorgang abbrechen (gilt als
+        # hinfällig), diese Nachricht sofort als Nächstes VORNE einarbeiten.
         try:
             sess = SESSIONS.get(user_id)
             if sess is not None:
@@ -4611,18 +4689,19 @@ async def process_user_text(
             log.exception("interrupt on correction failed")
         mb.queue.appendleft(job)
         await update.message.reply_text(
-            "✋ Laufenden Vorgang gestoppt — ich arbeite deine Korrektur ein.",
+            "✋ Laufenden Vorgang gestoppt — ich nehme das jetzt vorrangig.",
             reply_parameters=_reply_params(update.message.message_id),
         )
     else:
-        # Neueste Nachricht hat Vorrang → vorne einsortieren (LIFO).
-        mb.queue.appendleft(job)
+        # 5.5 [GEÄNDERT]: FIFO — normale Nachricht chronologisch ans ENDE.
+        mb.queue.append(job)
         if busy:
             running = _job_preview(mb.current_job.text) if mb.current_job else "läuft"
+            pos = len(mb.queue)
             await update.message.reply_text(
-                "📥 Notiert — kommt als Nächstes dran.\n"
+                "📥 Notiert — reiht sich hinten ein (kommt der Reihe nach dran).\n"
                 f"Läuft gerade: „{running}“\n"
-                f"In Warteschlange: {len(mb.queue)}",
+                f"Warteschlange-Position: {pos}",
                 reply_parameters=_reply_params(update.message.message_id),
             )
 
@@ -5161,9 +5240,10 @@ async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     # Telegram "voice" notes are OGG/Opus, "audio" can be anything ffmpeg understands.
     await msg.reply_chat_action("typing")
     try:
-        tg_file = await voice.get_file()
+        tg_file = await _with_one_retry(voice.get_file, "voice get_file")
     except Exception as e:
         log.exception("get_file failed")
+        _log_bot_error("voice get_file (endgültig)", e)
         _resolve_voice_stage(_vkey)
         await msg.reply_text(f"❌ Konnte Sprachnachricht nicht laden: {e}")
         return
@@ -5172,9 +5252,11 @@ async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     # unbearbeitete/ältere Sprachnachrichten auffindbar und nachträglich transkribierbar.
     suffix = Path(tg_file.file_path or "x.ogg").suffix or ".ogg"
     try:
-        src = await _download_tg_file(tg_file, "voice" + suffix)
+        src = await _with_one_retry(
+            lambda: _download_tg_file(tg_file, "voice" + suffix), "voice download")
     except Exception as e:
         log.exception("voice download failed")
+        _log_bot_error("voice download (endgültig)", e)
         _resolve_voice_stage(_vkey)
         await msg.reply_text(f"❌ Download fehlgeschlagen: {e}")
         return
@@ -6201,10 +6283,12 @@ async def stream_response(
                         # ohne Live-Textstrom ist die Spur bei langen Recherche-
                         # Turns das einzige Zeichen, dass gearbeitet wird.
                         # 5.25 (d): Klartext statt Tool-Name; Rohform via /technik.
-                        await send_chunked(
-                            sess.bot, chat_id,
-                            _tool_trace_line(chat_id, block.name, block.input or {}),
-                            thread_id=thread_id)
+                        # /spur schaltet NUR diese FYI-Zeile stumm (Allow/Deny bleibt).
+                        if not _trace_off(sess.user_id):
+                            await send_chunked(
+                                sess.bot, chat_id,
+                                _tool_trace_line(chat_id, block.name, block.input or {}),
+                                thread_id=thread_id)
                         if sess.logger:
                             sess.logger.log_tool(block.name)
             elif isinstance(msg, UserMessage):
@@ -6389,6 +6473,7 @@ def main() -> None:
     app.add_handler(CommandHandler("selfcheck", cmd_selfcheck))
     app.add_handler(CommandHandler("stopp", cmd_stopp))
     app.add_handler(CommandHandler("technik", cmd_technik))
+    app.add_handler(CommandHandler("spur", cmd_spur))
     app.add_handler(CommandHandler("freigaben", cmd_freigaben))
     app.add_handler(CallbackQueryHandler(on_option_callback, pattern=r"^opt:"))
     app.add_handler(CallbackQueryHandler(on_permission_callback, pattern=r"^p:"))
@@ -6410,17 +6495,26 @@ def main() -> None:
     # während der Downtime gesendete Sprach-/Textnachricht verloren, bevor sie
     # je transkribiert/geloggt wird. Veraltete Permission-Klicks sind ungefährlich,
     # weil on_permission_callback fehlende Futures sauber abfängt.
-    # 1.9-Vorbereitung (23.07.2026): Webhook-Modus als env-Schalter — Default
-    # bleibt Polling. Umschalten NUR gemeinsam mit Adam (Umschaltmoment!).
-    # Rote Auflagen (Rotes-Team C.1): secret_token Pflicht, unerratbarer Pfad,
-    # Firewall-Eingrenzung auf Telegram-Netze (149.154.160.0/20, 91.108.4.0/22).
-    # Der Bot lauscht nur auf 127.0.0.1; TLS terminiert der Reverse-Proxy.
+    # 1.9 (23.07.2026): Webhook-Modus als env-Schalter — Default bleibt Polling.
+    # Umschalten NUR gemeinsam mit Adam (Umschaltmoment!). Rote Auflagen
+    # (Rotes-Team C.1): secret_token Pflicht, unerratbarer Pfad, Firewall auf
+    # Telegram-Netze (149.154.160.0/20, 91.108.4.0/22).
+    # Zwei Betriebsarten:
+    #  (a) Self-Signed direkt auf die IP — WEBHOOK_CERT + WEBHOOK_KEY gesetzt:
+    #      der Bot terminiert TLS selbst (listen 0.0.0.0), Telegram bekommt das
+    #      Zertifikat via setWebhook hochgeladen. Kein Reverse-Proxy nötig.
+    #  (b) Reverse-Proxy (Domain/Let's Encrypt) — ohne CERT/KEY: listen 127.0.0.1,
+    #      TLS macht Caddy/nginx davor.
     bot_mode = (os.environ.get("BOT_MODE") or "polling").strip().lower()
     if bot_mode == "webhook":
         webhook_url = os.environ.get("WEBHOOK_URL", "").strip()
         secret_token = os.environ.get("WEBHOOK_SECRET_TOKEN", "").strip()
         url_path = os.environ.get("WEBHOOK_PATH", "").strip().lstrip("/")
-        listen_port = int(os.environ.get("WEBHOOK_LISTEN_PORT") or "8081")
+        cert_path = os.environ.get("WEBHOOK_CERT", "").strip()
+        key_path = os.environ.get("WEBHOOK_KEY", "").strip()
+        self_signed = bool(cert_path and key_path)
+        listen_port = int(os.environ.get("WEBHOOK_LISTEN_PORT")
+                          or ("8443" if self_signed else "8081"))
         missing = [n for n, v in (("WEBHOOK_URL", webhook_url),
                                   ("WEBHOOK_SECRET_TOKEN", secret_token),
                                   ("WEBHOOK_PATH", url_path)) if not v]
@@ -6428,9 +6522,7 @@ def main() -> None:
             raise SystemExit(
                 "BOT_MODE=webhook, aber Pflicht-Envs fehlen (rote Auflagen 1.9): "
                 + ", ".join(missing))
-        log.info("Starte im WEBHOOK-Modus (Port %d, Pfad /%s…)", listen_port, url_path[:8])
-        app.run_webhook(
-            listen="127.0.0.1",
+        kwargs = dict(
             port=listen_port,
             url_path=url_path,
             webhook_url=webhook_url.rstrip("/") + "/" + url_path,
@@ -6438,6 +6530,16 @@ def main() -> None:
             allowed_updates=Update.ALL_TYPES,
             drop_pending_updates=DROP_PENDING_UPDATES,
         )
+        if self_signed:
+            # Direkte TLS-Terminierung mit Self-Signed-Zertifikat auf der IP.
+            kwargs.update(listen="0.0.0.0", cert=cert_path, key=key_path)
+            log.info("Starte im WEBHOOK-Modus (Self-Signed direkt, Port %d, Pfad /%s…)",
+                     listen_port, url_path[:8])
+        else:
+            kwargs.update(listen="127.0.0.1")
+            log.info("Starte im WEBHOOK-Modus (Reverse-Proxy, Port %d, Pfad /%s…)",
+                     listen_port, url_path[:8])
+        app.run_webhook(**kwargs)
     else:
         app.run_polling(
             allowed_updates=Update.ALL_TYPES,

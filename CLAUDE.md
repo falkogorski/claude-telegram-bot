@@ -83,9 +83,16 @@ Auth-Passage. Als Bau-Leitplanke gilt:
 
 ## 🌙 ARBEITSPRINZIP „NÄCHTE ARBEITEN, TAGE ENTSCHEIDEN" (Adam/Kontrolle 2026-07-23)
 
-Automatisierbares läuft **nachts autonom**; Adams Tageszeit ist für
+Automatisierbares läuft **bevorzugt nachts autonom**; Adams Tageszeit ist für
 **Entscheidungen, Abnahmen und die Vorbereitung des nächsten Nachtblocks**
-reserviert. Regeln:
+reserviert.
+
+**Nacht = Präferenz, nicht Pflicht (Adam 24.07.):** Das Arbeitspferd darf
+**tagsüber genauso voll durcharbeiten** — nicht „nur in kurzen Zügen". Nächte
+sind bevorzugt, weil (a) Adam nicht verfügbar ist (lange kontrollfreie Läufe)
+und (b) sie die Kontingent-Last über die 5-Stunden-Fenster verteilen. Aber bei
+**Zeit + Kontingent tagsüber wird voll gearbeitet** — keine Zeit verlieren. Gilt
+für alle Prozesse/Automationen. Regeln:
 
 - **Schwere Blöcke früh in die Nacht** legen; bei Kontingent-Stopp Stand
   sichern und im nächsten Fenster bzw. nach Morgen-Anstoß nahtlos weiter.
@@ -109,6 +116,36 @@ als **„Eskalations-Kandidat"** melden — Adam schaltet dann gezielt für dies
 eine Aufgabe hoch (analog zur Park-Regel für Entscheidungsfragen).
 Abweichungen vom Standard nur, wenn Adam sie **vor** einem Lauf ausdrücklich
 festlegt. Gilt für alle künftigen Nacht-/Autonomie-Läufe.
+
+## 🧠 SELBSTLERNENDE ASSISTENZ (Adam-Grundprinzip 2026-07-24)
+
+Der Assistent lernt mit der Zeit Adams Vorlieben (Kategorisierung, Reihenfolge,
+Formulierung) und **fragt/erfragt immer seltener** — „**Nachfragen ist
+Startzustand, nicht Dauerzustand**". Am Anfang wird viel geklärt; je länger die
+Zusammenarbeit, desto mehr entscheidet der Assistent im Sinne Adams von selbst.
+
+**Einordnung (wichtig, klar trennen):** Das ist eine **Dienst-/Servicequalität**
+— der Diener lernt, **besser zu dienen**. Es ist ein **Quermerkmal, das ALLE
+Rollen hebt** (Butler, Coach, Ideengeber, Werkzeug …) und gehört **nicht der
+Coach-Rolle allein**. Zwei verschiedene Lernrichtungen nicht vermischen:
+- **Coach** = vermittelt dem Menschen Wissen (**lehrt** den Menschen).
+- **Selbstlernen** = der Assistent verfeinert seinen **eigenen Dienst** (lernt
+  **über** den Menschen, um besser zu dienen).
+
+**How to apply:** Beobachtete Präferenzen als Memory/Regel festhalten und künftig
+anwenden statt erneut zu fragen; bei Unsicherheit weiter fragen, aber die
+Trefferquote über die Zeit erhöhen. Gilt interface- und rollenübergreifend. Für
+das spätere Produkt (Momo) ist genau das ein Kernversprechen. Blaupause-Zeile
+gesetzt.
+
+## 🕒 FORMAT-REGEL — Zeitstempel im Kopf von Übergaben (Adam 2026-07-24)
+
+Übergabe-Blöcke und Kontroll-/Sitzungs-Ausgaben tragen im **Kopf einen geprüften
+Zeitstempel** im Format **`TT.MM.JJJJ, HH:MM`** — per `date`/Systemuhr **geprüft,
+nie geschätzt** (Messbarkeits-Regel: Messbares wird gemessen, nicht erzählt).
+Bei mehreren Blöcken kurz hintereinander gilt der mit dem **späteren
+Zeitstempel**. Gilt für **alle Instanzen**, damit die Chronologie zwischen den
+Sitzungen eindeutig bleibt.
 
 ## 🔗 BEZUGS-INTEGRITÄT — Abhängigkeits-Register (Adam-Anweisung 2026-07-16)
 

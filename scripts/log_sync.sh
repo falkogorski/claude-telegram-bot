@@ -27,6 +27,13 @@ git pull --ff-only --quiet 2>/dev/null || true
 mkdir -p conversations
 rsync -a --exclude='._*' --exclude='.DS_Store' "$SRC/" conversations/
 
+# Bot-eigenes Fehlerlog mitsyncen (5.15, 24.07.) — die Kontrollsitzung liest
+# Fehler ohne journalctl-Zugriff. Liegt neben conversations/ (logs/bot-errors.log).
+ERRLOG="${LOG_SYNC_ERRLOG:-$(dirname "$SRC")/bot-errors.log}"
+if [ -f "$ERRLOG" ]; then
+  cp "$ERRLOG" bot-errors.log
+fi
+
 git add -A
 if git diff --cached --quiet; then
   echo "Keine Log-Änderungen — nichts zu pushen."

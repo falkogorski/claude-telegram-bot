@@ -75,6 +75,13 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 | **Ausgangs-Adresse getrennt von Eingangs-Adresse führen** (eigenes Feld fürs Ziel-Thema), damit ein Kanalwechsel den Bezug nicht verliert | 6.1 | **universell** |
 | **Selbst-Einrichtung ratenbegrenzt**: automatische Anlage vieler Objekte drosselt sich (1/Sek), respektiert Plattform-Limits und wartet Flood-Sperren exakt aus | 6.5 | **anpassbar** (Telegram-Raten) |
 | **Namen sind Poesie über einem Muster**: der Kunde benennt seine Häuser frei (Leben/Werkstatt/Produkt/Geschäfte/Bibliothek), die Blaupause beschreibt nur die Rollen | 6.6 | **universell** |
+| **Selbstlernende Dienstqualität**: „Nachfragen ist Startzustand, nicht Dauerzustand" — der Assistent lernt Präferenzen (Kategorisierung, Reihenfolge, Ton) und fragt seltener; Quermerkmal aller Rollen, getrennt von der Coach-Lehrrichtung | Grundprinzip 24.07. | **universell** |
+| **Chronologie-Anker**: Übergaben tragen einen geprüften Zeitstempel im Kopf (gemessen, nie geschätzt); bei mehreren gilt der spätere | Format-Regel 24.07. | **universell** |
+| **FIFO als Standard, Interrupt nur auf echtes Stopp-Signal**: Nachrichten chronologisch abarbeiten; nur echte Korrektur/Stopp bricht ab und kommt vor — Nachträge reihen sich normal ein | 5.5 | **universell** |
+| **Ein-Retry für transiente Netz-Operationen** vor der Fehlermeldung (nur der betroffene Pfad, kein globaler Retry) | 5.15 | **universell** |
+| **Bot-eigenes Fehlerlog statt Systemlog-Zugriff für die Kontrollinstanz** (least privilege: kein journalctl-Recht, Fehler wandern über den Log-Sync) | 5.15 | **anpassbar** |
+| **Kontingent-Sichtbarkeit als Relay echter Anbieter-Warnungen**, nicht als selbstgebauter Zähler — und ehrliches „technisch nicht verfügbar" statt Näherung | 5.20 | **universell** |
+| **Voll-Stummschalter für Fortschritts-FYI, Sicherheits-Rückfragen bleiben** — Ruhe ist wählbar, aber nie auf Kosten der Freigabe-Kontrolle | 5.25 d | **universell** |
 | **Wächter müssen sperrfrei arbeiten** — wer auf die Sperre des Hängenden wartet, hängt mit | 5.18 | **universell** |
 | **Wartende Rückfragen sind kein Stillstand** — Stille auf eine offene Frage ist gewollt | 5.18 | **universell** |
 | **Pre-Send-Prüfung**: vollständige Antwort erst prüfen, dann senden (setzt Sammeln statt Durchreichen voraus) | 8.5 | **universell** |

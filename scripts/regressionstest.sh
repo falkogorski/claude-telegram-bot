@@ -53,7 +53,8 @@ run "Reaktionen 5.9"                    "$PY" scripts/test_reactions_5_9.py
 run "Voice-Eingangs-Schutz"             "$PY" scripts/test_voice_entry_guard.py
 run "Session-Waechter 5.18"             "$PY" scripts/test_stall_5_18.py
 run "Kanal-Routing Phase 6"             "$PY" scripts/test_channels_6.py
+run "Warteschlange FIFO 5.5"            "$PY" scripts/test_queue_order_5_5.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
-echo "== Ergebnis: $((13-FAILS))/13 bestanden =="
+echo "== Ergebnis: $((14-FAILS))/14 bestanden =="
 exit $FAILS

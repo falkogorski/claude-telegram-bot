@@ -88,6 +88,9 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 | **Web-Panel nur hinter dem Tunnel**: das Interface bindet an localhost, kein offener Port, Zugang ausschließlich über verschlüsselten Tunnel (SSH/VPN) — der Tunnel ist die Verschlüsselung, extra-TLS optional | 3.1 | **universell** |
 | **Sicherheits-Invarianten aktiv überwachen, nicht nur einmal setzen**: der tägliche Check verifiziert, dass das Panel weiter nur auf localhost lauscht — eine Fehlkonfiguration meldet sich selbst | 3.1/8.1 | **universell** |
 | **Zweitinterface ohne Abo-Zugang**: das Web-Frontend spricht nur lokale/Neben-Modelle, der teure Hauptagent bleibt dem kontrollierten Kanal vorbehalten | 3.1 | **anpassbar** |
+| **Aktualität register-getrieben, nicht erinnerungsgetrieben**: ein zentrales Komponenten-Register + deterministischer Monitor (kostenfreie Versionsquellen) meldet Updates; Installation bleibt bewusste Handlung, Major-Sprünge markiert | 5.21/E5 | **universell** |
+| **Register-Pflege als Teil der „fertig"-Definition**: jede neue versionierte Komponente wird beim Einbau eingetragen — sonst altert sie unbemerkt | 5.21/E5 | **universell** |
+| **Zeit-Trigger bleiben inferenzfrei**: was die Uhr auslöst, ruft nie das Abo-Modell (AGB) — Prüfungen, die ein Modell bräuchten, laufen menschgetriggert | 5.21/8.1 | **anpassbar** (Anbieter-AGB) |
 | **Wächter müssen sperrfrei arbeiten** — wer auf die Sperre des Hängenden wartet, hängt mit | 5.18 | **universell** |
 | **Wartende Rückfragen sind kein Stillstand** — Stille auf eine offene Frage ist gewollt | 5.18 | **universell** |
 | **Pre-Send-Prüfung**: vollständige Antwort erst prüfen, dann senden (setzt Sammeln statt Durchreichen voraus) | 8.5 | **universell** |

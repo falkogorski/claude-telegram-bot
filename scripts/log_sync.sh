@@ -38,6 +38,11 @@ CHECKLOG="${LOG_SYNC_CHECKLOG:-$(dirname "$SRC")/daily-check.log}"
 if [ -f "$CHECKLOG" ]; then
   cp "$CHECKLOG" daily-check.log
 fi
+# 5.21: Versions-Monitor-Protokoll mitsyncen.
+VLOG="${LOG_SYNC_VLOG:-$(dirname "$SRC")/version-monitor.log}"
+if [ -f "$VLOG" ]; then
+  cp "$VLOG" version-monitor.log
+fi
 
 git add -A
 if git diff --cached --quiet; then

@@ -91,6 +91,9 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 | **Zweitinterface ohne Abo-Zugang**: das Web-Frontend spricht nur lokale/Neben-Modelle, der teure Hauptagent bleibt dem kontrollierten Kanal vorbehalten | 3.1 | **anpassbar** |
 | **Aktualität register-getrieben, nicht erinnerungsgetrieben**: ein zentrales Komponenten-Register + deterministischer Monitor (kostenfreie Versionsquellen) meldet Updates; Installation bleibt bewusste Handlung, Major-Sprünge markiert | 5.21/E5 | **universell** |
 | **Register-Pflege als Teil der „fertig"-Definition**: jede neue versionierte Komponente wird beim Einbau eingetragen — sonst altert sie unbemerkt | 5.21/E5 | **universell** |
+| **Erkennen und Anwenden strikt trennen**: der Monitor findet, der Updater wendet an — beide deterministisch; die Anwendung fährt Freeze → Install → Health-Check → Rollback und braucht immer eine Freigabe | 5.21/Updater | **universell** |
+| **Kein Update ohne funktionierenden Rollback**: der Ist-Stand wird vor dem Einspielen eingefroren; scheitert der Health-Check, wird automatisch zurückgerollt | Updater | **universell** |
+| **Update-Ampel aus SemVer + Pin-Liste**: Patch/Minor sammelbar, Gepinntes nie automatisch, Major nur einzeln mit Rollback-Ansage | Updater | **universell** |
 | **Zeit-Trigger bleiben inferenzfrei**: was die Uhr auslöst, ruft nie das Abo-Modell (AGB) — Prüfungen, die ein Modell bräuchten, laufen menschgetriggert | 5.21/8.1 | **anpassbar** (Anbieter-AGB) |
 | **Token-Bündelung an einer Stelle**: nur der Kanal-Inhaber hält das Geheimnis; andere Instanzen legen Aufträge in ein Postfach, statt selbst zu senden — das Geheimnis verlässt nie seinen Prozess | B/Postfach | **universell** |
 | **Postfach mit Ziel-Allowlist + Geheimnis-Filter**: ein Versand-Dienst prüft, WOHIN und WAS gesendet werden darf — sonst wird er zum Exfiltrations-Kanal | B/Postfach | **universell** |

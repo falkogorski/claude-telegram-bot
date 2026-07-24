@@ -2475,6 +2475,7 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "(reset zum Löschen)\n"
         "/technik — Werkzeug-Spur: Klartext ↔ technische Rohform\n"
         "/spur — Werkzeug-Spur ganz aus/an (Rückfragen bleiben)\n"
+        "/updates — verfügbare Updates zeigen und einzeln/gesammelt freigeben\n"
         "/restart — Bot neu starten\n"
         "/selfcheck — Selbsttest ausführen\n"
         "/hilfe — Diese Befehlsübersicht\n\n"
@@ -2952,6 +2953,84 @@ async def cmd_spur(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await update.message.reply_text(
             "🔧 Werkzeug-Spur an — du siehst wieder pro Aufruf, was ich tue.")
+
+
+def _load_updater():
+    import sys as _sys
+    p = str(_REPO_DIR / "scripts")
+    if p not in _sys.path:
+        _sys.path.insert(0, p)
+    import updater as _upd
+    return _upd
+
+
+async def cmd_updates(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """5.21-Updater (Vier-Augen): zeigt verfügbare Updates mit Ampel und bietet
+    Freigabe-Knöpfe. Deterministisch, KEIN Modell-Aufruf. Installation erst nach
+    Adams Freigabe (Regressionstest danach, Rollback bei Fehler)."""
+    if not authorized(update):
+        return
+    await update.message.reply_text("🔎 Prüfe verfügbare Updates … (einen Moment)")
+    try:
+        upd = _load_updater()
+        ups = await asyncio.to_thread(upd.classify)
+    except Exception as e:
+        await update.message.reply_text(f"❌ Update-Prüfung fehlgeschlagen: {e}")
+        return
+    if not ups:
+        await update.message.reply_text("✅ Alles aktuell — keine Updates verfügbar.")
+        return
+    sym = {"gruen": "🟢", "gelb": "🟡", "rot": "🔴"}
+    green = [u for u in ups if u["ampel"] == "gruen" and u["kind"] == "pip"]
+    single = [u for u in ups if u["kind"] == "pip" and u["ampel"] in ("gelb", "rot")]
+    lines = ["📦 Verfügbare Updates:"]
+    for u in ups:
+        tag = " (gepinnt)" if u["ampel"] == "gelb" else (" (Major)" if u["ampel"] == "rot" else "")
+        note = " · manuell (Root/Sonderweg)" if u["kind"] != "pip" else ""
+        lines.append(f"{sym[u['ampel']]} {u['name']}: {u['cur']} → {u['latest']}{tag}{note}")
+    lines.append("\nInstallation nur nach deiner Freigabe. Danach läuft der "
+                 "Regressionstest; bei Fehler rolle ich automatisch zurück.")
+    rows = []
+    if green:
+        rows.append([InlineKeyboardButton(
+            f"🟢 Alle sicheren einspielen ({len(green)})", callback_data="upd:green")])
+    for u in single:
+        s = "🟡" if u["ampel"] == "gelb" else "🔴"
+        rows.append([InlineKeyboardButton(
+            f"{s} {u['name']} einzeln einspielen", callback_data=f"upd:one:{u['name']}")])
+    await update.message.reply_text(
+        "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup(rows) if rows else None)
+
+
+async def on_update_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not authorized(update):
+        return
+    data = query.data or ""
+    upd = _load_updater()
+    if data == "upd:green":
+        ups = await asyncio.to_thread(upd.classify)
+        names = [u["name"] for u in ups if u["ampel"] == "gruen" and u["kind"] == "pip"]
+    elif data.startswith("upd:one:"):
+        names = [data.split(":", 2)[2]]
+    else:
+        return
+    if not names:
+        await query.edit_message_text("Nichts mehr einzuspielen (evtl. inzwischen aktuell).")
+        return
+    await query.edit_message_text(
+        f"⏳ Spiele ein: {', '.join(names)} … (Regressionstest läuft, das kann etwas dauern).")
+    res = await asyncio.to_thread(upd.apply_updates, names)
+    msg = ("✅ " if res["ok"] else "⚠️ ") + res["msg"]
+    if res.get("done"):
+        msg += "\nEingespielt: " + ", ".join(res["done"])
+    if res.get("rolled_back"):
+        msg += "\nZurückgerollt: " + ", ".join(res["rolled_back"])
+    if res.get("restart_needed"):
+        msg += "\n\n🔁 Damit die neuen Versionen greifen: bitte /restart."
+    await query.edit_message_text(msg)
 
 
 async def cmd_setkanal(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -4587,6 +4666,7 @@ async def post_init(app: Application) -> None:
             BotCommand("freigaben", "Dauerhafte Werkzeug-Freigaben"),
             BotCommand("technik", "Werkzeug-Spur: Klartext ↔ Rohform"),
             BotCommand("spur", "Werkzeug-Spur ganz aus/an"),
+            BotCommand("updates", "Verfügbare Updates zeigen/freigeben"),
             BotCommand("presend", "Pre-Send-Hook — Kennzahlen"),
             BotCommand("ampel", "Ampel — Regeln & Status"),
             BotCommand("usage", "Token-Verbrauch heute"),
@@ -6663,12 +6743,14 @@ def main() -> None:
     app.add_handler(CommandHandler("stopp", cmd_stopp))
     app.add_handler(CommandHandler("technik", cmd_technik))
     app.add_handler(CommandHandler("spur", cmd_spur))
+    app.add_handler(CommandHandler("updates", cmd_updates))
     app.add_handler(CommandHandler("freigaben", cmd_freigaben))
     app.add_handler(CallbackQueryHandler(on_option_callback, pattern=r"^opt:"))
     app.add_handler(CallbackQueryHandler(on_permission_callback, pattern=r"^p:"))
     app.add_handler(CallbackQueryHandler(on_ampel_callback, pattern=r"^amp:"))
     app.add_handler(CallbackQueryHandler(on_pdf_callback, pattern=r"^pdf:"))
     app.add_handler(CallbackQueryHandler(on_channel_callback, pattern=r"^ch:"))
+    app.add_handler(CallbackQueryHandler(on_update_callback, pattern=r"^upd:"))
     app.add_handler(CallbackQueryHandler(on_restart_callback, pattern=r"^rst:"))
     app.add_handler(ChatMemberHandler(on_my_chat_member, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(MessageReactionHandler(on_reaction))

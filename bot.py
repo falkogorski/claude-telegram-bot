@@ -54,6 +54,7 @@ import tempfile
 
 from transcribe import Transcriber, build_transcriber
 import ampel
+import channels
 import pending
 import presend
 import reactions
@@ -591,6 +592,19 @@ def get_tts_channel() -> int | None:
     ch = _USER_PREFS.get("output_channel_id") or _USER_PREFS.get("tts_channel_id")
     return int(ch) if ch else OUTPUT_CHANNEL_ID
 
+
+def route_target(source: str) -> tuple[int, int, str] | None:
+    """6.1: Löst eine Auto-Routing-Quelle ('research'/'bot_status'/'unassigned')
+    zu (chat_id, thread_id, ziel_url) auf — oder None, wenn das Zielhaus/-zimmer
+    noch nicht existiert. Bewusst KEIN Fallback auf den Alt-Ausgabekanal: None
+    heißt „kein Auto-Ziel", der Aufrufer behält sein bisheriges Verhalten."""
+    hit = channels.resolve_route(_USER_PREFS, source)
+    if not hit:
+        return None
+    chat_id, thread_id = hit
+    url = _channel_url(chat_id, None)
+    return chat_id, thread_id, url
+
 # Pending PDF-Entscheidungen: user_id → dict mit Dateiinfos
 _PENDING_DOCS: dict[int, dict] = {}
 
@@ -783,6 +797,10 @@ class QueuedJob:
     chat_id: int | None = None
     message_id: int | None = None
     thread_id: int | None = None
+    # 6.1: Ausgangs-Thema (Forum-Topic) bei Cross-Chat-Ablage. Anders als
+    # thread_id (= Eingangsthema, geht bei Cross-Chat verloren) überlebt dieses
+    # Feld den Kanalwechsel und lenkt die Ausgabe ins Ziel-Zimmer.
+    output_thread_id: int | None = None
     # ECHTE Sendezeit (Telegram-Serverzeit, aus update.message.date) als Unix-Zeit.
     # Bewusst NICHT received_at: eine nach Neustart nachgeholte Nachricht wurde
     # früher gesendet als sie verarbeitet wird — der Prompt muss die Sendezeit
@@ -1074,7 +1092,12 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
     reply_to = (job.reply_to_override or job.message_id) if same_chat else None
     # In Forum-Gruppen: Antwort ins selbe Thema (Topic) zurückschicken. Nur sinnvoll,
     # wenn die Antwort in denselben Chat geht; bei Cross-Chat-Ablage (Ausgabekanal) None.
-    thread_id = job.thread_id if same_chat else None
+    # 6.1: Bei gezielter Cross-Chat-Ablage in ein Zimmer trägt output_thread_id das
+    # Ziel-Topic (überlebt den Kanalwechsel, den thread_id nicht überlebt).
+    if same_chat:
+        thread_id = job.thread_id
+    else:
+        thread_id = job.output_thread_id
     sess.thread_id = thread_id  # Permission-Prompts lesen das Thema von hier
 
     answer: str | None = None
@@ -2637,6 +2660,76 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def _provision_house(bot, chat, house_key: str) -> None:
+    """6.5: Legt für ein erkanntes Haus (Forum-Gruppe) die fehlenden Zimmer
+    (Topics) an — ratenbegrenzt (≈1 Anlage/Sekunde) mit 429-Backoff. Idempotent:
+    bereits angelegte Zimmer werden übersprungen (Prefs führen die Topic-IDs)."""
+    from telegram.error import RetryAfter, TelegramError
+
+    spec = channels.HOUSES[house_key]
+    channels.register_house(_USER_PREFS, house_key, chat.id,
+                            chat.title or spec["title"],
+                            bool(getattr(chat, "is_forum", False)))
+    todo = channels.missing_zimmer(_USER_PREFS, house_key)
+    created: list[str] = []
+    failed: list[str] = []
+    if not todo:
+        _save_prefs(_USER_PREFS)
+        for uid in ALLOWED_USER_IDS:
+            try:
+                await bot.send_message(
+                    chat_id=uid,
+                    text=(f'{spec["emoji"]} Haus „{spec["title"]}" erkannt — '
+                          "alle Zimmer sind bereits angelegt."))
+            except Exception:
+                log.exception("house-provision notify failed for %s", uid)
+        return
+
+    for i, zimmer in enumerate(todo):
+        for attempt in range(3):
+            try:
+                topic = await bot.create_forum_topic(chat_id=chat.id, name=zimmer)
+                channels.record_topic(_USER_PREFS, house_key, zimmer,
+                                      topic.message_thread_id)
+                created.append(zimmer)
+                break
+            except RetryAfter as e:
+                # Telegram-Flood-Limit: exakt so lange warten wie gefordert.
+                wait = float(getattr(e, "retry_after", 2)) + 0.5
+                log.warning("createForumTopic 429 — warte %.1fs (%s)", wait, zimmer)
+                await asyncio.sleep(wait)
+            except TelegramError:
+                log.exception("createForumTopic fehlgeschlagen: %s", zimmer)
+                failed.append(zimmer)
+                break
+        # Rate-Limit-Schonung: ~1 Anlage/Sekunde (20/min je Gruppe bleibt safe).
+        if i < len(todo) - 1:
+            await asyncio.sleep(1.1)
+
+    _save_prefs(_USER_PREFS)
+
+    done = channels.house_overview(_USER_PREFS)
+    hinfo = next((h for h in done if h["key"] == house_key), None)
+    lines = [f'{spec["emoji"]} Haus „{spec["title"]}" eingerichtet.']
+    if created:
+        lines.append("Neu angelegte Zimmer:\n• " + "\n• ".join(created))
+    if failed:
+        lines.append("⚠️ Nicht angelegt (bitte prüfen):\n• " + "\n• ".join(failed))
+    if hinfo:
+        lines.append(f'Stand: {hinfo["zimmer_done"]}/{hinfo["zimmer_total"]} Zimmer.')
+    if house_key == "werkstatt":
+        lines.append("Bot-Status läuft künftig automatisch ins Zimmer "
+                     "Migration & Technik, Unzugeordnetes nach Offene Punkte.")
+    if house_key == "bibliothek":
+        lines.append("Recherche- und PDF-Lieferungen laufen künftig automatisch "
+                     "ins Zimmer Recherchen & Referenzen.")
+    for uid in ALLOWED_USER_IDS:
+        try:
+            await bot.send_message(chat_id=uid, text="\n".join(lines))
+        except Exception:
+            log.exception("house-provision notify failed for %s", uid)
+
+
 async def on_my_chat_member(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Bot wurde in einen Kanal als Admin eingetragen — direkt als Output-Kanal speichern."""
     member_update = update.my_chat_member
@@ -2651,13 +2744,26 @@ async def on_my_chat_member(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
 
     # Gruppen/Supergruppen: nur die ID melden, NICHT den Output-Kanal überschreiben.
     if chat.type in ("group", "supergroup"):
+        house_key = channels.detect_house(chat.title)
+        is_forum = bool(getattr(chat, "is_forum", False))
+        # 6.5: Erkennt der Bot am Gruppennamen ein Haus UND ist der Forum-Modus
+        # aktiv, legt er die zugehörigen Zimmer (Topics) selbst an.
+        if house_key and is_forum:
+            await _provision_house(bot, chat, house_key)
+            return
         lines = [
             f'Gruppe „{chat.title or chat.id}" erkannt.',
             f"Gruppen-ID: {chat.id}",
         ]
         if str(chat.id).startswith("-100"):
             lines.append(f"Interne ID: {str(chat.id)[4:]}")
-        if getattr(chat, "is_forum", False):
+        if house_key and not is_forum:
+            spec = channels.HOUSES[house_key]
+            lines.append(
+                f'Das sieht nach dem Haus {spec["emoji"]} „{spec["title"]}" aus — '
+                "aber der Forum-Modus (Themen) ist noch aus. Aktiviere ihn in den "
+                "Gruppen-Einstellungen, dann lege ich die Zimmer automatisch an.")
+        elif is_forum:
             lines.append("Forum-Modus (Themen) aktiv — Thema-IDs holst du mit /whereami im jeweiligen Thema.")
         for uid in ALLOWED_USER_IDS:
             try:
@@ -3768,6 +3874,21 @@ def run_self_check() -> tuple[bool, list[str]]:
         r = get_output_channel()
         assert isinstance(r, tuple) and len(r) == 3, "kein 3-Tupel"
     check("Ausgabekanal-Routing", _c_channel)
+
+    # 4b. Phase-6-Kanalstruktur (6.5/6.1): Häuser vollständig, Routing ohne
+    # Falsch-Fallback, Auflösung greift erst bei angelegtem Zimmer.
+    def _c_houses() -> None:
+        assert set(channels.HOUSES) == {
+            "werkstatt", "nirgendhaus", "handelshaus", "bibliothek"}, "Haus-Set falsch"
+        total = sum(len(h["zimmer"]) for h in channels.HOUSES.values())
+        assert total == 13, f"erwartet 13 Zimmer, sind {total}"
+        # Erkennung tolerant, Bestand ausgenommen
+        assert channels.detect_house("🔧 Werkstatt") == "werkstatt"
+        assert channels.detect_house("Jakuna-San") is None
+        # Routing erfindet nie ein Ziel
+        assert channels.resolve_route({}, "research") is None
+        assert route_target("research") is None or isinstance(route_target("research"), tuple)
+    check("Phase-6-Kanalstruktur (6.5/6.1)", _c_houses)
 
     # 5. Memory erreichbar + ladbar
     def _c_memory() -> None:

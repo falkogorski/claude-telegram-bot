@@ -27,6 +27,7 @@ echo "== 8.2-Minimaltest ($(date '+%Y-%m-%d %H:%M')) =="
 run "Syntax bot.py (py_compile)"        "$PY" -m py_compile bot.py
 run "Syntax transcribe.py"              "$PY" -m py_compile transcribe.py
 run "Syntax reactions.py"               "$PY" -m py_compile reactions.py
+run "Syntax channels.py"                "$PY" -m py_compile channels.py
 run "Syntax pending.py"                 "$PY" -m py_compile pending.py
 run "Syntax presend.py"                 "$PY" -m py_compile presend.py
 # Auf dem VPS liegen die echten Envs nur in der root-geschuetzten systemd-Env —
@@ -51,7 +52,8 @@ run "Log-Rollover (Tageswechsel)"       "$PY" scripts/test_conversation_log_roll
 run "Reaktionen 5.9"                    "$PY" scripts/test_reactions_5_9.py
 run "Voice-Eingangs-Schutz"             "$PY" scripts/test_voice_entry_guard.py
 run "Session-Waechter 5.18"             "$PY" scripts/test_stall_5_18.py
+run "Kanal-Routing Phase 6"             "$PY" scripts/test_channels_6.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
-echo "== Ergebnis: $((11-FAILS))/11 bestanden =="
+echo "== Ergebnis: $((13-FAILS))/13 bestanden =="
 exit $FAILS

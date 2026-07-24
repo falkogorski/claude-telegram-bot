@@ -1,64 +1,98 @@
 <!-- ROLLE: entscheidungsvorlage-kanalstruktur -->
-# 6.6 Telegram-Struktur — Entscheidungsvorlage v2 (Gruppen mit Themen-Topics)
+# 6.6 Telegram-Struktur — FINAL v3 (Audit-Entscheid 24.07.2026)
 
-**v2 vom 23.07.2026 nach Adam-Review.** Grundmodell sind **Gruppen mit
-Themen-Topics** („Häuser mit Zimmern"), keine Einzelkanäle — Kanäle allenfalls
-später für reine Ausgabe-Feeds. Orientierung an **Projekten und Lebensbereichen**,
-nicht an Test-Themen: Der Fußball-Schwerpunkt der Log-Zählung (99 Treffer) war
-Recherche-**Testmaterial**, kein echter Fokus — er wird ein Zimmer unter
-„Interessen", kein eigenes Haus. **Angelegt wird weiterhin nichts ohne Adams
-Daumen.** Klammerwerte = 4.3-Ordner-Spiegelung, identische Terminologie
-(„Struktur über Namen": Häuser/Zimmer = Ordner/Unterordner — die bespielende KI
-dahinter ist austauschbar).
+**v3 ersetzt v2 vollständig** (Adam-Entscheid im Phasen-Audit 24.07.). Grundmodell
+bleibt: **Gruppen als „Häuser", Themen-Topics als „Zimmer"** — keine Einzelkanäle
+(Kanäle allenfalls später als reine Ausgabe-Feeds). Gegenüber v2 geändert:
+die Häuser sind jetzt entlang **Lebens-/Geschäftsbereichen** benannt (projekt-
+spezifische Poesie über einem universellen Muster), das Momo-Business bekommt ein
+eigenes Haus, und „Offene Punkte" wird zur intelligenten Zwischenablage (6.1).
 
-**Wachstums-Regel:** Ein Projekt bleibt Topic, bis es erkennbar herauswächst —
-erst dann eigene Gruppe. Lieber wenige lebende Zimmer als viele verödende.
+**Konfliktvermerk (nicht still aufgelöst):** v2 hatte drei Häuser
+(Jakuna-San · Werkstatt · Archiv & Wissen). v3 ist eine **bewusste Ersetzung**
+durch Adam — vier neue Häuser plus Bestand. Keine Zusammenführung, die alte
+Fassung ist überholt.
 
-## Haus 1 — 🏠 „Jakuna-San" (BESTAND — bleibt unverändert)
+**Anlage-Teilung:** **Gruppen erstellt Adam** (Gruppe anlegen → Bot einladen →
+Themen/Topics in den Gruppen-Einstellungen aktivieren). **Zimmer legt der Bot
+selbst an** (Punkt 6.5): Sobald Adam eine der vier Gruppen anlegt und den Bot
+einlädt, erkennt der Bot am Gruppennamen das Haus und legt die zugehörigen
+Zimmer in Minuten an. **Angelegt wird nichts ohne Adams Gruppe** — der Bot wird
+nie von sich aus Gruppen erstellen.
+
+Klammerwerte = 4.3-Ordner-Spiegelung mit **identischen Namen** („Struktur über
+Namen": Häuser/Zimmer = Ordner/Unterordner).
+
+---
+
+## Haus 0 — 🏠 „Jakuna-San" (BESTAND — nur registrieren)
 
 Persönliche Gruppe, der Bot ist bereits Mitglied. Wird nur **erfasst**, nicht
-umgebaut: Dialog-Ort neben der Kommandobrücke (Bot-Direktchat). Kein Auto-Routing
-dorthin ohne gesonderten Entscheid.
+umgebaut, kein Auto-Routing ohne gesonderten Entscheid. Dialog-Ort neben der
+Kommandobrücke. Anwendungsfall Nr. 1 des „Instanzen-Postfachs" (6.1): Gedanken
+direkt hierher pinnen.
 
-## Haus 2 — 🛠️ „Werkstatt" (`werkstatt/`) — NEU, bitte je Zimmer 👍/👎
+## Haus 1 — 🔧 „Werkstatt" (`werkstatt/`) — 4 Zimmer
 
 Alles, woran aktiv gebaut wird:
-- [ ] **Migration & Technik** (`werkstatt/migration-technik/`) — Statusberichte,
-  Weitergabe-Blöcke, Deploy-/Testprotokolle; Lese-Ort der Kontrollsitzung.
-  Auto: angeforderte Statusübersichten · Manuell: angepinnte Beschlüsse.
-- [ ] **Fanpost** (`werkstatt/fanpost/`) — das Fanpost-Projekt (Läufe, Ausgaben,
-  Ideen). Auto: künftige Fanpost-Ausgaben · Manuell: Projektnotizen.
-- [ ] **Business & Blaupause** (`werkstatt/business-blaupause/`) — Markt-Checks,
-  Produkt-/Blaupause-Gedanken (gelb; Konkret-Sensibles bleibt im sicheren Kanal).
-  Überwiegend manuell + gezielte Recherchen.
-- [ ] **Rechnungen & Büro** (`werkstatt/rechnungen-buero/`) — 5.19-Ausgaben
-  (Aufstellungen, Rechnungs-PDFs), Papierkram. Auto: sobald 5.19 gebaut ist.
+- **Migration & Technik** (`werkstatt/migration-technik/`) — Statusberichte,
+  Weitergabe-Blöcke, Deploy-/Testprotokolle. **Auto-Routing-Ziel für Bot-Status.**
+- **Fanpost** (`werkstatt/fanpost/`) — **Startplatz** des Fanpost-Projekts;
+  zieht ins Handelshaus um, sobald es klar ein Geschäft wird.
+- **Rechnungen & Büro** (`werkstatt/rechnungen-buero/`) — 5.19-Ausgaben,
+  Papierkram.
+- **Offene Punkte** (`werkstatt/offene-punkte/`) — **die intelligente
+  Zwischenablage (6.1):** Unzugeordnetes landet hier und wandert später gezielt
+  weiter. **Auto-Routing-Ziel für Unzugeordnetes.**
 
-## Haus 3 — 📚 „Archiv & Wissen" (`archiv-wissen/`) — NEU, bitte je Zimmer 👍/👎
+## Haus 2 — 🕰️ „Nirgendhaus" (`nirgendhaus/`) — 4 Zimmer
 
-Alles, was gefunden, bewahrt und nachgeschlagen wird:
-- [ ] **Recherchen & Referenzen** (`archiv-wissen/recherchen-referenzen/`) —
-  Recherche-Lieferungen, Referenz-PDFs, Quellen-Berichte. **Auto: jede
-  PDF-/Recherche-Ausgabe des Bots** (heutiges 6.1-Routing zeigt hierhin).
-- [ ] **Link-Inbox** (`archiv-wissen/link-inbox/`) — Andockpunkt für 5.14
-  (Link rein → Index, Buttons Zusammenfassen/Vertiefen/Volltranskript).
-  Auto: Link-Verarbeitungen, sobald 5.14 gebaut ist.
-- [ ] **Interessen** (`archiv-wissen/interessen/`) — inkl. Fußball/FC Köln,
-  weitere Themen nach Bedarf. Auto: Recherchen mit Interessen-Erkennung ·
-  Manuell: Fundstücke.
+Das Momo-Projekt-Haus (Name aus Meister Horas *Nirgend-Haus* in „Momo"):
+- **Produkt & Blaupause** (`nirgendhaus/produkt-blaupause/`)
+- **Kunden & Piloten** (`nirgendhaus/kunden-piloten/`)
+- **Vertrieb & Empfehlung** (`nirgendhaus/vertrieb-empfehlung/`)
+- **Recht & Zahlen** (`nirgendhaus/recht-zahlen/`)
+
+## Haus 3 — 🏛️ „Handelshaus" (`handelshaus/`) — 2 Zimmer (klein eröffnet)
+
+Weitere Geschäftsprojekte; **bewusst klein eröffnet, wächst durch Einzüge:**
+- **Ideen & Chancen** (`handelshaus/ideen-chancen/`)
+- **Affiliate-Projekt** (`handelshaus/affiliate-projekt/`)
+
+## Haus 4 — 📚 „Bibliothek" (`bibliothek/`) — 3 Zimmer
+
+Alles, was gefunden, bewahrt und nachgeschlagen wird (ersetzt v2 „Archiv & Wissen"):
+- **Recherchen & Referenzen** (`bibliothek/recherchen-referenzen/`) —
+  **Auto-Routing-Ziel für jede PDF-/Recherche-Lieferung des Bots.**
+- **Link-Inbox** (`bibliothek/link-inbox/`) — Andockpunkt für 5.14.
+- **Interessen** (`bibliothek/interessen/`) — inkl. Fußball/FC Köln, weitere
+  Themen nach Bedarf.
+
+---
+
+## Routing-Regeln (6.1)
+
+- **Bot-Status/Weitergabe** → Werkstatt · Migration & Technik (auto)
+- **Recherche-/PDF-Lieferungen** → Bibliothek · Recherchen & Referenzen (auto)
+- **Unzugeordnetes** → Werkstatt · Offene Punkte (auto, Zwischenablage)
+- **Alles Übrige** → manuell / per Zuruf in das gewünschte Zimmer
 
 ## Bewusst NICHT dabei
 
 Erinnerungen/Routinen (eigener Kanal in Phase 7) · rote Inhalte (laufen laut
-Ampel nie durch Telegram) · ein „Sonstiges"-Zimmer (Müllschlucker).
+Ampel nie durch Telegram) · ein „Sonstiges"-Müllschlucker (dafür ist „Offene
+Punkte" die geordnete Zwischenablage).
 
 ## Notierte Ausbauwünsche
 
-- **6.5-Ergänzung (Adam 23.07.):** Vom Projekt-Topic direkt in die zugehörige
-  Code-Sitzung springen; **vorerst: gepinnter Link je Topic.**
+- **6.5-Ergänzung:** Vom Projekt-Topic direkt in die zugehörige Code-Sitzung
+  springen; **vorerst: gepinnter Link je Topic.**
 - Kanäle als reine Ausgabe-Feeds: erst, wenn ein Zimmer erkennbar zum
   Broadcast-Fall wird.
 
-**Nächster Schritt nach deinem Daumen:** Häuser/Zimmer gemeinsam anlegen (Bau
-nach Phase 3), Routing je Zimmer in 6.1 verdrahten, 4.3-Ordner mit identischen
-Namen anlegen, gepinnte Sitzungs-Links setzen.
+## Blaupause-Notiz
+
+Die Haus-Namen (Jakuna-San / Werkstatt / Nirgendhaus / Handelshaus / Bibliothek)
+sind **projektspezifische Poesie über einem universellen Muster**:
+**Leben · Werkstatt · Produkt · Geschäfte · Bibliothek**. Die Blaupause
+beschreibt das *Muster*; der Kunde benennt seine Häuser selbst.

@@ -70,6 +70,11 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 | **Absturz-Schleifen-Bremse**: eine Nachricht, die den Dienst reproduzierbar mitreißt, wird nach N Anläufen nur noch gemeldet | 5.2 | **universell** |
 | **Eingangsschutz vor teurer Vorverarbeitung**: sichern, bevor transkribiert/konvertiert wird — nicht danach | 5.2 (20.07.) | **universell** |
 | **Zwei-Ebenen-Wächter**: einer für „Dienst tot", einer für „Dienst lebt, Arbeitssitzung tot" | 5.18 | **universell** |
+| **Ablage als Häuser/Zimmer** (Gruppen = Bereiche, Topics = Unterthemen) mit maschineller Selbst-Einrichtung: der Assistent legt die Zimmer an, sobald der Mensch das Haus eröffnet | 6.5/6.6 | **universell** (Muster); Telegram-Forum-Topics **plattformgebunden** |
+| **Routing erfindet nie ein Ziel**: eine Zuordnung, die ihr Zimmer noch nicht kennt, liefert „kein Ziel" statt eines Notkanals — lieber im Dialograum bleiben als falsch ablegen | 6.1 | **universell** |
+| **Ausgangs-Adresse getrennt von Eingangs-Adresse führen** (eigenes Feld fürs Ziel-Thema), damit ein Kanalwechsel den Bezug nicht verliert | 6.1 | **universell** |
+| **Selbst-Einrichtung ratenbegrenzt**: automatische Anlage vieler Objekte drosselt sich (1/Sek), respektiert Plattform-Limits und wartet Flood-Sperren exakt aus | 6.5 | **anpassbar** (Telegram-Raten) |
+| **Namen sind Poesie über einem Muster**: der Kunde benennt seine Häuser frei (Leben/Werkstatt/Produkt/Geschäfte/Bibliothek), die Blaupause beschreibt nur die Rollen | 6.6 | **universell** |
 | **Wächter müssen sperrfrei arbeiten** — wer auf die Sperre des Hängenden wartet, hängt mit | 5.18 | **universell** |
 | **Wartende Rückfragen sind kein Stillstand** — Stille auf eine offene Frage ist gewollt | 5.18 | **universell** |
 | **Pre-Send-Prüfung**: vollständige Antwort erst prüfen, dann senden (setzt Sammeln statt Durchreichen voraus) | 8.5 | **universell** |

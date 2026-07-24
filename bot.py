@@ -131,6 +131,9 @@ def _usage_today() -> dict:
 # ---------- memory loader ----------
 
 _MEMORY_DIR = Path(os.environ.get("CLAUDE_MEMORY_DIR") or str(Path.home() / ".claude/projects/-Users-jakuna/memory"))
+# 8.7: Das Repo liegt dort, wo bot.py liegt. Lesen daraus ist frei (Governance
+# „lesen ja, schreiben nie"); die Schreib-/Geheimnis-Schranken greifen separat.
+_REPO_DIR = Path(__file__).resolve().parent
 _MEMORY_CACHE: str | None = None
 _MEMORY_MTIME: float = 0.0
 
@@ -1485,6 +1488,32 @@ def _is_repo_write_cmd(cmd: str) -> bool:
     return "claude-telegram-bot" in c and bool(_REPO_WRITE_RE.search(c))
 
 
+# 8.7 [GEÄNDERT 2026-07-24]: Lesen/Auflisten des Repos ist FREI (Governance
+# „lesen ja, schreiben nie" — der frühere Zustand übererfüllte sie, weil auch
+# ls/cat/git-log in den Dialog fielen). Nur EIN einzelner, verkettungsfreier
+# Lese-Befehl auf das Repo wird auto-freigegeben: keine Shell-Metazeichen
+# (|;&<>`$()) → keine Tarnung eines Schreib-/Fremdbefehls; kein Schreibmuster;
+# kein Geheimnis-Pfad. Der Schreib-Weg (oben) und der Geheimnis-Schutz bleiben zu.
+_SHELL_META_RE = re.compile(r"[|;&<>`]|\$\(")
+_REPO_READ_VERBS = re.compile(
+    r"^\s*(?:ls|cat|head|tail|wc|find|stat|file|less|more|tree|nl|column|column|"
+    r"sed\s+-n|grep|rg|git\s+(?:-C\s+\S+\s+)?(?:log|status|diff|show|branch|blame|ls-files|rev-parse|describe))\b"
+)
+
+
+def _is_repo_read_cmd(cmd: str) -> bool:
+    c = cmd or ""
+    if "claude-telegram-bot" not in c:
+        return False
+    if _SHELL_META_RE.search(c):
+        return False               # keine Verkettung/Umleitung
+    if _is_repo_write_cmd(c):
+        return False               # doppelter Boden gegen Schreiben
+    if _is_sensitive_ref(c):
+        return False               # Geheimnis-Pfade bleiben auch fürs Lesen zu
+    return bool(_REPO_READ_VERBS.match(c))
+
+
 def _trace_off(user_id: int) -> bool:
     """5.25 (d) /spur: True, wenn Adam die 🔧-FYI-Werkzeug-Spur stummgeschaltet hat.
     Per-User (user_id), NICHT chat_id. Betrifft NUR die reine FYI-Zeile — die
@@ -1608,6 +1637,11 @@ def make_permission_callback(user_id: int):
                         "Misch-Befehle bitte aufteilen."
             )
 
+        # 8.7 [GEÄNDERT]: Lesen/Auflisten des Repos ohne Rückfrage (ls, cat, grep,
+        # git log/status/diff …) — nur einzelne, verkettungsfreie Lese-Befehle.
+        if tool_name == "Bash" and _is_repo_read_cmd(str(tool_input.get("command") or "")):
+            return PermissionResultAllow()
+
         # 5.25 (b) Geheimnis-Schutz: Verweise auf Secrets fallen IMMER in den
         # Dialog — vor jeder Auto-Freigabe geprüft, auch vor Always-Allow.
         _ref = str(tool_input.get("file_path") or tool_input.get("path")
@@ -1643,7 +1677,10 @@ def make_permission_callback(user_id: int):
                     # Grep/Glob ohne Pfad durchsuchen den Workspace (cwd).
                     return PermissionResultAllow()
                 p = Path(raw).expanduser().resolve()
-                for base in (_MEMORY_DIR.resolve(), Path(WORKDIR).expanduser().resolve()):
+                # 8.7 [GEÄNDERT]: Repo-Verzeichnis als Lese-Basis mit aufgenommen
+                # (Code/Doku/Skripte/Logs frei lesen; Schreiben bleibt gesperrt).
+                for base in (_MEMORY_DIR.resolve(), Path(WORKDIR).expanduser().resolve(),
+                             _REPO_DIR):
                     if p == base or base in p.parents:
                         return PermissionResultAllow()
             except Exception:
@@ -4189,6 +4226,8 @@ def run_self_check() -> tuple[bool, list[str]]:
     # 17. Governance 8.7 — der Bot kann sein Repo nicht beschreiben, und der
     # VPS-Klon IST nachweislich unangetastet (auf dem Mac: nur Logik-Prüfung).
     def _c_repo_readonly() -> None:
+        import inspect as _insp
+        src = _insp.getsource(make_permission_callback)
         repo = "/home/claudebot/claude-telegram-bot"
         # Schreibmuster werden erkannt, Lesen bleibt frei.
         for bad in (f"cd {repo} && git commit -am x", f"git -C {repo} push",
@@ -4198,6 +4237,22 @@ def run_self_check() -> tuple[bool, list[str]]:
         for good in (f"git -C {repo} log --oneline", f"cat {repo}/MIGRATION.md",
                      f"grep -r Ampel {repo}", "echo hallo > /tmp/x.txt"):
             assert not _is_repo_write_cmd(good), f"Fehlalarm bei Lese-Befehl: {good}"
+        # 8.7 [GEÄNDERT 24.07.]: Lese-Weg OFFEN, Schreib-Weg ZU, Geheimnis-Weg ZU.
+        for readable in (f"ls {repo}", f"cat {repo}/bot.py", f"git -C {repo} log",
+                         f"grep -rn Ampel {repo}", f"tail -20 {repo}/logs/bot.err.log"):
+            assert _is_repo_read_cmd(readable), f"Lesen sollte frei sein: {readable}"
+        for blocked in (f"cat {repo}/bot.py && rm /tmp/x",   # Verkettung
+                        f"cat {repo}/bot.py > /tmp/x",        # Umleitung
+                        f"cat {repo}/.env", f"cat {repo}/secret.key",  # Geheimnis
+                        f"echo x >> {repo}/bot.py"):          # Schreiben
+            assert not _is_repo_read_cmd(blocked), f"Lese-Freigabe zu weit: {blocked}"
+        # Geheimnis-Pfade bleiben auch fürs reine Lesen gesperrt.
+        for secret in (f"{repo}/.env", "/etc/claude-telegram-bot.env",
+                       f"{repo}/id_ed25519", "credentials.json"):
+            assert _is_sensitive_ref(secret), f"Geheimnis-Pfad nicht erkannt: {secret}"
+        # Verdrahtung im Callback: Repo-Lese-Zweig + Repo-Dir als Read-Basis.
+        assert "_is_repo_read_cmd" in src, "Repo-Lese-Freigabe nicht im Callback"
+        assert "_REPO_DIR" in src, "Repo-Dir nicht als Read-Basis im Callback"
         # Auf dem VPS zusätzlich: Klon hat keine lokalen Veränderungen.
         if Path(repo).is_dir():
             import subprocess

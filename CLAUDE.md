@@ -340,6 +340,19 @@ committen oder pushen niemals.** Deploys laufen **ausschließlich** über
 auseinanderlaufen; der nächste `git pull` kollidiert dann oder überschreibt
 stillschweigend Handarbeit. Details + technische Verankerung: Punkt **8.7**.
 
+**[GEÄNDERT 2026-07-24] — Lesen wiederhergestellt (Adam-Entscheid, keine
+Aufweichung):** „Lesen ja, schreiben nie" heißt jetzt technisch, was es sagt.
+Der frühere Zustand übererfüllte die Governance — auch `ls`/`cat`/`git log`/
+Read fielen in den Freigabe-Dialog und waren für die Bot-Sitzung praktisch
+gesperrt. Neu: **Lesen/Auflisten von Code, Doku, Skripten, Logs ist FREI**
+(Read/Grep/Glob im Repo-Verzeichnis + einzelne, verkettungsfreie Bash-Lese-
+Befehle). **Unverändert ZU (Vier-Augen-Prinzip):** Schreiben/Committen bleibt
+dreischichtig gesperrt (Callback-Deny Edit/Write + `_is_repo_write_cmd` für Bash
++ pre-commit-Blocker im VPS-Klon), und **Geheimnis-Pfade** (`.env`,
+`/etc/claude-telegram-bot.env`, credentials, token/secret/key-Dateien) bleiben
+**auch fürs Lesen gesperrt**. Selbstcheck „Repo NUR-LESEN (8.7)" prüft alle drei
+Wege (Lesen offen · Schreiben zu · Geheimnis zu).
+
 ## 🧠 Kontext-Kompass bei dieser (langen) Migration — FESTER RHYTHMUS
 
 Vereinbarung mit Adam (2026-07-16): Diese zusammenhängende Migration in **einer**

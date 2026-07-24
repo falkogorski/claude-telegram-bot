@@ -30,6 +30,7 @@ Kenntnis. Einschätzung: **anpassbar** (Namensebene, von der Technik entkoppelt)
 umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 - „Momo — Geschäftsmodell-Skizze (Klon-Concierge, v13)" → [`docs/entscheidungsvorlagen/momo-business-skizze.md`](docs/entscheidungsvorlagen/momo-business-skizze.md) (ROLLE: `entscheidungsvorlage-momo-business`)
 - „Der Abend, an dem Momo seinen Namen fand" (Gründungserzählung) → [`docs/entscheidungsvorlagen/momo-gruendungserzaehlung.md`](docs/entscheidungsvorlagen/momo-gruendungserzaehlung.md) (ROLLE: `gruendungs-erzaehlung-momo`) · Lesefassung [`.pdf`](docs/entscheidungsvorlagen/momo-gruendungserzaehlung.pdf)
+- **Werte-Charta (das eine Wertefundament)** → [`docs/entscheidungsvorlagen/werte-charta-momo.md`](docs/entscheidungsvorlagen/werte-charta-momo.md) (ROLLE: `werte-charta`) — Ethik-Agenda + Momo-Charta verschmolzen (24.07.); das Bot-Memory verweist nur noch hierher (eine Wahrheit).
 
 ---
 

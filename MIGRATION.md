@@ -826,7 +826,7 @@ Absturzfall ausdrücklich auf 5.18).
 ## Phase 8 — Tests & Selbstüberwachung
 
 ### 8.1 Täglicher 4-Uhr-Funktionscheck (zentrale Sammelstelle)
-- **Status:** OFFEN
+- **Status:** OFFEN — **Vorlage bereit (24.07.):** AGB-Faktensammlung [`docs/entscheidungsvorlagen/agb-faktensammlung.md`](docs/entscheidungsvorlagen/agb-faktensammlung.md) liefert die Bau-Anforderung: der Check muss **deterministisch ohne Modell-Aufruf** sein (systemctl-Status + `scripts/regressionstest.sh` + Abhängigkeits-Prüfbefehle + Token-Alter 5.20), Meldung per `curl` an die Bot-API. Der Hygiene-Neustart-Timer (04:00) existiert bereits als Zeitgeber-Muster — 8.1 hängt sich als zweiter Timer/erweiterter Job daneben. Bau als nächster Schritt.
 - **Akzeptanzkriterium:** Systemd-Timer um 04:00 MEZ; prüft Token gültig, API erreichbar, TTS-Cleanup-Selbsttest, Migrations-Endpunkte; Bericht ins Bot-Log + bei Fehler Telegram-Hinweis. `[NEU 2026-07-16]` **Arbeitet die Prüfbefehle des Abhängigkeits-Registers (`ABHAENGIGKEITEN.md`) ab** und meldet **Bezugs-Brüche proaktiv per Telegram** (Schutz vor stillen `#BEZUG!`-Fehlern). Das Register ist die Prüfliste — neue Komponenten dort eintragen heißt automatisch: ab dem nächsten 4-Uhr-Lauf mitgeprüft.
 - **Test:** Manueller Auslöser → Bericht erscheint. Plus: eine Register-Abhängigkeit künstlich brechen (z. B. `searxng` stoppen) → Check meldet den Bruch per Telegram.
 - **Adam-Bestätigung:** —

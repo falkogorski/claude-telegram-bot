@@ -1,0 +1,72 @@
+{
+  "_rolle": "komponenten-register",
+  "_zweck": "E5/5.21 — zentrales Register aller versionierten Komponenten. Der Update-Monitor (scripts/version_monitor.py) prüft ALLE Einträge deterministisch (kein Modell-Aufruf). Neue versionierte Komponente = hier eintragen, dann wird sie ab dem nächsten Lauf mitgeprüft. Installation bleibt IMMER manuell (E3).",
+  "_kinds": "pip (venv+ref, PyPI) | npm_global (ref, npm-Registry) | node (nodejs.org LTS) | github_release (repo, current_cmd) | manual (nur Reminder mit note)",
+  "components": [
+    {
+      "name": "claude-agent-sdk",
+      "kind": "pip",
+      "venv": "/home/claudebot/claude-telegram-bot/.venv",
+      "ref": "claude-agent-sdk",
+      "pinned": true,
+      "note": "FUNDAMENT — gepinnt in requirements.txt (buendelt die Claude-Code-CLI). Update NUR im Wartungsfenster nach scripts/regressionstest.sh."
+    },
+    {
+      "name": "python-telegram-bot",
+      "kind": "pip",
+      "venv": "/home/claudebot/claude-telegram-bot/.venv",
+      "ref": "python-telegram-bot"
+    },
+    {
+      "name": "edge-tts",
+      "kind": "pip",
+      "venv": "/home/claudebot/claude-telegram-bot/.venv",
+      "ref": "edge-tts"
+    },
+    {
+      "name": "pymupdf",
+      "kind": "pip",
+      "venv": "/home/claudebot/claude-telegram-bot/.venv",
+      "ref": "pymupdf"
+    },
+    {
+      "name": "anthropic",
+      "kind": "pip",
+      "venv": "/home/claudebot/claude-telegram-bot/.venv",
+      "ref": "anthropic"
+    },
+    {
+      "name": "litellm",
+      "kind": "pip",
+      "venv": "/home/claudebot/litellm/venv",
+      "ref": "litellm",
+      "note": "Neben-Inferenz-Proxy (2.1) — eigenes venv."
+    },
+    {
+      "name": "claude-code-cli-global",
+      "kind": "npm_global",
+      "ref": "@anthropic-ai/claude-code",
+      "note": "Globale CLI (getrennt von der SDK-gebuendelten). Major-Sprung = Verhaltensaenderungen moeglich (Rotes-Team B.1)."
+    },
+    {
+      "name": "nodejs",
+      "kind": "node",
+      "note": "CLI verlangt >=22. Major-Wechsel bewusst."
+    },
+    {
+      "name": "whisper.cpp",
+      "kind": "manual",
+      "note": "Eigenbau (git-Klon). Bei Bedarf gegen ggml-org/whisper.cpp Releases pruefen + neu bauen."
+    },
+    {
+      "name": "lobe-chat",
+      "kind": "manual",
+      "note": "Docker-Image lobehub/lobe-chat:latest. Update = docker pull + Container neu (nur localhost pruefen!)."
+    },
+    {
+      "name": "debian",
+      "kind": "manual",
+      "note": "OS. Sicherheits-Updates via unattended-upgrades automatisch; Point-Release-Upgrades bewusst."
+    }
+  ]
+}

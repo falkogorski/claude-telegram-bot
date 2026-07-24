@@ -64,23 +64,25 @@ else add "⚠️ kein Token-Sidecar ($TOKEN_ISSUED)"; fi
 set -a; . "$ENVFILE" 2>/dev/null; set +a
 if [ "${BOT_MODE:-polling}" = "webhook" ]; then
   info="$(curl -s -m 15 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo" 2>/dev/null)"
-  # last_error nur dann rot, wenn er JÜNGER als 1 Stunde ist (frische Störung)
+  # Gesundheits-Signal ist pending_update_count (stauen sich Updates?), NICHT das
+  # Alter des letzten Fehlers: ein eingefrorener Startup-Race-Fehler bei pending=0
+  # bedeutet, Telegram hat danach erfolgreich zugestellt. Rot nur bei fehlender
+  # URL oder echtem Rückstau; last_error wird nur informativ mitgeführt.
   py="$(python3 - "$info" <<'PY'
-import sys, json, time
+import sys, json
 try:
     d = json.loads(sys.argv[1]).get("result", {})
 except Exception:
-    print("ERR|unlesbar"); raise SystemExit
+    print("ERR|?|"); raise SystemExit
 url = bool(d.get("url"))
-led = d.get("last_error_date") or 0
-fresh = (time.time() - led) < 3600 if led else False
-print(f"{'OK' if url else 'NOURL'}|{d.get('pending_update_count')}|{1 if fresh else 0}|{d.get('last_error_message','')}")
+pending = d.get("pending_update_count") or 0
+print(f"{'OK' if url else 'NOURL'}|{pending}|{d.get('last_error_message','')}")
 PY
 )"
-  IFS='|' read -r wstat wpending wfresh wmsg <<< "$py"
+  IFS='|' read -r wstat wpending wmsg <<< "$py"
   if [ "$wstat" != "OK" ]; then red "Webhook: keine URL gesetzt ($wstat)"
-  elif [ "$wfresh" = "1" ]; then red "Webhook: frischer Fehler <1h: ${wmsg}"
-  else add "✅ Webhook gesund (pending=${wpending}, kein frischer Fehler)"; fi
+  elif [ "${wpending:-0}" -ge 5 ]; then red "Webhook: ${wpending} Updates gestaut (letzter Fehler: ${wmsg:-–})"
+  else add "✅ Webhook gesund (pending=${wpending})"; fi
 else
   add "ℹ️ Polling-Modus (kein Webhook-Check)"
 fi

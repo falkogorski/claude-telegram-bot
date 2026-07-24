@@ -2582,7 +2582,7 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             await query.edit_message_text(f"{filename} ({size_mb:.1f} MB) — Zusammenfassen …")
 
-        local_path_str = pending.get("local_path", "")
+        local_path_str = pending_doc.get("local_path", "")
         local_path_obj = Path(local_path_str) if local_path_str else None
         bot = query.get_bot()
 
@@ -2642,7 +2642,7 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
                 f"{filename} ({size_mb:.1f} MB) — Kurzfassung wird erstellt und vorgelesen …"
             )
 
-        local_path_str = pending.get("local_path", "")
+        local_path_str = pending_doc.get("local_path", "")
         local_path_obj = Path(local_path_str) if local_path_str else None
         bot = query.get_bot()
 
@@ -2678,7 +2678,7 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     # "full" — direkte kapitelweise TTS, kein Claude-Umweg
-    local_path_str = pending.get("local_path", "")
+    local_path_str = pending_doc.get("local_path", "")
     local_path = Path(local_path_str) if local_path_str else None
     if not local_path or not local_path.exists():
         await query.edit_message_text(f"❌ Datei nicht mehr verfügbar: {local_path_str}")

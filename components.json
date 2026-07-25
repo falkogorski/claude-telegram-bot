@@ -97,6 +97,13 @@
       "name": "verfahren-medien",
       "kind": "manual",
       "note": "VERFAHREN (nicht Version): Wie wir Videos und Bilder auslesen. Stand 25.07.2026: Einzelbilder in laufzeitabhaengiger Dichte + Uebersichts-boegen + Tonspur via Spracherkennung (media.py). Beim Monitorlauf mitpruefen, ob es inzwischen ein besseres Verfahren gibt (Modelle mit echtem Videoverstaendnis, Bewegungsanalyse). Adam-Grundsatz 25.07.: qualitativ weit oben ansiedeln, wiederkehrend pruefen — aber Solides nicht wegwerfen, nur weil Neues existiert."
+    },
+    {
+      "name": "faster-whisper",
+      "kind": "pip",
+      "venv": "/home/claudebot/claude-telegram-bot/.venv",
+      "ref": "faster-whisper",
+      "note": "STT-Vorgabe seit 25.07.2026 (Adam-Entscheid). Loest whisper.cpp ab, das als Rueckweg per STT_BACKEND=whisper_cpp erhalten bleibt. Lokal, kostenfrei, kein Netz zur Laufzeit."
     }
   ]
 }

@@ -4763,6 +4763,26 @@ def run_self_check() -> tuple[bool, list[str]]:
                            + ", ".join(fehlt))
     check("Register-Vollständigkeit (R2)", _c_register_vollstaendig)
 
+    def _c_stt_backend() -> None:
+        """Welches Sprach-Backend trägt gerade — gemessen, nicht angenommen.
+
+        Der Wechsel auf faster-whisper (25.07.) hat einen lauten Rückfall auf
+        whisper.cpp eingebaut. Ohne diese Zeile wäre der Rückfall genau das,
+        was er nicht sein soll: unbemerkter Normalzustand.
+        """
+        gewuenscht = (os.environ.get("STT_BACKEND") or "faster_whisper").lower()
+        if gewuenscht == "off":
+            return
+        tr = get_transcriber()
+        name = type(tr).__name__
+        if gewuenscht == "faster_whisper":
+            assert name == "FasterWhisperTranscriber", (
+                f"faster-whisper gewünscht, aktiv ist aber {name} — "
+                "der Rückfall greift (siehe Log)")
+        elif gewuenscht == "whisper_cpp":
+            assert name == "WhisperCppTranscriber", f"unerwartetes Backend: {name}"
+    check("Sprach-Backend (5.22)", _c_stt_backend)
+
     return state["ok"], results
 
 

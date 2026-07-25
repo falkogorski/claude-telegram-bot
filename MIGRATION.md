@@ -22,6 +22,8 @@ metadata:
 
 ## Änderungshistorie
 
+- **2026-07-25 (8)** — **faster-whisper aktiv (neuer Punkt 5.35), 5.34 entscheidungsreif gemessen, Regeln ⑪/⑫ verankert, Prüfraster erstellt.** Sprach-Backend gegengemessen statt übernommen: **1,81×** schneller (80,3 s statt 145,7 s) — und die kursierenden „6,3–7,1×" als **Echtzeit-Faktoren** richtiggestellt. **5.34:** VPS gemessen — 225 GB frei, 5,9 GB Speicher verfügbar, **keine Aufrüstung nötig, kein Cent Zusatzkosten**; Vorlage [`docs/entscheidungsvorlagen/grosse-dateien-bot-api-server.md`](docs/entscheidungsvorlagen/grosse-dateien-bot-api-server.md) entscheidungsreif. **Regel ⑫** („Status ist ein Befund, keine Behauptung") und **Regel ⑪** (Gültigkeits-Kopf) in CLAUDE.md; `AUDIT-STATUS-phase5.md` als überholt gekennzeichnet. **Prüfraster Basisfähigkeiten** erstellt — sechs echte Lücken benannt, Kalender und E-Mail an der Spitze.
+
 - **2026-07-25 (7)** — **Video-Abtastung nachgeschärft (5.28) + zwei Grundsätze verankert.** Adams Befund nach dem ersten Test: „viel zu große Sprünge". Neue laufzeitabhängige Dichte (30 s → jede Sekunde) plus **Übersichtsbögen und Zeitmarken**, die Dichte und schlanken Kontext zugleich möglich machen. In CLAUDE.md erweitert: **Aktualität gilt für VERFAHREN, nicht nur Versionsnummern** — qualitativ weit oben ansiedeln, wiederkehrend prüfen, Solides aber nicht wegwerfen, nur weil Neues existiert. Neuer Punkt **5.34**: Anbindung für große Dateien über einen selbst betriebenen Bot-API-Server (2 GB statt 20 MB), aktiv schaltbar, mit belastbarer Kostenangabe — Plattenplatz-Messung steht vor jedem Bau.
 
 - **2026-07-25 (6)** — **C1, A8, H5 und R1–R3 umgesetzt (neuer Punkt 5.33).** Nachzieher in Variante 1: strukturierter Folge-Patch statt Schreibrecht für den Bot, zwei Weißlisten, Nachmessen statt Glauben. Register-Wächter (R2) fand beim ersten Lauf `ampel.py` und beim zweiten das eigene neue Skript. Dazu A8 (Befehl mit Nachtext wird benannt statt an den Agenten gereicht), H5 (die Sprachausgabe benennt Zeichen, über die der Text redet — Zierde bleibt stumm), R1 (vierter Punkt der Bezugs-Integrität) und R3 (Rücksprung-Anleitung). Regressionslauf **20/20**, Selbstcheck **23** Zeilen.
@@ -827,6 +829,18 @@ Absturzfall ausdrücklich auf 5.18).
 - **Nächster Schritt (vor jedem Bau):** Plattenplatz und Arbeitsspeicher des VPS messen, den Bedarf für realistische Dateigrößen hochrechnen, daraus die Kostenangabe ableiten (Aufrüstung ja/nein, welcher Betrag) und Adam **vor** der Einrichtung zur Entscheidung vorlegen.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
+
+### 5.35 Sprach-Backend auf faster-whisper umgestellt (③) `[NEU 2026-07-25]`
+- **Status:** ✅ VERIFIZIERT (25.07., gegengemessen)
+- **Adam-Entscheid 25.07.:** umstellen. Die Transcriber-Abstraktion war genau dafür gebaut; `transcribe.py` kannte bis dahin nur `whisper_cpp` (aktiv) und `openai` (Platzhalter).
+- **Gegenmessung auf dem VPS, gleiche Datei, gleicher Tag** (535,9-Sekunden-Sprachnachricht, small-Stufe, 4 Kerne, int8): whisper.cpp **145,7 s** (3,7× Echtzeit, 7300 Zeichen) → faster-whisper **80,3 s** (6,7× Echtzeit, 7344 Zeichen). **Beschleunigung: 1,81×.**
+- **⚠️ Zahlen-Klarstellung (wichtig für die Erwartung):** Die im Drehbuch stehenden Werte **6,3× und 7,1×** sind **Echtzeit-Faktoren** (Audiodauer geteilt durch Rechenzeit), **keine** Beschleunigung gegenüber whisper.cpp. Die Beschleunigung beträgt **~1,8×** — so stand es auch im Benchmark-Text selbst. Wer 6,3-fach erwartet, wird enttäuscht; die Messung heute bestätigt 1,8-fach.
+- **Drei bewusste Entscheidungen:** (1) Die Sperre `_WHISPER_SEM` **wandert mit** — das Abhängigkeits-Register hatte genau das vorab verlangt, sonst kehrt der Ressourcen-Kollaps vom 22.07. zurück. (2) Der **Rückweg** ist eine Umgebungsvariable (`STT_BACKEND=whisper_cpp`), und ein Fehlschlag beim Laden fällt **laut** zurück — mit Log-Eintrag und eigener Selbstcheck-Zeile, weil ein stiller Rückfall schlimmer wäre als ein Ausfall. (3) `set_model` liest die Stufe aus dem übergebenen **Pfad**, damit der Umschalt-Knopf (5.22) ohne Oberflächen-Umbau weiterläuft.
+- **Nebenfund beim Messen:** Der whisper.cpp-Zweig verträgt keine Zeichenkette als Pfad (`with_suffix`). Der Bot übergibt immer einen Pfad, aber eine Schnittstelle, die nur bei einem von zwei Backends nachsichtig ist, ist eine Falle für den nächsten Aufrufer — behoben.
+- **💰 Keine Kosten:** lokal, kostenfreies Paket, Modelle aus dem freien Zwischenlager, kein Netz zur Laufzeit.
+- **Test:** Selbstcheck-Zeile „Sprach-Backend (5.22)" prüft das **aktive** Backend (nicht das gewünschte); Regressionslauf 20/20.
+- **Adam-Bestätigung:** ausstehend — eine Sprachnachricht schicken und aufs Tempo achten.
+- **Verifiziert am:** 25.07.2026
 
 ### Phasen-Audit 5 → 6
 - **Audit-Status:** —

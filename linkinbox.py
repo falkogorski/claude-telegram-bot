@@ -87,11 +87,30 @@ def _host(url: str) -> str:
     return ohne.split("/", 1)[0].lower().removeprefix("www.")
 
 
+# `[S2, 26.07.]` Die Art steckt bei manchen Anbietern **im Pfad**, nicht im
+# Wirt. Instagram ist als Wirt „Beitrag", aber ein Reel ist ein Video mit
+# Tonspur — gemessen: 80 Sekunden Ton in 21 Sekunden transkribiert. Ohne diese
+# Verfeinerung erschien der Transkript-Knopf bei Reels gar nicht erst, und der
+# Weg galt fälschlich als versperrt (genau der Fall, für den die Regel „ein
+# gescheiterter Weg beweist keine Unmöglichkeit" steht).
+_PFAD_ARTEN: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("instagram.com", ("/reel/", "/reels/", "/tv/"), "video"),
+    ("facebook.com", ("/reel/", "/videos/", "/watch"), "video"),
+    ("x.com", ("/video/",), "video"),
+    ("twitter.com", ("/video/",), "video"),
+    ("reddit.com", ("/video/",), "video"),
+)
+
+
 def einordnen(url: str) -> tuple[str, str]:
     """(Quelle, Art) — allein aus der Adresse, ohne Netzabruf."""
     h = _host(url)
     for muster, quelle, art in _QUELLEN:
         if muster in h:
+            pfad = re.sub(r"^https?://[^/]+", "", url).lower()
+            for wirt, teile, feiner in _PFAD_ARTEN:
+                if wirt in h and any(t in pfad for t in teile):
+                    return quelle, feiner
             return quelle, art
     return h or "Web", "seite"
 

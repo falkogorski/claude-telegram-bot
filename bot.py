@@ -6336,8 +6336,22 @@ async def on_link_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None
         "tief": ("Arbeite die folgenden Fundstücke gründlich durch: Kernaussagen, "
                  "wofür es bei uns brauchbar ist, und was daran fraglich bleibt. "
                  "Nenne deine Quellen und kennzeichne Unsicheres."),
+        # S2 (26.07.): Die REIHENFOLGE ist der Auftrag. Ein Video ohne Tonspur
+        # ist die Ausnahme, nicht der Regelfall — wer zuerst nach Beschreibungen
+        # sucht, gibt den genauesten Weg ohne Not auf. Gemessen an einem
+        # Instagram-Reel: 80 Sekunden Tonspur in 21 Sekunden transkribiert.
+        # Und: Ein Ausweichen wird BENANNT, damit ein Ergebnis aus zweiter Hand
+        # nicht wie ein Wortlaut aussieht (Beleg-Grundsatz).
         "volltext": ("Hole zum folgenden Fundstück den vollständigen Wortlaut "
-                     "(Transkript) und gib ihn geordnet wieder."),
+                     "(Transkript) und gib ihn geordnet wieder.\n"
+                     "Reihenfolge, verbindlich: (1) Zuerst die TONSPUR ziehen "
+                     "und transkribieren — das ist der genaueste Weg und gilt "
+                     "auch für Instagram-Reels, TikTok und Facebook-Videos. "
+                     "(2) Nur wenn nachweislich nichts Gesprochenes darin liegt, "
+                     "auf Beschreibung, Untertitel und Nachrichtenquellen "
+                     "ausweichen. (3) Weiche aus, sage ausdrücklich, WELCHER "
+                     "Weg scheiterte und WORAN — und kennzeichne, dass das "
+                     "Ergebnis aus zweiter Hand stammt."),
     }.get(was)
     if auftrag is None:
         return

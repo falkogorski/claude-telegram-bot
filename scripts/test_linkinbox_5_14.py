@@ -61,6 +61,34 @@ def _satzzeichen_zaehlen_nicht():
         assert bot._text_ohne_links(t) == "", f"Satzzeichen als Text gewertet: {t!r}"
 
 
+def _reel_ist_video_nicht_beitrag():
+    """S2: Die Art steckt im Pfad, nicht im Wirt.
+
+    Ohne diese Unterscheidung erschien der Transkript-Knopf bei Reels gar nicht
+    — und der Weg galt fälschlich als versperrt, obwohl die Tonspur zugänglich
+    ist (gemessen: 80 Sekunden Ton in 21 Sekunden transkribiert).
+    """
+    for url in ("https://www.instagram.com/reel/abc123/",
+                "https://instagram.com/reels/abc123",
+                "https://www.instagram.com/tv/abc123/",
+                "https://www.facebook.com/reel/999",
+                "https://www.facebook.com/watch?v=1"):
+        quelle, art = linkinbox.einordnen(url)
+        assert art == "video", f"{url} → {art!r}, erwartet 'video'"
+    # Ein gewöhnlicher Beitrag bleibt ein Beitrag — nicht alles zu Video machen.
+    assert linkinbox.einordnen("https://www.instagram.com/p/abc") == \
+        ("Instagram", "beitrag"), "jeder Instagram-Link gilt jetzt als Video"
+
+
+def _volltext_auftrag_nennt_die_reihenfolge():
+    """S2: Erst Tonspur, dann Ersatz — und ein Ausweichen wird benannt."""
+    quelle = (Path(linkinbox.__file__).parent / "bot.py").read_text(encoding="utf-8")
+    block = quelle.split('"volltext":')[1][:1200]
+    assert "TONSPUR" in block, "die Tonspur steht nicht an erster Stelle"
+    for pflicht in ("Reel", "zweiter Hand", "scheiterte"):
+        assert pflicht in block, f"„{pflicht}“ fehlt im Auftrag"
+
+
 def _quellen_und_arten():
     faelle = {
         "https://www.youtube.com/watch?v=x": ("YouTube", "video"),
@@ -148,6 +176,9 @@ check("Erfolg hakt ab, Misserfolg nicht (S1)", _erfolg_haakt_ab_misserfolg_nicht
 check("Link mit Wort → bleibt Auftrag", _link_mit_auftrag_bleibt_auftrag)
 check("Satzzeichen zählen nicht als Text", _satzzeichen_zaehlen_nicht)
 check("Quelle und Art aus der Adresse", _quellen_und_arten)
+check("Reel ist Video, nicht Beitrag (S2)", _reel_ist_video_nicht_beitrag)
+check("Volltext-Auftrag nennt die Reihenfolge (S2)",
+      _volltext_auftrag_nennt_die_reihenfolge)
 check("Behelfstitel lesbar, sonst Rückfall", _titel_ist_behelf_und_lesbar)
 check("ablegen, nicht doppeln, abhaken", _ablegen_und_abhaken)
 check("leere Ablage wird benannt", _uebersicht_ohne_eintraege)

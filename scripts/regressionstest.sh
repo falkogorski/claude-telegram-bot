@@ -62,7 +62,8 @@ run "Start-Waechter B1"                 "$PY" scripts/test_start_waechter_b1.py
 run "Kontingent-Limit H2"               "$PY" scripts/test_session_limit_h2.py
 run "Nachzieher C1"                     "$PY" scripts/test_nachzieher_c1.py
 run "Kalender/CalDAV (7.x)"             "$PY" scripts/test_kalender_caldav.py
+run "Wartungsfenster B2/B3"             "$PY" scripts/test_wartungsfenster_b3.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
-echo "== Ergebnis: $((22-FAILS))/22 bestanden =="
+echo "== Ergebnis: $((23-FAILS))/23 bestanden =="
 exit $FAILS

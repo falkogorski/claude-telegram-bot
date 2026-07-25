@@ -3135,6 +3135,16 @@ def _load_updater():
     return _upd
 
 
+def _load_wartungsfenster():
+    """B3: Zugriff auf das Wartungsfenster-Modul (Vormerken/Storno/Übersicht)."""
+    import sys as _sys
+    p = str(_REPO_DIR / "scripts")
+    if p not in _sys.path:
+        _sys.path.insert(0, p)
+    import wartungsfenster as _wf
+    return _wf
+
+
 # A3 (Conni-Härtung): Was Adam ANGEZEIGT bekam, wird bis zum Knopfdruck
 # mitgeführt — der Updater spielt nur genau diese Versionen ein. Weicht der
 # Stand beim Klick ab, wird nicht installiert, sondern neu gefragt.
@@ -3175,8 +3185,25 @@ async def cmd_updates(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             f"🟢 Alle sicheren einspielen ({len(green)})", callback_data="upd:green")])
     for u in single:
         s = "🟡" if u["ampel"] == "gelb" else "🔴"
-        rows.append([InlineKeyboardButton(
-            f"{s} {u['name']} einzeln einspielen", callback_data=f"upd:one:{u['name']}")])
+        # B3 (a): Zwei Wege je Einzel-Update — sofort oder fürs Fenster vormerken.
+        rows.append([
+            InlineKeyboardButton(f"{s} {u['name']} jetzt",
+                                 callback_data=f"upd:one:{u['name']}"),
+            InlineKeyboardButton("🌙 04:00",
+                                 callback_data=f"upd:fenster:{u['name']}"),
+        ])
+    # B3 (a): Vorgemerktes sichtbar machen UND stornierbar anbieten.
+    try:
+        wf = _load_wartungsfenster()
+        uebersicht = wf.uebersicht()
+        if uebersicht:
+            lines.append("\n" + uebersicht)
+            for e in wf.vormerkungen():
+                rows.append([InlineKeyboardButton(
+                    f"🗑 Storno: {e['name']} {e['version']}",
+                    callback_data=f"upd:storno:{e['name']}")])
+    except Exception:
+        log.exception("Wartungsfenster-Übersicht nicht verfügbar (ignoriert)")
     await update.message.reply_text(
         "\n".join(lines),
         reply_markup=InlineKeyboardMarkup(rows) if rows else None)
@@ -3195,6 +3222,32 @@ async def on_update_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
         names = [u["name"] for u in ups if u["ampel"] == "gruen" and u["kind"] == "pip"]
     elif data.startswith("upd:one:"):
         names = [data.split(":", 2)[2]]
+    elif data.startswith("upd:fenster:"):
+        # B3 (a): Fürs nächste Wartungsfenster vormerken statt sofort einspielen.
+        name = data.split(":", 2)[2]
+        version = shown.get(name)
+        if not version:
+            await query.edit_message_text(
+                "Die angezeigte Fassung ist nicht mehr bekannt — bitte /updates "
+                "neu aufrufen, damit ich genau die freigebe, die du siehst.")
+            return
+        wf = _load_wartungsfenster()
+        await asyncio.to_thread(wf.vormerken, name, version, "gelb")
+        await query.edit_message_text(
+            f"🌙 Vorgemerkt fürs Wartungsfenster (04:00): {name} → {version}\n"
+            "Zur Ausführungszeit prüfe ich, dass es genau diese Fassung ist — "
+            "sonst frage ich neu.\n"
+            + (wf.uebersicht() or ""))
+        return
+    elif data.startswith("upd:storno:"):
+        name = data.split(":", 2)[2]
+        wf = _load_wartungsfenster()
+        weg = await asyncio.to_thread(wf.stornieren, name)
+        await query.edit_message_text(
+            (f"🗑️ Storniert: {name} wird im Fenster nicht eingespielt.\n"
+             if weg else f"{name} war nicht vorgemerkt.")
+            + (wf.uebersicht() or ""))
+        return
     else:
         return
     if not names:

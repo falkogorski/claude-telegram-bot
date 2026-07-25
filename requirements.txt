@@ -1,7 +1,9 @@
-# Fundament-Pinning (Rotes-Team-Bericht B.1, 23.07.2026): Das SDK buendelt die
-# Claude-Code-CLI (0.2.118 -> CLI 2.1.209). Update NUR im Wartungsfenster nach
+# Fundament-Pinning (Rotes-Team-Bericht B.1): Das SDK buendelt die Claude-Code-CLI
+# (0.2.127 -> CLI 2.1.219). Update NUR im Wartungsfenster nach
 # scripts/regressionstest.sh (8.2-Minimaltest) — nie beilaeufig hochziehen.
-claude-agent-sdk==0.2.118
+# [SYNC 25.07.] Pin von 0.2.118 auf 0.2.127 nachgezogen, nachdem Adam das gelbe
+# Update via /updates bewusst uebernommen hat (Regressionstest gruen, Bot lief sauber).
+claude-agent-sdk==0.2.127
 # [webhooks]-Extra (tornado) fuer den 1.9-Webhook-Modus — Umschalten nur mit Adam
 python-telegram-bot[webhooks]>=22.7
 python-dotenv>=1.0

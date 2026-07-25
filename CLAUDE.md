@@ -160,6 +160,32 @@ nicht der Normalfall für Endnutzer. Verzahnt mit „Selbstlernende Assistenz",
 Kanal-Routing (ein Kern, mehrere Frontends → perspektivisch eigene App statt
 Telegram-Pflicht) und der Werte-Charta (`docs/entscheidungsvorlagen/werte-charta-momo.md` §7).
 
+## 🔍 PRÜFREGEL — Status ist ein Befund, keine Behauptung (Adam 2026-07-25)
+
+Gilt für **alle Instanzen**. Ein Punkt gilt **nicht** deshalb als offen, weil
+eine Status-Zeile „OFFEN" sagt — und **nicht** deshalb als fertig, weil ein
+Bericht es behauptet. **Vor jeder Vorlage an Adam** ist zusätzlich zu prüfen:
+
+1. **Changelog-Einträge seit dem letzten Statuswechsel** — dort steht oft, dass
+   etwas längst entschieden oder gebaut wurde.
+2. **Teilbauten und Zwischenschritte** — ein Punkt kann zu drei Vierteln stehen,
+   ohne dass die Status-Zeile es weiß.
+3. **Erfahrungswerte** aus Berichten, Bot-Protokollen und Weitergabe-Blöcken.
+4. **Der Code selbst** — die letzte Instanz. Was dort steht, gilt.
+
+Erst danach gilt eine Aussage. **Anlass:** `docs/AUDIT-STATUS-phase5.md` trug
+keinen Überholt-Vermerk; vier längst entschiedene Punkte (6.6-Zimmer,
+Webhook-Weg, Emoji-Ersatz, Log-Sync-Repo) galten dadurch weiter als offen.
+
+### Gültigkeits-Kopf für jede Entscheidungsvorlage (Regel ⑪)
+
+Jede Vorlage unter `docs/entscheidungsvorlagen/` trägt im Kopf: **Stichtag** ·
+**„überholt durch X"** (oder ein ausdrückliches „—") · **„maßgeblich ist die
+Status-Zeile im Drehbuch"**. Vorbildlich gelöst ist das bei der 6.6-Vorlage
+(„v3 ersetzt v2 vollständig", mit Konfliktvermerk) und im
+Reaktions-Vokabular (Änderungshistorie im Kopf). Ohne diesen Kopf liest sich
+jede alte Fassung wie der gültige Stand.
+
 ## 🕒 FORMAT-REGEL — Zeitstempel im Kopf von Übergaben (Adam 2026-07-24)
 
 Übergabe-Blöcke und Kontroll-/Sitzungs-Ausgaben tragen im **Kopf einen geprüften

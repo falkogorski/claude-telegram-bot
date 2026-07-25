@@ -214,6 +214,43 @@ def _clear_failure() -> None:
 
 
 # ---------- Hauptablauf -----------------------------------------------------
+NACHZIEHER_DIR = Path(os.environ.get("POSTFACH_DIR")
+                      or (Path.home() / "postfach")) / "nachzieher"
+
+
+def _folge_patch(chosen: list[dict], installed: list[str]) -> list[str]:
+    """C1: Für jeden eingespielten, GEPINNTEN Bestandteil einen Folge-Patch ablegen.
+
+    Der Bot schreibt hier **nicht** ins Repo — er legt nur einen strukturierten
+    Auftrag ab (reine Felder, kein Fließtext). Anwenden und committen ist Sache
+    des separaten Nachziehers außerhalb des Bot-Prozesses. Ohne diesen Schritt
+    zeigt `requirements.txt` weiter auf die alte Fassung, und der nächste
+    Wiederaufbau fiele stillschweigend zurück.
+    """
+    erzeugt: list[str] = []
+    try:
+        NACHZIEHER_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return erzeugt
+    for c in chosen:
+        if c["name"] not in installed or c.get("ampel") != "gelb":
+            continue                     # nur Gepinntes braucht einen Nachzug
+        auftrag = {"datei": "requirements.txt", "paket": c["name"],
+                   "von": c["cur"], "nach": c["latest"],
+                   "grund": "Pin nach eingespieltem Update nachziehen (C1)",
+                   "erzeugt": time.strftime("%Y-%m-%d %H:%M:%S")}
+        try:
+            tmp = NACHZIEHER_DIR / f".{time.time_ns()}.tmp"
+            tmp.write_text(json.dumps(auftrag, ensure_ascii=False, indent=2),
+                           encoding="utf-8")
+            ziel = NACHZIEHER_DIR / f"{c['name']}-{c['latest']}.json"
+            tmp.rename(ziel)
+            erzeugt.append(ziel.name)
+        except OSError:
+            continue
+    return erzeugt
+
+
 def _waechter_scharf(frozen_env: dict[str, str], installed: list[str]) -> bool:
     """B1: Den Start-Wächter für den nun fälligen Neustart scharfstellen.
 
@@ -334,15 +371,19 @@ def _apply_locked(names: list[str], expected: dict) -> dict:
     if not install_log and after["ok"] and not worse:
         _clear_failure()
         wacht = _waechter_scharf(frozen_env, installed)
+        patches = _folge_patch(chosen, installed)
         return {"ok": True, "state": "eingespielt", "done": installed,
                 "rolled_back": [], "restart_needed": True,
                 "baseline": baseline, "after": after,
-                "waechter": wacht,
+                "waechter": wacht, "folge_patches": patches,
                 "msg": ("Eingespielt. Regressionstest unverändert grün ({} vorher → {} nachher)."
                         .format(baseline["line"], after["line"])
                         + ("\nDer Start-Wächter ist scharf: Kommt der Bot nach dem "
                            "Neustart nicht sauber hoch, setzt er die Umgebung "
-                           "selbsttätig zurück und meldet sich." if wacht else ""))}
+                           "selbsttätig zurück und meldet sich." if wacht else "")
+                        + ("\nFolge-Patch für den Pin liegt bereit ({}) — der "
+                           "Nachzieher trägt ihn außerhalb des Bots ein."
+                           .format(", ".join(patches)) if patches else ""))}
 
     # --- Fehlschlag → A1: vollständiger Rollback ---------------------------
     reason = "; ".join(install_log) if install_log else after["line"]

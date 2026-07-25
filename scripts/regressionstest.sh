@@ -59,7 +59,8 @@ run "Updater-Haertung A1-A7"            "$PY" scripts/test_updater_haertung.py
 run "Medien-Transport H1 (Bild/Video)"  "$PY" scripts/test_media_h1.py
 run "Start-Waechter B1"                 "$PY" scripts/test_start_waechter_b1.py
 run "Kontingent-Limit H2"               "$PY" scripts/test_session_limit_h2.py
+run "Nachzieher C1"                     "$PY" scripts/test_nachzieher_c1.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
-echo "== Ergebnis: $((19-FAILS))/19 bestanden =="
+echo "== Ergebnis: $((20-FAILS))/20 bestanden =="
 exit $FAILS

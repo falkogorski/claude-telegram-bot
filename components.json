@@ -92,6 +92,11 @@
       "name": "claude-modelle",
       "kind": "manual",
       "note": "Modell-Aliasse in bot.py (_MODEL_ALIASES: opus/sonnet/haiku/fable). Ob eine neuere Modellreihe verfuegbar ist, laesst sich NICHT offline ermitteln — deshalb bewusst 'manual' und kein erfundener Automatismus: beim Monitorlauf per Abo-Probe (claude -p --model <id>) gegenpruefen und den Alias anheben. Stand 25.07.: opus=claude-opus-5, sonnet=claude-sonnet-5, haiku=claude-haiku-4-5-20251001, fable=claude-fable-5. Abo-Weg, keine Kosten."
+    },
+    {
+      "name": "verfahren-medien",
+      "kind": "manual",
+      "note": "VERFAHREN (nicht Version): Wie wir Videos und Bilder auslesen. Stand 25.07.2026: Einzelbilder in laufzeitabhaengiger Dichte + Uebersichts-boegen + Tonspur via Spracherkennung (media.py). Beim Monitorlauf mitpruefen, ob es inzwischen ein besseres Verfahren gibt (Modelle mit echtem Videoverstaendnis, Bewegungsanalyse). Adam-Grundsatz 25.07.: qualitativ weit oben ansiedeln, wiederkehrend pruefen — aber Solides nicht wegwerfen, nur weil Neues existiert."
     }
   ]
 }

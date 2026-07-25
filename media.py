@@ -145,15 +145,77 @@ def prepare_image(path: Path, budget: int, *, out_dir: Path | None = None) -> di
     return res
 
 
+# Abtastdichte nach Laufzeit (Adam 25.07.: „bei 30 Sekunden jedes Sekundenbild,
+# bei zwei Minuten mindestens alle zwei Sekunden; bei langen Videos darf es
+# abnehmen"). Erster Eintrag, dessen Grenze passt, gewinnt.
+_DICHTE: tuple[tuple[float, float], ...] = (
+    (30, 1.0),      # bis 30 s   → jede Sekunde
+    (180, 2.0),     # bis 3 min   → alle 2 s
+    (600, 3.0),     # bis 10 min  → alle 3 s
+    (1800, 5.0),    # bis 30 min  → alle 5 s
+    (float("inf"), 10.0),
+)
+# Ein Kontaktbogen fasst bis zu so viele Einzelbilder in EIN Übersichtsbild.
+_BOGEN_SPALTEN = 5
+_BOGEN_ZEILEN = 6
+_BOGEN_KANTE = 320          # Kantenlänge je Kachel im Bogen
+
+
+def abtastabstand(dauer: float) -> float:
+    """Sekunden zwischen zwei Einzelbildern — laufzeitabhängig."""
+    for grenze, abstand in _DICHTE:
+        if dauer <= grenze:
+            return abstand
+    return _DICHTE[-1][1]
+
+
+def _kontaktboegen(frames: list[Path], zeiten: list[float],
+                   ziel: Path) -> list[Path]:
+    """Fasst die Einzelbilder zu Übersichtsbögen zusammen.
+
+    **Der Kniff, der den Zielkonflikt auflöst:** Feine Abtastung und ein
+    schlanker Kontext schließen sich nur aus, wenn jedes Einzelbild einzeln
+    übergeben wird. Ein Bogen zeigt dreißig Momente in EINEM Bild — das Modell
+    überblickt damit den ganzen Ablauf und liest nur dort ein Einzelbild nach,
+    wo tatsächlich etwas passiert.
+    """
+    boegen: list[Path] = []
+    je_bogen = _BOGEN_SPALTEN * _BOGEN_ZEILEN
+    for i in range(0, len(frames), je_bogen):
+        teil = frames[i:i + je_bogen]
+        liste = ziel / f".bogen-{i // je_bogen + 1}.txt"
+        try:
+            liste.write_text("".join(f"file '{p.name}'\n" for p in teil),
+                             encoding="utf-8")
+        except OSError:
+            continue
+        out = ziel / f"uebersicht-{i // je_bogen + 1:02d}.jpg"
+        ok, _ = _run([
+            _FFMPEG, "-y", "-v", "error", "-f", "concat", "-safe", "0",
+            "-i", str(liste), "-vf",
+            f"scale={_BOGEN_KANTE}:{_BOGEN_KANTE}:force_original_aspect_ratio=decrease,"
+            f"pad={_BOGEN_KANTE}:{_BOGEN_KANTE}:-1:-1:color=black,"
+            f"tile={_BOGEN_SPALTEN}x{_BOGEN_ZEILEN}",
+            "-frames:v", "1", "-q:v", "4", str(out)], timeout=180)
+        try:
+            liste.unlink()
+        except OSError:
+            pass
+        if ok and out.exists():
+            boegen.append(out)
+    return boegen
+
+
 def prepare_video(path: Path, budget: int, *, out_dir: Path | None = None,
-                  max_frames: int = 24, sekunden_je_bild: int = 10) -> dict:
+                  max_frames: int = 400, sekunden_je_bild: float | None = None) -> dict:
     """(d) Zerlegt ein Video in übergebbare Teile: Einzelbilder + Tonspur.
 
     Rückgabe: ``{"ok", "frames": [Path], "audio": Path|None, "duration",
     "note", "error"}``. Das Original bleibt unangetastet.
     """
     path = Path(path)
-    res: dict = {"ok": False, "frames": [], "audio": None, "duration": 0.0,
+    res: dict = {"ok": False, "frames": [], "boegen": [], "audio": None,
+                 "zeitmarken": None, "takt": 0.0, "duration": 0.0,
                  "note": "", "error": ""}
     if not tools_available():
         res["error"] = "ffmpeg fehlt — Video kann nicht in Teile zerlegt werden"
@@ -168,8 +230,8 @@ def prepare_video(path: Path, budget: int, *, out_dir: Path | None = None,
         res["error"] = f"Zielordner nicht anlegbar: {e}"
         return res
 
-    # Ein Bild je ~10 Sekunden, mindestens drei, höchstens max_frames.
-    n = max(3, min(max_frames, int(dur // sekunden_je_bild) + 1)) if dur > 0 else 3
+    abstand = sekunden_je_bild if sekunden_je_bild else abtastabstand(dur)
+    n = max(3, min(max_frames, int(dur / abstand) + 1)) if dur > 0 else 3
     # ⚠️ Das Budget gilt **je Bild**, nicht geteilt durch die Anzahl (Korrektur
     # 25.07. nach Adams Rückfrage): Jedes Einzelbild wandert als EIGENE
     # Werkzeug-Antwort durch die Leitung — sie teilen sich die Weite also nie.
@@ -179,17 +241,35 @@ def prepare_video(path: Path, budget: int, *, out_dir: Path | None = None,
     # — das ist die eigentliche Schranke bei Serien, nicht der Transport.
     per_frame_budget = max(256 * 1024, min(budget, 2 * 1024 * 1024))
 
-    for i in range(n):
-        # Zeitpunkte gleichmäßig verteilt, Rand gemieden (Schwarzbilder).
-        ts = (dur * (i + 0.5) / n) if dur > 0 else i * 1.0
-        raw = target_dir / f"bild-{i + 1:02d}.jpg"
-        ok, _ = _run([_FFMPEG, "-y", "-v", "error", "-ss", f"{ts:.2f}",
-                      "-i", str(path), "-frames:v", "1", "-q:v", "4", str(raw)])
-        if not ok or not raw.exists():
-            continue
+    # EIN Durchlauf statt eines ffmpeg-Aufrufs je Bild: Bei feiner Abtastung
+    # sind das schnell hundert Bilder, und hundertmal neu zu positionieren
+    # dauerte ein Vielfaches. Die Bildrate `1/abstand` liefert genau die
+    # gewünschte Dichte, die Skalierung hält die Einzelbilder handlich.
+    takt = max(0.2, (dur / n) if dur > 0 else abstand)
+    _run([_FFMPEG, "-y", "-v", "error", "-i", str(path),
+          "-vf", f"fps=1/{takt:.4f},scale='min(1600,iw)':-2",
+          "-frames:v", str(n), "-q:v", "3",
+          str(target_dir / "bild-%04d.jpg")], timeout=600)
+    zeiten: list[float] = []
+    for i, raw in enumerate(sorted(target_dir.glob("bild-*.jpg"))):
         shot = prepare_image(raw, per_frame_budget, out_dir=target_dir)
         if shot["ok"]:
             res["frames"].append(Path(shot["path"]))
+            zeiten.append(i * takt)
+
+    # Übersichtsbögen + Verzeichnis mit Zeitmarken: Das Modell sieht den ganzen
+    # Ablauf auf wenigen Bildern und liest gezielt nach, wo etwas passiert.
+    if res["frames"]:
+        res["boegen"] = _kontaktboegen(res["frames"], zeiten, target_dir)
+        try:
+            (target_dir / "zeitmarken.txt").write_text(
+                "".join(f"{int(t) // 60:02d}:{int(t) % 60:02d}  {p.name}\n"
+                        for t, p in zip(zeiten, res["frames"])),
+                encoding="utf-8")
+            res["zeitmarken"] = target_dir / "zeitmarken.txt"
+        except OSError:
+            pass
+    res["takt"] = takt
 
     # Tonspur separat — sie geht später durch die vorhandene Spracherkennung.
     audio = target_dir / "tonspur.ogg"
@@ -203,8 +283,11 @@ def prepare_video(path: Path, budget: int, *, out_dir: Path | None = None,
         return res
 
     teile = []
+    if res["boegen"]:
+        teile.append(f"{len(res['boegen'])} Übersichtsbögen")
     if res["frames"]:
-        teile.append(f"{len(res['frames'])} Einzelbilder")
+        teile.append(f"{len(res['frames'])} Einzelbilder "
+                     f"(alle {res['takt']:.1f} s)")
     if res["audio"]:
         teile.append("Tonspur")
     res.update(ok=True, note="in Teilen übergeben: " + " und ".join(teile))

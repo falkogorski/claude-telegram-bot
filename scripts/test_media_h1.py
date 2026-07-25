@@ -142,12 +142,33 @@ def _budget_gilt_je_bild():
          "— das Budget wird faelschlich geteilt")
 
 
-def _lange_videos_bleiben_engmaschig():
-    """Ein langes Video darf nicht auf eine Handvoll Bilder eindampfen."""
-    n_kurz = max(3, min(24, int(30 // 10) + 1))
-    n_lang = max(3, min(24, int(600 // 10) + 1))
-    assert n_lang >= 24, f"10-Minuten-Video bekommt nur {n_lang} Bilder"
-    assert n_kurz >= 3, "kurzes Video bekommt zu wenige Bilder"
+def _dichte_nach_adams_vorgabe():
+    """Adam 25.07.: 30 s → jede Sekunde, 2 min → mindestens alle 2 Sekunden."""
+    assert media.abtastabstand(30) <= 1.0, "30-Sekunden-Video nicht sekundengenau"
+    assert media.abtastabstand(120) <= 2.0, "Zwei-Minuten-Video gröber als 2 s"
+    assert media.abtastabstand(130) <= 2.0, "knapp über 2 min fällt zu grob ab"
+    # Bei langen Videos darf es abnehmen — aber nicht ins Grobe kippen.
+    assert media.abtastabstand(1800) <= 5.0, "halbe Stunde gröber als 5 s"
+    assert media.abtastabstand(3600) <= 10.0, "eine Stunde gröber als 10 s"
+    # Monoton: länger darf nie feiner werden.
+    werte = [media.abtastabstand(d) for d in (10, 30, 120, 300, 900, 1800, 5400)]
+    assert werte == sorted(werte), f"Staffelung nicht monoton: {werte}"
+
+
+def _uebersichtsboegen_entstehen():
+    """Der Kniff gegen den Zielkonflikt: viele Bilder, wenige Übergaben."""
+    r = media.prepare_video(VID, media.transport_budget(32 * 1024 * 1024),
+                            out_dir=TMP / "boegen")
+    assert r["ok"], r["error"]
+    assert r["boegen"], "keine Übersichtsbögen erzeugt"
+    assert all(Path(b).exists() for b in r["boegen"]), "Bogen fehlt auf der Platte"
+    assert len(r["boegen"]) < len(r["frames"]), \
+        "die Bögen fassen nicht zusammen (so viele Bögen wie Bilder)"
+    assert r["zeitmarken"] and Path(r["zeitmarken"]).exists(), \
+        "kein Zeitmarken-Verzeichnis — gezieltes Nachlesen wäre Raten"
+    zeilen = Path(r["zeitmarken"]).read_text(encoding="utf-8").splitlines()
+    assert len(zeilen) == len(r["frames"]), "Zeitmarken decken nicht alle Bilder ab"
+    assert ":" in zeilen[0] and ".jpg" in zeilen[0], f"Zeitmarke unbrauchbar: {zeilen[0]}"
 
 
 check("Budget folgt dem Puffer, ohne ihn auszuschöpfen", _budget_folgt_puffer)
@@ -158,7 +179,8 @@ check("fehlende Vorlage → ehrlicher Grund", _fehlt_wird_ehrlich)
 check("Video wird in Einzelbilder + Tonspur zerlegt", _video_wird_zerlegt)
 check("Videoteile passen einzeln ins Budget", _videoteile_passen_ins_budget)
 check("Budget gilt je Bild, nicht geteilt", _budget_gilt_je_bild)
-check("lange Videos bleiben engmaschig", _lange_videos_bleiben_engmaschig)
+check("Abtastdichte nach Adams Vorgabe", _dichte_nach_adams_vorgabe)
+check("Übersichtsbögen + Zeitmarken entstehen", _uebersichtsboegen_entstehen)
 
 if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")

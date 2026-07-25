@@ -6078,10 +6078,26 @@ async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         media.prepare_video, local_path, MEDIA_BUDGET,
         out_dir=UPLOAD_DIR / f"{local_path.stem}-teile")
     if teile["ok"]:
+        # Übergabe in zwei Stufen (Adam 25.07.: „viel zu große Sprünge"):
+        # Die Übersichtsbögen kommen sofort und zeigen den ganzen Ablauf; die
+        # feinen Einzelbilder liegen bereit und werden nur dort gelesen, wo
+        # etwas passiert. So geht Dichte NICHT auf Kosten des Kontexts.
+        if teile["boegen"]:
+            liste = "\n".join(f"  - {p}" for p in teile["boegen"])
+            parts.append(
+                f"Übersichtsbögen (je bis zu 30 Momentaufnahmen in einem Bild, "
+                f"zeitlich von links oben nach rechts unten):\n{liste}\n"
+                "Sieh dir diese zuerst an — sie zeigen den gesamten Ablauf.")
         if teile["frames"]:
-            liste = "\n".join(f"  - {p}" for p in teile["frames"])
-            parts.append(f"Einzelbilder zum Ansehen ({len(teile['frames'])} Stück, "
-                         f"gleichmäßig über die Laufzeit verteilt):\n{liste}")
+            parts.append(
+                f"Einzelbilder in voller Auflösung: {len(teile['frames'])} Stück, "
+                f"alle {teile['takt']:.1f} Sekunden, im Ordner "
+                f"{Path(teile['frames'][0]).parent}. "
+                "Lies gezielt die nach, bei denen der Übersichtsbogen etwas "
+                "Auffälliges zeigt — nicht alle.")
+            if teile.get("zeitmarken"):
+                parts.append(f"Zeitmarken-Verzeichnis (Uhrzeit → Dateiname): "
+                             f"{teile['zeitmarken']}")
         if teile["audio"] is not None:
             gesprochen = ""
             try:

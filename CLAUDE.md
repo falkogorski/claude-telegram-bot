@@ -214,6 +214,23 @@ als Grundlage; das Register bleibt Pflichtfeld jeder „fertig"-Definition.
 💰-Rahmen unverändert: Updates/Modelle nur aus dem Abo-/Kostenlos-Topf; alles
 Kostenpflichtige nur mit Vorab-Warnung an Adam.
 
+**[ERWEITERT 2026-07-25, Adam]: Es geht nicht nur um Versionsnummern, sondern um
+VERFAHREN.** Für jede Fähigkeit, die wir bauen, gilt: **qualitativ möglichst
+weit oben ansiedeln** und **wiederkehrend prüfen, ob es inzwischen einen
+besseren Weg gibt** — das Feld entwickelt sich rasant und wird schneller.
+Adams Beispiel war das Auslesen von Videos: heute Einzelbilder plus Tonspur,
+morgen vielleicht ein Verfahren, das Bewegung direkt versteht.
+
+Zwei Leitplanken dazu, die zusammengehören:
+- **Was solide läuft, wird nicht über Bord geworfen, nur weil es Neues gibt.**
+  Ein Wechsel braucht einen Grund, der über Neugier hinausgeht.
+- **Aber Stillstand ist auch keine Option.** Der Prüf-Rhythmus gehört in den
+  bestehenden Meldeweg (5.21) — für Verfahren wie für Pakete, **eine**
+  Meldelogik. Wo sich etwas offline nicht ermitteln lässt, wird das im Register
+  ehrlich als „manual" vermerkt statt eine Attrappe zu bauen.
+
+Verzahnt mit „Selbstlernende Assistenz" und der Blaupause-Sammelpflicht.
+
 ## 🧭 STRUKTUR ÜBER NAMEN (Adam-Grundprinzip 2026-07-22)
 
 Systeme referenzieren einander über **deklarierte Rollen/Muster**, nie

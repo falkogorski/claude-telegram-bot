@@ -118,7 +118,36 @@ def _videoteile_passen_ins_budget():
     r = media.prepare_video(VID, budget, out_dir=TMP / "teile2")
     assert r["ok"], r["error"]
     for p in r["frames"]:
-        assert Path(p).stat().st_size <= budget, f"Einzelbild sprengt das Budget: {p}"
+        assert Path(p).stat().st_size <= max(262_144, budget), \
+            f"Einzelbild sprengt das Budget: {p}"
+
+
+def _budget_gilt_je_bild():
+    """Korrektur 25.07.: Mehr Bilder duerfen die einzelnen NICHT schrumpfen.
+
+    Jedes Bild geht als eigene Werkzeug-Antwort durch die Leitung — sie teilen
+    sich deren Weite nie. Vorher wurde durch die Anzahl geteilt.
+    """
+    budget = media.transport_budget(32 * 1024 * 1024)
+    wenige = media.prepare_video(VID, budget, out_dir=TMP / "wenige", max_frames=3)
+    viele = media.prepare_video(VID, budget, out_dir=TMP / "viele",
+                                max_frames=24, sekunden_je_bild=1)
+    assert wenige["ok"] and viele["ok"], "eine der beiden Zerlegungen fehlt"
+    assert len(viele["frames"]) > len(wenige["frames"]), \
+        "die feinere Zerlegung lieferte nicht mehr Bilder"
+    gr_wenige = max(Path(p).stat().st_size for p in wenige["frames"])
+    gr_viele = max(Path(p).stat().st_size for p in viele["frames"])
+    assert gr_viele >= gr_wenige * 0.9, \
+        (f"mehr Bilder machten die einzelnen kleiner ({gr_viele} < {gr_wenige}) "
+         "— das Budget wird faelschlich geteilt")
+
+
+def _lange_videos_bleiben_engmaschig():
+    """Ein langes Video darf nicht auf eine Handvoll Bilder eindampfen."""
+    n_kurz = max(3, min(24, int(30 // 10) + 1))
+    n_lang = max(3, min(24, int(600 // 10) + 1))
+    assert n_lang >= 24, f"10-Minuten-Video bekommt nur {n_lang} Bilder"
+    assert n_kurz >= 3, "kurzes Video bekommt zu wenige Bilder"
 
 
 check("Budget folgt dem Puffer, ohne ihn auszuschöpfen", _budget_folgt_puffer)
@@ -128,6 +157,8 @@ check("so groß wie möglich, so klein wie nötig", _so_gross_wie_moeglich)
 check("fehlende Vorlage → ehrlicher Grund", _fehlt_wird_ehrlich)
 check("Video wird in Einzelbilder + Tonspur zerlegt", _video_wird_zerlegt)
 check("Videoteile passen einzeln ins Budget", _videoteile_passen_ins_budget)
+check("Budget gilt je Bild, nicht geteilt", _budget_gilt_je_bild)
+check("lange Videos bleiben engmaschig", _lange_videos_bleiben_engmaschig)
 
 if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")

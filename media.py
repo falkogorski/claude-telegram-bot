@@ -146,7 +146,7 @@ def prepare_image(path: Path, budget: int, *, out_dir: Path | None = None) -> di
 
 
 def prepare_video(path: Path, budget: int, *, out_dir: Path | None = None,
-                  max_frames: int = 8) -> dict:
+                  max_frames: int = 24, sekunden_je_bild: int = 10) -> dict:
     """(d) Zerlegt ein Video in übergebbare Teile: Einzelbilder + Tonspur.
 
     Rückgabe: ``{"ok", "frames": [Path], "audio": Path|None, "duration",
@@ -168,9 +168,16 @@ def prepare_video(path: Path, budget: int, *, out_dir: Path | None = None,
         res["error"] = f"Zielordner nicht anlegbar: {e}"
         return res
 
-    # Ein Bild je ~15 Sekunden, mindestens drei, höchstens max_frames.
-    n = max(3, min(max_frames, int(dur // 15) + 1)) if dur > 0 else 3
-    per_frame_budget = max(96 * 1024, budget // max(1, n))
+    # Ein Bild je ~10 Sekunden, mindestens drei, höchstens max_frames.
+    n = max(3, min(max_frames, int(dur // sekunden_je_bild) + 1)) if dur > 0 else 3
+    # ⚠️ Das Budget gilt **je Bild**, nicht geteilt durch die Anzahl (Korrektur
+    # 25.07. nach Adams Rückfrage): Jedes Einzelbild wandert als EIGENE
+    # Werkzeug-Antwort durch die Leitung — sie teilen sich die Weite also nie.
+    # Vorher wurden Bilder umso kleiner, je länger das Video war; bei zwölf
+    # Bildern wäre jedes auf ein Zwölftel geschrumpft, ohne jeden Grund.
+    # Nach oben gedeckelt, damit viele Bilder nicht den Sitzungs-Kontext fluten
+    # — das ist die eigentliche Schranke bei Serien, nicht der Transport.
+    per_frame_budget = max(256 * 1024, min(budget, 2 * 1024 * 1024))
 
     for i in range(n):
         # Zeitpunkte gleichmäßig verteilt, Rand gemieden (Schwarzbilder).

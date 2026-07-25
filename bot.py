@@ -238,6 +238,15 @@ UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR") or str(Path.home() / "Downloads" 
 # Turn abbrechen — viermal hintereinander, danach Sitzungs-Neustart. Zuerst den
 # Puffer anheben (das ist reine Speicher-Einstellung, kostenlos), erst danach
 # verkleinern. Über SDK_MAX_BUFFER_BYTES übersteuerbar.
+# 5.34: Eigener Bot-API-Server, aktiv schaltbar. Ist TELEGRAM_API_BASE gesetzt,
+# spricht der Bot den lokalen Dienst an — dann gilt Telegrams 20-MB-Grenze
+# nicht mehr, sondern 2 GB. Nicht gesetzt = öffentlicher Weg wie bisher; der
+# Rückweg bleibt also immer nur eine Umgebungsvariable entfernt.
+TELEGRAM_API_BASE = (os.environ.get("TELEGRAM_API_BASE") or "").rstrip("/")
+LOKALER_API_SERVER = bool(TELEGRAM_API_BASE)
+# Empfangsgrenze in Byte — vom aktiven Weg abgeleitet, keine feste Zahl.
+DATEI_GRENZE = (2000 * 1_048_576) if LOKALER_API_SERVER else (20 * 1_048_576)
+
 SDK_MAX_BUFFER = media.env_max_buffer()
 MEDIA_BUDGET = media.transport_budget(SDK_MAX_BUFFER)
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")
@@ -1614,7 +1623,11 @@ def _extract_hosts(text: str) -> set[str]:
 # freigegeben — sie fallen immer in den normalen Freigabe-Dialog (Adam sieht
 # und entscheidet). Kein Token darf je in Sitzungskontext oder Chat geraten.
 _SENSITIVE_MARKERS = (".env", "credentials", "token", "secret", "_key", "key.",
-                      "keys.", "id_ed25519", "id_rsa", "/etc/claude-telegram-bot")
+                      "keys.", "id_ed25519", "id_rsa", "/etc/claude-telegram-bot",
+                      # 5.34: Der eigene Bot-API-Server braucht Zugangsdaten —
+                      # der Token lebt damit an einer ZWEITEN Stelle. Vor dem
+                      # Bau eingetragen, nicht danach (Conni-Bedingung).
+                      "/etc/telegram-bot-api")
 
 
 def _is_sensitive_ref(raw: str) -> bool:
@@ -4949,6 +4962,31 @@ def run_self_check() -> tuple[bool, list[str]]:
             "'Log-Repo-Ampel: BEWERTET')")
     check("Log-Repo-Ampel (5.19)", _c_log_repo_ampel)
 
+    def _c_grosse_dateien() -> None:
+        """5.34: Beide Conni-Bedingungen, geprüft bevor der Dienst läuft.
+
+        (1) Der Token lebt dann an einer zweiten Stelle — die Geheimnis-Regel
+        muss den neuen Pfad kennen, **vorher**, denn genau in diesem Moment
+        wird so etwas vergessen. (2) Der Deckel wird geprüft, nicht nur gesetzt.
+        Beides steht schon, während 5.34 noch ausgeschaltet ist — deshalb greift
+        diese Zeile unabhängig davon, ob der Server läuft.
+        """
+        assert _is_sensitive_ref("/etc/telegram-bot-api.env"), \
+            "die Umgebungsdatei des Bot-API-Servers gilt nicht als Geheimnis"
+        assert _is_sensitive_ref("/etc/telegram-bot-api/secrets"), \
+            "der Geheimnis-Ordner des Bot-API-Servers ist nicht geschützt"
+        pflege = _REPO_DIR / "scripts" / "api_cache_pflege.sh"
+        assert pflege.exists(), "das Aufräum-Skript für das Zwischenlager fehlt"
+        pruefer = (_REPO_DIR / "scripts" / "daily_check.sh")
+        if pruefer.exists():
+            assert "api_cache_pflege.sh" in pruefer.read_text(encoding="utf-8"), \
+                "der 4-Uhr-Check prüft den Deckel nicht — er wäre nur gesetzt"
+        # Die Grenze ist vom aktiven Weg ABGELEITET, keine feste Zahl.
+        erwartet = (2000 * 1_048_576) if LOKALER_API_SERVER else (20 * 1_048_576)
+        assert DATEI_GRENZE == erwartet, \
+            f"Dateigrenze passt nicht zum aktiven Weg ({DATEI_GRENZE})"
+    check("Große Dateien (5.34)", _c_grosse_dateien)
+
     return state["ok"], results
 
 
@@ -6125,11 +6163,19 @@ def _zu_gross_hinweis(art: str, size_mb: float) -> str:
     Fehlermeldung, die den Weg nicht nennt, macht aus einer bekannten Grenze
     ein Rätsel.
     """
+    grenze_mb = DATEI_GRENZE // 1_048_576
+    if LOKALER_API_SERVER:
+        # Läuft der eigene Server, ist die Grenze unsere — dann keine
+        # Verweisung auf einen Ausweg, den es schon gibt.
+        return (f"❌ {art} ist {size_mb:.1f} MB groß und übersteigt damit auch "
+                f"die erweiterte Grenze von {grenze_mb} MB des eigenen "
+                "Bot-API-Servers. Bitte kürzen oder den entscheidenden "
+                "Ausschnitt schicken.")
     return (
         f"❌ {art} ist {size_mb:.1f} MB groß — Telegram gibt Bots über die "
-        "öffentliche Schnittstelle **höchstens 20 MB** heraus. Das ist Telegrams "
-        "Grenze, nicht meine: Die Datei liegt noch bei Telegram, ich komme nur "
-        "nicht an sie heran.\n\n"
+        f"öffentliche Schnittstelle **höchstens {grenze_mb} MB** heraus. Das ist "
+        "Telegrams Grenze, nicht meine: Die Datei liegt noch bei Telegram, ich "
+        "komme nur nicht an sie heran.\n\n"
         "Es gibt dafür einen Ausweg (Punkt 5.34): ein eigener Bot-API-Server "
         "hebt die Grenze auf **2 GB**. Er ist gemessen und entscheidungsreif — "
         "kostet nichts zusätzlich, braucht keine Aufrüstung — und wartet nur auf "
@@ -6205,7 +6251,7 @@ async def on_document(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     mime = doc.mime_type or "application/octet-stream"
     size_mb = (doc.file_size or 0) / 1_048_576
 
-    if (doc.file_size or 0) > 20 * 1_048_576:
+    if (doc.file_size or 0) > DATEI_GRENZE:
         await msg.reply_text(_zu_gross_hinweis("Die Datei", size_mb),
                              parse_mode=ParseMode.MARKDOWN)
         return
@@ -6274,7 +6320,7 @@ async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         f"{'videonote' if is_note else 'video'}_{media.file_unique_id}.mp4"
     size_mb = (media.file_size or 0) / 1_048_576
 
-    if (media.file_size or 0) > 20 * 1_048_576:
+    if (media.file_size or 0) > DATEI_GRENZE:
         await msg.reply_text(_zu_gross_hinweis("Das Video", size_mb),
                              parse_mode=ParseMode.MARKDOWN)
         return
@@ -7398,13 +7444,24 @@ def main() -> None:
     # deadlock: without it, PTB processes updates sequentially across the whole
     # application, so a text message handler that's awaiting a permission
     # future blocks the callback_query update that would resolve it.
-    app = (
+    _builder = (
         Application.builder()
         .token(TELEGRAM_BOT_TOKEN)
         .post_init(post_init)
         .concurrent_updates(True)
-        .build()
     )
+    if LOKALER_API_SERVER:
+        # 5.34: Beide Adressen umstellen — die zweite wird gern vergessen, und
+        # ohne sie liefen Downloads weiter über Telegram, also weiter mit
+        # 20-MB-Grenze. Genau die Klasse Fehler, die H1 an zwei Options-Stellen
+        # gezeigt hat.
+        _builder = (_builder
+                    .base_url(f"{TELEGRAM_API_BASE}/bot")
+                    .base_file_url(f"{TELEGRAM_API_BASE}/file/bot")
+                    .local_mode(True))
+        log.info("5.34: eigener Bot-API-Server aktiv (%s) — Dateigrenze %d MB",
+                 TELEGRAM_API_BASE, DATEI_GRENZE // 1_048_576)
+    app = _builder.build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("whoami", cmd_whoami))
     app.add_handler(CommandHandler("whereami", cmd_whereami))

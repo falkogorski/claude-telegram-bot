@@ -99,6 +99,22 @@ if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^lobe-chat$'; then
 fi
 
 # --- Protokoll + Meldung ------------------------------------------------------
+
+# --- 8. Zwischenlager des eigenen Bot-API-Servers (5.34) --------------------
+# 🚦 Conni-Bedingung: Der 30-GB-Deckel wird GEPRÜFT, nicht nur gesetzt.
+# Ohne diesen Prüfer wäre er wieder eine Bitte — der vierte Fall dieser Klasse.
+if [ -d "${TELEGRAM_API_DIR:-/var/lib/telegram-bot-api}" ]; then
+  if bash "$(dirname "$0")/api_cache_pflege.sh" > /tmp/api_cache_check.log 2>&1; then
+    lines+=("✅ API-Zwischenlager: $(tail -1 /tmp/api_cache_check.log)")
+  else
+    lines+=("❌ API-Zwischenlager: $(tail -2 /tmp/api_cache_check.log | tr '\n' ' ')")
+    problems+=("Das Zwischenlager des Bot-API-Servers reisst den Deckel — auch nach dem Aufraeumen zu gross.")
+  fi
+else
+  lines+=("~ API-Zwischenlager: kein eigener Bot-API-Server aktiv (5.34 nicht eingeschaltet)")
+fi
+
+
 {
   echo "===== 4-Uhr-Check $STAMP ====="
   printf '%s\n' "${lines[@]}"

@@ -67,15 +67,23 @@ fi
 WORK="${LOG_SYNC_WORK:-$HOME/workspace}"
 if [ -d "$WORK" ]; then
   mkdir -p ausarbeitungen
+  # ⚠️ REIHENFOLGE IST DIE FUNKTION: rsync nimmt die ERSTE zutreffende Regel.
+  # Ausschlüsse müssen daher VOR den Einschlüssen stehen — stünden sie danach,
+  # gewinnt `--include='*.md'` und zieht Ausgeschlossenes doch mit. Genau so
+  # ist am 25.07. die Kontext-Datei CLAUDE.md ins Log-Repo gewandert, obwohl
+  # sie ausdrücklich ausgeschlossen war.
   rsync -a --prune-empty-dirs \
+    --exclude='.*' --exclude='*.tmp' \
+    --exclude='CLAUDE.md' --exclude='MEMORY.md' \
+    --exclude='*secret*' --exclude='*token*' --exclude='*credential*' \
+    --exclude='*passwor*' --exclude='*.env' --exclude='*key*' \
     --include='*/' \
     --include='*.md' --include='*.pdf' --include='*.txt' \
     --include='*.csv' --include='*.html' \
     --exclude='*' \
-    --exclude='.*' --exclude='*.tmp' --exclude='CLAUDE.md' \
-    --exclude='*secret*' --exclude='*token*' --exclude='*credential*' \
-    --exclude='*passwor*' --exclude='*.env' --exclude='*key*' \
     "$WORK/" ausarbeitungen/ 2>/dev/null || true
+  # Nachweis statt Vertrauen: Was hier trotzdem liegt, wird entfernt.
+  rm -f ausarbeitungen/CLAUDE.md ausarbeitungen/MEMORY.md 2>/dev/null || true
 fi
 
 

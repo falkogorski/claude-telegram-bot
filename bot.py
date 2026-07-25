@@ -55,6 +55,7 @@ import tempfile
 from transcribe import Transcriber, build_transcriber
 import ampel
 import channels
+import freigaben as freigabepost
 import kalender
 import linkinbox
 import media
@@ -3719,10 +3720,112 @@ async def cmd_aufgaben(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
                        reply_to=update.message.message_id)
 
 
+
+
+# ── 9.4 Freigabe-Postfach: der Bot als Bote, nie als Akteur ──────────────────
+async def _freigabe_anzeigen(bot_obj, chat_id: int, a) -> None:
+    """Zeigt EINE Anfrage mit der wörtlichen Aktion (Leitplanke 2).
+
+    **Konkret vor Label:** Angezeigt wird, was tatsächlich geschähe — nicht bloß
+    eine Beschriftung. Ein Label ließe sich fälschen; die Aktion nicht verbergen.
+    Genau daran scheitert der Versuch, dem Bot über eine hübsche Bezeichnung
+    etwas unterzuschieben.
+    """
+    sym = {"gruen": "🟢", "gelb": "🟡", "rot": "🔴"}.get(a.ampel, "⬜")
+    zeilen = [f"🗝️ {sym} Freigabe erbeten — von: {a.herkunft}", "",
+              f"*{a.titel}*", "", "Das würde konkret geschehen:",
+              f"```\n{a.aktion[:900]}\n```"]
+    if a.begruendung:
+        zeilen += ["", f"Warum: {a.begruendung}"]
+    zeilen += ["", (f"Rückweg: {a.rueckweg}" if a.rueckweg
+                    else "⚠️ Kein Rückweg angegeben — im Zweifel ablehnen.")]
+    zeilen += ["", f"Ohne Antwort gilt nach {int(freigabepost.FRIST_STUNDEN)} "
+                   "Stunden: abgelehnt."]
+    knoepfe = [[
+        InlineKeyboardButton("✅ Freigeben", callback_data=f"frg:ja:{a.kennung}"),
+        InlineKeyboardButton("⛔ Ablehnen", callback_data=f"frg:nein:{a.kennung}"),
+    ]]
+    await bot_obj.send_message(chat_id=chat_id, text="\n".join(zeilen),
+                               reply_markup=InlineKeyboardMarkup(knoepfe),
+                               parse_mode=ParseMode.MARKDOWN)
+
+
+async def freigabe_worker(app) -> None:
+    """Holt neue Anfragen aus dem Postfach und legt sie Adam vor.
+
+    Läuft als Hintergrund-Aufgabe im selben Takt wie das Boten-Postfach.
+    **Deterministisch, ohne Modell-Aufruf** — der Bot ist hier Bote und
+    Menschen-Gatter, nie Akteur.
+    """
+    gezeigt: set[str] = set()
+    while True:
+        try:
+            offen = await asyncio.to_thread(freigabepost.offene)
+            for a in offen:
+                if a.kennung in gezeigt:
+                    continue
+                if a.abgelaufen():
+                    # Leitplanke 5: abgelaufen = abgelehnt, aber sichtbar.
+                    await asyncio.to_thread(
+                        freigabepost.urteilen, a.kennung, False, "Frist", "")
+                    gezeigt.add(a.kennung)
+                    continue
+                for uid in ALLOWED_USER_IDS:
+                    try:
+                        await _freigabe_anzeigen(app.bot, uid, a)
+                    except Exception:
+                        log.exception("Freigabe-Anfrage nicht zustellbar")
+                gezeigt.add(a.kennung)
+        except Exception:
+            log.exception("Freigabe-Worker (ignoriert)")
+        await asyncio.sleep(20)
+
+
+async def on_freigabe_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Nimmt Adams Urteil entgegen — und nur seines (Leitplanke 1)."""
+    query = update.callback_query
+    await query.answer()
+    # Leitplanke 1: Die Kennung wird gegen die Allowlist geprüft, nicht gegen
+    # den Chat. Eine weitergeleitete Nachricht darf niemanden ermächtigen.
+    if update.effective_user is None or update.effective_user.id not in ALLOWED_USER_IDS:
+        log.warning("Freigabe-Versuch von nicht berechtigter Kennung: %s",
+                    getattr(update.effective_user, "id", "?"))
+        return
+    teile = (query.data or "").split(":", 2)
+    if len(teile) != 3:
+        return
+    _, wahl, kennung = teile
+    try:
+        eintrag = await asyncio.to_thread(
+            freigabepost.urteilen, kennung, wahl == "ja",
+            f"Adam ({update.effective_user.id})", "")
+    except freigabepost.Abgewiesen as e:
+        await query.edit_message_text(f"⚠️ {e}")
+        return
+    sym = "✅" if eintrag["urteil"] == "freigegeben" else "⛔"
+    nachsatz = ("\n\nDie Entscheidung ist protokolliert und wandert beim "
+                "nächsten Lauf ins Drehbuch." )
+    await query.edit_message_text(
+        f"{sym} {eintrag['urteil'].capitalize()}: {eintrag['titel']}"
+        + (f"\n({eintrag['grund']})" if eintrag["grund"] else "")
+        + nachsatz)
+
+
 async def cmd_freigaben(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
-    """5.25 (c): dauerhaft gemerkte Always-Allow-Freigaben zeigen / zurücksetzen."""
+    """5.25 (c) Dauerfreigaben — und seit 9.4 zusätzlich die offenen Anfragen.
+
+    Bewusst EIN Befehl für beides: „Freigaben" ist für Adam ein Begriff, nicht
+    zwei. Die offenen Anfragen stehen oben, weil sie eine Frist haben.
+    """
     if not authorized(update):
         return
+    try:
+        offen = await asyncio.to_thread(freigabepost.uebersicht)
+        if "Keine offenen" not in offen:
+            await send_chunked(update.get_bot(), update.effective_chat.id, offen,
+                               reply_to=update.message.message_id)
+    except Exception:
+        log.exception("Freigabe-Übersicht nicht verfügbar (ignoriert)")
     user_id = update.effective_user.id
     prefs = _USER_PREFS.setdefault(str(user_id), {})
     args = (update.message.text or "").split()
@@ -5191,6 +5294,7 @@ async def post_init(app: Application) -> None:
              STALL_CHECK_INTERVAL_S, STALL_LIMIT_S, MAX_STALL_RETRIES)
     # B: Boten-Postfach — Ausgangs-Aufträge anderer Instanzen zustellen.
     app.create_task(postfach_worker(app), name="postfach")
+    app.create_task(freigabe_worker(app), name="freigaben")  # 9.4
 
     # Bot-Username für Rücksprung-Links (Ausgabekanal → Bot-Chat) einmalig cachen.
     global _BOT_USERNAME
@@ -7690,6 +7794,7 @@ def main() -> None:
     app.add_handler(CommandHandler("termine", cmd_termine))
     app.add_handler(CommandHandler("aufgaben", cmd_aufgaben))
     app.add_handler(CommandHandler("links", cmd_links))
+    app.add_handler(CallbackQueryHandler(on_freigabe_callback, pattern=r"^frg:"))
     app.add_handler(CallbackQueryHandler(on_link_callback, pattern=r"^lnk:"))
     app.add_handler(CallbackQueryHandler(on_option_callback, pattern=r"^opt:"))
     app.add_handler(CallbackQueryHandler(on_permission_callback, pattern=r"^p:"))

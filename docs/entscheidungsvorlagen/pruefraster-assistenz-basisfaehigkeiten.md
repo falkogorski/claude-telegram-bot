@@ -44,7 +44,7 @@ folgt danach, wenn klar ist, wonach zu suchen ist.
 | Aufgaben der Reihe nach abarbeiten | ✅ | FIFO-Warteschlange (5.5), Unterbrechungs-Erkennung |
 | Ohne Klick-Nachfragen recherchieren | ✅ | Herkunfts-Schranke (5.25) |
 | Reaktionen als Kurzsprache verstehen | ✅ | Vokabular v2.2, H3-Quittung |
-| Sich selbst prüfen | ✅ | 23 Selbstcheck-Zeilen, Regressionslauf 20/20 |
+| Sich selbst prüfen | ✅ | Selbstcheck und Regressionslauf nennen ihren Umfang selbst (Stand 26.07.: 28 Zeilen · 30 Prüfungen) — die Zahlen wachsen, deshalb hier kein fester Sollwert |
 | Sich selbst aktualisieren | ✅ | Monitor (5.21) + Updater + Nachzieher (C1) |
 | Nach Absturz sauber hochkommen | ✅ | Start-Wächter (B1), systemd `Restart=always` |
 | Mehrere Themen getrennt halten | 🔄 | Kanal-Routing gebaut (Phase 6), **vier Gruppen fehlen noch** |

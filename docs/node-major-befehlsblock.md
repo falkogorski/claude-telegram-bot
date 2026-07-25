@@ -37,7 +37,7 @@ node --version && npm --version && npm ls -g --depth=0
 cd ~/claude-telegram-bot && bash scripts/regressionstest.sh
 ```
 
-Der Regressionslauf **muss vorher grün sein** (Sollwert 20/20). Ein Update auf
+Der Regressionslauf **muss vorher grün sein** — er nennt seinen Sollwert selbst; eine hier eingetippte Zahl wäre veraltet, sobald eine Prüfung dazukommt. Ein Update auf
 ein bereits wackelndes Fundament ist der Fehler, den A5 im Updater verhindert —
 hier gilt dieselbe Regel von Hand.
 
@@ -110,6 +110,6 @@ sudo apt-get install -y --allow-downgrades nodejs
 - **Keine Geheimnisse** in diesen Befehlen — bewusst geprüft.
 - **💰 keine Kosten:** freie Paketquelle, eigener Server.
 - **Abbruchkriterium:** Bleibt der Regressionslauf nach dem Einspielen unter
-  20/20 oder antwortet der Bot nicht auf eine echte Nachricht, wird
+  vollständig grün oder antwortet der Bot nicht auf eine echte Nachricht, wird
   **zurückgerollt**, nicht nachgebessert. Nachbessern gehört in ein zweites
   Fenster, nicht in dieses.

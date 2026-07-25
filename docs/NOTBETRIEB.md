@@ -64,7 +64,9 @@ Was dabei herauskam, steht in der rechten Spalte.
 | „Der Bot antwortet nicht" | `systemctl is-active claude-telegram-bot` | Der Dienst gilt als aktiv, auch wenn der Prozess gerade neu startet — **die Prozessliste ist die verlässlichere Auskunft** |
 | „Läuft er wirklich?" | **`systemctl show claude-telegram-bot -p MainPID`** | Die **einzige** Auskunft, die sich nicht selbst mitzählt. Liefert genau eine Kennung |
 | „Ich will die Prozesse sehen" | `pgrep -af "bot[.]py" \| grep -v "pgrep\|bash -c"` | Genau **eine** Zeile ist richtig — **mit** dem Filter. Ohne ihn lügt die Zählung (siehe Kasten unten) |
-| „Ist er gesund oder nur am Leben?" | `bash scripts/regressionstest.sh` | **20/20** ist der Sollwert. „Läuft" ist kein Gesundheitsnachweis |
+| „Ist er gesund oder nur am Leben?" | `bash scripts/regressionstest.sh` | Der Lauf **nennt seinen Sollwert selbst** („30/30" am 26.07.). Hier stand einmal eine feste Zahl — sie war schon veraltet, als sie jemand brauchte. „Läuft" ist kein Gesundheitsnachweis |
+| „Er läuft, aber nichts geht" | `cat ~/.claude/anmeldung-gekippt` | Liegt die Datei, ist die **Anmeldung** hin, nicht der Bot: Ein neues Abo-Token muss her (`claude setup-token`), alles andere ist gesund. Der Bot legt sie im Augenblick des Bruchs selbst an und räumt sie beim ersten gelungenen Lauf wieder weg |
+| „Der Bot ist einfach weg" | `journalctl -u claude-telegram-bot \| grep -i "killed process"` | Verdacht **Speichermangel**: Der Kernel beendet ohne Vorwarnung. `free -m` zeigt die Lage; ist kein Auslagerungsbereich da, gibt es kein Abfedern (Befehlsblock Schritt 4a) |
 | „Er kommt nicht hoch" | Nichts von Hand — **erst nachsehen, ob ein Rückweg da ist** | Ohne gesicherten Stand nicht eingreifen; der Start-Wächter (B1) hält sich an dieselbe Regel |
 | „Ich brauche einen früheren Stand" | Anleitung in `WIEDERANLAUF.md`, Abschnitt Rücksprung | Abzweigen statt zurücksetzen; danach immer der Regressionslauf |
 | „Alles ist weg" | `docs/REBUILD.md` plus das tägliche Bündel im Backup | 14 datierte Vollkopien in Rotation |

@@ -214,6 +214,39 @@ def _clear_failure() -> None:
 
 
 # ---------- Hauptablauf -----------------------------------------------------
+def _waechter_scharf(frozen_env: dict[str, str], installed: list[str]) -> bool:
+    """B1: Den Start-Wächter für den nun fälligen Neustart scharfstellen.
+
+    Der Updater hat bis hierher alles im Griff, was sich im laufenden Betrieb
+    prüfen lässt. Was er nicht abdecken kann, ist der Neustart danach: Stirbt
+    der Bot dabei, gibt es keinen Prozess mehr, der zurückrollen könnte. Also
+    bekommt ein abgekoppelter Wächter den eingefrorenen Stand mit, bevor der
+    Neustart passiert — er wartet, prüft und rettet notfalls von außen.
+
+    Rückgabe: True, wenn der Wächter gestartet werden konnte.
+    """
+    if not frozen_env:
+        return False
+    skript = Path(__file__).resolve().parent / "start_waechter.py"
+    if not skript.exists():
+        return False
+    # Für den Rückweg zählt die venv des Bots — sie trägt den laufenden Dienst.
+    venv, text = next(iter(frozen_env.items()))
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        freeze_datei = STATE_DIR / "freeze_vor_neustart.txt"
+        freeze_datei.write_text(text, encoding="utf-8")
+        subprocess.Popen(
+            [sys.executable, str(skript), "--freeze", str(freeze_datei),
+             "--venv", venv, "--detach",
+             "--grund", "dem Update von " + ", ".join(installed or ["Komponenten"])],
+            start_new_session=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except Exception:
+        return False
+
+
 def apply_updates(names: list[str], expected: dict | None = None) -> dict:
     """Spielt die genannten Komponenten ein.
 
@@ -300,11 +333,16 @@ def _apply_locked(names: list[str], expected: dict) -> dict:
              and after["passed"] < baseline["passed"])
     if not install_log and after["ok"] and not worse:
         _clear_failure()
+        wacht = _waechter_scharf(frozen_env, installed)
         return {"ok": True, "state": "eingespielt", "done": installed,
                 "rolled_back": [], "restart_needed": True,
                 "baseline": baseline, "after": after,
+                "waechter": wacht,
                 "msg": ("Eingespielt. Regressionstest unverändert grün ({} vorher → {} nachher)."
-                        .format(baseline["line"], after["line"]))}
+                        .format(baseline["line"], after["line"])
+                        + ("\nDer Start-Wächter ist scharf: Kommt der Bot nach dem "
+                           "Neustart nicht sauber hoch, setzt er die Umgebung "
+                           "selbsttätig zurück und meldet sich." if wacht else ""))}
 
     # --- Fehlschlag → A1: vollständiger Rollback ---------------------------
     reason = "; ".join(install_log) if install_log else after["line"]

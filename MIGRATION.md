@@ -22,6 +22,8 @@ metadata:
 
 ## Änderungshistorie
 
+- **2026-07-25 (3)** — **B1 umgesetzt: Start-Wächter außerhalb des Bot-Prozesses (neuer Punkt 5.29).** Schließt die einzige Lücke der Updater-Sicherheitskette — den Bot, der nach dem Neustart nicht mehr hochkommt. Abgekoppelter Prozess, dreifache Gesundheitsprüfung, Rückbau auf den eingefrorenen Stand, Meldung über das Postfach plus Zustandsdatei für den 4-Uhr-Check. Regressionslauf **18/18**. Damit sind B2 (Auto-Neustart) und B3 (Wartungsfenster) technisch freigeschaltet — beide brauchen aber noch Adams Ja.
+
 - **2026-07-25 (2)** — **H1 umgesetzt: Bild-/Video-Transport repariert (neuer Punkt 5.28).** Der 1-MB-Abbruch war eine Transport-, keine Fähigkeitsgrenze; Puffer auf 32 MB, Bilder werden für die Übergabe verkleinert (Original unangetastet), Videos in Einzelbilder + Tonspur zerlegt, Fehlerfall mit ehrlicher Meldung statt Sitzungstod. Neuer Verhaltenstest `test_media_h1.py` (Regressionslauf **17/17**), neue Selbstcheck-Zeile (22), Register- und Blaupause-Eintrag. Die Blaupause hält als Nebenwirkung fest, dass der Selbstcheck eine **zweite** Options-Stelle aufdeckte, die denselben Puffer braucht — eine Zahl an nur einer Stelle hätte den Bruch bloß verschoben.
 
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
@@ -754,6 +756,17 @@ Absturzfall ausdrücklich auf 5.18).
 - **Test:** `scripts/test_media_h1.py` (7 Prüfungen, im Regressionslauf → **17/17**); Selbstcheck-Zeile „Medien-Transport (H1)" prüft die drei stillen Voraussetzungen: Werkzeuge da, Puffer angehoben, Budget **vom Puffer abgeleitet** statt hart verdrahtet.
 - **Adam-Bestätigung:** ausstehend — großes Foto und kurzes Video an den Bot schicken.
 - **Verifiziert am:** 25.07.2026 (Mac + VPS je 17/17, Selbstcheck 22 Zeilen)
+
+### 5.29 Start-Wächter: Rettung von außen, wenn der Bot nicht hochkommt (B1) `[NEU 2026-07-25]`
+- **Status:** ✅ VERIFIZIERT (25.07.)
+- **Die Lücke:** Die Updater-Härtung A1–A7 rollt jeden Fehlschlag zurück — außer den einen, der sie selbst lahmlegt: *der Bot startet nach dem Neustart nicht mehr*. Ein Rollback von innen braucht einen laufenden Prozess. Bisher war **Adam** dieser Wächter, weil er den Neustart von Hand auslöst und hinsieht; ein automatischer Neustart (B2) nähme ihn ersatzlos aus der Schleife. B1 ist deshalb **Voraussetzung** für B2 und B3.
+- **Umsetzung:** `scripts/start_waechter.py` läuft als **abgekoppelter** Prozess (`start_new_session=True`) und überlebt damit den Tod des Bots. Er wartet eine Frist (Vorgabe 240 s) auf einen sauberen Hochlauf, prüft dabei dreierlei — **Prozess lebt · Dienst aktiv · Selbstcheck-Invarianten grün** — und setzt sonst die Umgebung per `pip install -r <freeze>` auf den eingefrorenen Stand zurück, beendet den Bot sanft (systemd `Restart=always` holt ihn zurück) und prüft erneut. Der Updater stellt ihn im Erfolgsfall selbst scharf (`_waechter_scharf`), weil genau dann der Neustart ansteht.
+- **Zwei bewusste Entscheidungen:** (1) „Läuft" gilt **nicht** als Gesundheitsnachweis — der Bot kann laufen und trotzdem in einer kaputten Umgebung sitzen; deshalb wird gemessen, nicht erfragt. (2) Der Neustart geht über **SIGTERM statt `systemctl restart`**: eine Rettung, die selbst root-Rechte bräuchte, wäre im Ernstfall gesperrt.
+- **Meldeweg:** über das Boten-Postfach (der Token liegt nur im Bot) — die Nachricht erreicht Adam also nach der Genesung; zusätzlich landet der Befund in `~/.claude/updater/startwaechter.json`, damit der 4-Uhr-Check (8.1) ihn auch dann findet, wenn der Bot gar nicht zurückkehrt.
+- **Akzeptanzkriterium:** Sauberer Hochlauf → nichts wird angefasst, kurze Erfolgsmeldung. Toter oder invarianten-roter Bot → Rückbau auf den eingefrorenen Stand, Neustart, klare 🔴-Meldung. Gescheiterte Rettung → doppelt laute 🔴🔴-Meldung mit dem Hinweis, dass ein Eingriff von Hand nötig ist.
+- **Test:** `scripts/test_start_waechter_b1.py` (6 Prüfungen, im Regressionslauf → **18/18**) — darunter der Fall „Prozess lebt, Selbstcheck rot" und die Prüfung, dass der Wächter seinen **eigenen** Prozess nicht für den Bot hält (genau dieses Messartefakt täuschte am 24.07. eine Zweitinstanz vor).
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** 25.07.2026
 
 ### Phasen-Audit 5 → 6
 - **Audit-Status:** —

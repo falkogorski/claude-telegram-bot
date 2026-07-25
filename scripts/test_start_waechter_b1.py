@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+# <!-- ROLLE: test-start-waechter -->
+"""Verhaltenstest B1 — Start-Wächter (Conni-Auftrag 25.07.).
+
+Prüft die Logik mit ersetzten Systemaufrufen: Es wird nichts installiert,
+nichts beendet, nichts versendet. Der Kern ist der Fall, für den es den
+Wächter gibt — der Bot kommt nach einem Neustart NICHT sauber hoch.
+"""
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+_TMP = Path(tempfile.mkdtemp(prefix="b1test-"))
+os.environ["UPDATER_STATE_DIR"] = str(_TMP / "state")
+os.environ["POSTFACH_DIR"] = str(_TMP / "postfach")
+os.environ["ALLOWED_USER_IDS"] = "304455165"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import start_waechter as w  # noqa: E402
+
+w.TAKT = 0.01
+w.NACHFRIST = 1
+fails = []
+
+FREEZE = _TMP / "freeze.txt"
+FREEZE.write_text("demo==1.0.0\n", encoding="utf-8")
+
+
+def check(name, fn):
+    try:
+        fn()
+        print(f"✓ {name}")
+    except AssertionError as e:
+        print(f"✗ {name}: {e}")
+        fails.append(name)
+
+
+def _patch(prozess=1234, aktiv=True, check_folge=None, rollback=(True, ""),
+           kill="Prozess beendet"):
+    """Systemberührende Teile ersetzen; check_folge ist eine Liste von Ergebnissen."""
+    w.bot_prozess = lambda: prozess
+    w.dienst_aktiv = lambda: aktiv
+    folge = iter(check_folge if check_folge is not None else [(True, "")])
+    letzte = [(True, "")]
+
+    def _sc(_venv):
+        try:
+            letzte[0] = next(folge)
+        except StopIteration:
+            pass
+        return letzte[0]
+    w.selbstcheck = _sc
+    w.zurueckrollen = lambda venv, fr: rollback
+    w.neustart_ausloesen = lambda: kill
+
+
+def _berichte() -> list[str]:
+    ordner = Path(os.environ["POSTFACH_DIR"]) / "outbox"
+    if not ordner.exists():
+        return []
+    import json
+    return [json.loads(p.read_text(encoding="utf-8"))["text"]
+            for p in sorted(ordner.glob("*.json"))]
+
+
+def _leeren():
+    ordner = Path(os.environ["POSTFACH_DIR"]) / "outbox"
+    if ordner.exists():
+        for p in ordner.glob("*.json"):
+            p.unlink()
+
+
+# --- Sauberer Hochlauf: nichts anfassen, kurz melden ------------------------
+def _sauber():
+    _leeren()
+    gerollt = []
+    _patch()
+    w.zurueckrollen = lambda v, f: (gerollt.append(1), (True, ""))[1]
+    rc = w.bewachen(Path("/tmp/venv"), FREEZE, frist=2, grund_text="einem Test")
+    assert rc == 0, f"Rückgabewert falsch: {rc}"
+    assert not gerollt, "es wurde zurückgerollt, obwohl alles sauber war!"
+    b = _berichte()
+    assert b and "✅" in b[0], f"keine Erfolgsmeldung: {b}"
+
+
+# --- Kein Prozess → Rettung greift -----------------------------------------
+def _kein_prozess_rettet():
+    _leeren()
+    gerollt, gekillt = [], []
+    _patch(prozess=None)
+    w.zurueckrollen = lambda v, f: (gerollt.append(f), (True, ""))[1]
+    w.neustart_ausloesen = lambda: (gekillt.append(1), "beendet")[1]
+    # nach dem Rollback läuft er wieder
+    zustand = {"tot": True}
+
+    def _pid():
+        return None if zustand["tot"] else 999
+    w.bot_prozess = _pid
+
+    def _roll(v, f):
+        gerollt.append(f)
+        zustand["tot"] = False
+        return (True, "")
+    w.zurueckrollen = _roll
+    rc = w.bewachen(Path("/tmp/venv"), FREEZE, frist=0.2, grund_text="einem Update")
+    assert gerollt, "es wurde NICHT zurückgerollt, obwohl der Bot tot war"
+    assert Path(gerollt[0]) == FREEZE, "es wurde nicht der eingefrorene Stand genutzt"
+    assert gekillt, "kein Neustart ausgelöst"
+    assert rc == 1, f"Rückgabewert falsch: {rc}"
+    b = _berichte()
+    assert b and "🔴" in b[0] and "zurückgesetzt" in b[0], f"Meldung unklar: {b}"
+
+
+# --- Prozess lebt, aber Selbstcheck rot → trotzdem Rettung -----------------
+def _lebt_aber_kaputt():
+    _leeren()
+    gerollt = []
+    _patch(check_folge=[(False, "✗ Medien-Transport (H1)")])
+    w.zurueckrollen = lambda v, f: (gerollt.append(1), (True, ""))[1]
+    w.bewachen(Path("/tmp/venv"), FREEZE, frist=0.2, grund_text="einem Update")
+    assert gerollt, "lebender Prozess mit rotem Selbstcheck galt als sauber!"
+    b = _berichte()
+    assert b and "Selbstcheck rot" in b[0], f"Grund fehlt in der Meldung: {b}"
+
+
+# --- Rettung scheitert → doppelt laut melden -------------------------------
+def _rettung_scheitert_laut():
+    _leeren()
+    _patch(prozess=None, rollback=(False, "pip nicht erreichbar"))
+    rc = w.bewachen(Path("/tmp/venv"), FREEZE, frist=0.2, grund_text="einem Update")
+    assert rc == 2, f"Rückgabewert falsch: {rc}"
+    b = _berichte()
+    assert b and "🔴🔴" in b[0], f"gescheiterte Rettung nicht laut gemeldet: {b}"
+    assert "FEHLGESCHLAGEN" in b[0] and "von Hand" in b[0], \
+        "die Meldung sagt nicht, dass ein Eingriff von Hand nötig ist"
+
+
+# --- Der Bericht landet auch dann, wenn der Bot nichts senden kann ---------
+def _bericht_auch_ohne_bot():
+    _leeren()
+    _patch(prozess=None, rollback=(False, "kaputt"))
+    w.bewachen(Path("/tmp/venv"), FREEZE, frist=0.2, grund_text="einem Update")
+    assert w.BERICHT.exists(), "keine Zustandsdatei für den 4-Uhr-Check hinterlegt"
+
+
+# --- Messartefakt: der eigene Prozess zählt nicht als Bot ------------------
+def _eigener_prozess_zaehlt_nicht():
+    import subprocess as sp
+    echt = sp.run
+    zeile = f"{os.getpid()} python3 scripts/start_waechter.py --freeze x\n"
+
+    class _R:
+        stdout = zeile
+    sp.run = lambda *a, **k: _R()
+    try:
+        import importlib
+        importlib.reload(w)
+        w.TAKT = 0.01
+        assert w.bot_prozess() is None, \
+            "der Wächter hält seinen eigenen Prozess für den Bot"
+    finally:
+        sp.run = echt
+        import importlib
+        importlib.reload(w)
+        w.TAKT = 0.01
+        w.NACHFRIST = 1
+
+
+check("sauberer Hochlauf → nichts anfassen", _sauber)
+check("kein Prozess → Rollback auf den eingefrorenen Stand + Neustart", _kein_prozess_rettet)
+check("Prozess lebt, Selbstcheck rot → trotzdem Rettung", _lebt_aber_kaputt)
+check("gescheiterte Rettung wird doppelt laut", _rettung_scheitert_laut)
+check("Bericht liegt auch für den 4-Uhr-Check bereit", _bericht_auch_ohne_bot)
+check("eigener Prozess zählt nicht als Bot", _eigener_prozess_zaehlt_nicht)
+
+if fails:
+    print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")
+    sys.exit(1)
+print("\nAlle B1-Start-Wächter-Tests bestanden.")

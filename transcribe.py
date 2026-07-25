@@ -95,7 +95,11 @@ class WhisperCppTranscriber(Transcriber):
         return wav
 
     async def transcribe(self, audio_path: Path, language: str | None = None) -> str:
-        wav = await self._convert_to_wav(audio_path)
+        # Wird als Zeichenkette übergeben, greift `with_suffix` nicht — beim
+        # Gegenmessen am 25.07. genau so aufgelaufen. Der Bot übergibt zwar
+        # immer einen Pfad, aber eine Schnittstelle, die nur bei einem von zwei
+        # Backends str verträgt, ist eine Falle für den nächsten Aufrufer.
+        wav = await self._convert_to_wav(Path(audio_path))
         try:
             cmd = [
                 self.binary,

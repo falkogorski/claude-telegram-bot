@@ -235,6 +235,50 @@ und nur nie **gemessen** wurde. Keine dieser Erkenntnisse stand in der Absicht.
 Lehre; ein rückwirkend geradegezogener Verlauf sieht kompetenter aus und trägt
 weniger.
 
+## 🪟 FENSTER-REGEL und GESCHWISTER-REGEL (Adam & Conni 2026-07-25)
+
+**Jede Änderung, die einen Ablauf verlängert, vergrößert jedes Fenster, das in
+diesem Ablauf offen steht.** Anlass: H1 hat den Medienpfad um Zerlegung und
+Tonspur-Transkription verlängert — und damit ausgerechnet das Fenster
+vergrößert, in dem eine Nachricht noch nicht gesichert war. Das Video von 05:07
+fiel hinein. Die Verbesserung war richtig; übersehen wurde, dass sie eine
+bestehende Lücke mit dehnt.
+
+**How to apply:** Bei jeder Verlängerung eines Ablaufs fragen: *Was ist während
+dieser Zeit ungeschützt?* Nicht „ist die Änderung gut", sondern „wovon liegt
+jetzt länger etwas offen".
+
+**Ein Fix an einem Pfad ist erst fertig, wenn geprüft ist, welche Geschwister
+denselben Fehler haben.** Anlass: Der Voice-Pfad wurde am 20.07. abgesichert —
+Fotos, Videos und Dateien blieben zurück und trugen den Fehler noch fünf Wochen.
+
+**How to apply:** Nach jedem Fix die Schwesterpfade **benennen** (nicht nur
+denken) und einzeln prüfen. Wo möglich, den Prüfer so bauen, dass er alle
+Geschwister zugleich erfasst — die Selbstcheck-Zeile „Medien-Eingangsschutz"
+prüft deshalb Foto, Video **und** Datei in einer Schleife.
+
+## 🔧 FREMDES NEHMEN, WO ES NICHT ANS HERZ GEHT (Adam 2026-07-25)
+
+**Ohne Sicherheits- oder Werte-Berührung: Vorhandenes nehmen und anpassen
+schlägt Selbstbauen.** Mit solcher Berührung — Freigaben, Geheimnisse, Ampel,
+Datenhoheit — **bauen wir selbst**, weil dort jede fremde Annahme eine ist, die
+wir nicht geprüft haben.
+
+**„Gut genug für jetzt" ist eine erlaubte Antwort**, solange zwei Dinge gelten:
+der **Rückweg bleibt offen**, und der Punkt ist als **„später prüfen"
+vermerkt** — sonst wird aus „für jetzt" stillschweigend „für immer".
+
+## ⚖️ EINE REGEL, DIE NIEMAND BEFOLGEN KANN, IST SCHLECHTER ALS KEINE
+
+Verallgemeinerung des R4-Prüfsteins. **Vor jeder neuen Regel prüfen:** Deckt
+eine vorhandene den Fall schon ab? Und: Ist sie im Alltag befolgbar, oder
+verlangt sie Aufmerksamkeit, die niemand dauerhaft aufbringt?
+
+Wo eine Regel Aufmerksamkeit verlangt, gehört ein **Prüfer** dazu (R2) — sonst
+ist sie eine Bitte. Wo kein Prüfer möglich ist, gehört die Regel **klein**
+gehalten, damit sie überhaupt eine Chance hat.
+
+## 🪟
 ## 🔬 BELEG-GRUNDSATZ — und das Auflösungs-Budget bei Bildern (2026-07-25)
 
 **Eine Aufzählung von Belegen ist keine Beweisführung, solange nicht geprüft

@@ -192,6 +192,26 @@ eine Swap-Zeile ungleich null. · **Rückweg:**
 sudo swapoff /swapfile && sudo sed -i '/^\/swapfile/d' /etc/fstab && sudo rm -f /swapfile
 ```
 
+**4a-2 — Die Bremse dazu: Swap als Netz, nicht als Ausweichfläche.**
+Standardmäßig lagert Linux schon aus, wenn noch Speicher frei ist. Das wollen
+wir hier ausdrücklich **nicht**: Der Swap soll den Notfall abfangen, nicht den
+Alltag verlangsamen — sonst hätten wir ein Tempo-Problem gegen ein
+Speicher-Problem getauscht.
+
+```bash
+echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf && sudo sysctl --system | tail -3
+```
+
+```bash
+cat /proc/sys/vm/swappiness
+```
+
+**Prüfzeile:** Die Ausgabe lautet `10`. · **Rückweg:**
+
+```bash
+sudo rm -f /etc/sysctl.d/99-swappiness.conf && sudo sysctl -w vm.swappiness=60
+```
+
 **4b — Ollama für die Abwesenheit anhalten** (fünf GiB Spitze frei, null Euro;
 es ist ein Fallback, den in Adams Abwesenheit ohnehin niemand bediente):
 
@@ -204,6 +224,21 @@ sudo systemctl disable --now ollama && systemctl is-active ollama
 ```bash
 sudo systemctl enable --now ollama
 ```
+
+> ⚠️ **Fußnote zu 4b — die Nebenwirkung, die man leicht übersieht.** Die
+> Neben-Inferenzen (Kapitel-Labels beim Vorlesen, 2.6) gehen über LiteLLM auf
+> `127.0.0.1:4000` und von dort an Ollama. Hält man **nur** Ollama an, nimmt
+> LiteLLM die Anfrage weiterhin an, und der Bot wartet **bis zu 90 Sekunden**,
+> bevor er still auf „kein Label" zurückfällt — und zwar **je Abschnitt**. Der
+> stille Rückfall ist richtig; die 90 Sekunden Bedenkzeit sind es nicht.
+> Deshalb LiteLLM im selben Zug mit anhalten:
+>
+> ```bash
+> sudo systemctl disable --now litellm && systemctl is-active litellm
+> ```
+>
+> **Prüfzeile:** `inactive`; das Vorlesen läuft weiter, nur ohne Kapitel-Labels.
+> · **Rückweg:** `sudo systemctl enable --now litellm`
 
 ---
 

@@ -80,23 +80,48 @@ class Anfrage:
     ampel: str                 # gruen | gelb | rot
     herkunft: str              # wer fragt (Leitplanke 7)
     gestellt: float = field(default_factory=time.time)
+    # `[G5, 25.07.]` Wann die Frage ZUERST gestellt wurde — wird nie
+    # überschrieben. `gestellt` wandert bei jeder Auffrischung nach vorn; ohne
+    # diesen Anker läse sich eine Frage vom 28.07. nach vierzehn Tagen als
+    # frisch gestellt, mit „14× vorgelegt" als einzigem Hinweis. Gerade das
+    # Alter sagt Adam bei der Rückkehr, was zuerst dran ist.
+    erstmals: float = 0.0
     begruendung: str = ""
     rueckweg: str = ""         # wie ließe es sich rückgängig machen?
     vorgelegt: int = 1         # wie oft schon vorgelegt (1 = erstmals)
     gesehen: bool = False      # Adam war da und hat trotzdem nicht geurteilt
 
+    def __post_init__(self) -> None:
+        if not self.erstmals:
+            self.erstmals = self.gestellt
+
+    def wartezeit_s(self) -> float:
+        """Der Bremsweg: je öfter vorgelegt, desto seltener (G5).
+
+        Starre 24 Stunden hießen bei vierzehn Tagen Abwesenheit **vierzehn
+        Nachrichten** je offener Frage — und damit wäre die Wiedervorlage
+        wieder ein Halteschild statt eines Wegsteins. Die Bremse ist bei
+        viermal gedeckelt: Danach meldet sie sich alle vier Tage, das bleibt
+        wahrnehmbar, ohne zu nerven.
+        """
+        return FRIST_STUNDEN * 3600 * min(max(1, self.vorgelegt), 4)
+
     def faellig(self, jetzt: float | None = None) -> bool:
         """Ist die Auffrischung fällig? (Früher hieß das `abgelaufen` — der
         Name unterstellte ein Ende, das es nicht gibt.)"""
-        return ((jetzt or time.time()) - self.gestellt) > FRIST_STUNDEN * 3600
+        return ((jetzt or time.time()) - self.gestellt) > self.wartezeit_s()
 
     def lesbar(self) -> str:
         sym = {"gruen": "🟢", "gelb": "🟡", "rot": "🔴"}.get(self.ampel, "⬜")
-        zusatz = ""
+        teile = []
+        if self.erstmals:
+            teile.append("seit " + time.strftime(
+                "%d.%m.", time.localtime(self.erstmals)))
+        if self.vorgelegt > 1:
+            teile.append(f"{self.vorgelegt}× vorgelegt")
         if self.gesehen:
-            zusatz = "  · gesehen, offen"
-        elif self.vorgelegt > 1:
-            zusatz = f"  · {self.vorgelegt}× vorgelegt"
+            teile.append("gesehen, offen")
+        zusatz = ("  · " + ", ".join(teile)) if teile else ""
         return f"{sym} {self.titel}  ({self.herkunft}){zusatz}"
 
 
@@ -270,7 +295,7 @@ def uebersicht(jetzt: float | None = None) -> str:
         return "✅ Keine offenen Freigabe-Anfragen."
     zeilen = []
     for a in liste:
-        rest = FRIST_STUNDEN - ((jetzt or time.time()) - a.gestellt) / 3600
+        rest = (a.wartezeit_s() - ((jetzt or time.time()) - a.gestellt)) / 3600
         frist = ("⌛ lege ich dir gleich erneut vor" if rest <= 0
                  else f"lege ich in {rest:.0f} h erneut vor")
         zeilen.append(f"{a.lesbar()}\n   {frist}")

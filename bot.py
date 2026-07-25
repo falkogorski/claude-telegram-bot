@@ -59,6 +59,7 @@ import channels
 import freigaben as freigabepost
 import kalender
 import linkinbox
+import authmarke
 import email_kanal
 import media
 import pending
@@ -396,18 +397,15 @@ _EFFORT_IDS: dict[str, str | None] = {
 
 def is_auth_error(exc: Exception) -> bool:
     """True wenn eine Exception nach einem Anthropic-Auth-/Credentials-Fehler aussieht.
-    Der Claude-Subprozess bubbles die Fehler als Text hoch — zuverlässigster Indikator."""
-    msg = str(exc).lower()
-    needles = (
-        "401",
-        "invalid authentication",
-        "invalid x-api-key",
-        "authentication_error",
-        "failed to authenticate",
-        "could not resolve authentication",
-        "oauth token has expired",
-    )
-    return any(n in msg for n in needles)
+    Der Claude-Subprozess bubbles die Fehler als Text hoch — zuverlässigster Indikator.
+
+    **[G1, 25.07.2026] Die Wortliste steht jetzt in `authmarke.py`**, weil sie
+    ein zweiter Leser braucht: der Anmelde-Wächter der Stundenblumen. Vorher
+    hatte jede Seite ihre eigene, und von sieben Marken war genau EINE in
+    beiden — der wichtigste Fall ging um ein Wort daneben. Zwei Listen driften;
+    eine gemeinsame kann es nicht.
+    """
+    return authmarke.passt(str(exc))
 
 
 def is_context_overflow(exc: Exception) -> bool:
@@ -948,6 +946,14 @@ class QueuedJob:
     # gegen die Endlosschleife „hängt → neu → hängt": ab MAX_STALL_RETRIES wird
     # nur noch gemeldet statt automatisch wiederholt.
     stall_retries: int = 0
+    # S1/G6 (25.07.): Adressen aus der Link-Ablage, die erst abgehakt werden
+    # dürfen, wenn dieser Auftrag **belegt gelungen** ist. Vorher hakte der
+    # Knopfdruck selbst ab — scheiterte der Lauf danach, war der Link aus der
+    # Ablage verschwunden und Adam erfuhr nicht, dass nichts geschah. Genau
+    # diese Klasse ist der Grund für H2. Die Liste MUSS am Auftrag hängen und
+    # nicht am Knopf-Handler: Der Handler reiht nur ein und ist längst fertig,
+    # wenn der Lauf stattfindet.
+    links_abhaken: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -1102,6 +1108,9 @@ async def _session_worker(user_id: int) -> None:
         finally:
             mb.done_log.append((time.time(), _job_preview(job.text)))
             mb.current_job = None
+        # S1/G6: Erst hier steht fest, ob wirklich etwas herauskam.
+        if job.links_abhaken:
+            await _links_nachtragen(job, outcome)
         # 5.2: Persistenz-Status nach Ausgang nachziehen.
         #   beantwortet/aufgegeben → Record löschen (raus aus pending)
         #   offen (Kontext-Retry re-enqueued) → bleibt liegen, wird gleich neu gezogen
@@ -1288,6 +1297,10 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             cancelled = cancel_pending_permissions(sess, reason=f"query error: {e}")
             if is_auth_error(e):
                 log.error("authentication failure for user_id=%s: %s", user_id, e)
+                # G1: Der Bot WEISS es hier — er behandelt den Fall ja gerade.
+                # Also eine Marke im eigenen Format, statt einen Wächter auf den
+                # Wortlaut des Anbieters horchen zu lassen. Kein Geheimniswert.
+                authmarke.setzen(str(e))
                 try:
                     await send_chunked(sess.bot, sess.chat_id, AUTH_HELP, parse_mode=ParseMode.MARKDOWN)
                 except Exception:
@@ -5584,6 +5597,38 @@ def _erkannter_befehl(text: str) -> str | None:
     return None
 
 
+async def _links_nachtragen(job: "QueuedJob", outcome: str) -> None:
+    """S1/G6: Abhaken **nur** bei belegtem Erfolg — sonst zurücklegen und sagen.
+
+    `outcome == "beantwortet"` ist der einzige Ausgang, bei dem tatsächlich eine
+    Antwort herauskam. Alles andere (Fehler, Aufgabe, Kontingent-Rücklage) lässt
+    die Einträge liegen — mit Grund, damit Adam nicht raten muss, ob etwas
+    geschehen ist. Ein Eintrag, der stillschweigend verschwindet, ist schlimmer
+    als einer, der noch dasteht.
+    """
+    if outcome == "beantwortet":
+        for url in job.links_abhaken:
+            try:
+                await asyncio.to_thread(linkinbox.abhaken, url, "verarbeitet")
+            except Exception:
+                log.exception("Link-Abhaken fehlgeschlagen: %s", url)
+        return
+    try:
+        for url in job.links_abhaken:
+            await asyncio.to_thread(
+                linkinbox.notieren, url,
+                f"Auswertung nicht durchgelaufen ({outcome}) — bleibt liegen")
+        ziel = job.chat_id or job.user_id
+        if ziel and job.bot is not None:
+            await send_chunked(
+                job.bot, ziel,
+                f"🔗 Die Auswertung ist nicht durchgelaufen ({outcome}). "
+                f"{len(job.links_abhaken)} Link(s) bleiben in der Ablage — "
+                "ich habe nichts abgehakt. Mit /links siehst du sie wieder.")
+    except Exception:
+        log.exception("Rückmeldung zur gescheiterten Link-Auswertung fehlgeschlagen")
+
+
 async def process_user_text(
     update: Update,
     text: str,
@@ -5591,6 +5636,7 @@ async def process_user_text(
     output_chat_id: int | None = None,
     reply_to_override: int | None = None,
     log_note: str | None = None,
+    links_abhaken: list[str] | None = None,
 ) -> None:
     """Shared path: authorized update + text → Claude query + streamed response.
 
@@ -5656,6 +5702,8 @@ async def process_user_text(
         thread_id=getattr(msg, "message_thread_id", None),
         message_date=(msg.date.timestamp() if msg is not None and msg.date else None),
         log_note=log_note,
+        links_abhaken=list(links_abhaken or []),
+        bot=update.get_bot(),
     )
 
     # 5.2: Nachricht SOFORT persistieren (überlebt Reboot). Nur serialisierbare
@@ -6295,10 +6343,22 @@ async def on_link_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None
         return
     liste = "\n".join(f"- {e.url}" for e in bezug)
     await query.edit_message_text(f"⏳ Ich arbeite daran ({was}) …")
-    for e in bezug:
-        await asyncio.to_thread(linkinbox.abhaken, e.url, f"verarbeitet: {was}")
-    fake = update
-    await process_user_text(fake, f"{auftrag}\n{liste}")
+
+    # S1/G6: **Abgehakt wird erst nach belegtem Erfolg** — und zwar im Worker,
+    # nicht hier. Vorher hakte der Knopfdruck selbst ab; scheiterte der Lauf
+    # danach (Kontingent, Anmeldung, Puffer), war der Link aus der Ablage
+    # verschwunden, und Adam erfuhr nicht einmal, dass nichts geschah. Belegt am
+    # 25.07.: drei Links standen als verarbeitet, obwohl einer gescheitert war.
+    # Dieselbe Klasse wie die verlorene Nachricht vom 24.07. um 20:13, wegen der
+    # H2 gebaut wurde.
+    #
+    # ⚠️ **Warum nicht einfach hier ein try/except:** `process_user_text` REIHT
+    # NUR EIN und kehrt sofort zurück — der Lauf findet später im Worker statt.
+    # Ein Fehlerfang an dieser Stelle finge nur das Einreihen und sähe aus wie
+    # ein Riegel, ohne einer zu sein. Die Nachbedingung muss deshalb am
+    # **Auftrag** hängen (`links_abhaken`), wo der Ausgang bekannt wird.
+    await process_user_text(update, f"{auftrag}\n{liste}",
+                            links_abhaken=[e.url for e in bezug])
 
 
 async def cmd_links(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -7662,6 +7722,10 @@ async def stream_response(
                 if sess.logger and claude_turn_started:
                     sess.logger.end_turn()
                 _record_usage(sess.current_model, msg)
+                # G1: Ein Lauf, der bis hierher kommt, hat sich angemeldet —
+                # damit ist eine etwaige Marke erledigt. Die Entwarnung gehört
+                # an dieselbe Stelle wie der Alarm, sonst bleibt sie liegen.
+                authmarke.loeschen()
                 return "".join(parts).strip() or None
         # Fallback: kein ResultMessage (z.B. Abbruch) — trotzdem sauber abschließen.
         if sess.logger and claude_turn_started:

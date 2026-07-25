@@ -96,7 +96,9 @@ def _frist_frischt_auf_statt_zu_verfallen():
     assert f.protokoll_offen() == [], "eine Frist hat einen Protokolleintrag erzeugt"
 
     # Regung im Fenster → „gesehen, offen"; immer noch kein Urteil.
-    noch_spaeter = spaeter + f.FRIST_STUNDEN * 3600 + 60
+    # Der Bremsweg (G5) verlängert die Wartezeit mit jeder Vorlage — deshalb
+    # hier die tatsächliche Wartezeit nehmen statt der starren Frist.
+    noch_spaeter = spaeter + wieder.wartezeit_s() + 60
     f.auffrischen(letzte_regung=spaeter + 60, jetzt=noch_spaeter)
     wieder = f.finden(a.kennung)
     assert wieder.gesehen, "Adams Regung wurde nicht vermerkt"
@@ -105,6 +107,33 @@ def _frist_frischt_auf_statt_zu_verfallen():
     # Und ein Ja bleibt ein Ja — die Frist überstimmt es nicht mehr.
     e = f.urteilen(a.kennung, True, "Adam", jetzt=noch_spaeter)
     assert e["urteil"] == "freigegeben", f"Ja wurde verworfen: {e}"
+
+
+def _alter_bleibt_und_bremse_greift():
+    """G5: Das Alter einer Frage ist die Information, die sonst verlorenginge."""
+    _leeren()
+    a = _stellen()
+    anfang = a.erstmals
+    assert anfang, "kein Erst-Zeitpunkt gesetzt"
+
+    jetzt = time.time()
+    for runde in range(3):
+        wieder = f.finden(a.kennung)
+        jetzt += wieder.wartezeit_s() + 60
+        f.auffrischen(letzte_regung=None, jetzt=jetzt)
+
+    wieder = f.finden(a.kennung)
+    assert abs(wieder.erstmals - anfang) < 1, \
+        "der Erst-Zeitpunkt wurde überschrieben — das Alter ist weg"
+    assert wieder.vorgelegt == 4
+    assert "seit " in wieder.lesbar() and "4× vorgelegt" in wieder.lesbar(), \
+        f"Alter und Zähler stehen nicht in der Zeile: {wieder.lesbar()}"
+    # Bremsweg: bei vier Vorlagen viermal so lang, dort gedeckelt.
+    assert wieder.wartezeit_s() == f.FRIST_STUNDEN * 3600 * 4
+    fuenf = f.Anfrage(kennung="x", titel="t", aktion="a", ampel="gelb",
+                      herkunft="h", vorgelegt=9)
+    assert fuenf.wartezeit_s() == f.FRIST_STUNDEN * 3600 * 4, \
+        "die Bremse ist nicht gedeckelt — sie verstummt irgendwann ganz"
 
 
 def _unbeantwortet_ist_kein_urteil():
@@ -221,6 +250,8 @@ check("Aktion und Titel sind Pflicht (Konkret vor Label)", _aktion_ist_pflicht)
 check("Geheimnisse werden abgewiesen, nicht angezeigt", _geheimnisse_werden_abgewiesen)
 check("Frist frischt auf, statt zu verfallen (Ja bleibt Ja)",
       _frist_frischt_auf_statt_zu_verfallen)
+check("Alter bleibt, Bremse greift und ist gedeckelt (G5)",
+      _alter_bleibt_und_bremse_greift)
 check("Unbeantwortetes ist kein Urteil (eigene Liste)",
       _unbeantwortet_ist_kein_urteil)
 check("unbekannte Anfrage wird abgewiesen", _unbekannte_anfrage_wird_abgewiesen)

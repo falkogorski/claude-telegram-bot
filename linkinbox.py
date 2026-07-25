@@ -172,6 +172,25 @@ def abhaken(url: str, notiz: str = "") -> bool:
     return getroffen
 
 
+def notieren(url: str, notiz: str) -> bool:
+    """Vermerkt etwas am Eintrag, **ohne** ihn abzuhaken (S1/G6).
+
+    Gebraucht für den Fall, dass eine Auswertung nicht durchlief: Der Eintrag
+    bleibt offen — aber mit Grund, damit niemand raten muss, ob etwas geschehen
+    ist. Ein Eintrag, der stillschweigend verschwindet, ist schlimmer als einer,
+    der noch dasteht.
+    """
+    liste = _laden()
+    getroffen = False
+    for x in liste:
+        if x.get("url") == url:
+            x["notiz"] = notiz[:300]
+            getroffen = True
+    if getroffen:
+        _speichern(liste)
+    return getroffen
+
+
 def entfernen(url: str) -> bool:
     liste = _laden()
     neu = [x for x in liste if x.get("url") != url]

@@ -144,11 +144,13 @@ def _befunde() -> list[str]:
 
 
 # --------------------------------------------------------------- C2 Anmeldung --
-# Wortlaute, an denen ein Anmelde-Bruch im Journal erkennbar ist. Bewusst eng:
-# ein Fehlalarm hier kostet mehr Vertrauen, als er Sicherheit bringt.
-_AUTH_BRUCH = ("oauth token expired", "authentication_error", "invalid api key",
-               "invalid_api_key", "401 unauthorized", "please run /login",
-               "credentials are no longer valid")
+# **[G1, 25.07.] Die Wortliste kommt aus `authmarke.py`, nicht von hier.**
+# Vorher stand hier eine eigene — von sieben Marken war genau eine auch in der
+# des Bots, und der wichtigste Fall ging um ein Wort daneben (`oauth token
+# expired` gegen `oauth token has expired`). Zwei Listen driften; eine
+# gemeinsame kann es nicht. Das ist stärker als ein Test, der den Drift meldet.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import authmarke  # noqa: E402
 
 
 def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
@@ -162,18 +164,38 @@ def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
     die der Beleg-Grundsatz verbietet: ein Merkmal behaupten, das im Material
     nicht enthalten ist.)
 
-    Also die ehrliche Umkehrung — **zwei** deterministische Prüfungen, kein
+    Also die ehrliche Umkehrung — **drei** deterministische Prüfungen, kein
     Modell-Aufruf, kein Netz, und der Wert des Geheimnisses wird nie gelesen:
 
+    0. **Liegt eine Marke?** `[NEU G1]` Der **Bot selbst** schreibt sie im
+       Augenblick des Bruchs — er behandelt den Fall ja gerade und weiß es
+       genauer als jeder Horcher. Das ist der **vorrangige** Weg: eigenes
+       Format, keine Journal-Rechte nötig, und gleichgültig dagegen, wie der
+       Anbieter seine Fehlermeldung morgen formuliert.
     1. **Ist überhaupt eine Anmeldung da?** Nur Vorhandensein, nie der Wert.
-    2. **Hat sie zuletzt versagt?** Auth-Fehler im Journal des Dienstes.
+    2. **Hat sie zuletzt versagt?** Auth-Wortlaute im Journal — als **zweites
+       Netz** für den Fall, dass der Bot zum Schreiben der Marke nicht mehr kam.
 
-    Das nimmt Adam die Vorwarnzeit nicht weg — die holt er sich, indem er das
-    Token **kurz vor der Abreise neu erzeugt**; dann liegen die vollen Wochen
-    davor. Aber es sorgt dafür, dass ein Kippen **sofort** auffällt statt in
-    vierzehn Tagen Stille.
+    **`[G2, 25.07.]` „Konnte nicht nachsehen" ist ein eigener Zustand.** Vorher
+    endeten beide Prüfungen bei `except: pass` mit dem Vermerk „nicht lesbar ist
+    kein Befund" — das ist genau die Krankheit, gegen die die Stundenblumen
+    erfunden wurden, diesmal **im Wächter selbst**: Ein Prüfer, der nicht
+    hinsehen kann, ist von einem, der nichts findet, nicht zu unterscheiden.
+    **Gemessen (25.07., auf dem VPS):** Der Dienst läuft als `claudebot`, der
+    Prüfer ebenso — Journal und Prozess-Umgebung sind **beide lesbar**. Es ist
+    also heute kein blinder Fleck; aber sobald sich der Dienstnutzer oder die
+    Härtung ändert, wird er einer, und dann soll es auffallen.
     """
     raus: list[str] = []
+
+    # (0) Die Marke — der vorrangige Weg.
+    marke = authmarke.gesetzt()
+    if marke:
+        raus.append("🔑 Die Anmeldung hat versagt (" + marke.get("menschlich", "?")
+                    + "): " + str(marke.get("ursache", ""))[:120]
+                    + " — das Abo-Token muss neu erzeugt werden. Bis dahin "
+                      "arbeitet nichts, was ein Modell braucht.")
+
     pid = ""
     if shutil.which("systemctl"):
         try:
@@ -182,6 +204,8 @@ def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
                                capture_output=True, text=True, timeout=10)
             pid = (p.stdout or "").strip()
         except Exception:
+            raus.append("👁️ Ich konnte den Dienst nicht abfragen — ab hier "
+                        "sehe ich die Anmeldung nicht mehr.")
             return raus
     if not pid or pid == "0":
         return raus                       # kein Prozess — meldet Prüfung 1 schon
@@ -196,25 +220,31 @@ def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
                             "über das Abo-Token — das bucht Geld ab!")
             else:
                 raus.append("Keine Abo-Anmeldung in der Dienst-Umgebung")
-    except Exception:
-        pass                              # nicht lesbar ist kein Befund
+    except Exception as e:
+        raus.append("👁️ Ich darf die Umgebung des Bot-Prozesses nicht lesen "
+                    f"({type(e).__name__}) — diese Prüfung ist blind. Das ist "
+                    "kein Entwarnungs-, sondern ein Rechte-Befund.")
 
-    # (2) Hat sie versagt? Nur die letzten Minuten, damit ein alter Fehler nicht
-    # ewig nachhallt.
-    if shutil.which("journalctl"):
+    # (2) Zweites Netz: Wortlaute im Journal. Nur die letzten Minuten, damit ein
+    # alter Fehler nicht ewig nachhallt — und nur, wenn keine Marke liegt.
+    if shutil.which("journalctl") and not marke:
         try:
             p = subprocess.run(
                 ["journalctl", "-u", "claude-telegram-bot", "--since",
                  f"{max(60, seit_s)} seconds ago", "--no-pager", "-q"],
                 capture_output=True, text=True, timeout=20)
-            text = (p.stdout or "").lower()
-            treffer = [m for m in _AUTH_BRUCH if m in text]
-            if treffer:
-                raus.append("🔑 Die Anmeldung hat versagt (" + treffer[0] + ") — "
-                            "das Abo-Token muss neu erzeugt werden. Bis dahin "
-                            "arbeitet nichts, was ein Modell braucht.")
+            if p.returncode != 0:
+                raus.append("👁️ Ich darf das Journal des Dienstes nicht lesen — "
+                            "das zweite Netz für Anmelde-Brüche ist blind.")
+            else:
+                text = (p.stdout or "").lower()
+                treffer = [m for m in authmarke.NADELN if m in text]
+                if treffer:
+                    raus.append("🔑 Die Anmeldung hat versagt (" + treffer[0]
+                                + ") — das Abo-Token muss neu erzeugt werden.")
         except Exception:
-            pass
+            raus.append("👁️ Das Journal war nicht abfragbar — das zweite Netz "
+                        "für Anmelde-Brüche ist blind.")
     return raus
 
 
@@ -244,17 +274,68 @@ def bluehen(jetzt: float | None = None) -> dict:
     except Exception:
         pass
 
-    # Melden: nur bei echtem Anlass, nie in der Ruhe.
+    # G3: Der Zustand wandert IMMER in den Log-Abgleich — auch wenn nichts zu
+    # melden ist. Gerade das Ausbleiben dieser Datei wäre der Alarm.
+    lagebericht_schreiben(eintrag)
+
+    # Melden: nur bei echtem Anlass, nie in der Ruhe — und nicht minütlich
+    # dasselbe (G4).
     if not ruhegrund:
         gruende = list(eintrag["befunde"])
         if luecke is not None and luecke > TOLERANZ_S:
             gruende.insert(0, f"Die Kette hatte eine Lücke von "
                               f"{luecke / 60:.0f} Minuten — in dieser Zeit hat "
                               "niemand belegt, dass das System lebt.")
-        if gruende:
+        neu, entwarnt = _daempfen(gruende, jetzt)
+        if neu:
             melden("🌼 Stundenblume " + eintrag["menschlich"] + ":\n• "
-                   + "\n• ".join(gruende))
+                   + "\n• ".join(neu))
+        if entwarnt:
+            melden("🌱 Stundenblume " + eintrag["menschlich"]
+                   + ": erledigt —\n• " + "\n• ".join(entwarnt))
     return eintrag
+
+
+# ------------------------------------------------------------------ Dämpfer --
+# Wie lange ein bereits gemeldeter Befund schweigt, bevor er sich wiederholt.
+WIEDERVORLAGE_S = int(os.environ.get("BLUMEN_WIEDERVORLAGE") or 3600)
+_GEDAECHTNIS = ZUSTAND / "gemeldet.json"
+
+
+def _daempfen(gruende: list[str], jetzt: float) -> tuple[list[str], list[str]]:
+    """Erste Meldung sofort, Wiederholung frühestens nach einer Stunde.
+
+    **Warum das kein Feinschliff ist (G4):** Ohne Dämpfer meldet ein
+    anhaltender Befund **minütlich** — eine Stunde sind sechzig Nachrichten,
+    vierzehn Tage wären es theoretisch zwanzigtausend. Das widerspricht dem
+    eigenen Satz im Dateikopf: *Ein Wächter, dem niemand mehr glaubt, ist
+    schlimmer als keiner.* Ein Wächter, der Adam zuschüttet, wird
+    stummgeschaltet — und dann ist er gar keiner mehr.
+
+    **Die Kette schreibt weiter minütlich; nur der Mund wird leiser, nicht das
+    Auge.** Und was wegfällt, wird ausdrücklich **entwarnt** — sonst weiß
+    niemand, ob es behoben ist oder der Wächter nur müde wurde.
+    """
+    try:
+        bekannt = json.loads(_GEDAECHTNIS.read_text(encoding="utf-8"))
+    except Exception:
+        bekannt = {}
+    if not isinstance(bekannt, dict):
+        bekannt = {}
+
+    neu = [g for g in gruende
+           if jetzt - float(bekannt.get(g, 0) or 0) >= WIEDERVORLAGE_S]
+    entwarnt = [g for g in bekannt if g not in gruende]
+
+    stand = {g: (jetzt if g in neu else bekannt.get(g, jetzt)) for g in gruende}
+    try:
+        ZUSTAND.mkdir(parents=True, exist_ok=True)
+        tmp = _GEDAECHTNIS.with_suffix(".tmp")
+        tmp.write_text(json.dumps(stand, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_GEDAECHTNIS)
+    except Exception:
+        pass
+    return neu, entwarnt
 
 
 def kette_pruefen(jetzt: float | None = None) -> dict:
@@ -304,6 +385,47 @@ def kette_pruefen(jetzt: float | None = None) -> dict:
                  "auf das vorige. Das ist sichtbar gemacht, nicht verhindert.")
     return {"ok": ok, "grund": grund, "alter_s": round(alter),
             "brueche": brueche}
+
+
+# ------------------------------------------------- G3: der Weg ohne den Bot --
+# Alle Meldewege dieses Systems — Blumen, Hora, Start-Wächter — legen ins
+# Boten-Postfach, und **zugestellt wird vom Bot**. Mit `Restart=always` deckt
+# das den Normalfall. Der Restfall bleibt: ein Bot, der dauerhaft nicht
+# hochkommt. Dann sammeln sich die Meldungen im Ausgang, und Adam hört
+# vierzehn Tage nichts — der Befund „Bot-Prozess nicht vorhanden" müsste vom
+# nicht vorhandenen Bot zugestellt werden.
+#
+# **Die Umkehrung, eine Ebene höher:** Der Log-Abgleich läuft (ab Schritt 1
+# stündlich) über einen eigenen Bereitstellungs-Schlüssel in ein eigenes Repo —
+# **unabhängig von Bot und Telegram**. Legt die Blume ihren Zustand dort ab,
+# kann Adam vom Telefon über GitHub nachsehen, auch wenn der Bot stumm ist. Und
+# **bleiben die Commits aus, ist das Ausbleiben selbst der Alarm** — dieselbe
+# Idee wie bei der Kette, nur außerhalb der Maschine.
+#
+# ⚠️ **Nur Zustand, nie Inhalte, nie Geheimnisse.** Was hier landet, wird
+# öffentlich sichtbar, sobald jemand das Repo einsieht.
+LAGEBERICHT = Path(os.environ.get("LOG_SYNC_REPO")
+                   or (Path.home() / "logsync" / "claude-bot-logs")) / "zustand.json"
+
+
+def lagebericht_schreiben(eintrag: dict) -> None:
+    """Legt den Zustand in den Log-Abgleich — Adams zweiter Meldeweg."""
+    try:
+        if not LAGEBERICHT.parent.is_dir():
+            return                        # kein Klon vorhanden: nichts erfinden
+        knapp = {
+            "stand": eintrag.get("menschlich"),
+            "befunde": eintrag.get("befunde", []),
+            "luecke_s": eintrag.get("luecke_s"),
+            "ruhe": eintrag.get("ruhe", ""),
+            "abdruck": eintrag.get("abdruck"),
+        }
+        tmp = LAGEBERICHT.with_suffix(".tmp")
+        tmp.write_text(json.dumps(knapp, ensure_ascii=False, indent=2),
+                       encoding="utf-8")
+        tmp.replace(LAGEBERICHT)
+    except Exception:
+        pass
 
 
 def melden(text: str) -> None:

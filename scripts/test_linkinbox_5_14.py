@@ -113,7 +113,38 @@ def _kein_netzabruf_beim_ablegen():
             f"linkinbox.py greift möglicherweise aufs Netz zu: {verdacht}"
 
 
+def _erfolg_haakt_ab_misserfolg_nicht():
+    """S1/G6: Abgehakt wird nur, was wirklich gelang.
+
+    **Der Prüfer sitzt am Verhalten, nicht am Wortlaut:** Er prüft, dass der
+    Knopf-Handler NICHT mehr selbst abhakt, und dass die Nachbedingung am
+    Auftrag hängt. Vorher stand `abhaken` direkt vor `process_user_text` — und
+    ein Fehlerfang an jener Stelle wäre wirkungslos gewesen, weil
+    `process_user_text` nur einreiht und sofort zurückkehrt.
+    """
+    quelle = (Path(linkinbox.__file__).parent / "bot.py").read_text(encoding="utf-8")
+    kopf = quelle.split("async def on_link_callback")[1].split("async def ")[0]
+    assert "linkinbox.abhaken" not in kopf, \
+        "der Knopf-Handler hakt weiterhin selbst ab — vor dem Lauf"
+    assert "links_abhaken=" in kopf, \
+        "die Nachbedingung wird nicht an den Auftrag gehängt"
+
+    nach = quelle.split("async def _links_nachtragen")[1].split("async def ")[0]
+    assert 'outcome == "beantwortet"' in nach, \
+        "es wird nicht auf den belegten Erfolg geprüft"
+    assert "notieren" in nach, \
+        "ein gescheiterter Lauf hinterlässt keinen Grund am Eintrag"
+
+    # Und das Gegenstück im Modul: notieren hakt NICHT ab.
+    linkinbox.ablegen("https://example.org/probe-s1")
+    linkinbox.notieren("https://example.org/probe-s1", "nicht durchgelaufen")
+    offen = [e.url for e in linkinbox.offene()]
+    assert "https://example.org/probe-s1" in offen, \
+        "ein Vermerk hat den Eintrag abgehakt — genau der Verlust, um den es geht"
+
+
 check("nackter Link → Ablage", _nackter_link_wird_abgelegt)
+check("Erfolg hakt ab, Misserfolg nicht (S1)", _erfolg_haakt_ab_misserfolg_nicht)
 check("Link mit Wort → bleibt Auftrag", _link_mit_auftrag_bleibt_auftrag)
 check("Satzzeichen zählen nicht als Text", _satzzeichen_zaehlen_nicht)
 check("Quelle und Art aus der Adresse", _quellen_und_arten)

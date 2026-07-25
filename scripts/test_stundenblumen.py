@@ -33,7 +33,7 @@ def check(name, fn):
 
 
 def _leeren():
-    for p in (sb.KETTE, sb.RUHE):
+    for p in (sb.KETTE, sb.RUHE, sb._GEDAECHTNIS):
         if p.exists():
             p.unlink()
     out = Path(os.environ["POSTFACH_DIR"]) / "outbox"
@@ -187,6 +187,75 @@ def _kein_geheimniswert_im_code():
         "der Wert eines Umgebungs-Geheimnisses wird gelesen!"
 
 
+def _eine_wortliste_fuer_beide():
+    """G1: Zwei Listen driften — deshalb darf es nur eine geben.
+
+    Der Auftrag lautete, einen Test zu bauen, der anschlägt, wenn `bot.py` eine
+    Nadel kennt, die die Blume nicht kennt. Stärker ist, den Drift **unmöglich**
+    zu machen: eine Quelle, zwei Leser. Also prüft der Test genau das — dass
+    keine Seite eine eigene Liste führt.
+    """
+    import authmarke
+    assert "oauth token has expired" in authmarke.NADELN, \
+        "der Wortlaut, den wir TATSAECHLICH gesehen haben, fehlt"
+    assert authmarke.passt("Error: OAuth token has expired"), \
+        "der belegte Wortlaut wird nicht erkannt"
+
+    for datei in (Path(sb.__file__), Path(sb.__file__).parent.parent / "bot.py"):
+        quelle = datei.read_text(encoding="utf-8")
+        eigene = [z for z in quelle.splitlines()
+                  if "invalid x-api-key" in z or "could not resolve authentication" in z]
+        assert not eigene, \
+            f"{datei.name} führt wieder eine eigene Nadel-Liste: {eigene[:1]}"
+
+
+def _marke_schlaegt_journal():
+    """G1: Der Bot weiß es im Augenblick des Bruchs — das ist der bessere Weg."""
+    import authmarke
+    _leeren()
+    authmarke.setzen("Error: OAuth token has expired")
+    sb.shutil.which = lambda n: None          # weder systemctl noch journalctl
+    befunde = sb.anmeldung_pruefen()
+    assert any("Anmeldung hat versagt" in b for b in befunde), \
+        "die Marke allein genügt nicht — der Wächter hängt am Journal"
+    authmarke.loeschen()
+    assert not [b for b in sb.anmeldung_pruefen() if "versagt" in b], \
+        "nach der Entwarnung meldet er weiter"
+
+
+def _kein_geheimniswert_in_der_marke():
+    import authmarke
+    authmarke.setzen("401 for key sk-ant-oat01-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345")
+    inhalt = json.dumps(authmarke.gesetzt() or {})
+    assert "sk-ant-oat01-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345" not in inhalt, \
+        "ein Schlüssel steht im Klartext in der Marke!"
+    authmarke.loeschen()
+
+
+def _daempfer_wiederholt_nicht_minuetlich():
+    """G4: 60 Meldungen je Stunde wären das Ende der Glaubwürdigkeit."""
+    _leeren()
+    sb._befunde = lambda: ["Bot-Prozess nicht vorhanden"]
+    for i in range(5):
+        sb.bluehen(_t(i * 60))
+    m = _meldungen()
+    assert len(m) == 1, f"derselbe Befund wurde {len(m)}× gemeldet"
+    # Nach der Wiedervorlage-Frist darf er sich erinnern.
+    sb.bluehen(_t(sb.WIEDERVORLAGE_S + 120))
+    assert len(_meldungen()) == 2, "nach einer Stunde meldet er sich nicht wieder"
+
+
+def _daempfer_entwarnt():
+    """Was wegfällt, wird gesagt — sonst weiß niemand, ob es behoben ist."""
+    _leeren()
+    sb._befunde = lambda: ["nur noch 2.0 GiB Plattenplatz frei"]
+    sb.bluehen(_t(0))
+    sb._befunde = lambda: []
+    sb.bluehen(_t(60))
+    m = _meldungen()
+    assert len(m) == 2 and "erledigt" in m[1], f"keine Entwarnung: {m}"
+
+
 def _kein_modellaufruf_im_modul():
     quelle = Path(sb.__file__).read_text(encoding="utf-8")
     for verdacht in ("claude_agent_sdk", "anthropic", "ClaudeSDKClient",
@@ -206,6 +275,12 @@ check("echte Befunde melden sich", _befunde_melden_sich)
 check("Anmelde-Bruch wird sofort gemeldet (C2)", _anmeldung_bruch_wird_gemeldet)
 check("gesunde Anmeldung schweigt (C2)", _anmeldung_still_wenn_gesund)
 check("nie der Wert eines Geheimnisses (C2)", _kein_geheimniswert_im_code)
+check("EINE Wortliste für Bot und Blume (G1)", _eine_wortliste_fuer_beide)
+check("die Marke schlägt das Journal (G1)", _marke_schlaegt_journal)
+check("kein Geheimniswert in der Marke (G1)", _kein_geheimniswert_in_der_marke)
+check("Dämpfer: kein minütliches Wiederholen (G4)",
+      _daempfer_wiederholt_nicht_minuetlich)
+check("Dämpfer entwarnt, wenn ein Befund wegfällt (G4)", _daempfer_entwarnt)
 check("kein Modell- und kein Netzaufruf im Modul", _kein_modellaufruf_im_modul)
 
 if fails:

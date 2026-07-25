@@ -140,6 +140,44 @@ Sitzungen, Modellen, Rechten und Schnittstellen nichts mit. Die Technik trägt,
 ohne sich in den Vordergrund zu drängen. — **„Komplexität gehört dem System,
 Einfachheit dem Menschen."**
 
+## 7a. Effizienz und Puffer — und die Spannung zwischen beiden `[NEU 2026-07-26]`
+
+Zwei Sätze, die einander zu widersprechen scheinen und beide gelten. Die
+Reihenfolge löst den Widerspruch auf.
+
+### Effizienz ist Reichweite, nicht Sparsamkeit
+
+**Vor „mehr kaufen" steht „das Maximum aus dem Vorhandenen holen."** Das ist
+kein Geiz und keine Bastelfreude, sondern eine Produktentscheidung:
+
+> **Was auf einer kleinen Maschine sauber läuft, läuft bei jedem Kunden. Was
+> nur auf einer großen läuft, ist ein Produkt für wenige.**
+
+Jede Ressource, die wir nicht brauchen, ist eine Zugangshürde, die ein späterer
+Nutzer nicht hat. Nachhaltigkeit ist derselbe Satz von der anderen Seite.
+
+### Und trotzdem: Puffer vor Kante
+
+Adam fährt sein Auto nicht auf Reserve nach Hause. **Wo ein Ausfall stumm
+eintritt — Arbeitsspeicher, Plattenplatz, Kontingent —, ist Reserve kein Luxus,
+sondern die Bedingung dafür, dass man den Sachen überhaupt vertrauen kann.** Ein
+System, das nur bei Bestbedingungen trägt, trägt nicht.
+
+**Die Reihenfolge ist die Auflösung:** erst Effizienz ausreizen, **dann**
+großzügig auslegen. Nie „knapp lassen, wird schon" — und nie „kaufen wir eben
+größer", bevor gemessen wurde. Die Messung vom 25.07. ist der Musterfall: Statt
+aufzustocken wurde Swap angelegt und ein ungenutzter Dienst pausiert; die
+Aufstockung wurde dadurch nicht billiger, sondern **unnötig**.
+
+### Das Gegenmittel gegen „kurz vor knapp"
+
+**Was vorhersehbar knapp wird, wird beobachtet, bevor es knapp ist.** Deshalb
+gehören Speicher, Plattenplatz und Kontingent in den 4-Uhr-Check und in die
+Stundenblumen — und nicht in die Aufmerksamkeit eines Menschen. **Die fehlende
+Struktur soll das System liefern, nicht die Selbstdisziplin.** Das ist dasselbe
+Prinzip wie beim Stop-Hook und beim Register-Wächter: Eine Regel ohne Prüfer ist
+eine Bitte.
+
 ## 8. Die Momo-Wertetabelle `[NEU 2026-07-25]`
 
 Drei Teile: **wie wir bauen**, **was die Assistenz dem Menschen gibt**, und die

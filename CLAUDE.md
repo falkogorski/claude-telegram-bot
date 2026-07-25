@@ -335,6 +335,46 @@ zitierten Momentaufnahme. Deshalb als Grundsatz, nicht als Bild-Sonderregel.
 Originalauflösung** nachreichen (`media.ausschnitt`) — und wenn auch das nicht
 trägt, das ehrliche „das gibt das Bild nicht her".
 
+## 🚧 EIN GESCHEITERTER WEG BEWEIST KEINE UNMÖGLICHKEIT (V, 2026-07-25)
+
+**Bevor „geht nicht" gesagt wird, muss geprüft sein, ob es einen anderen Weg
+gibt — und benannt werden, welcher genau gescheitert ist.** „Instagram geht
+nicht" und „der Webseiten-Weg zu Instagram ist gesperrt" sind zwei verschiedene
+Aussagen; nur die zweite ist wahr, und nur sie lässt die Frage offen, ob ein
+dritter Weg trägt.
+
+**Zweimal an einem Tag aufgetreten:** Instagram-Reels galten als gesperrt, weil
+nur der Webseiten-Weg probiert war — die Medienschnittstelle liefert ohne
+Anmeldung (gemessen: 80 Sekunden Tonspur in 21 Sekunden transkribiert). Und die
+YouTube-Diagnose enthielt **zwei übereinanderliegende Hürden**, von denen eine
+hausgemacht war (fehlende JavaScript-Laufzeit); erst nach deren Beseitigung war
+die verbliebene Ursache überhaupt sauber zu benennen.
+
+**How to apply:** Ein „geht nicht" trägt immer drei Teile — **welcher Weg**
+probiert wurde, **woran** er scheiterte, und **welche Wege noch offen** sind.
+Fehlt der dritte Teil, ist es keine Diagnose, sondern eine Aufgabe. Umgekehrt
+gilt: Wenn wirklich alle geprüften Wege scheitern, ist **der ehrliche Fehlschlag
+das Ergebnis** — kein Ersatzbau, der so tut, als ginge es doch.
+
+## 💶 ERLÖSBEZUG MITPRÜFEN (W, 2026-07-25)
+
+**Adams wirtschaftliche Lage ist ein gleichrangiger Grund, kein Nebenmotiv:
+Einkommen ist Voraussetzung des Aufbaus, nicht sein Ergebnis.**
+
+**How to apply:** Bei jedem Vorhaben mitprüfen, ob es auf Einkommen einzahlt
+oder es verzögert. **Perfektionierung ohne Erlösbezug kostet unter diesen
+Umständen Zeit, die nicht da ist** — das ist kein Verbot von Sorgfalt, sondern
+eine Priorisierung zwischen zwei sorgfältigen Wegen. Verzahnt mit der
+Coach-Haltung (Meta-Ebene, „wofür machen wir das gerade").
+
+**Zum Ethik-Kompromiss beim Business-Start:** Bewährtes zuerst übernehmen, dann
+verfeinern — mit **Protokollpflicht für jede bewusste Abweichung** (was, warum,
+ab wann, und woran erkennbar ist, dass sie zurück kann). **Vorher aber prüfen,
+ob der Zielkonflikt überhaupt besteht:** Beim Empfehlungsmarketing trägt der
+Kern (Reichweite, Vertrauen, passendes Produkt); das ethisch Heikle ist meist
+Beiwerk, das der Wiederkaufrate ohnehin schadet. **Kennzeichnung ist Gesetz,
+nicht Feinschliff.**
+
 ## 🧪 WIRKUNGS-REGEL — nach jeder Filter-/Sync-Änderung das Ergebnis prüfen (2026-07-25)
 
 **Nach jeder Änderung an einem Filter oder einem Abgleich wird geprüft, was

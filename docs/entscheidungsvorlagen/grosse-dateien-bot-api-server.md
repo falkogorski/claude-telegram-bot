@@ -40,15 +40,22 @@ hochgeladen werden."
 | Posten | Bedarf |
 |---|---|
 | Zwischenlager des API-Servers | 2,00 GiB |
-| eigene Kopie im Upload-Ordner | 2,00 GiB |
+| ~~eigene Kopie im Upload-Ordner~~ | **entfällt** — siehe Kasten |
 | Einzelbilder + Übersichtsbögen (30-min-Video, 361 Bilder à ~300 KiB) | 0,10 GiB |
-| **Spitze je Datei** | **4,10 GiB** |
+| **Spitze je Datei** | **2,10 GiB** |
 
-**Was daraus folgt:** Mit dem vorgeschlagenen **30-GiB-Deckel** liegen **sieben**
-solche Dateien gleichzeitig, danach räumt die Regel auf. Ohne Deckel passten
-rein rechnerisch **54** — die Bremse ist also der Deckel, nicht die Platte. Nach
-Abzug der 30 GiB bleiben **193,8 GiB frei**, mehr als das Elffache des heutigen
-Gesamtbelegs.
+> **Ein Fund, der die Rechnung halbiert (Conni, 25.07.):** Im `--local`-Betrieb
+> gibt der Server **lokale Dateipfade** zurück statt eines Downloads. Die zweite
+> 2-GiB-Kopie im Upload-Ordner entfällt damit vollständig. Das ist doppelt gut:
+> unter demselben 30-GiB-Deckel passen **~14 statt 7** Dateien, und **weniger
+> Kopien heißt weniger Orte mit persönlichen Medien** — der Datenschutz-Gewinn
+> wiegt hier schwerer als der Platzgewinn.
+
+**Was daraus folgt:** Mit dem **30-GiB-Deckel** liegen **rund vierzehn** solche
+Dateien gleichzeitig, danach räumt die Regel auf. Ohne Deckel passten rein
+rechnerisch über hundert — die Bremse ist also der Deckel, nicht die Platte.
+Nach Abzug der 30 GiB bleiben **193,8 GiB frei**, mehr als das Elffache des
+heutigen Gesamtbelegs.
 
 **Arbeitsspeicher:** Der Dienst braucht einige hundert MiB; 6310 MiB sind
 verfügbar. Kein Engpass.
@@ -61,6 +68,74 @@ bezahlt und muss nicht vergrößert werden — **kein einziger Cent zusätzlich.
 und auch 223,8 GiB sind irgendwann voll. Vorschlag: Deckel **30 GiB**, Dateien
 nach **sieben Tagen** entfernen, Füllstand in den täglichen Funktionscheck (8.1)
 — dann meldet sich das System, bevor es eng wird.
+
+## Die fünf Auflagen aus Connis Prüfung (25.07., alle übernommen)
+
+**① Der Token-Einwand schrumpft — die echte Gefahr ist enger.** Der Server
+braucht beim Start nur `--api-id` und `--api-hash`; ein Bot-Token gehört nicht zu
+seiner Konfiguration. Aber der Token **steht in den Anfragepfaden** — schreibt
+der Dienst Zugriffsprotokolle, landet er in einer Logdatei. **Auflage:**
+Protokollierung aus oder root-beschränkt, und diese Logs **nie** in den
+Log-Abgleich.
+
+**② `api_id`/`api_hash`: Geheimnis-Klasse ja, Kennwort-Gleichrang nein.** Sie
+hängen an Adams persönlichem Konto, weisen aber eine **Anwendung** aus, keine
+Sitzung — ein Abfluss ist keine Kontoübernahme (dafür braucht es Rufnummer plus
+Anmeldecode). Bewusst nicht überzeichnet: Eine Entscheidung aus falscher Angst
+wäre auch eine falsche Entscheidung.
+
+**③ Von außen nicht erreichbar — festgeschrieben.** Ausgehend zu Telegram, vom
+Bot über `127.0.0.1` erreicht: **kein eingehender Port, keine
+Firewall-Freigabe, kein Reverse-Proxy.** Dieselbe Linie wie die rote Auflage
+3.1.
+
+**④ Das Zwischenlager erbt die strengste Einstufung, die dort auftreten kann —
+nicht den Durchschnitt.** Es wird also **wie rot** behandelt: eigener
+Dienstnutzer, Rechte `0700`, aus Log-Abgleich **und** Backup ausgeschlossen. Die
+Aufräum-Regel ist technisch erzwungen (`api_cache_pflege.sh`), nicht
+„vorgesehen", und der Füllstand steht im 4-Uhr-Check.
+
+**⑤ Dauerbetrieb: Rückfall statt Stummheit.** Steht der lokale Server, schaltet
+der Bot auf den öffentlichen Weg (20 MB) zurück **und sagt es** — dasselbe
+Prinzip wie beim Sprach-Backend und beim Start-Wächter. Im Versions-Register als
+`manual` geführt (aus Quellen gebaut wie whisper.cpp; eine Versionsabfrage wäre
+eine Attrappe). Der 4-Uhr-Check prüft: Dienst lebt **und** Füllstand.
+
+## Zwei offene Sicherheitsfragen (Conni, ungeprüft)
+
+**Der offene Port 8443 könnte wegfallen.** Hält der lokale Server die Verbindung
+zu Telegram, kann er die Webhook-Zustellung auf `localhost` liefern — dann wäre
+der heute nach außen offene Port nicht mehr nötig. **Ein offener Port weniger
+ist ein echter Gewinn**, kein Nebeneffekt. ⚠️ Das ist ein **Schluss, kein
+Beleg** — gezielt prüfen, bevor es in die Planung geht.
+
+**Plattenverschlüsselung — GEMESSEN am 25.07., und die Antwort ist unbequem.**
+`/` liegt als **blankes ext4** auf `vda3`; es gibt **keine LUKS-Schicht und
+keinen dm-crypt-Mapper** (`/dev/mapper` enthält nur `control`). Auf
+Betriebssystem-Ebene ist die Platte also **nicht verschlüsselt**. Ob Netcup den
+darunterliegenden Speicher verschlüsselt, lässt sich von innen **nicht**
+feststellen — das müsste Netcup beantworten; als ungeprüft gekennzeichnet.
+
+**Was daraus folgt, präzise formuliert:** „Auf unserem eigenen Server" heißt
+**nicht** „nur wir können es lesen". Wer physischen Zugriff auf den Speicher hat,
+kann die Daten technisch lesen. Das **entwertet den Weg nicht** — kein
+Cloud-Konzern wertet die Inhalte aus, es gibt kein Profil, keine Weitergabe, und
+der Unterschied zu einem Fremdanbieter bleibt groß. Aber die Werte-Charta darf
+nicht „nur wir" behaupten, wo „niemand außer dem Rechenzentrumsbetreiber" richtig
+ist. **Konsequenz für die Ampel:** Das Zwischenlager mit Medien erbt diese
+Einordnung mit — ein Grund mehr für Auflage ④ (wie rot behandeln) und für den
+Fund, dass die zweite Kopie entfällt.
+
+## Rangfolge der Wege (Conni-Selbstkorrektur)
+
+1. **5.34 — erste Wahl.**
+2. **SFTP als echte Rückfallebene**, falls 5.34 an einer Auflage scheitert: Es
+   läuft über den bereits offenen, gehärteten SSH-Zugang — **kein neuer Port,
+   keine neuen Zugangsdaten, keine zusätzliche Angriffsfläche.** (Die frühere
+   pauschale Ablehnung von „Alternative A" war zu grob; Nextcloud/WebDAV bleiben
+   abgelehnt, weil sie einen von außen erreichbaren Dienst hinzufügen.)
+3. **Aufteilen** und **Cloud-Link (nur grün)** als Notwege.
+4. **Vorverkleinern löst das Problem nicht — es umgeht es.**
 
 ## Drei Punkte, die Conni zu Recht vorab sehen wollte
 

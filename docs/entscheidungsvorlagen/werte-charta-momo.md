@@ -58,6 +58,29 @@ jederzeit, wo welche Daten liegen und wohin sie gehen.
 eigener Server, eigene Ablage; verkauft werden Einrichtung + Betreuung, nie
 KI-Zugang. Souveränität als Datenschutz-USP in Produktform.
 
+### Präzisierung `[NEU 2026-07-25, nach einer Messung]`
+
+„Auf eigenem Server" heißt **nicht** „nur wir können es lesen" — und diese
+Unterscheidung gehört in die Charta, weil ein Versprechen, das nicht ganz trägt,
+schlimmer ist als ein kleineres, das hält.
+
+**Gemessen am 25.07.2026:** Das Wurzelverzeichnis des VPS liegt als blankes ext4
+auf der Platte; es gibt **keine Verschlüsselungsschicht**. Ob der Anbieter den
+darunterliegenden Speicher verschlüsselt, ist von innen nicht feststellbar
+(ungeprüft, müsste Netcup beantworten). Wer **physischen Zugriff** auf den
+Speicher hat, kann die Daten technisch lesen.
+
+**Was trotzdem gilt — und der Unterschied ist groß:** Kein Konzern wertet die
+Inhalte aus, es entsteht kein Profil, nichts wird weitergegeben, nichts trainiert
+ein fremdes Modell, und Adam weiß jederzeit, wo was liegt. Die Souveränität ist
+also **wirklich** gewonnen — nur nicht in der absoluten Lesart.
+
+**Also formulieren wir es so:** „Deine Daten liegen auf deinem eigenen Server —
+niemand wertet sie aus, niemand handelt mit ihnen." Und **nicht**: „niemand außer
+dir kann sie lesen." Wer die absolute Fassung braucht, braucht
+Festplattenverschlüsselung oder eigene Hardware; das ist ein eigener Schritt und
+gehört benannt, nicht stillschweigend mitversprochen.
+
 ## 4. Lokale Verarbeitungsfähigkeit ist GESETZT — offen ist nur das Werkzeug
 
 **Adams Korrektur/Schärfung (24.07., 16:20), damit hier nichts falsch steht:**

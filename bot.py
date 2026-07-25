@@ -4987,6 +4987,30 @@ def run_self_check() -> tuple[bool, list[str]]:
             f"Dateigrenze passt nicht zum aktiven Weg ({DATEI_GRENZE})"
     check("Große Dateien (5.34)", _c_grosse_dateien)
 
+    def _c_medien_eingang() -> None:
+        """5.2-Erweiterung: Medien werden VOR dem Download gesichert.
+
+        Wie beim Voice-Schutz ist die **Reihenfolge die Funktion**: Rutscht die
+        Sicherung hinter den Download oder hinter die Aufbereitung, ist das
+        Fenster wieder offen — und mit H1 ist dieses Fenster länger geworden
+        (Zerlegen plus Tonspur-Transkription), nicht kürzer.
+        """
+        import inspect
+        for fn, name in ((on_photo, "Foto"), (on_video, "Video"),
+                         (on_document, "Datei")):
+            src = inspect.getsource(fn)
+            assert "_media_eingang(" in src, \
+                f"{name}-Handler sichert den Eingang nicht (5.2)"
+            i_sicher = src.index("_media_eingang(")
+            i_download = src.index("_download_tg_file")
+            assert i_sicher < i_download, \
+                (f"{name}: die Sicherung steht HINTER dem Download — genau die "
+                 "Lücke, die am 25.07. ein Video verschluckt hat")
+            assert "_resolve_media_stage(" in src, \
+                f"{name}: Abbruchzweig löst den Eingang nicht auf — der Bot " \
+                "würde die Datei bei jedem Start erneut melden"
+    check("Medien-Eingangsschutz (5.2)", _c_medien_eingang)
+
     return state["ok"], results
 
 
@@ -6155,6 +6179,66 @@ async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
                             log_note=_note)
 
 
+# 5.2-Erweiterung (Befund 25.07., Nachtrag VI): Medien-Eingangsschutz.
+#
+# Die Sprachnachricht wird seit dem 20.07. **beim Eintreffen** gesichert. Für
+# Fotos, Videos und Dateien galt das NICHT — dort entstand der Eintrag erst in
+# `process_user_text`, also nach Download und Aufbereitung. Mit H1 ist dieses
+# Fenster **größer** geworden, nicht kleiner: Ein Video wird jetzt zerlegt und
+# seine Tonspur transkribiert, bevor es weitergeht — bei einem langen Clip
+# eine Minute und mehr. Fällt in dieser Zeit ein Neustart, ist die Nachricht
+# spurlos weg: kein Eintrag, kein Nachholen, keine Meldung. Genau die Stille,
+# die 5.2 ausschließen soll — und die am 25.07. um 05:07 ein Video getroffen hat.
+MEDIA_STAGE = "medien_aufbereitung"
+
+
+def _media_eingang(update: Update, art: str, groesse_mb: float | None = None) -> str | None:
+    """Sichert den Eingang eines Medien-Beitrags SOFORT — vor dem Download.
+
+    Rückgabe: der Schlüssel (oder None). `process_user_text` überschreibt
+    denselben Schlüssel später mit dem echten Text; die Abbruchzweige lösen ihn
+    auf. Bleibt er liegen, weiß der Reconcile beim nächsten Start, dass hier
+    etwas unterwegs war.
+    """
+    msg = update.message
+    if msg is None or msg.message_id is None:
+        return None
+    try:
+        key = pending.make_key(msg.chat_id, msg.message_id)
+        pending.record(key, {
+            "user_id": update.effective_user.id,
+            "chat_id": msg.chat_id,
+            "message_id": msg.message_id,
+            "thread_id": getattr(msg, "message_thread_id", None),
+            "text": f"[{art} — noch nicht aufbereitet]",
+            "stage": MEDIA_STAGE,
+            "media_art": art,
+            "media_mb": groesse_mb,
+            "received_at": time.time(),
+            "message_date": (msg.date.timestamp() if msg.date else None),
+        })
+        log.info("%s empfangen: msg=%s — Eingang gesichert (%s)", art,
+                 msg.message_id, key)
+        return key
+    except Exception:
+        log.exception("5.2 Medien-Eingang nicht persistierbar (nicht-fatal)")
+        return None
+
+
+def _resolve_media_stage(key: str | None) -> None:
+    """Löst den Eingangs-Eintrag auf, wenn sauber abgebrochen wurde.
+
+    Ohne das meldete der Bot dieselbe Datei bei jedem künftigen Start erneut —
+    dieselbe Falle, die beim Voice-Schutz ausdrücklich vermerkt ist.
+    """
+    if not key:
+        return
+    try:
+        pending.resolve(key)
+    except Exception:
+        log.exception("Medien-Eingang nicht auflösbar (nicht-fatal)")
+
+
 def _zu_gross_hinweis(art: str, size_mb: float) -> str:
     """Erklärt die 20-MB-Grenze und verweist auf den Ausweg (Adam 25.07.).
 
@@ -6194,12 +6278,14 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     caption = (msg.caption or "").strip()
     prefix = _extract_reply_context(update)
 
+    _mkey = _media_eingang(update, "Foto")
     await msg.reply_chat_action("upload_photo")
     try:
         tg_file = await msg.photo[-1].get_file()  # letztes = höchste Auflösung
         local_path = await _download_tg_file(tg_file, "photo.jpg")
     except Exception as e:
         log.exception("photo download failed")
+        _resolve_media_stage(_mkey)
         await msg.reply_text(f"❌ Bild-Download fehlgeschlagen: {e}")
         return
 
@@ -6209,6 +6295,7 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     shot = media.prepare_image(local_path, MEDIA_BUDGET, out_dir=UPLOAD_DIR)
     if not shot["ok"]:
         # (e) Kein stiller Absturz — ehrliche Meldung, Original bleibt gesichert.
+        _resolve_media_stage(_mkey)
         await msg.reply_text(
             "❌ Dieses Bild lässt sich gerade nicht an das Modell übergeben — "
             f"{shot['error']}.\nDas Original liegt unversehrt hier: {local_path}"
@@ -6256,12 +6343,14 @@ async def on_document(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
                              parse_mode=ParseMode.MARKDOWN)
         return
 
+    _mkey = _media_eingang(update, "Datei", size_mb)
     await msg.reply_chat_action("upload_document")
     try:
         tg_file = await doc.get_file()
         local_path = await _download_tg_file(tg_file, filename)
     except Exception as e:
         log.exception("document download failed")
+        _resolve_media_stage(_mkey)
         await msg.reply_text(f"❌ Datei-Download fehlgeschlagen: {e}")
         return
 
@@ -6294,6 +6383,9 @@ async def on_document(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             [InlineKeyboardButton("Kurzfassung anhören",
                                   callback_data=f"pdf:{user_id}:summary_voice")],
         ])
+        # Hier wartet der Bot auf Adams Knopf — der Eingang ist damit
+        # beantwortet und darf nicht als „unterwegs" liegen bleiben.
+        _resolve_media_stage(_mkey)
         await msg.reply_text(
             f"{filename} ({size_mb:.1f} MB) empfangen.\nWie soll ich vorgehen?",
             reply_markup=keyboard,
@@ -6325,12 +6417,14 @@ async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
                              parse_mode=ParseMode.MARKDOWN)
         return
 
+    _mkey = _media_eingang(update, "Video-Notiz" if is_note else "Video", size_mb)
     await msg.reply_chat_action("upload_video")
     try:
         tg_file = await media.get_file()
         local_path = await _download_tg_file(tg_file, filename)
     except Exception as e:
         log.exception("video download failed")
+        _resolve_media_stage(_mkey)
         await msg.reply_text(f"❌ Video-Download fehlgeschlagen: {e}")
         return
 

@@ -160,6 +160,60 @@ nicht der Normalfall für Endnutzer. Verzahnt mit „Selbstlernende Assistenz",
 Kanal-Routing (ein Kern, mehrere Frontends → perspektivisch eigene App statt
 Telegram-Pflicht) und der Werte-Charta (`docs/entscheidungsvorlagen/werte-charta-momo.md` §7).
 
+## 🔬 BELEG-GRUNDSATZ — und das Auflösungs-Budget bei Bildern (2026-07-25)
+
+**Eine Aufzählung von Belegen ist keine Beweisführung, solange nicht geprüft
+ist, ob die Belege im Material überhaupt vorhanden sein können.**
+
+**Anlass:** Ich habe ein Fahrzeug als „Renault Arkana — neun Merkmale, neun
+Treffer, kein Widerspruch" bestimmt. Es war ein VW ID.5. Die eigene Nachmessung
+danach: 67 Bildpunkte Fahrzeugbreite, ein Punkt ≈ 2,8 cm, das Emblem 4 Punkte,
+der Schriftzug 10 Punkte breit und unter 1 Punkt hoch. **Die neun Merkmale
+konnten physikalisch nicht existieren.** Das war keine Bestimmung, das war eine
+Erzählung mit dem Anstrich einer Beweisführung.
+
+Dritter Fall desselben Musters binnen vierundzwanzig Stunden — neben der
+Kennzahl ohne Einheit (Echtzeit-Faktor ≠ Beschleunigung) und der als gültig
+zitierten Momentaufnahme. Deshalb als Grundsatz, nicht als Bild-Sonderregel.
+
+**Fünf Griffe bei Bildern:**
+
+1. **Auflösungs-Budget vor der Behauptung.** Vor der Nennung eines Merkmals
+   ausrechnen, wie viele Bildpunkte es einnimmt. **Merkmale unterhalb der
+   Auflösungsgrenze existieren nicht** und dürfen nicht als Beleg auftreten —
+   auch nicht abgeschwächt („könnte ein Schriftzug sein").
+2. **Vergleichsmaterial in derselben Perspektive** — sonst vergleicht man
+   Blickwinkel, nicht Objekte.
+3. **Sicherheitsgrad benennen, nie Gewissheit behaupten.**
+4. **Prüfen, ob das Merkmal überhaupt unterscheiden kann.** Bei ID.5 und Arkana
+   liegen die Breiten-Höhen-Verhältnisse unter einem Prozent auseinander — die
+   Silhouette war **strukturell untauglich**, nicht bloß knapp.
+5. **Adams Anschauung schlägt die Rechnung**, wenn er das Objekt kennt.
+
+**Der Weg statt des Ratens:** Überblick verkleinert, **Details als Ausschnitt in
+Originalauflösung** nachreichen (`media.ausschnitt`) — und wenn auch das nicht
+trägt, das ehrliche „das gibt das Bild nicht her".
+
+## 🧪 WIRKUNGS-REGEL — nach jeder Filter-/Sync-Änderung das Ergebnis prüfen (2026-07-25)
+
+**Nach jeder Änderung an einem Filter oder einem Abgleich wird geprüft, was
+tatsächlich ankam — nicht, was die Konfiguration beabsichtigt.**
+
+**Anlass:** Die Ausschluss-Regel für `CLAUDE.md` im Log-Abgleich **existierte** —
+sie wurde nur nie nachgemessen. rsync nimmt die erste zutreffende Regel, die
+Ausschlüsse standen hinter den Einschlüssen, und 146 KB Sitzungskontext wanderten
+ins Log-Repo. Gefunden wurde es beim Gegenprüfen des ersten Laufs — das war
+Sorgfalt, soll aber kein Glücksfall bleiben, sondern Verfahren.
+
+**Vierter Fall derselben Klasse in zwei Tagen:** Register-Pflicht ohne Prüfer,
+Vorlagen ohne Gültigkeits-Vermerk, Audit-Tor ohne Einholung, Filter ohne
+Wirkungsprüfung. Das Muster ist immer: **Die Vorgabe war da, die Prüfung fehlte.**
+
+**How to apply:** Ein Abgleich gilt erst als gebaut, wenn einmal geprüft wurde,
+**was im Ziel liegt** — Dateiliste ansehen, nicht Konfiguration lesen. Wo möglich
+zusätzlich eine Nachweis-Löschung oder Selbstcheck-Zeile, damit die Prüfung nicht
+an Aufmerksamkeit hängt.
+
 ## 🛤️ ABLAGEWEG-GRUNDSATZ (Adam & Conni 2026-07-25)
 
 **Eine Entscheidung, die keinen Weg in die Ablage hat, ist verloren — egal wie

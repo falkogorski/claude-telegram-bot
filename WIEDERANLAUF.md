@@ -144,6 +144,40 @@ git clone ~/VPS-Backup/bundles/<datei>.bundle wiederhergestellt
 **Immer danach:** `bash scripts/regressionstest.sh` — ein zurückgeholter Stand
 gilt erst als brauchbar, wenn er grün läuft.
 
+## 4d. Für eine neue Kontroll-/Planungssitzung: was beim START geschehen muss
+
+**Der Grund, warum das hier steht und nicht im Scratchpad:** Der Scratchpad einer
+Sitzung ist kein Archiv — er verschwindet mit ihr. Der Ablageweg-Grundsatz gilt
+auch für die Kontrollsitzung selbst.
+
+### Repos beim Sitzungsstart hinzufügen — nachträglich geht es NICHT
+
+Am 25.07.2026, 15:45 belegt: `claude-telegram-bot` war zugänglich,
+`claude-bot-logs` wurde verweigert — gleicher Weg, gleiche Zugangsdaten. **Eine
+laufende Sitzung lässt sich nicht nachträglich erweitern.** Also beim Start:
+
+- **`claude-bot-logs` — Pflicht.** Ohne das Log-Repo hat die Kontrollsitzung
+  keine eigenen Augen und muss sich auf Erzählungen verlassen.
+- **`claude-telegram-bot` — mit dem Hinweis: Branch `mac-produktivstand`, nicht
+  `main`.** ⚠️ `main` steht seit Mai auf dem Initial commit; wer dort nachsieht,
+  liest einen **toten Stand**. Genau dieser Fehler ist in der Nacht zum 25.07.
+  passiert.
+- **Künftiges Business-Repo**, sobald es existiert.
+
+### Zuerst-Prüfung jeder neuen Sitzung (Adam-Anweisung 25.07.)
+
+Vor der ersten inhaltlichen Arbeit vier Fragen beantworten — und **das Ergebnis
+Adam kurz vorlegen**, damit er Lücken sofort schließen kann:
+
+1. **Welche Rechte und Zugänge fehlen noch?** (Repos, Ordner, Dienste)
+2. **Welches Wissen ist zu LESEN statt zu erinnern?** (Drehbuch, CLAUDE.md,
+   Register, Blaupause — frisch, nie aus dem Gedächtnis)
+3. **Welche Bezüge und Abhängigkeiten bestehen?** (`ABHAENGIGKEITEN.md`)
+4. **Wo ist Adams Zustimmung nötig, bevor etwas passiert?**
+
+Erst danach anfangen. Eine Sitzung, die ohne diese Prüfung startet, arbeitet
+zwangsläufig mit Lücken, die niemand kennt.
+
 ## 5. Verweis statt Kopie
 
 Der aktuelle Sachstand (Phasen, offene Punkte, Entscheidungen) steht **immer**

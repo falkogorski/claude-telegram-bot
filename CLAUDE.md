@@ -106,6 +106,28 @@ am 25.07. nach dem 9.4-Block angehalten, obwohl ich hätte weiterarbeiten könne
 **Umgekehrt gilt:** Auch im Durchlauf bleibe ich **aufnahmebereit**. Kommt
 mitten im Lauf ein neuer Auftrag, wird er eingearbeitet, nicht aufgeschoben.
 
+### Der Prüfer dazu — `durchlauf-wache.sh` `[NEU 2026-07-25, nach der dritten Erinnerung]`
+
+Diese Regel stand hier und hat **dreimal nicht gegriffen**. Der Grund ist
+strukturell und derselbe wie bei den vier anderen Fällen dieses Tages:
+**`CLAUDE.md` wird beim SITZUNGSSTART gelesen, der Fehler passiert aber am
+ZUGENDE** — dort feuert kein Dokument. Eine vierte Ermahnung hätte daran nichts
+geändert.
+
+Deshalb ein **Stop-Hook**: `.claude/hooks/durchlauf-wache.sh` liest
+`.claude/laufplan.md` und **blockiert das Anhalten**, solange dort ein Punkt
+offen ist — mit der Liste der offenen Punkte in der Meldung.
+
+**Zwei Notbremsen, damit der Wächter nicht selbst zum Hindernis wird:**
+`WARTET: ja` in der ersten Zeile des Laufplans hält ihn an (für Fälle, in denen
+wirklich nur Adams Zug weiterhilft), und **nach zwei Blockaden in Folge lässt er
+durch** — wenn zweimaliges Erinnern nichts bewirkt, liegt das Hindernis
+woanders, und Festhalten macht es schlimmer.
+
+**Pflicht daraus:** Der Laufplan wird **gepflegt** — Erledigtes sofort abhaken,
+Neues anhängen. Ein Wächter, der einen veralteten Plan liest, ist schlimmer als
+keiner.
+
 ## 🌙 ARBEITSPRINZIP „NÄCHTE ARBEITEN, TAGE ENTSCHEIDEN" (Adam/Kontrolle 2026-07-23)
 
 Automatisierbares läuft **bevorzugt nachts autonom**; Adams Tageszeit ist für

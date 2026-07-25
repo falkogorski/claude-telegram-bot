@@ -22,6 +22,8 @@ metadata:
 
 ## Änderungshistorie
 
+- **2026-07-25 (2)** — **H1 umgesetzt: Bild-/Video-Transport repariert (neuer Punkt 5.28).** Der 1-MB-Abbruch war eine Transport-, keine Fähigkeitsgrenze; Puffer auf 32 MB, Bilder werden für die Übergabe verkleinert (Original unangetastet), Videos in Einzelbilder + Tonspur zerlegt, Fehlerfall mit ehrlicher Meldung statt Sitzungstod. Neuer Verhaltenstest `test_media_h1.py` (Regressionslauf **17/17**), neue Selbstcheck-Zeile (22), Register- und Blaupause-Eintrag. Die Blaupause hält als Nebenwirkung fest, dass der Selbstcheck eine **zweite** Options-Stelle aufdeckte, die denselben Puffer braucht — eine Zahl an nur einer Stelle hätte den Bruch bloß verschoben.
+
 Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderungen zusätzlich mit `[NEU JJJJ-MM-TT HH:MM]` bzw. `[GESTRICHEN JJJJ-MM-TT]` markiert. Frische Marker bleiben sichtbar bis zum nächsten Lese-Pass und werden danach still entfernt; gestrichene Stellen bleiben eine Generation als `~~Durchstreichung~~` sichtbar, dann gelöscht.
 
 - **➡️ AKTUELLER ARBEITSSTRANG (Stand 24.07.2026 mittags):** **Marschordnung 12:52/13:00 abgearbeitet** — 5.5 FIFO, `/spur`, Voice-Robustheit, 1.9-Self-Signed-Code, Doku (7.3 iCloud, 5.20-Relay, Selbstlernen, Format-Regel, Rahmen). **Wartet auf Adam:** (a) **1.9-Webhook-Flip** (Self-Signed auf IP — gemeinsam, ~10 Min; kommt in der Umsetzung zuerst); (b) die vier Gruppen anlegen (6.5/6.1-E2E). **Autonom als Nächstes (ohne Adam):** 8.1 (deterministisch, AGB-Faktensammlung liegt vor) + 8.3, 5.20-SDK-Relay untersuchen, PDF-`pending_doc.get`-Fix, dann 5.21/LobeChat-Tunnel nach Kapazität.
@@ -742,6 +744,16 @@ Absturzfall ausdrücklich auf 5.18).
 - **Test:** Im Automodus einen normalen Ablauf ohne Klicks durchlaufen lassen; dann gezielt (a) `.env`-Lesen, (b) WebSearch, (c) Repo-Schreibversuch — alle drei müssen trotz Automodus fragen bzw. ablehnen.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
+
+### 5.28 Medien-Transport: große Bilder und Videos bleiben verarbeitbar (H1) `[NEU 2026-07-25]`
+- **Status:** ✅ VERIFIZIERT (25.07., Commit `a160092`)
+- **Befund (Adam-Verlauf 24.07., 19:53–20:05):** Ein Foto löste viermal hintereinander „JSON message exceeded maximum buffer size of 1048576 bytes" aus, danach starb die Sitzung — rund zwölf Minuten lang sah es für Adam aus wie „der Bot nimmt keine Nachrichten mehr an". Die Grenze ist eine **Transportgrenze der Leitung** zwischen CLI-Unterprozess und Python-Seite, **keine Fähigkeitsgrenze**: dasselbe Bild wurde später anstandslos gelesen. Die frühere Einordnung als seltener „Antwort-zu-groß"-Fall war falsch — der Auslöser sitzt auf der Eingabeseite und ist reproduzierbar.
+- **Umsetzung (a–e):** (a) Das **Original bleibt unangetastet**; die Transportfassung ist immer eine Zweitdatei. (b/c) **Zuerst der Puffer**: `max_buffer_size` auf 32 MB an **beiden** `ClaudeAgentOptions`-Stellen (per `SDK_MAX_BUFFER_BYTES` übersteuerbar) — verkleinert wird erst danach, und dann so groß wie möglich: `media.prepare_image` probiert Kantenlängen absteigend und nimmt die **erste passende**, also größte Fassung. (d) **Videos in Teilen**: gleichmäßig über die Laufzeit verteilte Einzelbilder plus getrennte Tonspur, die durch die vorhandene Spracherkennung läuft — statt der bisherigen Abweisung. (e) **Kein stiller Absturz**: `is_transport_overflow()` erkennt den Fall eigens und antwortet in Klartext mit dem Hinweis, dass die Datei vollständig im Upload-Ordner liegt.
+- **Bewusst ohne neue Abhängigkeit:** ffmpeg/ffprobe liegen auf Mac und VPS ohnehin (Tonspur-Verarbeitung). Alles deterministisch, **kein Modell-Aufruf, keine Kosten**.
+- **Akzeptanzkriterium:** Ein Foto jenseits der alten Grenze wird beantwortet statt abzubrechen; ein Video liefert Einzelbilder und gesprochenen Inhalt; das Original bleibt byte-gleich; scheitert etwas, kommt eine verständliche Meldung statt eines Sitzungs-Neustarts.
+- **Test:** `scripts/test_media_h1.py` (7 Prüfungen, im Regressionslauf → **17/17**); Selbstcheck-Zeile „Medien-Transport (H1)" prüft die drei stillen Voraussetzungen: Werkzeuge da, Puffer angehoben, Budget **vom Puffer abgeleitet** statt hart verdrahtet.
+- **Adam-Bestätigung:** ausstehend — großes Foto und kurzes Video an den Bot schicken.
+- **Verifiziert am:** 25.07.2026 (Mac + VPS je 17/17, Selbstcheck 22 Zeilen)
 
 ### Phasen-Audit 5 → 6
 - **Audit-Status:** —

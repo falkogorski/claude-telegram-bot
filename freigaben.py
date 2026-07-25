@@ -20,8 +20,21 @@ Entscheidungen treffen — er muss sie **parken**. Dies ist der Parkplatz.
    reversibles Grün.
 4. **Keine Geheimnisse im Kanal** — Anfragen mit Geheimnis-Bezug werden
    abgewiesen, nicht angezeigt.
-5. **Fail-safe = Ablehnen.** Jeder Zweifel, jeder Fehler, jede abgelaufene Frist
-   endet mit „nein".
+5. **Fail-safe heißt: die Aktion geschieht nicht.** [KORRIGIERT 2026-07-25]
+   Vorher stand hier „Fail-safe = Ablehnen", und der Bot schrieb Adam
+   entsprechend „Antwortest du nicht, gilt es als abgelehnt." Das ist zu viel
+   behauptet. **Schweigen darf nie bewirken, dass etwas passiert — aber
+   Schweigen heißt auch nicht Nein.** Nichtantwort bedeutet übersehen,
+   vergessen, nicht da gewesen; keines davon ist ein Urteil. Deshalb:
+   * Der Zustand einer unbeantworteten Anfrage ist **offen**, nicht „abgelehnt".
+   * **Ins Protokoll kommt nur, was Adam tatsächlich entschieden hat** — eine
+     Frist ist kein Urteil und hat im Entscheidungs-Protokoll nichts zu suchen.
+   * Die **Frist (24 h) ist eine Auffrischung, kein Verfall**: Die Anfrage wird
+     **neu vorgelegt**, nicht beerdigt.
+   * Die Unterscheidung, die zählt: **Lag zwischen Zustellung und Frist
+     überhaupt eine Regung von Adam vor?** Wenn nein, trägt das Schweigen keine
+     Information → schlicht neu vorlegen. Wenn ja → als **„gesehen, offen"**
+     markieren; das ist ein Hinweis, dass die Frage unklar gestellt war.
 6. **Eine Freigabe erzeugt keine Rechte** — 8.7 bleibt unberührt. Wer eine
    Repo-Schreibung freigibt, gibt sie **nicht** dem Bot frei.
 7. **Herkunft kennzeichnen** — jede Anfrage sagt, wer sie gestellt hat.
@@ -44,8 +57,10 @@ ANFRAGEN = WURZEL / "anfragen"
 URTEILE = WURZEL / "urteile"
 PROTOKOLL = WURZEL / "protokoll"          # wartet auf die Übertragung ins Drehbuch
 
-# Frist, nach der eine Anfrage als abgelehnt gilt (Leitplanke 5).
-FRIST_STUNDEN = float(os.environ.get("FREIGABE_FRIST_H") or 48)
+# Frist, nach der eine Anfrage ERNEUT VORGELEGT wird (Leitplanke 5).
+# 24 h statt 48: Der Zusammenhang einer Frage verschiebt sich schneller, als eine
+# Frist von zwei Tagen unterstellt. Die Frist beendet nichts — sie frischt auf.
+FRIST_STUNDEN = float(os.environ.get("FREIGABE_FRIST_H") or 24)
 
 # Leitplanke 4 — dieselben Marker wie im Bot, bewusst hier gespiegelt: Das
 # Postfach muss auch dann schützen, wenn es von einem anderen Prozess befüllt
@@ -67,13 +82,22 @@ class Anfrage:
     gestellt: float = field(default_factory=time.time)
     begruendung: str = ""
     rueckweg: str = ""         # wie ließe es sich rückgängig machen?
+    vorgelegt: int = 1         # wie oft schon vorgelegt (1 = erstmals)
+    gesehen: bool = False      # Adam war da und hat trotzdem nicht geurteilt
 
-    def abgelaufen(self, jetzt: float | None = None) -> bool:
+    def faellig(self, jetzt: float | None = None) -> bool:
+        """Ist die Auffrischung fällig? (Früher hieß das `abgelaufen` — der
+        Name unterstellte ein Ende, das es nicht gibt.)"""
         return ((jetzt or time.time()) - self.gestellt) > FRIST_STUNDEN * 3600
 
     def lesbar(self) -> str:
         sym = {"gruen": "🟢", "gelb": "🟡", "rot": "🔴"}.get(self.ampel, "⬜")
-        return f"{sym} {self.titel}  ({self.herkunft})"
+        zusatz = ""
+        if self.gesehen:
+            zusatz = "  · gesehen, offen"
+        elif self.vorgelegt > 1:
+            zusatz = f"  · {self.vorgelegt}× vorgelegt"
+        return f"{sym} {self.titel}  ({self.herkunft}){zusatz}"
 
 
 class Abgewiesen(Exception):
@@ -140,19 +164,65 @@ def finden(kennung: str) -> Anfrage | None:
     return None
 
 
+def _anfrage_speichern(a: Anfrage) -> None:
+    """Schreibt eine bestehende Anfrage atomar zurück."""
+    _ordner()
+    tmp = ANFRAGEN / f".{a.kennung}.tmp"
+    tmp.write_text(json.dumps(asdict(a), ensure_ascii=False, indent=2),
+                   encoding="utf-8")
+    tmp.rename(ANFRAGEN / f"{a.kennung}.json")
+
+
+def auffrischen(letzte_regung: float | None = None,
+                jetzt: float | None = None) -> list[Anfrage]:
+    """Legt fällige Anfragen ERNEUT vor, statt sie verfallen zu lassen.
+
+    ``letzte_regung`` ist der Zeitpunkt, zu dem Adam zuletzt irgendetwas getan
+    hat (Nachricht, Reaktion, Befehl). Der Bot kennt ihn ohnehin.
+
+    * **Keine Regung im Fenster** → das Schweigen trägt keine Information.
+      Die Anfrage wird schlicht neu vorgelegt, der Zähler steigt.
+    * **Regung im Fenster** → Adam war da und hat trotzdem nicht geurteilt.
+      Das wird als „gesehen, offen" vermerkt — ein Hinweis, dass die Frage
+      unklar gestellt war, nicht ein Nein.
+
+    Rückgabe: die Anfragen, die neu vorzulegen sind.
+    """
+    now = jetzt or time.time()
+    raus: list[Anfrage] = []
+    for a in offene(now):
+        if not a.faellig(now):
+            continue
+        a.gesehen = bool(letzte_regung and letzte_regung >= a.gestellt)
+        a.vorgelegt += 1
+        a.gestellt = now          # die Frist frischt auf, sie läuft nicht ab
+        _anfrage_speichern(a)
+        raus.append(a)
+    return raus
+
+
+def unbeantwortet(jetzt: float | None = None) -> list[Anfrage]:
+    """Die eigene Liste: mehr als einmal vorgelegt und noch immer ohne Urteil.
+
+    Bewusst **getrennt vom Entscheidungs-Protokoll** — dort steht nur, was Adam
+    tatsächlich entschieden hat.
+    """
+    return [a for a in offene(jetzt) if a.vorgelegt > 1 or a.gesehen]
+
+
 def urteilen(kennung: str, ja: bool, von: str, grund: str = "",
              jetzt: float | None = None) -> dict:
     """Trägt ein Urteil ein. Rückgabe: der Protokoll-Eintrag.
 
-    **Fail-safe (Leitplanke 5):** Eine abgelaufene Anfrage kann nur noch
-    abgelehnt werden — auch wenn jemand „ja" schickt. Wer nach der Frist
-    zustimmt, hat den Zusammenhang nicht mehr vor Augen.
+    **Nur ein tatsächliches Urteil landet hier** — eine verstrichene Frist ist
+    keines und erzeugt deshalb keinen Eintrag (siehe `auffrischen`). Ein Ja
+    bleibt ein Ja, auch wenn die Anfrage schon mehrfach vorgelegt wurde; die
+    Auffrischung sorgt dafür, dass der Zusammenhang frisch ist.
     """
     a = finden(kennung)
     if a is None:
         raise Abgewiesen("Diese Anfrage gibt es nicht (mehr).")
-    abgelaufen = a.abgelaufen(jetzt)
-    entschieden = bool(ja) and not abgelaufen
+    entschieden = bool(ja)
     eintrag = {
         "kennung": a.kennung,
         "titel": a.titel,
@@ -160,8 +230,8 @@ def urteilen(kennung: str, ja: bool, von: str, grund: str = "",
         "ampel": a.ampel,
         "herkunft": a.herkunft,
         "urteil": "freigegeben" if entschieden else "abgelehnt",
-        "grund": ("Frist abgelaufen — gilt als abgelehnt" if abgelaufen
-                  else (grund or "").strip()[:400]),
+        "grund": (grund or "").strip()[:400],
+        "vorgelegt": a.vorgelegt,
         "beantwortet_von": von,
         "beantwortet_am": time.strftime("%Y-%m-%d %H:%M",
                                         time.localtime(jetzt or time.time())),
@@ -201,12 +271,13 @@ def uebersicht(jetzt: float | None = None) -> str:
     zeilen = []
     for a in liste:
         rest = FRIST_STUNDEN - ((jetzt or time.time()) - a.gestellt) / 3600
-        frist = ("⌛ Frist abgelaufen — gilt als abgelehnt" if rest <= 0
-                 else f"noch {rest:.0f} h")
+        frist = ("⌛ lege ich dir gleich erneut vor" if rest <= 0
+                 else f"lege ich in {rest:.0f} h erneut vor")
         zeilen.append(f"{a.lesbar()}\n   {frist}")
     return (f"🗝️ Offene Freigabe-Anfragen ({len(liste)}):\n"
             + "\n".join(zeilen)
-            + "\n\nOhne Antwort gilt: abgelehnt.")
+            + "\n\nOhne Antwort geschieht nichts — und nichts gilt als "
+              "abgelehnt. Ich lege sie dir einfach wieder vor.")
 
 
 def protokoll_offen() -> list[dict]:

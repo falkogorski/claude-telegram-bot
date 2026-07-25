@@ -34,11 +34,34 @@ Auftragsbuch.
 ## Zur Kontingent-Frage — bewusst ohne Annahme gebaut
 
 Die Wochengrenzen des Abos lassen sich von hier aus **nicht** messen. Statt sie
-zu raten, ist Hora so gebaut, dass er sie **nicht kennen muss**: Er arbeitet
-**einen** Auftrag je Lauf, misst seinen eigenen Verbrauch mit, und die
+zu raten, ist Hora so gebaut, dass er sie **nicht kennen muss**. Die
 Limit-Behandlung des Bots (5.31) trägt den Rest — beim Anschlagen wird pausiert
-und später fortgesetzt. Ein Plan, der auf einer geratenen Zahl steht, wäre
-schlechter als einer, der ohne sie auskommt.
+und später fortgesetzt.
+
+**[KORRIGIERT 2026-07-25] „Einer je Lauf" war eine Über-Korrektur.** Zwei Läufe
+täglich mal vierzehn Tage sind achtundzwanzig Aufträge — das wäre die Obergrenze
+für zwei Wochen gewesen, und von einem Fünf-Stunden-Fenster bliebe fast alles
+ungenutzt. Vor allem aber war „einer je Lauf" **selbst eine Annahme**, nämlich
+die, dass das Kontingent knapp ist. Genau davon wollte der Entwurf frei sein.
+
+Neu: **Frische Sitzung je Auftrag** (die Isolation bleibt, sie war richtig) —
+aber **verkettet, bis die Liste leer ist**, die Kontingent-Pause greift oder die
+Fehlserie zuschlägt. Keine Zahl zum Nachjustieren: Es läuft, bis es nicht mehr
+kann.
+
+## Fragen sind Wegsteine, keine Halteschilder [NEU 2026-07-25]
+
+**Hora wartet nie.** Braucht ein Auftrag Adams Zustimmung: **parken (9.4),
+melden, sofort mit dem nächsten unabhängigen Auftrag weiter.** Ist nichts
+Unabhängiges mehr zu tun, endet der Lauf mit Bericht — er steht nicht im
+Leerlauf herum. Ein geparkter Punkt blockiert auch den **nächsten** Lauf nicht.
+
+Damit braucht es keine Vorhersage über Adams Verfügbarkeit: **immer fragen, nie
+warten.** Die Antwort holt den Läufer später ein, nicht umgekehrt.
+
+Daraus folgt eine Anforderung an die Auftragsliste: **Abhängigkeiten werden
+markiert** (`haengt_an: ["<Titel>"]`). Nur so weiß Hora, was unabhängig
+weiterlaufen darf, wenn ein Vorgänger geparkt oder gescheitert ist.
 
 Aufruf: ``python3 scripts/hora.py [--liste …] [--trocken]``
 """
@@ -65,6 +88,30 @@ POSTFACH = Path(os.environ.get("POSTFACH_DIR")
                 or (Path.home() / "postfach")) / "outbox"
 FEHLGRENZE = 3
 REGRESSION = REPO / "scripts" / "regressionstest.sh"
+
+# Wortlaute, an denen ein erreichtes Kontingent erkennbar ist. Bewusst hier
+# gespiegelt statt aus bot.py importiert: Hora soll ohne dessen Umgebung laufen.
+_LIMIT = ("usage limit", "session limit", "rate limit", "limit reached",
+          "quota exceeded", "kontingent", "too many requests", "429")
+
+
+def _kontingent_erschoepft(text: str) -> bool:
+    t = (text or "").lower()
+    return any(n in t for n in _LIMIT)
+
+
+def _blockiert(auftrag: dict, ausgefallen: set[str]) -> str | None:
+    """Hängt der Auftrag an etwas, das geparkt oder gescheitert ist?
+
+    Ohne diese Angabe müsste Hora raten — und ein Läufer, der auf einem nicht
+    fertigen Vorgänger aufbaut, richtet mehr Schaden an als einer, der ihn
+    überspringt. Fehlt die Angabe, gilt der Auftrag als unabhängig; das ist die
+    ehrlichere Vorgabe, weil sie nichts unterstellt.
+    """
+    for t in (auftrag.get("haengt_an") or []):
+        if t in ausgefallen:
+            return str(t)
+    return None
 
 
 # ------------------------------------------------------------ Auftragsliste --
@@ -190,69 +237,121 @@ def lauf(trocken: bool = False) -> int:
                "roten Fundament zu bauen macht die Ursachensuche unmöglich.")
         return 1
 
-    auftrag = offen[0]                      # einer je Lauf — Kontingent-schonend
-    titel = auftrag["titel"]
+    # ---- Die Kette: Auftrag um Auftrag, bis die Liste leer ist oder etwas
+    # ---- den Läufer anhält. Kein Zeitwert, keine Stückzahl zum Nachjustieren.
+    ausgefallen: set[str] = set()        # geparkt oder gescheitert
+    erledigt: list[str] = []
+    geparkt: list[str] = []
+    uebersprungen: list[str] = []
+    gescheitert: list[str] = []
+    probe: list[str] = []                # nur im Probelauf
+    abbruch = ""
+    letzte_lage = vorher
 
-    # Bedingung 1: Braucht der Auftrag eine Entscheidung, wird er GEPARKT.
-    if auftrag.get("braucht_zustimmung"):
+    for auftrag in offen:
+        titel = auftrag["titel"]
+
+        # Wegstein eines gestolperten Vorgängers — überspringen, nicht warten.
+        vorgaenger = _blockiert(auftrag, ausgefallen)
+        if vorgaenger:
+            uebersprungen.append(f"{titel} (hängt an „{vorgaenger}“)")
+            continue
+
+        # Bedingung 1: Braucht der Auftrag eine Entscheidung, wird er GEPARKT —
+        # und Hora geht SOFORT weiter. Fragen sind Wegsteine, keine Halteschilder.
+        if auftrag.get("braucht_zustimmung"):
+            try:
+                freigaben.stellen(
+                    titel=titel,
+                    aktion=auftrag.get("aktion") or titel,
+                    ampel=auftrag.get("ampel", "gelb"),
+                    herkunft="Hora",
+                    begruendung=auftrag.get("begruendung", ""),
+                    rueckweg=auftrag.get("rueckweg", ""))
+                abhaken(titel, "zur Freigabe geparkt")
+                geparkt.append(titel)
+            except freigaben.Abgewiesen as e:
+                abhaken(titel, f"nicht parkbar: {e}")
+                uebersprungen.append(f"{titel} (nicht parkbar: {e})")
+            ausgefallen.add(titel)
+            continue
+
+        if trocken:
+            probe.append(titel)
+            continue
+
+        befehl = auftrag.get("befehl")
+        if not befehl:
+            abhaken(titel, "kein ausführbarer Befehl hinterlegt")
+            uebersprungen.append(f"{titel} (kein ausführbarer Befehl hinterlegt)")
+            ausgefallen.add(titel)
+            continue
+
+        # Frische Sitzung je Auftrag — die Isolation bleibt.
         try:
-            freigaben.stellen(
-                titel=titel,
-                aktion=auftrag.get("aktion") or titel,
-                ampel=auftrag.get("ampel", "gelb"),
-                herkunft="Hora",
-                begruendung=auftrag.get("begruendung", ""),
-                rueckweg=auftrag.get("rueckweg", ""))
-            abhaken(titel, "zur Freigabe geparkt")
-            melden(f"🗝️ Hora ({beginn}): „{titel}“ braucht deine Zustimmung — "
-                   "ich habe es ins Freigabe-Postfach gelegt statt zu "
-                   "entscheiden. Antwortest du nicht, gilt es als abgelehnt.")
-            return 0
-        except freigaben.Abgewiesen as e:
-            abhaken(titel, f"nicht parkbar: {e}")
-            melden(f"⚠️ Hora ({beginn}): „{titel}“ lässt sich nicht einmal "
-                   f"parken — {e}. Übersprungen.")
-            return 1
+            p = subprocess.run(["bash", "-lc", befehl], cwd=str(REPO),
+                               capture_output=True, text=True, timeout=7200)
+            ausgabe = ((p.stdout or "") + (p.stderr or ""))[-1200:]
+            erfolg = p.returncode == 0
+        except Exception as e:
+            ausgabe, erfolg = str(e), False
 
-    if trocken:
-        melden(f"🧪 Hora-Probelauf ({beginn}): Ich HÄTTE jetzt „{titel}“ "
-               f"bearbeitet. Fundament vorher: {vorher}. Es wurde nichts getan.")
-        return 0
+        # Kontingent erschöpft: anhalten, nicht scheitern. Der Auftrag bleibt
+        # offen und der nächste Lauf nimmt ihn wieder auf — genau das, wofür
+        # die Liste da ist.
+        if not erfolg and _kontingent_erschoepft(ausgabe):
+            abbruch = ("Kontingent erschöpft — ich habe angehalten, nichts "
+                       "abgehakt und nichts verloren.")
+            break
 
-    # Die eigentliche Arbeit übernimmt eine frische, nicht-interaktive Sitzung.
-    befehl = auftrag.get("befehl")
-    if not befehl:
-        abhaken(titel, "kein ausführbarer Befehl hinterlegt")
-        melden(f"⚠️ Hora ({beginn}): „{titel}“ hat keinen ausführbaren Befehl — "
-               "übersprungen. (Hora führt nur aus, was in der Liste steht.)")
-        return 1
-    try:
-        p = subprocess.run(["bash", "-lc", befehl], cwd=str(REPO),
-                           capture_output=True, text=True, timeout=7200)
-        ausgabe = ((p.stdout or "") + (p.stderr or ""))[-1200:]
-        erfolg = p.returncode == 0
-    except Exception as e:
-        ausgabe, erfolg = str(e), False
+        nachher_ok, letzte_lage = regression()
+        if erfolg and nachher_ok:
+            _fehlserie(True)
+            abhaken(titel, f"erledigt · {letzte_lage}")
+            erledigt.append(titel)
+            _protokollieren({"zeit": beginn, "titel": titel,
+                             "ergebnis": "gruen", "regression": letzte_lage})
+            continue
 
-    # Bedingung 3, zweite Hälfte: grün oder zurück.
-    nachher_ok, nachher = regression()
-    if erfolg and nachher_ok:
-        _fehlserie(True)
-        abhaken(titel, f"erledigt · {nachher}")
-        melden(f"✅ Hora ({beginn}): „{titel}“ erledigt.\n{nachher}\n"
-               f"Noch offen: {max(0, len(offen) - 1)} Auftrag/Aufträge.")
-        _protokollieren({"zeit": beginn, "titel": titel, "ergebnis": "gruen",
-                         "regression": nachher})
-        return 0
+        n = _fehlserie(False)
+        ausgefallen.add(titel)
+        gescheitert.append(f"{titel} ({letzte_lage})")
+        _protokollieren({"zeit": beginn, "titel": titel, "ergebnis": "rot",
+                         "regression": letzte_lage, "ausgabe": ausgabe[-400:]})
+        if n >= FEHLGRENZE:
+            abbruch = (f"{FEHLGRENZE} Fehlläufe in Folge — ich halte an. "
+                       f"Letzte Ausgabe:\n{ausgabe[-400:]}")
+            break
 
-    n = _fehlserie(False)
-    _protokollieren({"zeit": beginn, "titel": titel, "ergebnis": "rot",
-                     "regression": nachher, "ausgabe": ausgabe[-400:]})
-    melden(f"🔴 Hora ({beginn}): „{titel}“ ist nicht sauber durchgelaufen "
-           f"({nachher}). Der Auftrag bleibt offen, ich habe nichts abgehakt. "
-           f"Fehlläufe in Folge: {n} von {FEHLGRENZE}.\n"
-           f"Letzte Ausgabe:\n{ausgabe[-500:]}")
-    return 1
+    # Bedingung 5: Bericht, auch wenn nichts zu tun war.
+    teile = [f"🌾 Hora ({beginn}) — Lauf beendet."]
+    if probe:
+        teile.append(f"🧪 Probelauf: Ich HÄTTE {len(probe)} Auftrag/Aufträge "
+                     "bearbeitet — " + " · ".join(probe)
+                     + ". Es wurde nichts getan.")
+    if erledigt:
+        teile.append(f"✅ Erledigt ({len(erledigt)}): " + " · ".join(erledigt))
+    if geparkt:
+        teile.append(f"🗝️ Zur Freigabe geparkt ({len(geparkt)}): "
+                     + " · ".join(geparkt)
+                     + "\n   Ohne Antwort geschieht nichts — und nichts gilt "
+                       "als abgelehnt. Ich lege es dir wieder vor.")
+    if uebersprungen:
+        teile.append(f"⏭️ Übersprungen ({len(uebersprungen)}): "
+                     + " · ".join(uebersprungen))
+    if gescheitert:
+        teile.append(f"🔴 Nicht sauber durchgelaufen ({len(gescheitert)}): "
+                     + " · ".join(gescheitert)
+                     + "\n   Diese Aufträge bleiben offen, abgehakt ist nichts.")
+    if abbruch:
+        teile.append("⏸️ " + abbruch)
+    teile.append(f"Fundament zuletzt: {letzte_lage}")
+    teile.append(f"Noch offen in der Liste: {len(auftraege())}")
+    melden("\n".join(teile))
+
+    if abbruch:
+        return 2
+    return 1 if (gescheitert or uebersprungen) else 0
 
 
 def main() -> int:

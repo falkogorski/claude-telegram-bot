@@ -1,17 +1,23 @@
 [
   {
-    "_hinweis": "So sieht ein Auftrag aus, den Hora ALLEIN erledigen darf. Titel und Befehl genügen. Hora nimmt je Lauf EINEN Auftrag, prüft vorher und nachher den Regressionslauf und hakt nur bei Grün ab.",
+    "_hinweis": "So sieht ein Auftrag aus, den Hora ALLEIN erledigen darf. Titel und Befehl genügen. Hora arbeitet die Liste je Lauf VERKETTET ab — Auftrag um Auftrag, jeder in einer frischen Sitzung, bis die Liste leer ist, das Kontingent anschlägt oder drei Fehlläufe in Folge zusammenkommen. Vor und nach jedem Auftrag läuft der Regressionstest; abgehakt wird nur bei Grün.",
     "titel": "Abhängigkeits-Register auf Vollständigkeit prüfen",
     "befehl": ".venv/bin/python3 -c \"import os; os.environ.setdefault('TELEGRAM_BOT_TOKEN','x'); os.environ.setdefault('ALLOWED_USER_IDS','1'); import bot; ok,l=bot.run_self_check(); print('\\n'.join(l)); raise SystemExit(0 if ok else 1)\""
   },
   {
-    "_hinweis": "Ein Auftrag, der Adams Zustimmung braucht. Hora entscheidet NICHT — er legt ihn ins Freigabe-Postfach und geht weiter. 'aktion' ist der wörtliche Befehl (Konkret vor Label), 'rueckweg' macht ihn bündelbar, wenn er grün ist.",
+    "_hinweis": "Ein Auftrag, der Adams Zustimmung braucht. Hora entscheidet NICHT — er legt ihn ins Freigabe-Postfach, meldet das und geht SOFORT zum nächsten unabhängigen Auftrag weiter. Fragen sind Wegsteine, keine Halteschilder: Hora wartet nie auf eine Antwort, sie holt ihn später ein. Ohne Antwort geschieht nichts — und nichts gilt als abgelehnt; die Anfrage wird alle 24 Stunden erneut vorgelegt. 'aktion' ist der wörtliche Befehl (Konkret vor Label), 'rueckweg' macht ihn bündelbar, wenn er grün ist.",
     "titel": "SDK auf die neueste Fassung heben",
     "braucht_zustimmung": true,
     "ampel": "gelb",
     "aktion": "pip install claude-agent-sdk==<neue Fassung>",
     "begruendung": "Der Versions-Monitor meldet eine neuere Fassung.",
     "rueckweg": "pip install claude-agent-sdk==0.2.127"
+  },
+  {
+    "_hinweis": "WICHTIG — 'haengt_an' nennt Aufträge, ohne die dieser hier keinen Sinn ergibt. Ist ein genannter Vorgänger geparkt, gescheitert oder unbrauchbar, wird DIESER Auftrag übersprungen und der Grund gemeldet, statt auf einem halbfertigen Stand aufzubauen. Ohne Angabe gilt ein Auftrag als unabhängig — das ist die ehrlichere Vorgabe, weil sie nichts unterstellt. Der Titel muss WÖRTLICH mit dem des Vorgängers übereinstimmen.",
+    "titel": "Nach dem SDK-Sprung den vollen Regressionslauf fahren",
+    "haengt_an": ["SDK auf die neueste Fassung heben"],
+    "befehl": "bash scripts/regressionstest.sh"
   },
   {
     "_hinweis": "Ein reiner Prüf-Auftrag ohne Veränderung — die sichersten für die Abwesenheit. Solche dürfen ruhig mehrfach in der Liste stehen.",

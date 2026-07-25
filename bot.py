@@ -31,6 +31,7 @@ from telegram.ext import (
     ContextTypes,
     MessageHandler,
     MessageReactionHandler,
+    TypeHandler,
     filters,
 )
 
@@ -3723,6 +3724,32 @@ async def cmd_aufgaben(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 # ── 9.4 Freigabe-Postfach: der Bot als Bote, nie als Akteur ──────────────────
+
+# Wann hat Adam zuletzt IRGENDETWAS getan? Wandzeit, nicht `monotonic` — der
+# Wert wird mit dem Zeitstempel einer Anfrage verglichen, und `monotonic` und
+# `time.time()` liegen auf verschiedenen Uhren.
+#
+# **Wofür:** Die Auffrischung braucht die Unterscheidung „nicht da gewesen"
+# gegen „da gewesen und trotzdem nicht geurteilt". Nur das zweite trägt eine
+# Information — es heißt, die Frage war unklar gestellt.
+#
+# Bewusst als EIN Handler ganz vorn statt als Aufruf in dreißig Handlern: Eine
+# Spur, die an dreißig Stellen gepflegt werden muss, ist an der einunddreißigsten
+# schon vergessen.
+_LETZTE_REGUNG: float = 0.0
+
+
+async def _regung_merken(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Läuft vor allen anderen Handlern und hält nur die Uhrzeit fest."""
+    global _LETZTE_REGUNG
+    uid = getattr(update.effective_user, "id", None)
+    if uid in ALLOWED_USER_IDS:
+        _LETZTE_REGUNG = time.time()
+
+
+def letzte_regung() -> float | None:
+    return _LETZTE_REGUNG or None
+
 async def _freigabe_anzeigen(bot_obj, chat_id: int, a) -> None:
     """Zeigt EINE Anfrage mit der wörtlichen Aktion (Leitplanke 2).
 
@@ -3739,8 +3766,15 @@ async def _freigabe_anzeigen(bot_obj, chat_id: int, a) -> None:
         zeilen += ["", f"Warum: {a.begruendung}"]
     zeilen += ["", (f"Rückweg: {a.rueckweg}" if a.rueckweg
                     else "⚠️ Kein Rückweg angegeben — im Zweifel ablehnen.")]
-    zeilen += ["", f"Ohne Antwort gilt nach {int(freigabepost.FRIST_STUNDEN)} "
-                   "Stunden: abgelehnt."]
+    if getattr(a, "vorgelegt", 1) > 1:
+        zeilen += ["", (f"↻ Zum {a.vorgelegt}. Mal vorgelegt"
+                        + (" — du warst inzwischen da, hast aber nicht "
+                           "geurteilt. Vielleicht ist die Frage unklar "
+                           "gestellt; sag es gern." if getattr(a, "gesehen", False)
+                           else "."))]
+    zeilen += ["", f"Ohne Antwort geschieht nichts. Nach "
+                   f"{int(freigabepost.FRIST_STUNDEN)} Stunden lege ich sie dir "
+                   "einfach erneut vor — Schweigen ist kein Nein."]
     knoepfe = [[
         InlineKeyboardButton("✅ Freigeben", callback_data=f"frg:ja:{a.kennung}"),
         InlineKeyboardButton("⛔ Ablehnen", callback_data=f"frg:nein:{a.kennung}"),
@@ -3760,15 +3794,17 @@ async def freigabe_worker(app) -> None:
     gezeigt: set[str] = set()
     while True:
         try:
+            # Leitplanke 5 (korrigiert): Fällige Anfragen werden AUFGEFRISCHT,
+            # nicht abgelehnt. Sie kommen dadurch wieder aus `gezeigt` heraus
+            # und werden erneut vorgelegt — Schweigen beendet nichts.
+            fuer_neu = await asyncio.to_thread(freigabepost.auffrischen,
+                                               letzte_regung())
+            for a in fuer_neu:
+                gezeigt.discard(a.kennung)
+
             offen = await asyncio.to_thread(freigabepost.offene)
             for a in offen:
                 if a.kennung in gezeigt:
-                    continue
-                if a.abgelaufen():
-                    # Leitplanke 5: abgelaufen = abgelehnt, aber sichtbar.
-                    await asyncio.to_thread(
-                        freigabepost.urteilen, a.kennung, False, "Frist", "")
-                    gezeigt.add(a.kennung)
                     continue
                 for uid in ALLOWED_USER_IDS:
                     try:
@@ -7770,6 +7806,9 @@ def main() -> None:
         log.info("5.34: eigener Bot-API-Server aktiv (%s) — Dateigrenze %d MB",
                  TELEGRAM_API_BASE, DATEI_GRENZE // 1_048_576)
     app = _builder.build()
+    # Ganz vorn (group=-1) und nicht blockierend: hält nur fest, WANN Adam
+    # zuletzt etwas getan hat. Grundlage der Freigabe-Auffrischung (9.4).
+    app.add_handler(TypeHandler(Update, _regung_merken), group=-1)
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("whoami", cmd_whoami))
     app.add_handler(CommandHandler("whereami", cmd_whereami))

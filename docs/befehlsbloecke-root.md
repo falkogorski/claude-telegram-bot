@@ -163,7 +163,51 @@ sudo systemctl disable --now hora.timer stundenblume.timer
 
 ---
 
-## Schritt 4 (später) — Große Dateien: eigener Bot-API-Server (5.34)
+## Schritt 4 — Arbeitsspeicher absichern (C1) · **vor der Abreise**
+
+**Warum das dazugekommen ist:** Die Messung am 25.07. ergab Spitzenwerte von
+zusammen **7,53 GiB bei 7,75 GiB vorhanden** — und **keinen Swap**. Ohne
+Auslagerung hat der Kernel bei Speichermangel nur den OOM-Killer; mit Swap wird
+dieselbe Lage langsam statt tödlich. Einzelheiten:
+`docs/entscheidungsvorlagen/arbeitsspeicher-messung-c1.md`.
+
+**4a — Auslagerungsdatei anlegen (4 GiB, dauerhaft):**
+
+```bash
+sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+```
+
+```bash
+grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+```bash
+free -m | head -3 && swapon --show
+```
+
+**Prüfzeile:** `swapon --show` nennt `/swapfile` mit 4 GiB, und `free -m` zeigt
+eine Swap-Zeile ungleich null. · **Rückweg:**
+
+```bash
+sudo swapoff /swapfile && sudo sed -i '/^\/swapfile/d' /etc/fstab && sudo rm -f /swapfile
+```
+
+**4b — Ollama für die Abwesenheit anhalten** (fünf GiB Spitze frei, null Euro;
+es ist ein Fallback, den in Adams Abwesenheit ohnehin niemand bediente):
+
+```bash
+sudo systemctl disable --now ollama && systemctl is-active ollama
+```
+
+**Prüfzeile:** Die Ausgabe lautet `inactive`. · **Rückweg (nach der Rückkehr):**
+
+```bash
+sudo systemctl enable --now ollama
+```
+
+---
+
+## Schritt 5 (später) — Große Dateien: eigener Bot-API-Server (5.34)
 
 **Zurückgehalten, bis 1 bis 3 sitzen.** Die Bot-Seite ist gebaut und geprüft
 (Umschalter `TELEGRAM_API_BASE`, Aufräum-Pflege mit 30-GiB-Deckel,

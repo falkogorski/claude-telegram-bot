@@ -113,7 +113,7 @@ def _zustimmung_wird_geparkt():
     offen = freigaben.offene()
     assert len(offen) == 1 and offen[0].herkunft == "Hora", \
         f"nichts geparkt: {offen}"
-    assert "Zustimmung" in _meldungen()[0]
+    assert "geparkt" in _meldungen()[0]
 
 
 # --- Bedingung 4: Abbruch nach drei Fehlläufen ----------------------------
@@ -163,11 +163,79 @@ def _ohne_befehl_kein_raten():
     assert not ausgefuehrt, "Hora hat sich einen Befehl ausgedacht!"
     m = _meldungen()
     assert m, "kein Bericht, obwohl der Auftrag unbrauchbar war"
-    assert any("ausführbaren Befehl" in x for x in m), \
+    assert any("ausführbar" in x and "Befehl" in x for x in m), \
         f"der Grund wird nicht benannt: {m}"
 
 
+# --- A1: Die Kette — mehrere Aufträge in EINEM Lauf ------------------------
+def _kette_arbeitet_die_liste_leer():
+    """Vorher lief genau ein Auftrag je Lauf. Das war eine Annahme über das
+    Kontingent, keine Messung — und hätte in vierzehn Tagen achtundzwanzig
+    Aufträge als Obergrenze gesetzt."""
+    _leeren()
+    _liste({"titel": "eins", "befehl": "echo 1"},
+           {"titel": "zwei", "befehl": "echo 2"},
+           {"titel": "drei", "befehl": "echo 3"})
+    ausgefuehrt = _patch()
+    assert hora.lauf() == 0
+    assert ausgefuehrt == ["echo 1", "echo 2", "echo 3"], \
+        f"die Kette hat nicht alles abgearbeitet: {ausgefuehrt}"
+    assert hora.auftraege() == [], "es blieb etwas offen"
+    m = _meldungen()
+    assert len(m) == 1, f"ein Lauf, ein Bericht — nicht {len(m)}"
+    assert "Erledigt (3)" in m[0], f"Bericht zählt falsch: {m[0]}"
+
+
+# --- B2: Eine Frage hält den Läufer NICHT an ------------------------------
+def _geparkte_frage_haelt_nicht_an():
+    _leeren()
+    _liste({"titel": "braucht Adam", "braucht_zustimmung": True,
+            "aktion": "pip install irgendwas", "ampel": "gelb",
+            "rueckweg": "pip install altes"},
+           {"titel": "unabhängig", "befehl": "echo weiter"})
+    ausgefuehrt = _patch()
+    hora.lauf()
+    assert ausgefuehrt == ["echo weiter"], \
+        f"Hora ist an der Frage hängen geblieben: {ausgefuehrt}"
+    assert len(freigaben.offene()) == 1, "die Frage wurde nicht geparkt"
+
+
+def _abhaengiger_auftrag_wird_uebersprungen():
+    """Ein Läufer, der auf einem nicht fertigen Vorgänger aufbaut, richtet mehr
+    Schaden an als einer, der ihn überspringt."""
+    _leeren()
+    _liste({"titel": "Vorgänger", "braucht_zustimmung": True,
+            "aktion": "etwas", "ampel": "gelb"},
+           {"titel": "Folge", "befehl": "echo darf-nicht",
+            "haengt_an": ["Vorgänger"]},
+           {"titel": "Frei", "befehl": "echo darf-doch"})
+    ausgefuehrt = _patch()
+    hora.lauf()
+    assert ausgefuehrt == ["echo darf-doch"], \
+        f"der abhängige Auftrag lief trotzdem: {ausgefuehrt}"
+    assert any("hängt an" in x for x in _meldungen()), \
+        "der Grund fürs Überspringen wird nicht benannt"
+
+
+def _kontingent_haelt_an_ohne_abzuhaken():
+    """Kontingent erschöpft ist kein Fehlschlag — nichts wird abgehakt."""
+    _leeren()
+    _liste({"titel": "erster", "befehl": "echo x"},
+           {"titel": "zweiter", "befehl": "echo y"})
+    hora.regression = lambda: (True, "Ergebnis: 27/27")
+    hora.subprocess.run = lambda cmd, **kw: type(
+        "P", (), {"returncode": 1, "stdout": "",
+                  "stderr": "Claude usage limit reached"})()
+    assert hora.lauf() == 2, "Hora lief trotz erschöpftem Kontingent weiter"
+    assert len(hora.auftraege()) == 2, "bei Kontingent-Halt wurde abgehakt!"
+    assert "Kontingent" in _meldungen()[-1]
+
+
 check("leere Liste → melden, nichts tun", _leere_liste_meldet)
+check("Kette arbeitet die Liste leer (A1)", _kette_arbeitet_die_liste_leer)
+check("geparkte Frage hält den Läufer nicht an (B2)", _geparkte_frage_haelt_nicht_an)
+check("abhängiger Auftrag wird übersprungen (B2)", _abhaengiger_auftrag_wird_uebersprungen)
+check("Kontingent-Halt hakt nichts ab", _kontingent_haelt_an_ohne_abzuhaken)
 check("rotes Fundament → nicht arbeiten", _rotes_fundament_stoppt)
 check("Zustimmungspflichtiges wird geparkt, nicht entschieden", _zustimmung_wird_geparkt)
 check("Abbruch nach drei Fehlläufen", _abbruch_nach_drei_fehllaeufen)

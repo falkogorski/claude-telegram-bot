@@ -66,6 +66,46 @@ def zeile(e: dict) -> str:
             f"| {_zelle(e.get('beantwortet_von'), 30)} |\n")
 
 
+def _einfuegen(text: str, neue: str) -> str:
+    """Hängt die Zeilen ans ENDE DES ABSCHNITTS — nicht ans Dateiende.
+
+    **Warum das mehr als Feinschliff ist:** Vorher stand hier „der Abschnitt
+    steht am Dateiende, also genügt Anhängen." Das war eine **Annahme über das
+    Layout einer fremden Datei**, keine geprüfte Eigenschaft. Landet je ein
+    Abschnitt dahinter, wandern neue Protokollzeilen still in den falschen —
+    und ein Protokoll, dessen Zeilen anderswo auftauchen, ist schlimmer als
+    keines, weil niemand den Fehler bemerkt.
+
+    Deshalb wird die Stelle jetzt **gesucht statt unterstellt**: Zeilen gehen
+    unmittelbar vor die nächste Überschrift nach dem Protokoll-Abschnitt; gibt
+    es keine, ans Dateiende — dann stimmt die alte Annahme ja tatsächlich.
+    """
+    start = text.find(UEBERSCHRIFT)
+    if start < 0:                       # Abschnitt fehlt: KOPF wurde eben erst
+        return text.rstrip("\n") + "\n" + neue   # angehängt, Ende ist richtig
+    zeilen = text.splitlines(keepends=True)
+    # Zeilennummer der Überschrift bestimmen …
+    lauf, beginn = 0, 0
+    for i, z in enumerate(zeilen):
+        if lauf >= start:
+            beginn = i
+            break
+        lauf += len(z)
+    else:
+        beginn = len(zeilen)
+    # … und die nächste Überschrift danach suchen.
+    grenze = len(zeilen)
+    for i in range(beginn + 1, len(zeilen)):
+        if re.match(r"^#{1,6}\s", zeilen[i]):
+            grenze = i
+            break
+    while grenze > beginn + 1 and not zeilen[grenze - 1].strip():
+        grenze -= 1                     # Leerzeilen vor der Überschrift wahren
+    kopf = "".join(zeilen[:grenze]).rstrip("\n") + "\n"
+    rest = "".join(zeilen[grenze:])
+    return kopf + neue + (("\n" + rest.lstrip("\n")) if rest.strip() else "")
+
+
 def uebertragen(repo: Path, schreiben: bool = True) -> list[str]:
     """Hängt alle offenen Urteile an. Rückgabe: übertragene Kennungen."""
     offen = freigaben.protokoll_offen()
@@ -78,9 +118,7 @@ def uebertragen(repo: Path, schreiben: bool = True) -> list[str]:
     if UEBERSCHRIFT not in text:
         text = text.rstrip("\n") + "\n\n---\n" + KOPF
     neue = "".join(zeile(e) for e in offen)
-    # Ans Ende des Abschnitts anhängen — der Abschnitt steht am Dateiende,
-    # also genügt Anhängen. Bestehende Zeilen werden nie angefasst.
-    text = text.rstrip("\n") + "\n" + neue
+    text = _einfuegen(text, neue)
     if schreiben:
         ziel.write_text(text, encoding="utf-8")
         for e in offen:

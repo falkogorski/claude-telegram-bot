@@ -77,16 +77,45 @@ def _geheimnisse_werden_abgewiesen():
     assert f.offene() == [], "eine abgewiesene Anfrage wurde trotzdem abgelegt"
 
 
-# --- Leitplanke 5: Fail-safe = Ablehnen ------------------------------------
-def _frist_gilt_als_ablehnung():
+# --- Leitplanke 5: Fail-safe heißt „die Aktion geschieht nicht" -------------
+# [GEÄNDERT 2026-07-25] Vorher prüfte dieser Test, dass eine abgelaufene Frist
+# als Ablehnung gilt. Das war die falsche Regel: Schweigen darf nie bewirken,
+# dass etwas passiert — aber es ist auch kein Nein.
+def _frist_frischt_auf_statt_zu_verfallen():
     _leeren()
     a = _stellen()
     spaeter = time.time() + f.FRIST_STUNDEN * 3600 + 60
-    assert a.abgelaufen(spaeter), "Frist greift nicht"
-    # Auch ein „ja" nach Fristablauf endet als Ablehnung.
-    e = f.urteilen(a.kennung, True, "Adam", jetzt=spaeter)
-    assert e["urteil"] == "abgelehnt", "Zustimmung nach Frist wurde angenommen!"
-    assert "Frist" in e["grund"], f"Grund unklar: {e['grund']}"
+    assert a.faellig(spaeter), "Auffrischung wird nicht fällig"
+
+    # Keine Regung von Adam → schlicht neu vorlegen, kein Urteil, kein Protokoll.
+    neu = f.auffrischen(letzte_regung=None, jetzt=spaeter)
+    assert [x.kennung for x in neu] == [a.kennung], "nicht erneut vorgelegt"
+    wieder = f.finden(a.kennung)
+    assert wieder is not None, "die Anfrage wurde beerdigt statt aufgefrischt"
+    assert wieder.vorgelegt == 2 and not wieder.gesehen
+    assert f.protokoll_offen() == [], "eine Frist hat einen Protokolleintrag erzeugt"
+
+    # Regung im Fenster → „gesehen, offen"; immer noch kein Urteil.
+    noch_spaeter = spaeter + f.FRIST_STUNDEN * 3600 + 60
+    f.auffrischen(letzte_regung=spaeter + 60, jetzt=noch_spaeter)
+    wieder = f.finden(a.kennung)
+    assert wieder.gesehen, "Adams Regung wurde nicht vermerkt"
+    assert wieder.vorgelegt == 3
+
+    # Und ein Ja bleibt ein Ja — die Frist überstimmt es nicht mehr.
+    e = f.urteilen(a.kennung, True, "Adam", jetzt=noch_spaeter)
+    assert e["urteil"] == "freigegeben", f"Ja wurde verworfen: {e}"
+
+
+def _unbeantwortet_ist_kein_urteil():
+    """Die eigene Liste — getrennt vom Entscheidungs-Protokoll."""
+    _leeren()
+    a = _stellen()
+    assert f.unbeantwortet() == [], "frische Anfrage gilt schon als unbeantwortet"
+    f.auffrischen(letzte_regung=None,
+                  jetzt=time.time() + f.FRIST_STUNDEN * 3600 + 60)
+    assert [x.kennung for x in f.unbeantwortet()] == [a.kennung]
+    assert f.protokoll_offen() == [], "Unbeantwortetes landete im Protokoll"
 
 
 def _unbekannte_anfrage_wird_abgewiesen():
@@ -138,6 +167,38 @@ def _protokoll_zeile_sprengt_keine_tabelle():
     assert z.count("|") == 7, f"Spaltenzahl verändert: {z!r}"
 
 
+def _protokoll_landet_im_richtigen_abschnitt():
+    """B3: Die Layout-Annahme wird gemessen, nicht geglaubt.
+
+    Vorher stand im Übertrager „der Abschnitt steht am Dateiende, also genügt
+    Anhängen". Landet je ein Abschnitt danach, wandern Protokollzeilen still in
+    den falschen — und ein Protokoll, dessen Zeilen anderswo auftauchen, ist
+    schlimmer als keines, weil niemand den Fehler bemerkt.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import entscheidungs_protokoll as ep
+
+    drehbuch = (f"# Drehbuch\n\nText.\n\n{ep.UEBERSCHRIFT}\n\n"
+                "| Zeitpunkt | Urteil |\n|---|---|\n"
+                "| alt | ✅ |\n\n"
+                "## Anhang Z — steht bewusst DAHINTER\n\nSchlusstext.\n")
+    ziel = _TMP / "layout"
+    ziel.mkdir(exist_ok=True)
+    (ziel / "MIGRATION.md").write_text(drehbuch, encoding="utf-8")
+
+    _leeren()
+    a = _stellen(titel="Layout-Probe")
+    f.urteilen(a.kennung, True, "Adam")
+    ep.uebertragen(ziel)
+
+    zeilen = (ziel / "MIGRATION.md").read_text(encoding="utf-8").splitlines()
+    i_neu = next(i for i, z in enumerate(zeilen) if "Layout-Probe" in z)
+    i_anhang = next(i for i, z in enumerate(zeilen) if z.startswith("## Anhang Z"))
+    assert i_neu < i_anhang, ("die neue Zeile landete HINTER dem Folgeabschnitt "
+                              f"({i_neu} > {i_anhang}) — Annahme statt Messung")
+    assert zeilen[-1].strip() == "Schlusstext.", "der Folgeabschnitt wurde beschädigt"
+
+
 # --- Leitplanke 7: Herkunft wird geführt ----------------------------------
 def _herkunft_wird_gefuehrt():
     _leeren()
@@ -150,17 +211,24 @@ def _uebersicht_nennt_die_frist():
     _leeren()
     _stellen()
     t = f.uebersicht()
-    assert "gilt: abgelehnt" in t, "die Übersicht sagt nicht, was ohne Antwort gilt"
+    assert "gilt als " in t and "abgelehnt" in t, \
+        "die Übersicht sagt nicht, was ohne Antwort gilt"
+    assert "erneut vor" in t, "die Übersicht verspricht keine erneute Vorlage"
     assert " h" in t, "keine Restfrist genannt"
 
 
 check("Aktion und Titel sind Pflicht (Konkret vor Label)", _aktion_ist_pflicht)
 check("Geheimnisse werden abgewiesen, nicht angezeigt", _geheimnisse_werden_abgewiesen)
-check("Frist abgelaufen → gilt als abgelehnt, auch bei Ja", _frist_gilt_als_ablehnung)
+check("Frist frischt auf, statt zu verfallen (Ja bleibt Ja)",
+      _frist_frischt_auf_statt_zu_verfallen)
+check("Unbeantwortetes ist kein Urteil (eigene Liste)",
+      _unbeantwortet_ist_kein_urteil)
 check("unbekannte Anfrage wird abgewiesen", _unbekannte_anfrage_wird_abgewiesen)
 check("nur reversibles Grün ist bündelbar", _nur_gruen_mit_rueckweg_buendelbar)
 check("jedes Urteil erzeugt einen Protokoll-Eintrag", _urteil_erzeugt_protokoll)
 check("Protokoll-Zeile sprengt die Tabelle nicht", _protokoll_zeile_sprengt_keine_tabelle)
+check("Protokollzeile landet im richtigen Abschnitt (B3)",
+      _protokoll_landet_im_richtigen_abschnitt)
 check("Herkunft wird geführt", _herkunft_wird_gefuehrt)
 check("Übersicht nennt Frist und Folge", _uebersicht_nennt_die_frist)
 

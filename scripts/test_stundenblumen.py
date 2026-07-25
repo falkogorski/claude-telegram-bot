@@ -142,6 +142,51 @@ def _befunde_melden_sich():
     assert m and "Bot-Prozess" in m[0], f"Befund nicht gemeldet: {m}"
 
 
+def _anmeldung_bruch_wird_gemeldet():
+    """C2: Ein Kippen der Anmeldung fällt SOFORT auf, statt in Stille."""
+    _leeren()
+    sb.shutil.which = lambda n: "/usr/bin/" + n
+    ruf = []
+
+    class _P:
+        def __init__(self, out): self.stdout, self.stderr, self.returncode = out, "", 0
+
+    def _run(cmd, **kw):
+        ruf.append(cmd[0])
+        if cmd[0] == "systemctl":
+            return _P("4711\n")
+        return _P("Jul 25 23:00 bot: anthropic: OAuth token expired\n")
+    sb.subprocess.run = _run
+    befunde = sb.anmeldung_pruefen()
+    assert any("Anmeldung hat versagt" in b for b in befunde), \
+        f"der Anmelde-Bruch wurde nicht gemeldet: {befunde}"
+    assert "journalctl" in ruf, "das Journal wurde gar nicht gelesen"
+
+
+def _anmeldung_still_wenn_gesund():
+    """Und schweigt, wenn nichts ist — sonst glaubt ihr niemand mehr."""
+    _leeren()
+    sb.shutil.which = lambda n: "/usr/bin/" + n
+
+    class _P:
+        def __init__(self, out): self.stdout, self.stderr, self.returncode = out, "", 0
+    sb.subprocess.run = lambda cmd, **kw: _P(
+        "4711\n" if cmd[0] == "systemctl" else "alles ruhig\n")
+    assert not [b for b in sb.anmeldung_pruefen()
+                if "versagt" in b], "Fehlalarm bei gesunder Anmeldung"
+
+
+def _kein_geheimniswert_im_code():
+    """Geprüft wird das VORHANDENSEIN der Anmeldung, nie ihr Wert."""
+    quelle = Path(sb.__file__).read_text(encoding="utf-8")
+    # Der Name darf vorkommen — der Wert darf nirgends gelesen oder gemeldet
+    # werden. Ein `split("=", 1)[1]` auf der Prozessumgebung wäre genau das.
+    assert 'split("=", 1)[0]' in quelle, \
+        "die Umgebung wird nicht nur nach NAMEN durchsucht"
+    assert 'split("=", 1)[1]' not in quelle, \
+        "der Wert eines Umgebungs-Geheimnisses wird gelesen!"
+
+
 def _kein_modellaufruf_im_modul():
     quelle = Path(sb.__file__).read_text(encoding="utf-8")
     for verdacht in ("claude_agent_sdk", "anthropic", "ClaudeSDKClient",
@@ -158,6 +203,9 @@ check("nächtliches Wartungsfenster schweigt", _nachtfenster_schweigt)
 check("Stillstand fällt bei der Prüfung auf", _stillstand_faellt_auf)
 check("Veränderung wird sichtbar (nicht verhindert)", _manipulation_wird_sichtbar)
 check("echte Befunde melden sich", _befunde_melden_sich)
+check("Anmelde-Bruch wird sofort gemeldet (C2)", _anmeldung_bruch_wird_gemeldet)
+check("gesunde Anmeldung schweigt (C2)", _anmeldung_still_wenn_gesund)
+check("nie der Wert eines Geheimnisses (C2)", _kein_geheimniswert_im_code)
 check("kein Modell- und kein Netzaufruf im Modul", _kein_modellaufruf_im_modul)
 
 if fails:

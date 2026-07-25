@@ -138,6 +138,83 @@ def _befunde() -> list[str]:
             raus.append(f"{wartend} unzugestellte Postfach-Aufträge")
     except Exception:
         pass
+    # 4. Ist die Anmeldung gekippt? (C2)
+    raus.extend(anmeldung_pruefen())
+    return raus
+
+
+# --------------------------------------------------------------- C2 Anmeldung --
+# Wortlaute, an denen ein Anmelde-Bruch im Journal erkennbar ist. Bewusst eng:
+# ein Fehlalarm hier kostet mehr Vertrauen, als er Sicherheit bringt.
+_AUTH_BRUCH = ("oauth token expired", "authentication_error", "invalid api key",
+               "invalid_api_key", "401 unauthorized", "please run /login",
+               "credentials are no longer valid")
+
+
+def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
+    """Meldet, wenn die Anmeldung gekippt ist — statt vorherzusagen, wann.
+
+    **Was gemessen wurde, bevor das hier so gebaut wurde** (25.07.): Auf dem VPS
+    gibt es **keine** `~/.claude/.credentials.json`. Die Anmeldung ist ein
+    Abo-Token in der Dienst-Umgebung, Form `sk-ant-oat…`, 108 Zeichen, **ohne
+    Punkte** — also **kein JWT**. Damit steckt **kein Ablaufdatum im Token**, und
+    jede Restlaufzeit-Anzeige wäre erfunden. (Das ist genau die Klasse Aussage,
+    die der Beleg-Grundsatz verbietet: ein Merkmal behaupten, das im Material
+    nicht enthalten ist.)
+
+    Also die ehrliche Umkehrung — **zwei** deterministische Prüfungen, kein
+    Modell-Aufruf, kein Netz, und der Wert des Geheimnisses wird nie gelesen:
+
+    1. **Ist überhaupt eine Anmeldung da?** Nur Vorhandensein, nie der Wert.
+    2. **Hat sie zuletzt versagt?** Auth-Fehler im Journal des Dienstes.
+
+    Das nimmt Adam die Vorwarnzeit nicht weg — die holt er sich, indem er das
+    Token **kurz vor der Abreise neu erzeugt**; dann liegen die vollen Wochen
+    davor. Aber es sorgt dafür, dass ein Kippen **sofort** auffällt statt in
+    vierzehn Tagen Stille.
+    """
+    raus: list[str] = []
+    pid = ""
+    if shutil.which("systemctl"):
+        try:
+            p = subprocess.run(["systemctl", "show", "claude-telegram-bot",
+                                "-p", "MainPID", "--value"],
+                               capture_output=True, text=True, timeout=10)
+            pid = (p.stdout or "").strip()
+        except Exception:
+            return raus
+    if not pid or pid == "0":
+        return raus                       # kein Prozess — meldet Prüfung 1 schon
+
+    # (1) Vorhandensein — es wird nur der NAME gesucht, nie der Wert gelesen.
+    try:
+        roh = Path(f"/proc/{pid}/environ").read_bytes().decode("utf-8", "replace")
+        namen = {z.split("=", 1)[0] for z in roh.split("\0") if "=" in z}
+        if "CLAUDE_CODE_OAUTH_TOKEN" not in namen:
+            if "ANTHROPIC_API_KEY" in namen:
+                raus.append("⚠️ Der Bot läuft über einen API-Schlüssel statt "
+                            "über das Abo-Token — das bucht Geld ab!")
+            else:
+                raus.append("Keine Abo-Anmeldung in der Dienst-Umgebung")
+    except Exception:
+        pass                              # nicht lesbar ist kein Befund
+
+    # (2) Hat sie versagt? Nur die letzten Minuten, damit ein alter Fehler nicht
+    # ewig nachhallt.
+    if shutil.which("journalctl"):
+        try:
+            p = subprocess.run(
+                ["journalctl", "-u", "claude-telegram-bot", "--since",
+                 f"{max(60, seit_s)} seconds ago", "--no-pager", "-q"],
+                capture_output=True, text=True, timeout=20)
+            text = (p.stdout or "").lower()
+            treffer = [m for m in _AUTH_BRUCH if m in text]
+            if treffer:
+                raus.append("🔑 Die Anmeldung hat versagt (" + treffer[0] + ") — "
+                            "das Abo-Token muss neu erzeugt werden. Bis dahin "
+                            "arbeitet nichts, was ein Modell braucht.")
+        except Exception:
+            pass
     return raus
 
 

@@ -13,6 +13,14 @@ metadata:
 
 **Start:** 2026-06-23 14:29 Uhr
 **Status-Werte:** OFFEN · LÄUFT · VERIFIZIERT · BLOCKIERT
+**Zwei Achsen je Punkt** `[NEU 2026-07-25]`: Neben dem Status trägt jeder Punkt
+künftig **Wichtigkeit** (ändert sich fast nie) und **Dringlichkeit** (ändert sich
+ständig). Grund: „Status: OFFEN" allein lässt alles gleich dringend wirken, und
+nichts sortiert sich je. Matrix/Element etwa ist dauerhaft **hoch wichtig** und
+derzeit **niedrig dringend** — ohne die zweite Achse ist das nicht ausdrückbar.
+Die Phasen bleiben (Adam-Entscheid), es kommt nur die Achse dazu. Schreibweise:
+`Wichtigkeit: hoch · Dringlichkeit: niedrig`.
+
 **Regel:** Sequenziell. Ein Punkt nach dem anderen. Erst grün, dann der nächste. Spontanes geht in den Backlog (Phase 11 unten), nicht in den laufenden Strang. Nach jedem Phasenwechsel kurzer Audit + Strategie-Recheck.
 **Zusätzlich verbindlich:** Die Regeln aus `CLAUDE.md` (💰 Kostenregel, Nutzer-Workflow: ein Schritt pro Nachricht, keine `#`-Kommentare in zsh-Blöcken, pbpaste-Reihenfolge, Secrets nie in den Chat, jede Anweisung mit „Erwartete Ausgabe").
 
@@ -21,6 +29,8 @@ metadata:
 ---
 
 ## Änderungshistorie
+
+- **2026-07-25 (21)** — **Stundenblumen gebaut (neuer Punkt 9.9) + zwei Achsen verankert.** Die Belegkette schließt die Lücke zwischen den Zeitpunkt-Prüfungen; **das Ausbleiben der Übergabe ist der Alarm.** **Der erste Testlauf hat den Punkt fast entwertet und dadurch gerettet:** Die Kette verglich die Fingerabdrücke nur, statt sie nachzurechnen — sie hätte gar nichts belegt. Jetzt wird jeder Abdruck aus dem Inhalt neu berechnet. Ruhezeiten sind Teil des ersten Entwurfs, nicht ein Aufsatz. Schutzwirkung ehrlich benannt: manipulations-**sichtbar**, nicht -**sicher**. **Zwei Achsen** (Wichtigkeit · Dringlichkeit) als Schreibweise im Drehbuch verankert. Regressionslauf **29/29**.
 
 - **2026-07-25 (20)** — **Hora gebaut (neuer Punkt 9.8) + Arbeitsmodus-Regel.** Der autonome Läufer steht mit allen fünf Bedingungen im Code und je einem Test; Schwerpunkt der Prüfungen ist, was er **nicht** tut: entscheiden, auf rotem Fundament bauen, Gescheitertes abhaken, sich Befehle ausdenken, endlos weiterlaufen. **Zur Kontingent-Auflage:** Die Grenzen ließen sich von hier nicht messen — statt zu raten ist Hora **ohne Kenntnis** gebaut (ein Auftrag je Lauf, Rest über die 5.31-Pause); der Plan steht damit auf keiner Annahme. **Arbeitsmodus in CLAUDE.md:** „Durchlauf" ist der Normalfall, ein Weitergabe-Block ist ein **Meilenstein, kein Halteschild** — Anlass war mein unnötiger Halt nach dem 9.4-Block. Geprüft, dass keine vorhandene Regel das schon abdeckte.
 
@@ -912,6 +922,19 @@ Absturzfall ausdrücklich auf 5.18).
 - **Sicherheit:** Hora führt **nur aus, was in der Liste steht** — ohne hinterlegten Befehl wird nichts geraten. Ein Probelauf (`--trocken`) meldet, was er getan hätte, ohne zu handeln.
 - **Test:** `scripts/test_hora.py` (7 Prüfungen, im Regressionslauf → **28/28**) — Schwerpunkt auf dem, was er **nicht** tut.
 - **Noch zu tun:** Zeitgeber anlegen (root, Befehlsblock folgt) · **Auftragsliste füllen — das ist Adams Teil vor Dienstag.**
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
+### 9.9 Stundenblumen — die dauerlaufende Belegkette `[NEU 2026-07-25]`
+- **Status:** 🔄 GEBAUT — Zeitgeber fehlt noch (root)
+- **Das Problem:** Alle bisherigen Prüfungen sind **Zeitpunkt**-Prüfungen. Steht der Prüfer selbst still, merkt es niemand — ein Wächter, der schweigt, ist von einem, der nichts zu melden hat, nicht zu unterscheiden.
+- **Die Umkehrung:** Kurze, billige Läufe in dichter Folge, die einander anstoßen. **Das Ausbleiben der Übergabe ist selbst der Alarm.** Nicht der Befund meldet sich, sondern die Lücke.
+- **Warum minütlich tragbar:** Eine Blume ruft **kein Modell** auf und geht **nicht ins Netz** — ein eigener Test durchsucht das Modul danach. Billig immer, teuer nur bei Anlass.
+- **⚠️ Ein Fund beim ersten Testlauf, der den Punkt fast entwertet hätte:** Meine Kette verglich die Fingerabdrücke nur, statt sie **nachzurechnen**. Damit wäre sie Zierde gewesen: Wer ein Glied verändert, ohne dessen Abdruck anzufassen, bliebe unsichtbar. Jetzt wird jeder Abdruck aus dem Inhalt neu berechnet. **Ein Fingerabdruck, der nie nachgerechnet wird, belegt nichts.**
+- **Ehrlich zur Schutzwirkung:** manipulations-**sichtbar**, nicht manipulations-**sicher** — wer die ganze Kette neu rechnet, hinterlässt keine Spur. Das genügt für unser Problem (Ausfall und Versehen), nicht für einen Fälscher im eigenen Haus. Blockchain löst Misstrauen zwischen Fremden; das haben wir nicht. Die Stufe darüber wären **signierte Commits** — vorgemerkt, Auslöser benannt (mehr als eine schreibende Instanz, oder wenn die Kette mehr beweisen muss als „hier ist nichts verrutscht").
+- **Ruhezeiten von Anfang an:** Neustart, Wartung und das nächtliche 04:00-Fenster lösen **keinen** Alarm aus. Ein Wächter, dem niemand mehr glaubt, ist schlimmer als keiner — deshalb im ersten Entwurf, nicht als Aufsatz.
+- **Rollen bleiben getrennt:** Hora **arbeitet** · Stundenblumen **belegen, dass das System lebt** · Kassiopeia **prüft Inhalte**.
+- **Test:** `scripts/test_stundenblumen.py` (9 Prüfungen, im Regressionslauf → **29/29**); die Kette wird zusätzlich im 4-Uhr-Check (8.1) bewertet.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

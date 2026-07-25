@@ -14,6 +14,8 @@
 # Telegram-Nachricht NUR bei Problemen (rot) — grüne Tage bleiben still.
 # ============================================================================
 set -uo pipefail
+VENVPY="$(dirname "$0")/../.venv/bin/python3"
+[ -x "$VENVPY" ] || VENVPY="python3"
 
 ENVFILE=/etc/claude-telegram-bot.env
 BOTDIR=/home/claudebot/claude-telegram-bot
@@ -112,6 +114,20 @@ if [ -d "${TELEGRAM_API_DIR:-/var/lib/telegram-bot-api}" ]; then
   fi
 else
   lines+=("~ API-Zwischenlager: kein eigener Bot-API-Server aktiv (5.34 nicht eingeschaltet)")
+fi
+
+
+
+# --- 9. Stundenblumen-Kette (lebt das System durchgehend?) ------------------
+# Die Zeitpunkt-Pruefungen sagen nur etwas ueber diesen Augenblick. Die Kette
+# belegt die Zeit DAZWISCHEN — und ihr Stillstand ist selbst der Befund.
+if [ -f "$(dirname "$0")/stundenblume.py" ]; then
+  if "$VENVPY" "$(dirname "$0")/stundenblume.py" --pruefen > /tmp/blumen_check.log 2>&1; then
+    lines+=("✅ Stundenblumen: $(tail -1 /tmp/blumen_check.log)")
+  else
+    lines+=("❌ Stundenblumen: $(tail -1 /tmp/blumen_check.log)")
+    problems+=("Die Stundenblumen-Kette steht still oder ist gebrochen: $(tail -1 /tmp/blumen_check.log)")
+  fi
 fi
 
 

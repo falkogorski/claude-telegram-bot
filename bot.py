@@ -2964,6 +2964,12 @@ def _load_updater():
     return _upd
 
 
+# A3 (Conni-Härtung): Was Adam ANGEZEIGT bekam, wird bis zum Knopfdruck
+# mitgeführt — der Updater spielt nur genau diese Versionen ein. Weicht der
+# Stand beim Klick ab, wird nicht installiert, sondern neu gefragt.
+_SHOWN_UPDATES: dict[int, dict[str, str]] = {}
+
+
 async def cmd_updates(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """5.21-Updater (Vier-Augen): zeigt verfügbare Updates mit Ampel und bietet
     Freigabe-Knöpfe. Deterministisch, KEIN Modell-Aufruf. Installation erst nach
@@ -2980,6 +2986,8 @@ async def cmd_updates(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not ups:
         await update.message.reply_text("✅ Alles aktuell — keine Updates verfügbar.")
         return
+    # A3: angezeigte Versionen merken — nur genau die werden später eingespielt.
+    _SHOWN_UPDATES[update.effective_user.id] = {u["name"]: u["latest"] for u in ups}
     sym = {"gruen": "🟢", "gelb": "🟡", "rot": "🔴"}
     green = [u for u in ups if u["ampel"] == "gruen" and u["kind"] == "pip"]
     single = [u for u in ups if u["kind"] == "pip" and u["ampel"] in ("gelb", "rot")]
@@ -3010,6 +3018,7 @@ async def on_update_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
         return
     data = query.data or ""
     upd = _load_updater()
+    shown = _SHOWN_UPDATES.get(update.effective_user.id, {})
     if data == "upd:green":
         ups = await asyncio.to_thread(upd.classify)
         names = [u["name"] for u in ups if u["ampel"] == "gruen" and u["kind"] == "pip"]
@@ -3021,13 +3030,16 @@ async def on_update_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
         await query.edit_message_text("Nichts mehr einzuspielen (evtl. inzwischen aktuell).")
         return
     await query.edit_message_text(
-        f"⏳ Spiele ein: {', '.join(names)} … (Regressionstest läuft, das kann etwas dauern).")
-    res = await asyncio.to_thread(upd.apply_updates, names)
-    msg = ("✅ " if res["ok"] else "⚠️ ") + res["msg"]
+        "⏳ Prüfe zuerst das Fundament, dann spiele ich ein: "
+        f"{', '.join(names)} … (zwei Testläufe, das dauert einen Moment).")
+    # A3: nur die angezeigten Versionen freigeben — der Updater bricht bei Drift ab.
+    expected = {n: shown[n] for n in names if n in shown}
+    res = await asyncio.to_thread(upd.apply_updates, names, expected)
+    # A2/A6: Zustand ehrlich melden — „unvollständig" ist eine eigene Stufe.
+    icon = "✅" if res["ok"] else ("🔴" if res.get("state") == "rollback_unvollstaendig" else "⚠️")
+    msg = f"{icon} {res['msg']}"
     if res.get("done"):
         msg += "\nEingespielt: " + ", ".join(res["done"])
-    if res.get("rolled_back"):
-        msg += "\nZurückgerollt: " + ", ".join(res["rolled_back"])
     if res.get("restart_needed"):
         msg += "\n\n🔁 Damit die neuen Versionen greifen: bitte /restart."
     await query.edit_message_text(msg)

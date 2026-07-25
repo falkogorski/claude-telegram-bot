@@ -54,7 +54,8 @@ run "Voice-Eingangs-Schutz"             "$PY" scripts/test_voice_entry_guard.py
 run "Session-Waechter 5.18"             "$PY" scripts/test_stall_5_18.py
 run "Kanal-Routing Phase 6"             "$PY" scripts/test_channels_6.py
 run "Warteschlange FIFO 5.5"            "$PY" scripts/test_queue_order_5_5.py
+run "Updater-Haertung A1-A7"            "$PY" scripts/test_updater_haertung.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
-echo "== Ergebnis: $((14-FAILS))/14 bestanden =="
+echo "== Ergebnis: $((15-FAILS))/15 bestanden =="
 exit $FAILS

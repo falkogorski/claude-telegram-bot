@@ -1,0 +1,25 @@
+[
+  {
+    "_hinweis": "So sieht ein Auftrag aus, den Hora ALLEIN erledigen darf. Titel und Befehl genügen. Hora nimmt je Lauf EINEN Auftrag, prüft vorher und nachher den Regressionslauf und hakt nur bei Grün ab.",
+    "titel": "Abhängigkeits-Register auf Vollständigkeit prüfen",
+    "befehl": ".venv/bin/python3 -c \"import os; os.environ.setdefault('TELEGRAM_BOT_TOKEN','x'); os.environ.setdefault('ALLOWED_USER_IDS','1'); import bot; ok,l=bot.run_self_check(); print('\\n'.join(l)); raise SystemExit(0 if ok else 1)\""
+  },
+  {
+    "_hinweis": "Ein Auftrag, der Adams Zustimmung braucht. Hora entscheidet NICHT — er legt ihn ins Freigabe-Postfach und geht weiter. 'aktion' ist der wörtliche Befehl (Konkret vor Label), 'rueckweg' macht ihn bündelbar, wenn er grün ist.",
+    "titel": "SDK auf die neueste Fassung heben",
+    "braucht_zustimmung": true,
+    "ampel": "gelb",
+    "aktion": "pip install claude-agent-sdk==<neue Fassung>",
+    "begruendung": "Der Versions-Monitor meldet eine neuere Fassung.",
+    "rueckweg": "pip install claude-agent-sdk==0.2.127"
+  },
+  {
+    "_hinweis": "Ein reiner Prüf-Auftrag ohne Veränderung — die sichersten für die Abwesenheit. Solche dürfen ruhig mehrfach in der Liste stehen.",
+    "titel": "Stundenblumen-Kette bewerten",
+    "befehl": ".venv/bin/python3 scripts/stundenblume.py --pruefen"
+  },
+  {
+    "_hinweis": "Ein Auftrag OHNE Befehl wird übersprungen und gemeldet — Hora denkt sich nichts aus. Nutze das bewusst als Merkzettel, wenn du nur einen Gedanken parken willst.",
+    "titel": "Merkzettel: Kalender-Anbindung testen, sobald das Apple-Kennwort da ist"
+  }
+]

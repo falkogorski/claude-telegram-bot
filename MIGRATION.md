@@ -30,6 +30,8 @@ Die Phasen bleiben (Adam-Entscheid), es kommt nur die Achse dazu. Schreibweise:
 
 ## Änderungshistorie
 
+- **2026-07-25 (23)** — **G und H als Punkte 9.11/9.12 angelegt, Hora-Beispielliste erstellt.** **9.11 Sicherheits-Prüfpaket** mit der Einsicht, die es trägt: Der realistischste Angriffsweg ist **die Sprache, nicht das Netz** — und die Klasse, die uns bisher **tatsächlich** getroffen hat, ist **Versagen von innen**; das Paket prüft beides. Signierte Commits vorgemerkt **mit benanntem Auslöser** statt vagem „später". **9.12** zieht die ehrliche Folgerung aus der Verschlüsselungs-Messung: Im Ruhezustand verschlüsseln und unbeaufsichtigt neu starten schließen sich praktisch aus — also **nicht nachrüsten, sondern die Klasse begrenzen: Was wirklich rot ist, bleibt vom VPS fern.** Dazu [`docs/hora-auftragsliste-beispiel.json`](docs/hora-auftragsliste-beispiel.json) — vier kommentierte Muster, damit Adam nur noch Zeilen austauschen muss.
+
 - **2026-07-25 (22)** — **Regeln F, SITZUNGSSTART, Werte-Tabelle und Modularisierung angelegt.** **F:** Fenster-Regel (jede Verlängerung eines Ablaufs vergrößert jedes offene Fenster darin — Anlass H1/05:07), Geschwister-Regel (ein Fix ist erst fertig, wenn die Schwesterpfade geprüft sind — Anlass Voice vs. Foto/Video/Datei), „Fremdes nehmen, wo es nicht ans Herz geht", und die Verallgemeinerung des R4-Prüfsteins. **[`SITZUNGSSTART.md`](SITZUNGSSTART.md)** (ROLLE: `sitzungsstart`) mit den anzuhängenden Repos, der Pflichtlektüre, der Rechte-Klärung und der Zuerst-Prüfung in vier Fragen. **Momo-Wertetabelle** in der Werte-Charta, drei Teile — wie wir bauen (Kassiopeia, Beppo, Rückwärtsgang, Gigis Erzählung, Meister Hora), was die Assistenz dem Menschen gibt (Test der grauen Herren), und die Unendliche Geschichte als Warnung von innen: **ein Assistent, der alles übernimmt, kann einen Menschen aushöhlen — nicht durch Bosheit, sondern durch Dienstfertigkeit.** **Neuer Punkt 9.10 Modularisierung**, ausdrücklich **getrennt** von R5: Aufteilen braucht kein Urteil über Notwendigkeit, Entrümpeln schon.
 
 - **2026-07-25 (21)** — **Stundenblumen gebaut (neuer Punkt 9.9) + zwei Achsen verankert.** Die Belegkette schließt die Lücke zwischen den Zeitpunkt-Prüfungen; **das Ausbleiben der Übergabe ist der Alarm.** **Der erste Testlauf hat den Punkt fast entwertet und dadurch gerettet:** Die Kette verglich die Fingerabdrücke nur, statt sie nachzurechnen — sie hätte gar nichts belegt. Jetzt wird jeder Abdruck aus dem Inhalt neu berechnet. Ruhezeiten sind Teil des ersten Entwurfs, nicht ein Aufsatz. Schutzwirkung ehrlich benannt: manipulations-**sichtbar**, nicht -**sicher**. **Zwei Achsen** (Wichtigkeit · Dringlichkeit) als Schreibweise im Drehbuch verankert. Regressionslauf **29/29**.
@@ -1189,6 +1191,25 @@ Absturzfall ausdrücklich auf 5.18).
 - **Vorgehen, wenn es dran ist:** Schnitte entlang der bereits bestehenden Grenzen (Medien, Kalender, Freigaben, Updates, Reaktionen liegen ohnehin schon in eigenen Dateien) — der Rest von `bot.py` teilt sich natürlich in Handler, Sitzungsführung, Sendepfad und Selbstcheck. **Jeder Schnitt einzeln**, jeder mit grünem Regressionslauf, **kein Sammel-Commit** — dieselben Auflagen wie bei R5, aus demselben Grund: Eine Umbauaktion, die etwas mitreißt, ist schlimmer als die Unübersichtlichkeit, die sie beseitigt.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
+
+### 9.11 Sicherheits-Prüfpaket (G) `[NEU 2026-07-25]`
+- **Status:** OFFEN · **Wichtigkeit: hoch · Dringlichkeit: vorerst niedrig**
+- **Die Lage:** Die **Analyse** liegt (Rotes-Team-Bericht) — was fehlt, ist der **Nachweis, dass die Mechanismen greifen**. Eine Schutzvorkehrung, die nie unter Beschuss stand, ist eine Vermutung.
+- **① Jetzt und billig:** Bedrohungsmodell schriftlich (wer greift woran an, was wäre der Schaden) · Härtungsprüfungen in den täglichen Lauf (8.1) aufnehmen, damit die Härtung nicht still verfällt.
+- **② Vor dem ersten fremden Nutzer, Pflicht:** ein echter Rot-Team-Durchgang. Nicht vorher nötig, aber vorher **terminiert**.
+- **③ Der eigentliche Punkt:** **Der realistischste Angriffsweg ist die Sprache, nicht das Netz** — untergeschobene Anweisungen in Webseiten, Dateien, später E-Mails. Die Gegenmittel existieren (Herkunfts-Schranke 5.25, Geheimnis-Marker, Weißlisten in C1 und 9.4), **waren aber nie unter Beschuss**.
+- **Und die Klasse, die uns wirklich trifft:** Bisher kam **jeder** Schaden von innen — 12/14-Fehlalarm, SDK-Divergenz, der Wächter, der einen gesunden Bot beenden wollte, der Filter ohne Wirkungsprüfung, die Kette ohne Nachrechnung. Das Paket prüft deshalb **beides**: Angriff von außen **und Versagen von innen**.
+- **Signierte Commits — vorgemerkt, nicht jetzt** (Wichtigkeit mittel · Dringlichkeit niedrig): Git belegt heute, dass nichts **versehentlich** gebrochen ist; signierte Commits würden belegen, dass nichts **absichtlich** verändert wurde. **Auslöser benannt:** sobald mehr als eine Instanz Schreibrechte hat, **oder** sobald die Stundenblumen-Kette mehr beweisen muss als „hier ist nichts verrutscht". Kostet nichts außer Einrichtung — deshalb prüfen, **wenn** einer der Fälle eintritt, nicht vorher.
+- **Adam-Bestätigung:** —
+
+### 9.12 Rote Daten bleiben vom VPS fern (H) `[NEU 2026-07-25]`
+- **Status:** OFFEN · **Wichtigkeit: hoch · Dringlichkeit: mittel**
+- **Die ehrliche Ausgangslage:** Am 25.07. gemessen — `/` ist blankes ext4, **keine Verschlüsselung im Ruhezustand**. Und: **Verschlüsselung im Ruhezustand ist auf einem VPS kaum lösbar, wenn man unbeaufsichtigte Neustarts will** — ein verschlüsseltes Wurzelverzeichnis verlangt beim Start ein Kennwort, und genau das kann niemand eingeben, wenn nachts um vier neu gestartet wird.
+- **Die Konsequenz ist deshalb keine technische, sondern eine der Klassenbildung:** **Was wirklich rot ist, bleibt vom VPS fern.** Nicht nachrüsten, sondern begrenzen. Das ist die einzige Antwort, die hält, ohne den unbeaufsichtigten Betrieb aufzugeben.
+- **Was daraus folgt:** Die Ampel entscheidet nicht nur, welches Modell etwas sieht, sondern auch, **welche Daten überhaupt auf den Server dürfen**. Beim Enforcement (nach der Beobachtungsphase, ~16.08.) mitdenken.
+- **Log-Repo, Schutzklasse jetzt festlegen — nicht erst mit 5.19:** Heute unkritisch, aber mit den Sekretärin-Funktionen wandern **Rechnungen und Klientennamen** in dieselben Logs, die Conni lesen darf. Der Pflicht-Prüfpunkt hängt bereits an 5.19; die **Klasse** gehört vorher bestimmt, damit sie nicht unter Zeitdruck entsteht.
+- **Historie des Log-Repos:** Adams Entscheidung folgt der Empfehlung — **stehen lassen** (null harte Identifikatoren gefunden). Vermerk im Register; die **Repo-Neuanlage bleibt der benannte Notausgang**, falls sich das Urteil ändert.
+- **Adam-Bestätigung:** —
 
 ## Phase 10 — Abschluss-Audit
 

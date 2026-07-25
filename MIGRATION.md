@@ -30,6 +30,8 @@ Die Phasen bleiben (Adam-Entscheid), es kommt nur die Achse dazu. Schreibweise:
 
 ## Änderungshistorie
 
+- **2026-07-25 (22)** — **Regeln F, SITZUNGSSTART, Werte-Tabelle und Modularisierung angelegt.** **F:** Fenster-Regel (jede Verlängerung eines Ablaufs vergrößert jedes offene Fenster darin — Anlass H1/05:07), Geschwister-Regel (ein Fix ist erst fertig, wenn die Schwesterpfade geprüft sind — Anlass Voice vs. Foto/Video/Datei), „Fremdes nehmen, wo es nicht ans Herz geht", und die Verallgemeinerung des R4-Prüfsteins. **[`SITZUNGSSTART.md`](SITZUNGSSTART.md)** (ROLLE: `sitzungsstart`) mit den anzuhängenden Repos, der Pflichtlektüre, der Rechte-Klärung und der Zuerst-Prüfung in vier Fragen. **Momo-Wertetabelle** in der Werte-Charta, drei Teile — wie wir bauen (Kassiopeia, Beppo, Rückwärtsgang, Gigis Erzählung, Meister Hora), was die Assistenz dem Menschen gibt (Test der grauen Herren), und die Unendliche Geschichte als Warnung von innen: **ein Assistent, der alles übernimmt, kann einen Menschen aushöhlen — nicht durch Bosheit, sondern durch Dienstfertigkeit.** **Neuer Punkt 9.10 Modularisierung**, ausdrücklich **getrennt** von R5: Aufteilen braucht kein Urteil über Notwendigkeit, Entrümpeln schon.
+
 - **2026-07-25 (21)** — **Stundenblumen gebaut (neuer Punkt 9.9) + zwei Achsen verankert.** Die Belegkette schließt die Lücke zwischen den Zeitpunkt-Prüfungen; **das Ausbleiben der Übergabe ist der Alarm.** **Der erste Testlauf hat den Punkt fast entwertet und dadurch gerettet:** Die Kette verglich die Fingerabdrücke nur, statt sie nachzurechnen — sie hätte gar nichts belegt. Jetzt wird jeder Abdruck aus dem Inhalt neu berechnet. Ruhezeiten sind Teil des ersten Entwurfs, nicht ein Aufsatz. Schutzwirkung ehrlich benannt: manipulations-**sichtbar**, nicht -**sicher**. **Zwei Achsen** (Wichtigkeit · Dringlichkeit) als Schreibweise im Drehbuch verankert. Regressionslauf **29/29**.
 
 - **2026-07-25 (20)** — **Hora gebaut (neuer Punkt 9.8) + Arbeitsmodus-Regel.** Der autonome Läufer steht mit allen fünf Bedingungen im Code und je einem Test; Schwerpunkt der Prüfungen ist, was er **nicht** tut: entscheiden, auf rotem Fundament bauen, Gescheitertes abhaken, sich Befehle ausdenken, endlos weiterlaufen. **Zur Kontingent-Auflage:** Die Grenzen ließen sich von hier nicht messen — statt zu raten ist Hora **ohne Kenntnis** gebaut (ein Auftrag je Lauf, Rest über die 5.31-Pause); der Plan steht damit auf keiner Annahme. **Arbeitsmodus in CLAUDE.md:** „Durchlauf" ist der Normalfall, ein Weitergabe-Block ist ein **Meilenstein, kein Halteschild** — Anlass war mein unnötiger Halt nach dem 9.4-Block. Geprüft, dass keine vorhandene Regel das schon abdeckte.
@@ -1179,6 +1181,14 @@ Absturzfall ausdrücklich auf 5.18).
 - **Strategie-Recheck:** —
 
 ---
+
+### 9.10 Modularisierung von `bot.py` — nicht Entrümpelung `[NEU 2026-07-25]`
+- **Status:** OFFEN · **Wichtigkeit: hoch · Dringlichkeit: mittel** (früher als R5, aber nicht jetzt)
+- **Der Unterschied, auf den es ankommt (Conni 25.07.):** **Entrümpeln verlangt zu wissen, was tot ist — Aufteilen nicht.** Eine Datei in Module zu schneiden **entfernt nichts** und braucht **kein Urteil** über Notwendigkeit. Deshalb darf Modularisierung **nicht** mit R5 verheiratet werden, das bewusst bis Phase 10 wartet.
+- **Gemessenes Wachstum:** 6456 Zeilen (24.07. abends) → 6829 (25.07. früh) → **7775** (25.07. abends). **+1319 an einem Tag.** Bei diesem Tempo liegt die Datei Mitte August im fünfstelligen Bereich, und jede Änderung wird riskanter — nicht weil der Code schlechter wird, sondern weil die Übersicht schwindet.
+- **Vorgehen, wenn es dran ist:** Schnitte entlang der bereits bestehenden Grenzen (Medien, Kalender, Freigaben, Updates, Reaktionen liegen ohnehin schon in eigenen Dateien) — der Rest von `bot.py` teilt sich natürlich in Handler, Sitzungsführung, Sendepfad und Selbstcheck. **Jeder Schnitt einzeln**, jeder mit grünem Regressionslauf, **kein Sammel-Commit** — dieselben Auflagen wie bei R5, aus demselben Grund: Eine Umbauaktion, die etwas mitreißt, ist schlimmer als die Unübersichtlichkeit, die sie beseitigt.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
 
 ## Phase 10 — Abschluss-Audit
 

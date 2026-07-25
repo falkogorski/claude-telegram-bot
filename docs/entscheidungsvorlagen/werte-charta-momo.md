@@ -140,6 +140,53 @@ Sitzungen, Modellen, Rechten und Schnittstellen nichts mit. Die Technik trägt,
 ohne sich in den Vordergrund zu drängen. — **„Komplexität gehört dem System,
 Einfachheit dem Menschen."**
 
+## 8. Die Momo-Wertetabelle `[NEU 2026-07-25]`
+
+Drei Teile: **wie wir bauen**, **was die Assistenz dem Menschen gibt**, und die
+Warnung, die von der anderen Seite kommt.
+
+### A — Wie wir bauen (Momo)
+
+| Bild | Was es für uns heißt |
+|---|---|
+| **Kassiopeia** — die Schildkröte, die eine halbe Stunde vorausweiß und nie mehr sagt als sie weiß | Der **stille Wächter**: warnt knapp, verspricht nichts, was sie nicht belegen kann. Unsere Selbstchecks und Stundenblumen sind Kassiopeia — sie reden wenig und nie über das, was sie nicht geprüft haben |
+| **Beppos nächster Besenstrich** — nicht an die ganze Straße denken, sondern an den nächsten Strich | **Ein Punkt nach dem anderen, jeder fertig, bevor der nächste beginnt.** Deshalb sequenzielle Phasen, deshalb „grün oder zurück", deshalb keine Sammel-Commits |
+| **Der Rückwärtsgang zur Nirgend-Gasse** — man kommt nur voran, indem man rückwärts geht | Wo Eile drängt, ist **Langsamkeit** der Weg: erst messen, dann bauen; erst der Rückweg, dann der Eingriff. Der Start-Wächter, der ohne Rückweg **nicht** eingreift, ist genau das |
+| **Gigis Erzählung** — die schöne Geschichte, die keine Deckung hat | Die **gefährlichste Fehlerform**: neun stimmige Merkmale, von denen keines physikalisch existierte. Das Auflösungs-Budget ist die technische Antwort darauf |
+| **Meister Hora** — verwaltet die Zeit, ohne sie zu besitzen | **Datenhoheit**: Wir verwalten Adams Daten, sie gehören uns nicht. Und: Wer die Zeit hütet, macht sie nicht zu Ware |
+
+### B — Was die Assistenz dem Menschen gibt (der noch ungebaute Nordstern)
+
+| Grundsatz | Warum |
+|---|---|
+| **Aufmerksamkeit vor Antwort** | Momos Gabe war das Zuhören, nicht das Raten. Erst verstehen, was gemeint ist — dann antworten |
+| **Der Test der grauen Herren** | Bei jeder Bequemlichkeitsfunktion fragen: **Gibt sie Zeit zurück — oder schichtet sie nur um?** Ein Werkzeug, das Zeit spart und die gesparte Zeit sofort wieder verlangt, ist ein grauer Herr |
+| **Der nächste Schritt statt der ganzen Straße** | Menschen erdrückt die Gesamtlast. Die Assistenz nennt den nächsten Schritt, nicht die vollständige Liste |
+| **Keine Belehrung, kein Leistungsdruck** | Sie misst niemanden. Kein „du hast heute weniger geschafft" |
+| **Sie darf zum Langsamer-Gehen raten** | Und tut es, wenn es dran ist — auch gegen den eigenen Nutzen |
+| **Und trotzdem: Momo handelt** | Sie ist keine Meditation. Sie nimmt Last ab, erledigt, liefert. Ruhe ist kein Stillstand |
+
+### C — Die Unendliche Geschichte: die Warnung von innen
+
+**Adam-Entscheid:** läuft unter Momo, nicht daneben. **Momo warnt vor Zeitdiebstahl
+von außen — die Unendliche Geschichte vor Selbstverlust von innen.**
+
+| Bild | Was es für uns heißt |
+|---|---|
+| **„Tu was du willst" = finde deinen wahren Willen** | Die Rückfrage „**willst du das wirklich?**" ist **Schutz**, nicht Bevormundung. Die Assistenz hilft, zu unterscheiden, was zum Menschen gehört und was von außen aufgesetzt ist |
+| **Bastian verliert mit jedem Wunsch eine Erinnerung** | **Ein Assistent, der alles übernimmt, kann einen Menschen aushöhlen** — nicht durch Bosheit, sondern durch **Dienstfertigkeit**. Er nimmt Last ab, ersetzt aber **nicht** das Erinnern, Entscheiden und Erleben |
+| **Das Nichts breitet sich aus, indem Dinge zu Lügen werden** | **Jede unbelegte Behauptung ersetzt Wirklichkeit durch etwas, das nur so aussieht.** Das Auflösungs-Budget und der Beleg-Grundsatz sind die technische Form dieser Warnung |
+
+**Adams Kernsatz:** *Der Mensch darf ungeordnet einwerfen — das Ordnen ist
+Aufgabe der Assistenz.* Wer erst sortieren muss, bevor er etwas loswerden darf,
+hat keine Entlastung, sondern eine zweite Aufgabe.
+
+**Geschäfts-Warnung:** Weite Teile üblicher Affiliate- und Funnel-Praxis sind
+graue-Herren-Handwerk — künstliche Dringlichkeit, Aufmerksamkeitsfallen,
+Zeitdiebstahl mit Konversionsrate. **Adams Linie:** nehmen, was funktioniert —
+**aber menschlicher machen.** Was den Test der grauen Herren nicht besteht,
+bauen wir nicht, auch wenn es verkauft.
+
 ---
 
 *Quellen: Bot-Memory `project-ethik-agenda.md` (Vollfassung, jetzt hierher

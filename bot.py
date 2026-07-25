@@ -4734,6 +4734,35 @@ def run_self_check() -> tuple[bool, list[str]]:
                 "max_buffer_size fehlt an einer der beiden ClaudeAgentOptions-Stellen"
     check("Medien-Transport (H1)", _c_medien_transport)
 
+    def _c_register_vollstaendig() -> None:
+        """R2: Wächter für Regel 3 der Bezugs-Integrität.
+
+        Die Regel „neue Bezüge SOFORT eintragen" stand seit dem 16.07. da und
+        hatte niemanden, der sie prüft — eine Regel ohne Prüfer ist eine Bitte.
+        Deterministisch geprüft wird das Nachweisbare: Jedes eigene Modul und
+        jedes Betriebsskript muss im Register namentlich vorkommen. Reine
+        Testskripte sind ausgenommen, sie tragen keine Laufzeit-Kette.
+        """
+        register = _REPO_DIR / "ABHAENGIGKEITEN.md"
+        if not register.exists():
+            return                      # anderswo ausgecheckt — kein Befund
+        inhalt = register.read_text(encoding="utf-8")
+        fehlt: list[str] = []
+        for modul in ("channels.py", "media.py", "pending.py", "presend.py",
+                      "reactions.py", "ampel.py", "transcribe.py"):
+            if (_REPO_DIR / modul).exists() and modul not in inhalt:
+                fehlt.append(modul)
+        skripte = _REPO_DIR / "scripts"
+        if skripte.is_dir():
+            for p in sorted(skripte.glob("*.py")):
+                if p.name.startswith("test_"):
+                    continue
+                if p.name not in inhalt:
+                    fehlt.append(f"scripts/{p.name}")
+        assert not fehlt, ("ohne Eintrag im Abhängigkeits-Register: "
+                           + ", ".join(fehlt))
+    check("Register-Vollständigkeit (R2)", _c_register_vollstaendig)
+
     return state["ok"], results
 
 
@@ -5131,6 +5160,33 @@ async def post_init(app: Application) -> None:
         log.exception("startup notification failed")
 
 
+# A8: Die registrierten Befehle — Grundlage der Erkennung „Befehl mit Nachtext".
+# Der Doku-Spiegel-Prüfer (8.6) wacht darüber, dass diese Liste nicht driftet.
+_BEKANNTE_BEFEHLE: set[str] = {
+    "start", "whoami", "whereami", "reset", "tts", "ttsdemo", "quiet", "verbose",
+    "status", "ampel", "presend", "usage", "hilfe", "restart", "setkanal",
+    "selfcheck", "stopp", "technik", "spur", "updates", "freigaben",
+}
+
+
+def _erkannter_befehl(text: str) -> str | None:
+    """A8: „/befehl mit Nachtext" erkennen — sonst nichts.
+
+    Bewusst eng: nur ein Schrägstrich ganz am Anfang, nur ein bekannter Befehl,
+    und nur wenn tatsächlich Text folgt (die reine Form fängt der
+    Befehls-Handler ab und kommt hier nie an). Alles andere bleibt normale
+    Nachricht — ein zu großzügiger Griff würde Adam Sätze abschneiden.
+    """
+    t = (text or "").lstrip()
+    if not t.startswith("/") or len(t) < 2:
+        return None
+    kopf, _, rest = t[1:].partition(" ")
+    kopf = kopf.split("@", 1)[0].lower()      # /befehl@botname
+    if kopf in _BEKANNTE_BEFEHLE and rest.strip():
+        return kopf
+    return None
+
+
 async def process_user_text(
     update: Update,
     text: str,
@@ -5146,6 +5202,21 @@ async def process_user_text(
     (z.B. die Transkriptions-Nachricht statt der reinen Sprachnachricht).
     """
     user_id = update.effective_user.id
+
+    # A8: Ein Befehl mit Nachtext („/updates hat funktioniert, danke") darf nie
+    # als Fließtext beim Agenten landen — dort verstünde ihn niemand, und eine
+    # nachgelagerte Kommandozeile könnte den Schrägstrich sogar als eigenen
+    # Befehl deuten und mit „Unknown command" antworten (genau so am 24.07.
+    # gesehen). Statt zu raten: den Befehl benennen und um die reine Form bitten.
+    _befehl = _erkannter_befehl(text)
+    if _befehl and update.message is not None:
+        await update.message.reply_text(
+            f"Das sieht nach dem Befehl /{_befehl} mit angehängtem Text aus. "
+            f"Befehle führe ich nur allein stehend aus — schick einfach /{_befehl}. "
+            "Wenn du mir stattdessen etwas sagen wolltest, lass den Schrägstrich weg.",
+            reply_parameters=_reply_params(update.message.message_id),
+        )
+        return
 
     # Datenschutz-Ampel (2.2, BEOBACHTUNGSPHASE): jede Nachricht einstufen +
     # protokollieren — noch KEIN Umrouten. Enforcement (rot → lokal) folgt erst
@@ -6163,6 +6234,56 @@ def _normalize_versions(text: str) -> str:
     )
 
 
+# H5: Namen der Zeichen, über die im Gespräch tatsächlich geredet wird.
+_EMOJI_NAMEN: dict[str, str] = {
+    "👍": "Daumen hoch", "👎": "Daumen runter", "👌": "OK-Zeichen",
+    "🫡": "Gruß", "❤️": "Herz", "❤": "Herz", "🙏": "gefaltete Hände",
+    "🤗": "Umarmung", "🎉": "Party", "🔥": "Feuer", "⚡": "Blitz",
+    "👀": "Augen", "🤔": "Nachdenk-Gesicht", "🤨": "hochgezogene Augenbraue",
+    "🤷": "Schulterzucken", "💯": "Hundert", "✍": "Schreibhand",
+    "😴": "schlafendes Gesicht", "✋": "erhobene Hand", "🍓": "Erdbeere",
+    "🍌": "Banane", "🏆": "Pokal", "👨‍💻": "Person am Rechner",
+}
+# Wörter, die ankündigen, dass gleich über ein Zeichen GESPROCHEN wird.
+_BEZUG_WOERTER = (
+    "reagier", "reaktion", "antwort", "schick", "drück", "druck", "zeichen",
+    "emoji", "quittier", "bestätig", "bestaetig", "markier", "tipp auf",
+    "mit einem", "mit dem", "genügt", "genuegt", "sende",
+)
+# Artikel/Possessiv unmittelbar davor („ein 🔥 von dir") sind ebenfalls ein
+# Bezug — hier mit Wortgrenze geprüft, damit „klein"/„mein" nicht auslösen.
+_BEZUG_ARTIKEL = re.compile(r"\b(ein|eine|einen|einem|dein|deine|das|kein)\s*$",
+                            re.IGNORECASE)
+
+
+def _benenne_gemeinte_emojis(text: str) -> str:
+    """H5: Zeichen aussprechen, über die der Text redet — Zierde bleibt stumm.
+
+    Der Maßstab ist ausdrücklich der **Bezug**, nicht die Frage, ob ein Zeichen
+    im Reaktions-Vokabular steht: „✅ Erledigt" braucht kein gesprochenes Häkchen,
+    „antworte einfach mit 👍" ohne das Zeichen dagegen ergibt keinen Satz mehr.
+    """
+    import re as _re
+    if not text:
+        return text
+
+    def _ersetze(m: "_re.Match") -> str:
+        zeichen = m.group(0)
+        name = _EMOJI_NAMEN.get(zeichen)
+        if not name:
+            return zeichen
+        vorher = text[max(0, m.start() - 40):m.start()].lower()
+        if any(w in vorher for w in _BEZUG_WOERTER) or _BEZUG_ARTIKEL.search(vorher):
+            return f" {name} "
+        return zeichen
+
+    muster = "|".join(_re.escape(e) for e in
+                      sorted(_EMOJI_NAMEN, key=len, reverse=True))
+    ergebnis = _re.sub(muster, _ersetze, text)
+    # Kein Leerzeichen vor Satzzeichen zurücklassen — sonst stolpert die Stimme.
+    return _re.sub(r"\s+([,.;:!?])", r"\1", ergebnis)
+
+
 def _strip_markdown_for_tts(text: str) -> str:
     """Entfernt Markdown-Formatierungszeichen und Emojis für saubere TTS-Ausgabe."""
     import re
@@ -6266,7 +6387,12 @@ def _strip_markdown_for_tts(text: str) -> str:
     # Tabellen-Pipes und Trennzeilen
     text = re.sub(r"^\s*\|.*\|\s*$", "", text, flags=re.MULTILINE)
     text = re.sub(r"^\s*[-|:]+\s*$", "", text, flags=re.MULTILINE)
-    # Alle Emojis entfernen (Unicode Emoji-Ranges)
+    # H5 (Adam 24.07.): Maßstab ist der BEZUG, nicht die Vokabular-Zugehörigkeit.
+    # Rede ich im Text über ein Zeichen („antworte mit 👍"), muss es gesprochen
+    # werden — sonst bleibt ein sinnloser Satz übrig. Bloße Zierde („✅ fertig")
+    # fliegt weiterhin raus. Deshalb VOR der pauschalen Entfernung.
+    text = _benenne_gemeinte_emojis(text)
+    # Alle übrigen Emojis entfernen (Unicode Emoji-Ranges)
     text = re.sub(
         r"[\U0001F600-\U0001F64F"  # Gesichter
         r"\U0001F300-\U0001F5FF"  # Symbole & Piktogramme

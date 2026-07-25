@@ -93,6 +93,57 @@ muss allein aus dem Repo heraus arbeitsfähig werden. Deshalb gilt: Wissen, das
 nur in einem Chatverlauf oder einem Kopf existiert, ist nicht gesichert
 (CLAUDE.md „Laufende Sicherung").
 
+## 4c. Rücksprung — einen früheren Stand zurückholen (R3)
+
+Adams Sorge war, ob sich ein Stand von vorgestern überhaupt wiederherstellen
+lässt. **Er lässt sich** — git hält jede Fassung, dazu liegt ein tägliches
+Bündel im Backup (`~/VPS-Backup/bundles/`, 14 Stück Rotation). Was fehlte, war
+nur die Anleitung. Hier ist sie.
+
+Gesucht wurde außerdem eine Regel „immer nur eine Stufe zurück". Es gibt sie
+nicht, und sie wäre auch falsch: Die richtige Stufe ist nicht die letzte,
+sondern **die letzte nachweislich grüne** — also die, bei der der
+Regressionstest durchlief.
+
+**Den passenden Stand finden**
+
+```bash
+git log --oneline -20
+```
+
+Die Commit-Nachrichten nennen den Punkt (z. B. „H1 …", „B1 …"). Zum Nachsehen,
+wie eine Datei damals aussah, ohne irgendetwas zu ändern:
+
+```bash
+git show <commit>:bot.py | head -60
+```
+
+**Von dort abzweigen statt zurücksetzen**
+
+Der wichtige Griff: einen neuen Zweig aus dem alten Stand ziehen. Damit bleibt
+alles Spätere erhalten — ein `git reset --hard` würde es wegwerfen.
+
+```bash
+git switch -c rueckgriff-<datum> <commit>
+```
+
+Trägt der alte Stand: den Unterschied gezielt zurückholen, statt die ganze
+Geschichte umzuschreiben.
+
+```bash
+git revert <commit-der-stoert>
+```
+
+**Aus einem Bündel wiederherstellen** (wenn das Repo selbst beschädigt ist)
+
+```bash
+git bundle verify ~/VPS-Backup/bundles/<datei>.bundle
+git clone ~/VPS-Backup/bundles/<datei>.bundle wiederhergestellt
+```
+
+**Immer danach:** `bash scripts/regressionstest.sh` — ein zurückgeholter Stand
+gilt erst als brauchbar, wenn er grün läuft.
+
 ## 5. Verweis statt Kopie
 
 Der aktuelle Sachstand (Phasen, offene Punkte, Entscheidungen) steht **immer**

@@ -182,6 +182,23 @@ benötigt von → Prüfbefehl).
    — nicht nur das Geänderte selbst.
 3. **Beim Bau neuer Features deren Bezüge SOFORT ins Register eintragen** —
    nicht auf später verschieben.
+4. **Wo Abhängigkeiten nicht erklärbar sind, werden sie GEMESSEN statt
+   aufgelistet.** [NEU 2026-07-25] Die Regel hat dreimal nicht gegriffen, und
+   jedes Mal aus demselben Grund: Der Bruch lag in einer Abhängigkeit, die kein
+   Register kennen kann. (a) Eine **Umgebungsvariable** (`ALLOWED_USER_IDS`
+   erbte sich in Tests und legte den 12/14-Fehlalarm), (b) **transitive
+   pip-Pakete**, die erst beim Installieren entstehen (unvollständiger
+   Rollback), (c) eine **stille Versions-Divergenz** (Mac testete gegen SDK
+   0.2.87, produktiv lief 0.2.127 — 40 Versionen Abstand, unbemerkt). Daraus
+   zwei verbindliche Griffe: **Prüfläufe laufen in der echten Zielumgebung**,
+   und Tests **erzwingen** ihre Umgebung hermetisch — nie `setdefault` für
+   kritische Variablen. **Der Ist-Stand vor einem Eingriff wird vollständig
+   eingefroren**, nicht bloß der geänderte Teil.
+
+**Wächter statt Bitte (R2):** Die Selbstcheck-Zeile „Register-Vollständigkeit"
+meldet jedes eigene Modul und jedes Betriebsskript, das keinen Register-Eintrag
+hat. Eine Regel ohne Prüfer ist eine Bitte — sie fand beim ersten Lauf sofort
+eine Lücke (`ampel.py`).
 
 Verkabelt mit **8.1** (täglicher 4-Uhr-Check arbeitet die Prüfbefehle ab, meldet
 Brüche per Telegram) und **8.2** (Regressionstest nutzt das Register als

@@ -160,6 +160,56 @@ nicht der Normalfall für Endnutzer. Verzahnt mit „Selbstlernende Assistenz",
 Kanal-Routing (ein Kern, mehrere Frontends → perspektivisch eigene App statt
 Telegram-Pflicht) und der Werte-Charta (`docs/entscheidungsvorlagen/werte-charta-momo.md` §7).
 
+## 🧪 PROBELAUF IM KLON (R4, 2026-07-25)
+
+**Eingriffe mit Kettenwirkung werden zuerst in einem Klon geprobt, nicht am
+laufenden Stand.** Gemeint sind Eingriffe, die mehrere Komponenten berühren oder
+deren Rückweg selbst aufwendig ist — Fundament-Updates, Backend-Wechsel,
+Umbauten an Sendepfad oder Persistenz, Systempaket-Sprünge.
+
+**Ausdrücklich NICHT für Kleinkram.** Ein Tippfehler, eine Textzeile, ein
+zusätzlicher Test brauchen keinen Klon; die Regel würde sich sonst selbst
+entwerten, weil niemand sie mehr befolgt. Der Prüfstein: *Kann ich diesen
+Eingriff in einer Minute rückgängig machen, ohne nachzudenken?* Wenn ja, kein
+Klon.
+
+**Wie:** `git worktree add ../probe-<name> <branch>` — eigener Arbeitsbaum,
+eigene venv, dort bauen und den Regressionslauf fahren; erst danach im
+Hauptbaum. Der Klon wird nach dem Lauf entfernt (`git worktree remove`), damit
+keine Streu-Bäume liegen bleiben (die gab es schon einmal, sie wurden am 23.07.
+mit aufgeräumt).
+
+**Was der Klon NICHT ersetzt:** die Prüfung in der **echten Zielumgebung** (R1).
+Ein Klon zeigt Syntax- und Logikbrüche, aber nicht die Umgebung des VPS — der
+Fehlalarm des Start-Wächters kam genau daher.
+
+## 🧹 ENTRÜMPELUNG — terminiert, nicht jetzt (R5, 2026-07-25)
+
+`bot.py` ist auf **über 7000 Zeilen** gewachsen. Gesucht wird beim
+Abschluss-Audit (Phase 10), **nicht zwischendurch**: tote Pfade aus revidierten
+Entscheidungen · sich aufhebende Parameter · doppelte Regeln.
+
+**Zwei harte Auflagen, weil Aufräumen die gefährlichere Art von Arbeit ist:**
+Verschlanken **nur nach grünem Regressionslauf**, und **jede Streichung einzeln
+testbar** — eine Aufräumaktion, die etwas mitreißt, ist schlimmer als der
+Wildwuchs, den sie beseitigt. Kein Sammel-Commit „Aufräumen".
+
+## 🧬 BLAUPAUSE-PFLICHT je Baustein (R6, 2026-07-25)
+
+Je abgeschlossenem Baustein **eine** Zeile: **was gebaut · welche Kettenwirkung
+geprüft · welche Nebenwirkung tatsächlich auftrat.**
+
+**Der dritte Teil ist der wertvolle.** „Was gebaut" steht im Commit, „geprüft"
+im Test — aber die tatsächlich eingetretene Nebenwirkung weiß nur, wer dabei
+war, und sie ist nach einer Woche verloren. Beispiele aus diesem Projekt: dass
+der Selbstcheck eine **zweite** Options-Stelle aufdeckte · dass die
+Prozess-Zählung sich **selbst** mitzählte · dass die Ausschluss-Regel existierte
+und nur nie **gemessen** wurde. Keine dieser Erkenntnisse stand in der Absicht.
+
+**Zwischenschritte archivieren, nicht glätten:** Der Weg zum Ergebnis ist die
+Lehre; ein rückwirkend geradegezogener Verlauf sieht kompetenter aus und trägt
+weniger.
+
 ## 🔬 BELEG-GRUNDSATZ — und das Auflösungs-Budget bei Bildern (2026-07-25)
 
 **Eine Aufzählung von Belegen ist keine Beweisführung, solange nicht geprüft

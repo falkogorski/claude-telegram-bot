@@ -22,6 +22,8 @@ metadata:
 
 ## Änderungshistorie
 
+- **2026-07-25 (17)** — **R4, R5, R6 verankert.** **R4 Probelauf im Klon** für Eingriffe mit Kettenwirkung, mit ausdrücklichem Prüfstein gegen Übereifer („in einer Minute ohne Nachdenken rückgängig? dann kein Klon") und dem Hinweis, dass ein Klon die Prüfung in der **echten Zielumgebung** nicht ersetzt — der Wächter-Fehlalarm kam genau daher. **R5 Entrümpelung** als eigener Punkt in Phase 10 **terminiert** statt nebenbei erledigt (bot.py bei 7663 Zeilen), mit zwei harten Auflagen. **R6 Blaupause-Pflicht je Baustein** — drei Angaben, wobei die **tatsächlich eingetretene Nebenwirkung** die wertvolle ist: „was gebaut" steht im Commit, „geprüft" im Test, aber die Nebenwirkung weiß nur, wer dabei war. Zwischenschritte werden archiviert, nicht geglättet.
+
 - **2026-07-25 (15)** — **Abschlussblock und Nachträge VI/VII abgearbeitet.** **5.34-Auflagen ①–⑤ in die Vorlage** (Protokollierung aus/root-beschränkt · `api_id` als Geheimnis, aber kein Kennwort-Gleichrang · nur `127.0.0.1` · Zwischenlager **wie rot**, `0700`, aus Sync und Backup · **Rückfall statt Stummheit**). **Connis Fund halbiert die Rechnung:** im `--local`-Betrieb gibt der Server Dateipfade zurück, die zweite 2-GiB-Kopie entfällt → **2,10 GiB je Datei, ~14 statt 7** unter dem Deckel; weniger Kopien heißt weniger Orte mit persönlichen Medien. **Plattenverschlüsselung GEMESSEN:** `/` ist blankes ext4, **keine** Verschlüsselungsschicht — die Werte-Charta §3 sagt jetzt „niemand wertet sie aus" statt „niemand außer dir kann sie lesen". **Neue Grundsätze in CLAUDE.md:** Beleg-Grundsatz mit Auflösungs-Budget (Anlass: neun Merkmale, die physikalisch nicht existieren konnten) und die **Wirkungs-Regel** (nach jeder Filter-Änderung das Ergebnis prüfen, nicht die Absicht). **Übergabe-Vermerk in WIEDERANLAUF.md** (Repos beim Start, `mac-produktivstand` statt `main`, Zuerst-Prüfung in vier Fragen). Zwei Status-Zeilen auf Adams Bestätigungen nachgezogen.
 - **2026-07-25 (16)** — **🚦 Strukturelle Lücke gefunden und geschlossen: Medien-Eingangsschutz (5.2-Erweiterung).** Ausgangspunkt war der berichtete Verlust eines Videos von 05:07. **Der Befund korrigiert die Erzählung:** Die Datei liegt im Upload-Ordner, also **lief der Handler und lud sie herunter** — „kam nicht an" war falsch. Verloren ging sie **danach**. Die Ursache ist strukturell: Fotos, Videos und Dateien wurden erst **in** `process_user_text` persistiert, also **nach** Download und Aufbereitung — anders als Sprachnachrichten, für die genau diese Lücke am 20.07. geschlossen wurde. **Und meine H1-Änderung hat das Fenster VERGRÖSSERT**, nicht verkleinert: Ein Video wird jetzt zerlegt und seine Tonspur transkribiert, bevor es weitergeht. Jetzt wird der Eingang **vor** dem Download gesichert (`_media_eingang`), alle Abbruchzweige lösen ihn auf, und eine Selbstcheck-Zeile erzwingt die **Reihenfolge** — wie beim Voice-Schutz ist sie die Funktion. Selbstcheck **28** Zeilen.
 
@@ -1136,6 +1138,14 @@ Absturzfall ausdrücklich auf 5.18).
 - **Verifiziert am:** —
 
 ---
+
+### 10.x Entrümpelung (R5) `[NEU 2026-07-25, hier TERMINIERT — nicht vorher]`
+- **Status:** OFFEN, bewusst auf dieses Audit gelegt
+- **Anlass:** `bot.py` steht bei **7663 Zeilen** (gemessen 25.07.). Gesucht: tote Pfade aus revidierten Entscheidungen, sich aufhebende Parameter, doppelte Regeln.
+- **Zwei harte Auflagen, weil Aufräumen die gefährlichere Art von Arbeit ist:** Verschlanken **nur nach grünem Regressionslauf**, und **jede Streichung einzeln testbar** — eine Aufräumaktion, die etwas mitreißt, ist schlimmer als der Wildwuchs, den sie beseitigt. **Kein Sammel-Commit „Aufräumen".**
+- **Warum nicht früher:** Während gebaut wird, ist „unnötig" nicht von „noch nicht verkabelt" zu unterscheiden. Der Unterschied ist erst sichtbar, wenn die Funktionen stehen.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
 
 ## Phase 11 — Backlog (während der Migration aufgetauchtes)
 

@@ -11,3 +11,4 @@ edge-tts>=7.0
 pymupdf>=1.24
 anthropic>=0.50
 faster-whisper>=1.2
+caldav>=3.2

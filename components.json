@@ -104,6 +104,13 @@
       "venv": "/home/claudebot/claude-telegram-bot/.venv",
       "ref": "faster-whisper",
       "note": "STT-Vorgabe seit 25.07.2026 (Adam-Entscheid). Loest whisper.cpp ab, das als Rueckweg per STT_BACKEND=whisper_cpp erhalten bleibt. Lokal, kostenfrei, kein Netz zur Laufzeit."
+    },
+    {
+      "name": "caldav",
+      "kind": "pip",
+      "venv": "/home/claudebot/claude-telegram-bot/.venv",
+      "ref": "caldav",
+      "note": "Kalender- und Erinnerungs-Anbindung an iCloud (25.07.2026, aus Phase 7 vorgezogen). Freies Paket, iCloud im Apple-Konto enthalten — keine Kosten."
     }
   ]
 }

@@ -55,6 +55,7 @@ import tempfile
 from transcribe import Transcriber, build_transcriber
 import ampel
 import channels
+import kalender
 import media
 import pending
 import presend
@@ -2628,6 +2629,8 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/technik — Werkzeug-Spur: Klartext ↔ technische Rohform\n"
         "/spur — Werkzeug-Spur ganz aus/an (Rückfragen bleiben)\n"
         "/updates — verfügbare Updates zeigen und einzeln/gesammelt freigeben\n"
+        "/termine — Kalender: was in den nächsten Tagen ansteht (optional /termine 14)\n"
+        "/aufgaben — offene Erinnerungen aus iCloud\n"
         "/restart — Bot neu starten\n"
         "/selfcheck — Selbsttest ausführen\n"
         "/hilfe — Diese Befehlsübersicht\n\n"
@@ -3579,6 +3582,57 @@ async def cmd_technik(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(
             "💬 Werkzeug-Spur zeigt jetzt Klartext (z. B. 🔎 recherchiere …). "
             "Rohform mit /technik.")
+
+
+async def cmd_termine(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Kalender lesen (CalDAV/iCloud). Nur lesen — Anlegen läuft über den Agenten
+    mit Adams Bestätigung, damit nichts unbemerkt in seinem Kalender landet."""
+    if not authorized(update):
+        return
+    args = (update.message.text or "").split(maxsplit=1)
+    tage = 7
+    if len(args) > 1 and args[1].strip().isdigit():
+        tage = max(1, min(60, int(args[1].strip())))
+    try:
+        termine = await asyncio.to_thread(kalender.termine_lesen, None, tage)
+    except kalender.NichtEingerichtet as e:
+        await update.message.reply_text(f"📅 {e}")
+        return
+    except Exception as e:
+        log.exception("Kalender lesen fehlgeschlagen")
+        await update.message.reply_text(f"❌ Kalender nicht erreichbar: {e}")
+        return
+    if not termine:
+        await update.message.reply_text(
+            f"📅 In den nächsten {tage} Tagen steht nichts an.")
+        return
+    zeilen = "\n".join(f"• {t.lesbar()}" for t in termine[:40])
+    await send_chunked(update.get_bot(), update.effective_chat.id,
+                       f"📅 Die nächsten {tage} Tage:\n{zeilen}",
+                       reply_to=update.message.message_id)
+
+
+async def cmd_aufgaben(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Offene Erinnerungen aus iCloud lesen."""
+    if not authorized(update):
+        return
+    try:
+        aufgaben = await asyncio.to_thread(kalender.aufgaben_lesen)
+    except kalender.NichtEingerichtet as e:
+        await update.message.reply_text(f"✅ {e}")
+        return
+    except Exception as e:
+        log.exception("Aufgaben lesen fehlgeschlagen")
+        await update.message.reply_text(f"❌ Erinnerungen nicht erreichbar: {e}")
+        return
+    offen = [a for a in aufgaben if not a.erledigt]
+    if not offen:
+        await update.message.reply_text("✅ Keine offenen Erinnerungen.")
+        return
+    zeilen = "\n".join(f"• {a.lesbar()}" for a in offen[:40])
+    await send_chunked(update.get_bot(), update.effective_chat.id,
+                       f"✅ Offene Erinnerungen ({len(offen)}):\n{zeilen}",
+                       reply_to=update.message.message_id)
 
 
 async def cmd_freigaben(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -4991,6 +5045,8 @@ async def post_init(app: Application) -> None:
             BotCommand("quiet", "Ruhiger Modus (Tipp-Indikator aus)"),
             BotCommand("verbose", "Tipp-Indikator wieder an"),
             BotCommand("reset", "Session zurücksetzen"),
+            BotCommand("termine", "Kalender: die nächsten Tage"),
+            BotCommand("aufgaben", "Offene Erinnerungen"),
             BotCommand("selfcheck", "Selbsttest der Kernfunktionen"),
             BotCommand("setkanal", "Ausgabekanal setzen"),
             BotCommand("whereami", "Aktuellen Kanal zeigen"),
@@ -5186,6 +5242,7 @@ _BEKANNTE_BEFEHLE: set[str] = {
     "start", "whoami", "whereami", "reset", "tts", "ttsdemo", "quiet", "verbose",
     "status", "ampel", "presend", "usage", "hilfe", "restart", "setkanal",
     "selfcheck", "stopp", "technik", "spur", "updates", "freigaben",
+    "termine", "aufgaben",
 }
 
 
@@ -7220,6 +7277,8 @@ def main() -> None:
     app.add_handler(CommandHandler("spur", cmd_spur))
     app.add_handler(CommandHandler("updates", cmd_updates))
     app.add_handler(CommandHandler("freigaben", cmd_freigaben))
+    app.add_handler(CommandHandler("termine", cmd_termine))
+    app.add_handler(CommandHandler("aufgaben", cmd_aufgaben))
     app.add_handler(CallbackQueryHandler(on_option_callback, pattern=r"^opt:"))
     app.add_handler(CallbackQueryHandler(on_permission_callback, pattern=r"^p:"))
     app.add_handler(CallbackQueryHandler(on_ampel_callback, pattern=r"^amp:"))

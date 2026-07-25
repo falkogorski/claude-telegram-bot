@@ -29,6 +29,7 @@ run "Syntax transcribe.py"              "$PY" -m py_compile transcribe.py
 run "Syntax reactions.py"               "$PY" -m py_compile reactions.py
 run "Syntax channels.py"                "$PY" -m py_compile channels.py
 run "Syntax media.py"                   "$PY" -m py_compile media.py
+run "Syntax kalender.py"                "$PY" -m py_compile kalender.py
 run "Syntax pending.py"                 "$PY" -m py_compile pending.py
 run "Syntax presend.py"                 "$PY" -m py_compile presend.py
 # Auf dem VPS liegen die echten Envs nur in der root-geschuetzten systemd-Env —
@@ -60,7 +61,8 @@ run "Medien-Transport H1 (Bild/Video)"  "$PY" scripts/test_media_h1.py
 run "Start-Waechter B1"                 "$PY" scripts/test_start_waechter_b1.py
 run "Kontingent-Limit H2"               "$PY" scripts/test_session_limit_h2.py
 run "Nachzieher C1"                     "$PY" scripts/test_nachzieher_c1.py
+run "Kalender/CalDAV (7.x)"             "$PY" scripts/test_kalender_caldav.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
-echo "== Ergebnis: $((20-FAILS))/20 bestanden =="
+echo "== Ergebnis: $((22-FAILS))/22 bestanden =="
 exit $FAILS

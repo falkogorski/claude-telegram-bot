@@ -22,6 +22,8 @@ metadata:
 
 ## Änderungshistorie
 
+- **2026-07-25 (10)** — **Stufe 1 der Unabhängigkeit, Node-Block vorbereitet, Kalender vorgezogen (neuer Punkt 7.4).** **⑥ Stufe 1:** [`docs/NOTBETRIEB.md`](docs/NOTBETRIEB.md) mit modellneutralem Rollenprofil „Hauptagent", dokumentiertem (nicht aktiviertem) API-Notweg samt 💰-Warnung, **wirklich geprobtem** Drill und dem Auslöser für Stufe 2. **Der Drill brachte zwei Messfallen zutage:** `systemctl is-active` meldet „active" auch beim Neustart, und die Prozess-Suche fand **zwei** Instanzen, wo eine lief — sie traf ihre eigene Befehlszeile. Verlässlich ist `MainPID`. **⑤ Node:** [`docs/node-major-befehlsblock.md`](docs/node-major-befehlsblock.md) mit gemessenem Ist-Stand (v22.23.1, CLI 2.1.209 daran hängend), Rückrollbefehl und Abbruchkriterium — **nicht eingespielt.** **7.4 Kalender/Erinnerungen** über CalDAV gebaut, wartet nur noch auf ein anwendungsspezifisches Kennwort. Regressionslauf **22/22**.
+
 - **2026-07-25 (9)** — **Phasen-Audit 5 → Phase 3: Gesamtdaumen von Adam gegeben (25.07.2026, 05:37, geprüft).** Grundlage: [`docs/AUDIT-STATUS-phase5.md`](docs/AUDIT-STATUS-phase5.md) (Stichtag 23.07., ~62 %) plus die seither verifizierten Abschlüsse — 1.9 Webhook live (Phase 1 damit vollständig), 3.1 LobeChat Grundinstallation, 5.21 Monitor + Updater gehärtet, 5.5/5.6, 8.7-Feinjustierung, Boten-Postfach, PDF-Kette. **Sprint bestätigt: „80 % bis Dienstag (28.07.)"**, gemessen gegen den eingefrorenen 23.07.-Nenner; Neuzugänge zählen separat, das nächste Audit weist **beide** Zahlen aus (X % gegen Stichtag · Y % gegen aktuellen Umfang · Z Neuzugänge).
 
 - **2026-07-25 (8)** — **faster-whisper aktiv (neuer Punkt 5.35), 5.34 entscheidungsreif gemessen, Regeln ⑪/⑫ verankert, Prüfraster erstellt.** Sprach-Backend gegengemessen statt übernommen: **1,81×** schneller (80,3 s statt 145,7 s) — und die kursierenden „6,3–7,1×" als **Echtzeit-Faktoren** richtiggestellt. **5.34:** VPS gemessen — 225 GB frei, 5,9 GB Speicher verfügbar, **keine Aufrüstung nötig, kein Cent Zusatzkosten**; Vorlage [`docs/entscheidungsvorlagen/grosse-dateien-bot-api-server.md`](docs/entscheidungsvorlagen/grosse-dateien-bot-api-server.md) entscheidungsreif. **Regel ⑫** („Status ist ein Befund, keine Behauptung") und **Regel ⑪** (Gültigkeits-Kopf) in CLAUDE.md; `AUDIT-STATUS-phase5.md` als überholt gekennzeichnet. **Prüfraster Basisfähigkeiten** erstellt — sechs echte Lücken benannt, Kalender und E-Mail an der Spitze.
@@ -844,6 +846,18 @@ Absturzfall ausdrücklich auf 5.18).
 - **Test:** Selbstcheck-Zeile „Sprach-Backend (5.22)" prüft das **aktive** Backend (nicht das gewünschte); Regressionslauf 20/20.
 - **Adam-Bestätigung:** ausstehend — eine Sprachnachricht schicken und aufs Tempo achten.
 - **Verifiziert am:** 25.07.2026
+
+### 7.4 Kalender und Erinnerungen über CalDAV (iCloud) `[NEU 2026-07-25, aus Phase 7 vorgezogen]`
+- **Status:** 🔄 GEBAUT — wartet auf Adams Zugangsdaten (ein Handgriff, siehe unten)
+- **Warum vorgezogen (Conni/Adam 25.07.):** Der Prüfraster-Befund nannte den Kalender „die einzige Lücke, die Adam **täglich** trifft" — Aufgaben aufsprechen, Erinnerungen, Termine; er fragt seit Tagen danach, Phase 7 stand bei null. Die Richtungsentscheidung war längst gefallen (**iCloud, nicht Google**), und Kalender und Erinnerungen laufen über **dasselbe** CalDAV-Verfahren: ein Bau statt zwei. Vorgezogen **vor** 5.14 und 9.4.
+- **Verifiziert statt angenommen:** Der Mac-Weg über AppleScript **existiert auf Linux nicht** — deshalb CalDAV (`caldav.icloud.com`), das Apple offiziell anbietet und überall läuft.
+- **Gebaut:** `kalender.py` (Termine und Aufgaben lesen und anlegen, menschenlesbare Ausgabe mit Wochentag), Befehle **`/termine`** (optional mit Tagezahl) und **`/aufgaben`**, `/hilfe` und Befehlsmenü im selben Commit nachgezogen (Doku-Spiegel).
+- **Drei bewusste Entscheidungen:** (1) **Ohne Zugangsdaten arbeitet das Modul gar nicht** und sagt deutlich, was fehlt — ein halb verbundener Kalender wäre schlimmer als keiner, weil man ihm glaubt. (2) Eine **unbekannte Sammlung wird benannt, nicht ersetzt** (mit Liste der vorhandenen) — in den falschen Kalender zu schreiben ist schlimmer als nicht zu schreiben. (3) **Nur Lesen** über Befehle; das Anlegen läuft über den Agenten mit Adams Bestätigung, damit nichts unbemerkt in seinem Kalender landet.
+- **🔐 Geheimnis-Lage:** Zugang ausschließlich aus der Umgebung (`ICLOUD_CALDAV_USER`, `ICLOUD_CALDAV_APP_PASSWORT`), niemals im Repo; ein eigener Test prüft, dass im Quelltext keine Zugangsdaten-Reste liegen. **💰 Keine Kosten:** freies Paket, iCloud im Apple-Konto enthalten, Verkehr direkt zu Apple.
+- **Was Adam tun muss (einmalig):** Auf `appleid.apple.com` ein **anwendungsspezifisches Kennwort** erzeugen (das normale Apple-Kennwort scheitert bei CalDAV) und mir Bescheid geben — ich sage dann den Weg, wie es sicher in die root-geschützte Umgebungsdatei kommt, **ohne** dass es durch den Chat läuft.
+- **Test:** `scripts/test_kalender_caldav.py` (6 Prüfungen, ohne Netz und ohne Zugangsdaten, im Regressionslauf → **22/22**). Nach der Einrichtung: `/termine` zeigt echte Einträge, `/aufgaben` die offenen Erinnerungen.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
 
 ### Phasen-Audit 5 → 6
 - **Zwischen-Audit-Tor — ✅ PASSIERT (Adam, 25.07.2026, 05:37, geprüfte Zeit).** Übergang Phase 5 → Phase 3 freigegeben; **Phase 5 läuft als Feature-Phase parallel weiter.**

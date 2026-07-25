@@ -59,6 +59,7 @@ import channels
 import freigaben as freigabepost
 import kalender
 import linkinbox
+import email_kanal
 import media
 import pending
 import presend
@@ -2664,6 +2665,7 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/termine — Kalender: was in den nächsten Tagen ansteht (optional /termine 14)\n"
         "/aufgaben — offene Erinnerungen aus iCloud\n"
         "/links — abgelegte Links (ein Link allein wird abgelegt, nicht gleich verarbeitet)\n"
+        "/mail — eingerichtete E-Mail-Konten; Versand nur über den Freigabe-Knopf\n"
         "/restart — Bot neu starten\n"
         "/selfcheck — Selbsttest ausführen\n"
         "/hilfe — Diese Befehlsübersicht\n\n"
@@ -5362,6 +5364,7 @@ async def post_init(app: Application) -> None:
             BotCommand("verbose", "Tipp-Indikator wieder an"),
             BotCommand("reset", "Session zurücksetzen"),
             BotCommand("links", "Abgelegte Links zeigen"),
+            BotCommand("mail", "E-Mail-Konten zeigen (9.5)"),
             BotCommand("termine", "Kalender: die nächsten Tage"),
             BotCommand("aufgaben", "Offene Erinnerungen"),
             BotCommand("selfcheck", "Selbsttest der Kernfunktionen"),
@@ -6303,6 +6306,20 @@ async def cmd_links(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
     text = await asyncio.to_thread(linkinbox.uebersicht)
+    await send_chunked(update.get_bot(), update.effective_chat.id, text,
+                       reply_to=update.message.message_id)
+
+
+async def cmd_mail(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """9.5: Zeigt die eingerichteten Konten — deterministisch, kein Modell.
+
+    **Bewusst nur eine Übersicht, kein Versandbefehl.** Eine Mail entsteht im
+    Gespräch und geht über den Freigabe-Knopf hinaus; ein `/mail send …` wäre
+    genau der Weg, der an dem Riegel vorbeiführt.
+    """
+    if not authorized(update):
+        return
+    text = await asyncio.to_thread(email_kanal.uebersicht)
     await send_chunked(update.get_bot(), update.effective_chat.id, text,
                        reply_to=update.message.message_id)
 
@@ -7833,6 +7850,7 @@ def main() -> None:
     app.add_handler(CommandHandler("termine", cmd_termine))
     app.add_handler(CommandHandler("aufgaben", cmd_aufgaben))
     app.add_handler(CommandHandler("links", cmd_links))
+    app.add_handler(CommandHandler("mail", cmd_mail))
     app.add_handler(CallbackQueryHandler(on_freigabe_callback, pattern=r"^frg:"))
     app.add_handler(CallbackQueryHandler(on_link_callback, pattern=r"^lnk:"))
     app.add_handler(CallbackQueryHandler(on_option_callback, pattern=r"^opt:"))

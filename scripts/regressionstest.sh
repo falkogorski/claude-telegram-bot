@@ -12,8 +12,15 @@ PY="python3"
 if [ -x ".venv/bin/python3" ]; then PY=".venv/bin/python3"; fi
 
 FAILS=0
+# GESAMT wird GEZAEHLT, nicht getippt. Vorher stand die Zahl fest im
+# Schlusssatz — beim Aufnehmen der 9.5-Pruefung meldete der Lauf "29/29",
+# obwohl 30 Pruefungen gruen waren, und bei einem Fehlschlag haette er
+# ebenso falsch gerechnet. Eine Kennzahl, die von Hand nachgepflegt werden
+# muss, wird irgendwann nicht nachgepflegt.
+GESAMT=0
 run() {
   local name="$1"; shift
+  GESAMT=$((GESAMT+1))
   if "$@" >/tmp/regress_last.log 2>&1; then
     echo "✅ $name"
   else
@@ -66,10 +73,11 @@ run "Nachzieher C1"                     "$PY" scripts/test_nachzieher_c1.py
 run "Kalender/CalDAV (7.x)"             "$PY" scripts/test_kalender_caldav.py
 run "Wartungsfenster B2/B3"             "$PY" scripts/test_wartungsfenster_b3.py
 run "Link-Inbox 5.14"                   "$PY" scripts/test_linkinbox_5_14.py
+run "E-Mail-Kanal 9.5"                  "$PY" scripts/test_email_9_5.py
 run "Freigabe-Postfach 9.4"             "$PY" scripts/test_freigaben_9_4.py
 run "Hora (autonomer Laeufer)"          "$PY" scripts/test_hora.py
 run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
-echo "== Ergebnis: $((29-FAILS))/29 bestanden =="
+echo "== Ergebnis: $((GESAMT-FAILS))/$GESAMT bestanden =="
 exit $FAILS

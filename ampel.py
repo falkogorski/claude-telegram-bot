@@ -83,6 +83,20 @@ _DEFAULT_RULES: dict = {
             "Persönlich": [
                 "beziehung", "familie", "privat", "vertraulich",
             ],
+            # Kalender und Erinnerungen (Conni/Adam 25.07.2026): Sie sind die
+            # DICHTESTE Quelle genau der Daten, für die die Ampel gebaut wurde —
+            # Klientennamen, Adressen, Gesundheitliches. Heute liest der Bot sie
+            # deterministisch und schickt sie direkt an Telegram, ohne
+            # Modellaufruf; unbedenklich. Mit dem Sekretärin-Zielbild (5.19)
+            # kippt das: Dann erkennt der AGENT das Auftragsende im Kalender,
+            # und Termininhalte landen im Modellkontext. Die Abdeckung muss
+            # VORHER stehen, nicht danach — sonst greift sie zum ersten Mal in
+            # dem Moment, in dem sie schon zu spät ist.
+            "Kalender": [
+                "termin", "kalender", "erinnerung", "verabredung", "sitzung",
+                "besprechung", "auftragsende", "fällig am", "faellig am",
+                "sprechstunde", "beratungstermin", "vorgemerkt",
+            ],
         },
     },
 }

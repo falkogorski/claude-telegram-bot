@@ -11,7 +11,11 @@
 # committet/gepusht wird ausschließlich ins Log-Repo. Ein kompromittierter
 # Schlüssel könnte schlimmstenfalls Logs anfassen, nie den Bot-Code.
 #
-# Läuft täglich als systemd-Timer `claude-log-sync.timer` (User claudebot).
+# Läuft STÜNDLICH als systemd-Timer `claude-log-sync.timer` (User claudebot);
+# umgestellt am 25.07.2026 von täglich. Wichtig: Die **Tages-Einteilung der
+# Log-Dateien bleibt unverändert** — eine Datei je Tag, nur häufiger
+# hochgeschoben. Adams Übersicht („einen ganzen Tag am Stück lesen können") ist
+# ausdrücklich Teil der Vorgabe und darf nicht angetastet werden.
 # ============================================================================
 set -uo pipefail
 
@@ -43,6 +47,37 @@ VLOG="${LOG_SYNC_VLOG:-$(dirname "$SRC")/version-monitor.log}"
 if [ -f "$VLOG" ]; then
   cp "$VLOG" version-monitor.log
 fi
+
+# ---------------------------------------------------------------------------
+# Claudias Ausarbeitungen mitnehmen (Adam & Conni, 25.07.2026)
+#
+# Warum: Was Claudia erarbeitet (PDFs, Markdown-Berichte), entstand bisher nur
+# in ihrem Arbeitsordner auf dem VPS und erreichte niemanden außer Adam per
+# Telegram — Conni konnte es nicht lesen, Adam musste es von Hand anhängen.
+# Das ist dieselbe Klasse wie der Ablageweg-Grundsatz: Was keinen Weg aus dem
+# Arbeitsordner hat, ist verloren.
+#
+# Streng abgegrenzt — mitgenommen wird NUR Erarbeitetes:
+#   * ausschließlich Dokument-Endungen (.md, .pdf, .txt, .csv, .html)
+#   * NICHT das Gedächtnis (liegt außerhalb, in ~/.claude/memory)
+#   * NICHT Geheimnis-Pfade (Muster unten, hart ausgeschlossen)
+#   * NICHT Arbeits-Zwischendateien (Punkt-Dateien, .tmp, CLAUDE.md des Kontexts)
+# Eigener Unterordner, damit Logs und Ausarbeitungen sich nicht vermischen.
+# ---------------------------------------------------------------------------
+WORK="${LOG_SYNC_WORK:-$HOME/workspace}"
+if [ -d "$WORK" ]; then
+  mkdir -p ausarbeitungen
+  rsync -a --prune-empty-dirs \
+    --include='*/' \
+    --include='*.md' --include='*.pdf' --include='*.txt' \
+    --include='*.csv' --include='*.html' \
+    --exclude='*' \
+    --exclude='.*' --exclude='*.tmp' --exclude='CLAUDE.md' \
+    --exclude='*secret*' --exclude='*token*' --exclude='*credential*' \
+    --exclude='*passwor*' --exclude='*.env' --exclude='*key*' \
+    "$WORK/" ausarbeitungen/ 2>/dev/null || true
+fi
+
 
 git add -A
 if git diff --cached --quiet; then

@@ -206,6 +206,65 @@ def _kontaktboegen(frames: list[Path], zeiten: list[float],
     return boegen
 
 
+def ausschnitt(path: Path, budget: int, *, spalte: int = 1, zeile: int = 1,
+               raster: int = 3, out_dir: Path | None = None) -> dict:
+    """Schneidet einen Ausschnitt in **Originalauflösung** heraus.
+
+    **Die Spannung, die H1 mitgebracht hat (Adams Praxis, 25.07.):** Die
+    transporttaugliche Fassung verkleinert — und genau das, was Detailerkennung
+    braucht (Kleingedrucktes, Zahlen, Beschriftungen), geht beim Verkleinern
+    **zuerst** verloren. Adam hat sich behelfen müssen, indem er die Datei statt
+    des komprimierten Bildes schickte.
+
+    Die Lösung ist dieselbe wie beim Video, nur auf Bilder übertragen:
+    **Überblick verkleinert, Details als Ausschnitt in Originalauflösung
+    nachreichen.** Das Original liegt ohnehin unangetastet — es fehlte nur der
+    Weg, gezielt hineinzugehen. Das Raster (Vorgabe 3×3) benennt die Felder wie
+    auf einem Schachbrett: ``spalte``/``zeile`` von 1 an, links oben.
+    """
+    path = Path(path)
+    res: dict = {"ok": False, "path": path, "note": "", "error": ""}
+    if not tools_available():
+        res["error"] = "ffmpeg fehlt — Ausschnitt nicht möglich"
+        return res
+    raster = max(2, min(6, raster))
+    spalte = max(1, min(raster, spalte))
+    zeile = max(1, min(raster, zeile))
+    ziel_dir = Path(out_dir) if out_dir else path.parent
+    try:
+        ziel_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        res["error"] = f"Zielordner nicht anlegbar: {e}"
+        return res
+    out = ziel_dir / f"{path.stem}-feld-{spalte}-{zeile}.jpg"
+    # crop rechnet in Originalpixeln — kein Skalieren, keine Qualitätsstufe
+    # schlechter als nötig (q=2), damit Kleingedrucktes lesbar bleibt.
+    ok, err = _run([
+        _FFMPEG, "-y", "-v", "error", "-i", str(path),
+        "-vf", f"crop=iw/{raster}:ih/{raster}:"
+               f"(iw/{raster})*{spalte - 1}:(ih/{raster})*{zeile - 1}",
+        "-q:v", "2", str(out)])
+    if not ok or not out.exists():
+        res["error"] = f"Ausschnitt fehlgeschlagen: {err[:200]}"
+        return res
+    groesse = out.stat().st_size
+    if groesse > budget:
+        # Ein Ausschnitt, der die Leitung sprengt, wird als Ganzes verkleinert —
+        # er ist dann immer noch deutlich schärfer als das Gesamtbild.
+        kleiner = prepare_image(out, budget, out_dir=ziel_dir)
+        if not kleiner["ok"]:
+            res["error"] = kleiner["error"]
+            return res
+        res.update(ok=True, path=Path(kleiner["path"]), bytes=kleiner["bytes"],
+                   note=f"Feld {spalte}/{zeile} von {raster}×{raster}, "
+                        "leicht verkleinert (war für die Leitung zu groß)")
+        return res
+    res.update(ok=True, bytes=groesse, path=out,
+               note=f"Feld {spalte}/{zeile} von {raster}×{raster} "
+                    "in Originalauflösung")
+    return res
+
+
 def prepare_video(path: Path, budget: int, *, out_dir: Path | None = None,
                   max_frames: int = 400, sekunden_je_bild: float | None = None) -> dict:
     """(d) Zerlegt ein Video in übergebbare Teile: Einzelbilder + Tonspur.

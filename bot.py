@@ -2340,6 +2340,22 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
     lines: list[str] = ["📋 Übersicht", ""]
 
+    # Hauptmodell und Tempo — Adam-Befund 25.07.: Das STT-Modell stand hier,
+    # das HAUPTMODELL nie. Mit automatisierter Modell-Frische kann sich der
+    # Alias unter Adam ändern, ohne dass er es sieht; deshalb nicht nur der
+    # Kurzname, sondern die **vollständige Kennung** — Konkret vor Label,
+    # dieselbe Regel wie beim Updater.
+    prefs = _USER_PREFS.get(str(user_id), {})
+    kurz = sess.current_model if sess is not None else prefs.get("model", DEFAULT_MODEL)
+    voll = _MODEL_ALIASES.get(kurz, kurz)
+    tempo_namen = {"low": "Schnell", None: "Normal", "max": "Max"}
+    eff = sess.current_effort if sess is not None else prefs.get("effort", None)
+    lines.append(f"{_model_btn_label(kurz)} · Kennung `{voll}`")
+    lines.append(f"⚙️ Tempo: {tempo_namen.get(eff, str(eff))}")
+    if user_id in _THOROUGH_PENDING:
+        lines.append("🎯 Gründlich ist für die nächste Anfrage vorgemerkt")
+    lines.append("")
+
     # Läuft gerade
     if mb and mb.current_job is not None:
         elapsed = int(time.monotonic() - mb.current_started)
@@ -4837,6 +4853,49 @@ def run_self_check() -> tuple[bool, list[str]]:
             assert name == "WhisperCppTranscriber", f"unerwartetes Backend: {name}"
     check("Sprach-Backend (5.22)", _c_stt_backend)
 
+    def _c_status_modellzeile() -> None:
+        """Erzwingt, dass /status Modell UND Kennung nennt (Adam 25.07.).
+
+        Die Zeile hat bis heute **nie** existiert — das STT-Modell stand drin,
+        das Hauptmodell nicht. Ohne Prüfer verschwindet sie irgendwann wieder
+        genauso unbemerkt, wie sie gefehlt hat (Regel R2).
+        """
+        import inspect
+        src = inspect.getsource(cmd_status)
+        assert "_model_btn_label(kurz)" in src, "/status nennt das Hauptmodell nicht"
+        assert "_MODEL_ALIASES.get(kurz" in src or "voll = _MODEL_ALIASES" in src, \
+            "/status nennt die vollständige Modell-Kennung nicht (Konkret vor Label)"
+        assert "Tempo" in src, "/status nennt das Tempo nicht"
+        assert "_THOROUGH_PENDING" in src, "/status zeigt nicht, ob Gründlich vorgemerkt ist"
+        wechsel = inspect.getsource(_handle_keyboard_btn)
+        assert "_MODEL_ALIASES.get(new_sess.current_model" in wechsel, \
+            "die Wechsel-Bestätigung nennt die Kennung nicht — ein stiller " \
+            "Alias-Wechsel bliebe unsichtbar"
+    check("Modellzeile in /status (⑬)", _c_status_modellzeile)
+
+    def _c_log_repo_ampel() -> None:
+        """Benannter Prüfer für den 5.19-Pflicht-Prüfpunkt (Conni 25.07.).
+
+        Heute ist das Log-Repo unkritisch. Mit den Sekretärin-Funktionen wandern
+        Rechnungen, Klientennamen und Kontobewegungen in dieselben Logs, die
+        Conni lesen darf. Diese Zeile schlägt an, **sobald** solcher Code
+        entsteht, ohne dass die Neubewertung dokumentiert ist — damit die
+        Auflage nicht wieder eine Bitte bleibt.
+        """
+        sekretariat = [p.name for p in _REPO_DIR.glob("*.py")
+                       if p.stem in ("rechnung", "rechnungen", "sekretariat",
+                                     "buchhaltung", "invoice")]
+        if not sekretariat:
+            return                      # noch nichts gebaut — nichts zu prüfen
+        drehbuch = _REPO_DIR / "MIGRATION.md"
+        text = drehbuch.read_text(encoding="utf-8") if drehbuch.exists() else ""
+        assert "Log-Repo-Ampel: BEWERTET" in text, (
+            f"Sekretariats-Code vorhanden ({', '.join(sekretariat)}), aber die "
+            "Neubewertung des Conni-Lesezugriffs auf das Log-Repo ist nicht "
+            "dokumentiert (erwartet im Drehbuch bei 5.19: "
+            "'Log-Repo-Ampel: BEWERTET')")
+    check("Log-Repo-Ampel (5.19)", _c_log_repo_ampel)
+
     return state["ok"], results
 
 
@@ -5705,9 +5764,14 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         await close_session(user_id)
         new_sess = await ensure_session(user_id)
         keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort)
+        # Konkret vor Label (Adam 25.07.): Die vollständige Kennung mit
+        # nennen, damit ein stiller Alias-Wechsel sichtbar wird — mit
+        # automatisierter Modell-Frische kann sich der Alias sonst unter Adam
+        # ändern, ohne dass er es je erfährt.
         await update.message.reply_text(
-            f"{model_label} aktiv. Session neu gestartet.",
-            reply_markup=keyboard,
+            f"{model_label} aktiv · `{_MODEL_ALIASES.get(new_sess.current_model, new_sess.current_model)}`"
+            "\nSession neu gestartet.",
+            reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN,
         )
         return
 
@@ -6000,6 +6064,28 @@ async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
                             log_note=_note)
 
 
+def _zu_gross_hinweis(art: str, size_mb: float) -> str:
+    """Erklärt die 20-MB-Grenze und verweist auf den Ausweg (Adam 25.07.).
+
+    Vorher scheiterte der Fall nur — Adam erfuhr nicht, dass die Grenze
+    **Telegrams** ist und dass es dafür einen gebauten Ausweg gibt. Eine
+    Fehlermeldung, die den Weg nicht nennt, macht aus einer bekannten Grenze
+    ein Rätsel.
+    """
+    return (
+        f"❌ {art} ist {size_mb:.1f} MB groß — Telegram gibt Bots über die "
+        "öffentliche Schnittstelle **höchstens 20 MB** heraus. Das ist Telegrams "
+        "Grenze, nicht meine: Die Datei liegt noch bei Telegram, ich komme nur "
+        "nicht an sie heran.\n\n"
+        "Es gibt dafür einen Ausweg (Punkt 5.34): ein eigener Bot-API-Server "
+        "hebt die Grenze auf **2 GB**. Er ist gemessen und entscheidungsreif — "
+        "kostet nichts zusätzlich, braucht keine Aufrüstung — und wartet nur auf "
+        "dein Ja.\n\n"
+        "Bis dahin hilft: als Datei statt als Video schicken (falls möglich), "
+        "kürzen, oder mir den entscheidenden Ausschnitt senden."
+    )
+
+
 async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
@@ -6032,8 +6118,20 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
     parts = [f"[Bild hochgeladen: {shot['path']}]"]
     if shot["shrunk"]:
-        parts.append(f"Hinweis: {shot['note']}. "
-                     f"Original in voller Auflösung: {local_path}")
+        # Adams Praxis-Befund 25.07.: Beim Verkleinern geht zuerst genau das
+        # verloren, was Detailerkennung braucht. Deshalb wird der Weg zum
+        # Original hier ausdrücklich BENANNT — samt der Aufforderung, Unsicherheit
+        # von selbst zu sagen statt auf Adams Nachfrage zu warten.
+        parts.append(
+            f"Hinweis: {shot['note']}. Das Original in voller Auflösung liegt "
+            f"unangetastet unter {local_path}.\n"
+            "Wenn es auf Details ankommt (Kleingedrucktes, Zahlen, "
+            "Beschriftungen) und die verkleinerte Fassung dafür nicht reicht: "
+            "Nutze `media.ausschnitt(<Original>, budget, spalte=N, zeile=M)` — "
+            "das liefert ein Feld eines 3×3-Rasters in Originalauflösung. "
+            "**Und sage von selbst, wenn du etwas nur vermutest** — eine "
+            "unsichere Erkennung als sicher auszugeben ist der schlimmere "
+            "Fehler, und Adam soll nicht erst nachfragen müssen.")
     if caption:
         parts.append(f"Beschriftung: {caption}")
     await process_user_text(update, prefix + "\n".join(parts),
@@ -6055,9 +6153,8 @@ async def on_document(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     size_mb = (doc.file_size or 0) / 1_048_576
 
     if (doc.file_size or 0) > 20 * 1_048_576:
-        await msg.reply_text(
-            f"❌ Datei zu groß ({size_mb:.1f} MB) — Telegram Bot API erlaubt max. 20 MB."
-        )
+        await msg.reply_text(_zu_gross_hinweis("Die Datei", size_mb),
+                             parse_mode=ParseMode.MARKDOWN)
         return
 
     await msg.reply_chat_action("upload_document")
@@ -6125,9 +6222,8 @@ async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     size_mb = (media.file_size or 0) / 1_048_576
 
     if (media.file_size or 0) > 20 * 1_048_576:
-        await msg.reply_text(
-            f"❌ Video zu groß ({size_mb:.1f} MB) — Telegram Bot API erlaubt max. 20 MB."
-        )
+        await msg.reply_text(_zu_gross_hinweis("Das Video", size_mb),
+                             parse_mode=ParseMode.MARKDOWN)
         return
 
     await msg.reply_chat_action("upload_video")

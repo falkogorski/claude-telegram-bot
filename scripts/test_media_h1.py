@@ -171,6 +171,49 @@ def _uebersichtsboegen_entstehen():
     assert ":" in zeilen[0] and ".jpg" in zeilen[0], f"Zeitmarke unbrauchbar: {zeilen[0]}"
 
 
+
+def _ausschnitt_ist_schaerfer():
+    """Nachtrag V ④: Details als Ausschnitt in Originalauflösung.
+
+    Der Nachweis, auf den es ankommt: Der Ausschnitt trägt MEHR Bildpunkte je
+    Fläche als die verkleinerte Gesamtfassung — sonst hilft er bei
+    Kleingedrucktem nicht.
+    """
+    budget = 400_000
+    gesamt = media.prepare_image(BIG, budget, out_dir=TMP / "asA")
+    assert gesamt["ok"] and gesamt["shrunk"], "Testaufbau: Bild wurde nicht verkleinert"
+    feld = media.ausschnitt(BIG, budget, spalte=2, zeile=2, out_dir=TMP / "asB")
+    assert feld["ok"], feld["error"]
+    assert Path(feld["path"]).exists(), "Ausschnitt fehlt auf der Platte"
+    assert BIG.stat().st_size == BIG_BYTES, "das ORIGINAL wurde verändert!"
+
+    def _kanten(p):
+        aus = media._run([media._FFPROBE, "-v", "error", "-select_streams", "v:0",
+                          "-show_entries", "stream=width,height", "-of", "csv=p=0",
+                          str(p)])
+        return aus
+
+    # Ein Neuntel der Fläche bei ähnlichem Budget ⇒ deutlich feinere Auflösung.
+    import subprocess
+    def _breite(p):
+        r = subprocess.run([media._FFPROBE, "-v", "error", "-select_streams", "v:0",
+                            "-show_entries", "stream=width", "-of", "csv=p=0", str(p)],
+                           capture_output=True, text=True)
+        return int((r.stdout or "0").strip() or 0)
+    b_gesamt, b_feld = _breite(gesamt["path"]), _breite(feld["path"])
+    # Das Feld zeigt ein Drittel der Bildbreite. Damit es schärfer ist, muss
+    # seine Pixelbreite mehr als ein Drittel der Gesamt-Pixelbreite betragen.
+    assert b_feld > b_gesamt / 3, \
+        (f"Ausschnitt ist nicht feiner als die Gesamtfassung "
+         f"(Feld {b_feld} px für ein Drittel Bildbreite, Gesamt {b_gesamt} px)")
+
+
+def _ausschnitt_bleibt_im_raster():
+    """Unsinnige Felder werden begrenzt, nicht abgelehnt — und nie geraten."""
+    a = media.ausschnitt(BIG, 2_000_000, spalte=99, zeile=0, out_dir=TMP / "asC")
+    assert a["ok"], a["error"]
+    assert "3" in a["note"], f"Rasterangabe fehlt in der Notiz: {a['note']}"
+
 check("Budget folgt dem Puffer, ohne ihn auszuschöpfen", _budget_folgt_puffer)
 check("passendes Bild bleibt Original", _passt_bleibt_original)
 check("großes Bild wird verkleinert, Original unberührt", _zu_gross_wird_verkleinert)
@@ -181,6 +224,8 @@ check("Videoteile passen einzeln ins Budget", _videoteile_passen_ins_budget)
 check("Budget gilt je Bild, nicht geteilt", _budget_gilt_je_bild)
 check("Abtastdichte nach Adams Vorgabe", _dichte_nach_adams_vorgabe)
 check("Übersichtsbögen + Zeitmarken entstehen", _uebersichtsboegen_entstehen)
+check("Ausschnitt ist feiner als die Gesamtfassung", _ausschnitt_ist_schaerfer)
+check("Ausschnitt bleibt im Raster", _ausschnitt_bleibt_im_raster)
 
 if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")

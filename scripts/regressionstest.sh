@@ -28,6 +28,7 @@ run "Syntax bot.py (py_compile)"        "$PY" -m py_compile bot.py
 run "Syntax transcribe.py"              "$PY" -m py_compile transcribe.py
 run "Syntax reactions.py"               "$PY" -m py_compile reactions.py
 run "Syntax channels.py"                "$PY" -m py_compile channels.py
+run "Syntax media.py"                   "$PY" -m py_compile media.py
 run "Syntax pending.py"                 "$PY" -m py_compile pending.py
 run "Syntax presend.py"                 "$PY" -m py_compile presend.py
 # Auf dem VPS liegen die echten Envs nur in der root-geschuetzten systemd-Env —
@@ -55,7 +56,8 @@ run "Session-Waechter 5.18"             "$PY" scripts/test_stall_5_18.py
 run "Kanal-Routing Phase 6"             "$PY" scripts/test_channels_6.py
 run "Warteschlange FIFO 5.5"            "$PY" scripts/test_queue_order_5_5.py
 run "Updater-Haertung A1-A7"            "$PY" scripts/test_updater_haertung.py
+run "Medien-Transport H1 (Bild/Video)"  "$PY" scripts/test_media_h1.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
-echo "== Ergebnis: $((15-FAILS))/15 bestanden =="
+echo "== Ergebnis: $((17-FAILS))/17 bestanden =="
 exit $FAILS

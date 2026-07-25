@@ -180,6 +180,7 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 | Dienst-Sandboxing auf Betriebssystem-Ebene (Schreibrechte nur aufs Arbeitsverzeichnis) als billige Schadensradius-Begrenzung | Rotes Team C.2 / 4d | **anpassbar** (hier systemd) |
 | Geplanter nächtlicher Prozess-Hygiene-Neustart gegen Langzeit-Degradation, mit stiller Startmeldung bei sauberem Lauf | Rotes Team C.3 / 4d | **universell** |
 | **Autonome Läufe takten sich nach der Ressource, die zuerst ausgeht** (Kontingent-Ökonomie: Durchhalten schlägt Klotzen; Eskalations-Kandidaten parken statt hochschalten) | CLAUDE.md Arbeitsprinzip | **universell** |
+| **Transportgrenze ist keine Fähigkeitsgrenze** — was eine Leitung nicht am Stück fasst, wird verkleinert oder in Teile zerlegt (Einzelbilder + Tonspur), nie abgewiesen; das Original bleibt unangetastet, die Transportfassung ist eine Zweitdatei. Kettenwirkung geprüft: Puffer und Budget müssen **gekoppelt** bleiben (Budget vom Puffer abgeleitet, keine feste Byte-Zahl). Tatsächliche Nebenwirkung: der Selbstcheck deckte auf, dass eine zweite, längst vergessene Options-Stelle denselben Puffer braucht — eine Zahl an nur einer Stelle hätte den Bruch bloß verschoben | H1 | **universell** |
 
 ---
 

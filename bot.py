@@ -55,6 +55,7 @@ import tempfile
 from transcribe import Transcriber, build_transcriber
 import ampel
 import channels
+import media
 import pending
 import presend
 import reactions
@@ -232,6 +233,12 @@ TTS_CHUNK_CHARS = 4000  # max. Zeichen pro Sprachnachricht (PDF-Vorlesen etc.)
 TTS_SYNC_CHUNK = 1024  # max. Zeichen pro Text-Chunk wenn TTS-Sync-Modus aktiv
 _RESTART_REASON_FILE = Path.home() / ".claude/bot-restart-reason.txt"
 UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR") or str(Path.home() / "Downloads" / "claude-uploads"))
+# H1 (Befund 24.07.): Der SDK-Vorgabewert von 1 MB ließ jedes größere Foto den
+# Turn abbrechen — viermal hintereinander, danach Sitzungs-Neustart. Zuerst den
+# Puffer anheben (das ist reine Speicher-Einstellung, kostenlos), erst danach
+# verkleinern. Über SDK_MAX_BUFFER_BYTES übersteuerbar.
+SDK_MAX_BUFFER = media.env_max_buffer()
+MEDIA_BUDGET = media.transport_budget(SDK_MAX_BUFFER)
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")
 # Kurznamen → vollständige Modell-IDs, die das SDK versteht
 _MODEL_ALIASES: dict[str, str] = {
@@ -405,6 +412,21 @@ def is_context_overflow(exc: Exception) -> bool:
         "reduce the length",
     )
     return any(n in msg for n in needles)
+
+
+def is_transport_overflow(exc: Exception) -> bool:
+    """True, wenn eine SDK-Nachricht die Transportgrenze der Leitung sprengt.
+
+    H1 (Befund 24.07.): „JSON message exceeded maximum buffer size of 1048576
+    bytes" — das ist NICHT das Kontextfenster, sondern die Rohr-Weite zwischen
+    CLI-Unterprozess und Python-Seite. Sie muss eigens erkannt werden, sonst
+    landet der Fall im allgemeinen Zweig und liest sich für Adam wie ein
+    unerklärlicher Session-Fehler.
+    """
+    msg = str(exc).lower()
+    return ("maximum buffer size" in msg
+            or "exceeded maximum buffer" in msg
+            or ("buffer size" in msg and "exceed" in msg))
 
 
 AUTH_HELP = (
@@ -1182,6 +1204,26 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     await send_chunked(sess.bot, sess.chat_id, AUTH_HELP, parse_mode=ParseMode.MARKDOWN)
                 except Exception:
                     log.exception("failed to send auth-error message")
+                await close_session(user_id)
+                return "aufgegeben"
+            # H1: Transportgrenze der Leitung — eigener Zweig mit ehrlicher,
+            # verständlicher Meldung. Vorher fiel dieser Fall in den allgemeinen
+            # Zweig; Adam sah viermal denselben englischen Puffer-Fehler und
+            # danach einen Sitzungs-Neustart, ohne zu erfahren, was los war.
+            if is_transport_overflow(e):
+                try:
+                    await send_chunked(
+                        sess.bot, sess.chat_id,
+                        "📦 Der Inhalt war für die Leitung zum Modell zu groß "
+                        f"(Grenze derzeit {SDK_MAX_BUFFER // 1_048_576} MB).\n"
+                        "Deine Datei ist nicht verloren — sie liegt vollständig "
+                        "im Upload-Ordner.\n"
+                        "→ Bei einem Bild hilft ein kleinerer Ausschnitt, bei einem "
+                        "Dokument der entscheidende Abschnitt. Ich sage dir gern, "
+                        "worauf ich schauen soll, wenn du mir sagst, worum es geht.",
+                    )
+                except Exception:
+                    log.exception("failed to send transport-overflow message")
                 await close_session(user_id)
                 return "aufgegeben"
             # Kontext-Überlauf: Session verwerfen, frisch starten und die
@@ -2021,6 +2063,7 @@ async def ensure_session(
         model=model_full,
         effort=effort,
         add_dirs=add_dirs,
+        max_buffer_size=SDK_MAX_BUFFER,   # H1 (c): erst Puffer, dann verkleinern
         # Private, kostenfreie Websuche (2.7) als Standardweg. Anthropic-WebSearch
         # ist seit 23.07. (Adam-Entscheid „Variante 2") NICHT mehr hart deaktiviert,
         # sondern bewusste Notfall-Option: _COST_TOOLS erzwingt für JEDE Nutzung
@@ -4505,6 +4548,29 @@ def run_self_check() -> tuple[bool, list[str]]:
                            + "; ".join(drift))
     check("Pin-Divergenz (C2)", _c_pin_divergenz)
 
+    def _c_medien_transport() -> None:
+        """H1: Die drei Glieder der Medien-Kette einzeln nachweisen.
+
+        Prüft nicht „läuft es", sondern die Voraussetzungen, deren Fehlen still
+        wäre: Werkzeuge da, Puffer angehoben, Budget vom Puffer ABGELEITET.
+        """
+        assert media.tools_available(), \
+            "ffmpeg/ffprobe fehlen — große Bilder und alle Videos blieben liegen"
+        assert SDK_MAX_BUFFER > 1_048_576, \
+            f"SDK-Puffer nicht angehoben ({SDK_MAX_BUFFER} B) — 1-MB-Abbruch kehrt zurück"
+        assert MEDIA_BUDGET == media.transport_budget(SDK_MAX_BUFFER), \
+            "Budget ist nicht mehr vom Puffer abgeleitet (hart verdrahtet?)"
+        assert 0 < MEDIA_BUDGET < SDK_MAX_BUFFER, \
+            "Budget schöpft den Puffer voll aus — kein Spielraum für den Rest des Turns"
+        try:
+            src = Path(__file__).read_text(encoding="utf-8")
+        except OSError:
+            src = ""
+        if src:
+            assert src.count("max_buffer_size=SDK_MAX_BUFFER") >= 2, \
+                "max_buffer_size fehlt an einer der beiden ClaudeAgentOptions-Stellen"
+    check("Medien-Transport (H1)", _c_medien_transport)
+
     return state["ok"], results
 
 
@@ -5641,7 +5707,22 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         await msg.reply_text(f"❌ Bild-Download fehlgeschlagen: {e}")
         return
 
-    parts = [f"[Bild hochgeladen: {local_path}]"]
+    # H1: Das Original bleibt liegen wie es ist; für die Übergabe entsteht bei
+    # Bedarf eine kleinere Zweitfassung. Ohne das riss ein großes Foto den Turn
+    # an der SDK-Transportgrenze ab (Befund 24.07., viermal am selben Bild).
+    shot = media.prepare_image(local_path, MEDIA_BUDGET, out_dir=UPLOAD_DIR)
+    if not shot["ok"]:
+        # (e) Kein stiller Absturz — ehrliche Meldung, Original bleibt gesichert.
+        await msg.reply_text(
+            "❌ Dieses Bild lässt sich gerade nicht an das Modell übergeben — "
+            f"{shot['error']}.\nDas Original liegt unversehrt hier: {local_path}"
+        )
+        return
+
+    parts = [f"[Bild hochgeladen: {shot['path']}]"]
+    if shot["shrunk"]:
+        parts.append(f"Hinweis: {shot['note']}. "
+                     f"Original in voller Auflösung: {local_path}")
     if caption:
         parts.append(f"Beschriftung: {caption}")
     await process_user_text(update, prefix + "\n".join(parts),
@@ -5753,7 +5834,36 @@ async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         parts.append(f"Dateiname: {filename}")
     if caption:
         parts.append(f"Beschriftung: {caption}")
-    await msg.reply_text(f"🎬 {label} ({size_mb:.1f} MB) empfangen — weiterleiten …")
+
+    # H1 (d): Ein Video passt nie als Ganzes durch die Transportgrenze — und das
+    # Modell kann eine Videodatei ohnehin nicht direkt ansehen. Statt abzuweisen
+    # wird es in Teile zerlegt: gleichmäßig verteilte Einzelbilder plus Tonspur.
+    await msg.reply_text(f"🎬 {label} ({size_mb:.1f} MB) empfangen — "
+                         "ich zerlege es in Einzelbilder und Tonspur …")
+    teile = await asyncio.to_thread(
+        media.prepare_video, local_path, MEDIA_BUDGET,
+        out_dir=UPLOAD_DIR / f"{local_path.stem}-teile")
+    if teile["ok"]:
+        if teile["frames"]:
+            liste = "\n".join(f"  - {p}" for p in teile["frames"])
+            parts.append(f"Einzelbilder zum Ansehen ({len(teile['frames'])} Stück, "
+                         f"gleichmäßig über die Laufzeit verteilt):\n{liste}")
+        if teile["audio"] is not None:
+            gesprochen = ""
+            try:
+                gesprochen = (await get_transcriber().transcribe(
+                    teile["audio"], language=VOICE_LANGUAGE) or "").strip()
+            except Exception:
+                log.exception("video audio transcription failed (ignored)")
+            parts.append(f"Tonspur: {teile['audio']}")
+            if gesprochen:
+                parts.append(f"Gesprochener Inhalt der Tonspur:\n{gesprochen}")
+        if teile["duration"]:
+            parts.append(f"Laufzeit: {teile['duration']:.0f} Sekunden")
+    else:
+        # (e) Ehrlich melden statt still scheitern — das Original bleibt liegen.
+        parts.append(f"Hinweis: Das Video konnte nicht zerlegt werden "
+                     f"({teile['error']}). Die Datei liegt unter {local_path}.")
     await process_user_text(update, prefix + "\n".join(parts),
                             log_note=f"🎬 {label}: {filename} · {size_mb:.1f} MB")
 
@@ -6495,6 +6605,7 @@ async def _summarize_pdf_direct(local_path: Path) -> str:
         permission_mode="bypassPermissions",
         allowed_tools=[],
         system_prompt=system_prompt,
+        max_buffer_size=SDK_MAX_BUFFER,
     )
     client = ClaudeSDKClient(options=options)
     await client.connect()

@@ -9,7 +9,7 @@ import asyncio, os, sys, tempfile
 from pathlib import Path
 
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "0:test")
-os.environ.setdefault("ALLOWED_USER_IDS", "4242")
+os.environ["ALLOWED_USER_IDS"] = "4242"  # erzwungen: hermetisch (nie geerbte echte UID)
 os.environ["PENDING_DIR"] = tempfile.mkdtemp(prefix="pending-test-")
 os.environ["STALL_LIMIT"] = "2"
 os.environ["STALL_CHECK_INTERVAL"] = "1"

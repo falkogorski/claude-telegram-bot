@@ -27,7 +27,7 @@ _TMP = Path(tempfile.mkdtemp(prefix="react59-"))
 os.environ["PENDING_DIR"] = str(_TMP / "pending")
 os.environ["QUESTIONS_FILE"] = str(_TMP / "open_questions.json")
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:testtoken")
-os.environ.setdefault("ALLOWED_USER_IDS", "4242")
+os.environ["ALLOWED_USER_IDS"] = "4242"  # erzwungen: hermetisch (nie geerbte echte UID)
 
 from telegram import ReactionTypeEmoji  # noqa: E402
 

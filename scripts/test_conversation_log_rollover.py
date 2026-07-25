@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 _TMP = Path(tempfile.mkdtemp(prefix="convlog-"))
 os.environ["CONVERSATION_LOG_DIR"] = str(_TMP)
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:testtoken")
-os.environ.setdefault("ALLOWED_USER_IDS", "4242")
+os.environ["ALLOWED_USER_IDS"] = "4242"  # erzwungen: hermetisch (nie geerbte echte UID)
 
 import bot  # noqa: E402
 

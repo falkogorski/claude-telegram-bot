@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:testtoken")
-os.environ.setdefault("ALLOWED_USER_IDS", "4242")
+os.environ["ALLOWED_USER_IDS"] = "4242"  # erzwungen: hermetisch (nie geerbte echte UID)
 
 import bot  # noqa: E402
 

@@ -22,6 +22,8 @@ metadata:
 
 ## Änderungshistorie
 
+- **2026-07-25 (18)** — **5.14 Link-Inbox gebaut.** Nackte Links werden abgelegt statt verarbeitet — **kein Modell-Aufruf, kein Netzabruf**, drei Knöpfe für später, `/links` als Übersicht. Die Weiche zwischen Ablage und Auftrag ist ein einzelnes sinntragendes Wort; der Behelfstitel wird ausdrücklich als „abgeleitet, nicht gelesen" gekennzeichnet. Regressionslauf **25/25**. Offen bleibt der quellkanal-abhängige Teil des Akzeptanzkriteriums — er hängt an den vier Telegram-Gruppen und wandert mit ihnen.
+
 - **2026-07-25 (17)** — **R4, R5, R6 verankert.** **R4 Probelauf im Klon** für Eingriffe mit Kettenwirkung, mit ausdrücklichem Prüfstein gegen Übereifer („in einer Minute ohne Nachdenken rückgängig? dann kein Klon") und dem Hinweis, dass ein Klon die Prüfung in der **echten Zielumgebung** nicht ersetzt — der Wächter-Fehlalarm kam genau daher. **R5 Entrümpelung** als eigener Punkt in Phase 10 **terminiert** statt nebenbei erledigt (bot.py bei 7663 Zeilen), mit zwei harten Auflagen. **R6 Blaupause-Pflicht je Baustein** — drei Angaben, wobei die **tatsächlich eingetretene Nebenwirkung** die wertvolle ist: „was gebaut" steht im Commit, „geprüft" im Test, aber die Nebenwirkung weiß nur, wer dabei war. Zwischenschritte werden archiviert, nicht geglättet.
 
 - **2026-07-25 (15)** — **Abschlussblock und Nachträge VI/VII abgearbeitet.** **5.34-Auflagen ①–⑤ in die Vorlage** (Protokollierung aus/root-beschränkt · `api_id` als Geheimnis, aber kein Kennwort-Gleichrang · nur `127.0.0.1` · Zwischenlager **wie rot**, `0700`, aus Sync und Backup · **Rückfall statt Stummheit**). **Connis Fund halbiert die Rechnung:** im `--local`-Betrieb gibt der Server Dateipfade zurück, die zweite 2-GiB-Kopie entfällt → **2,10 GiB je Datei, ~14 statt 7** unter dem Deckel; weniger Kopien heißt weniger Orte mit persönlichen Medien. **Plattenverschlüsselung GEMESSEN:** `/` ist blankes ext4, **keine** Verschlüsselungsschicht — die Werte-Charta §3 sagt jetzt „niemand wertet sie aus" statt „niemand außer dir kann sie lesen". **Neue Grundsätze in CLAUDE.md:** Beleg-Grundsatz mit Auflösungs-Budget (Anlass: neun Merkmale, die physikalisch nicht existieren konnten) und die **Wirkungs-Regel** (nach jeder Filter-Änderung das Ergebnis prüfen, nicht die Absicht). **Übergabe-Vermerk in WIEDERANLAUF.md** (Repos beim Start, `mac-produktivstand` statt `main`, Zuerst-Prüfung in vier Fragen). Zwei Status-Zeilen auf Adams Bestätigungen nachgezogen.
@@ -610,7 +612,13 @@ Absturzfall ausdrücklich auf 5.18).
 - **Verifiziert am:** —
 
 ### 5.14 Link-Inbox (Zusammenfassen / Vertiefen / Volltranskript)
-- **Status:** OFFEN
+- **Status:** ✅ GEBAUT (25.07.2026) — wartet auf Adams drei Testlinks
+- **Umsetzung:** Eine Nachricht, die **nur** aus Adressen besteht, wird **abgelegt statt verarbeitet** — deterministisch, ohne Modell-Aufruf und **ohne jeden Netzabruf**. Der Eintrag entsteht allein aus der Adresse: Quelle (YouTube, Instagram, GitHub …), Art (Video, Beitrag, Artikel, Code, Audio) und ein Behelfstitel. Drei Knöpfe bieten die Verarbeitung an: **Zusammenfassen · Vertiefen · Volltranskript** (letzteres nur bei Video/Audio), dazu **Nur ablegen**. `/links` zeigt die Ablage.
+- **Die Weiche ist `_text_ohne_links()`:** Schreibt Adam ein sinntragendes Wort dazu („schau mal", „fass zusammen"), ist es ein **Auftrag** und geht den gewohnten Weg — die Absicht steht dann ja im Text. Satz- und Sonderzeichen zählen nicht als Text; ein vorangestellter Pfeil hat den Test beim ersten Lauf gekippt und die Zeichenliste erweitert.
+- **Zwei Ehrlichkeits-Griffe:** Der Titel ist aus der Adresse **abgeleitet, nicht gelesen** — das steht in der Nachricht, damit er nicht wie ein gelesener wirkt (Beleg-Grundsatz). Und nichtssagende Pfade fallen auf den Adressnamen zurück, statt Unsinn zu behaupten.
+- **Test:** `scripts/test_linkinbox_5_14.py` (8 Prüfungen, im Regressionslauf → **25/25**) — darunter der Nachweis, dass das Modul **keine** Netz-Bibliothek anfasst.
+- **Akzeptanzkriterium (erfüllt):** Beim Link-Eingang nur schlanker Index; drei Knöpfe aktiv; Verarbeitung erst auf Knopfdruck. **Noch offen:** Routing nach Quellkanal und das Ablegen von Kernpunkten im Gedächtnis — beides hängt an den vier Telegram-Gruppen (6.1/6.5) und wandert mit denen mit.
+- **Alter Status:** ~~OFFEN~~
 - **Akzeptanzkriterium:** Beim Link-Eingang nur schlanker Index (Titel, Quelle, Dauer, Topic); drei Buttons aktiv; Routing nach Quellkanal; Verarbeitung erst auf Knopfdruck. Strukturierte Vertiefung legt Kernpunkte in Memory ab.
 - **Test:** Je einen YouTube-, Instagram- und Web-Link prüfen; jeden Button einmal nutzen.
 - **Adam-Bestätigung:** —

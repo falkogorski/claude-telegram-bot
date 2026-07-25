@@ -30,6 +30,7 @@ run "Syntax reactions.py"               "$PY" -m py_compile reactions.py
 run "Syntax channels.py"                "$PY" -m py_compile channels.py
 run "Syntax media.py"                   "$PY" -m py_compile media.py
 run "Syntax kalender.py"                "$PY" -m py_compile kalender.py
+run "Syntax linkinbox.py"               "$PY" -m py_compile linkinbox.py
 run "Syntax pending.py"                 "$PY" -m py_compile pending.py
 run "Syntax presend.py"                 "$PY" -m py_compile presend.py
 # Auf dem VPS liegen die echten Envs nur in der root-geschuetzten systemd-Env —
@@ -63,7 +64,8 @@ run "Kontingent-Limit H2"               "$PY" scripts/test_session_limit_h2.py
 run "Nachzieher C1"                     "$PY" scripts/test_nachzieher_c1.py
 run "Kalender/CalDAV (7.x)"             "$PY" scripts/test_kalender_caldav.py
 run "Wartungsfenster B2/B3"             "$PY" scripts/test_wartungsfenster_b3.py
+run "Link-Inbox 5.14"                   "$PY" scripts/test_linkinbox_5_14.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
-echo "== Ergebnis: $((23-FAILS))/23 bestanden =="
+echo "== Ergebnis: $((25-FAILS))/25 bestanden =="
 exit $FAILS

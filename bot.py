@@ -56,6 +56,7 @@ from transcribe import Transcriber, build_transcriber
 import ampel
 import channels
 import kalender
+import linkinbox
 import media
 import pending
 import presend
@@ -2660,6 +2661,7 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/updates — verfügbare Updates zeigen und einzeln/gesammelt freigeben\n"
         "/termine — Kalender: was in den nächsten Tagen ansteht (optional /termine 14)\n"
         "/aufgaben — offene Erinnerungen aus iCloud\n"
+        "/links — abgelegte Links (ein Link allein wird abgelegt, nicht gleich verarbeitet)\n"
         "/restart — Bot neu starten\n"
         "/selfcheck — Selbsttest ausführen\n"
         "/hilfe — Diese Befehlsübersicht\n\n"
@@ -5219,6 +5221,7 @@ async def post_init(app: Application) -> None:
             BotCommand("quiet", "Ruhiger Modus (Tipp-Indikator aus)"),
             BotCommand("verbose", "Tipp-Indikator wieder an"),
             BotCommand("reset", "Session zurücksetzen"),
+            BotCommand("links", "Abgelegte Links zeigen"),
             BotCommand("termine", "Kalender: die nächsten Tage"),
             BotCommand("aufgaben", "Offene Erinnerungen"),
             BotCommand("selfcheck", "Selbsttest der Kernfunktionen"),
@@ -5416,7 +5419,7 @@ _BEKANNTE_BEFEHLE: set[str] = {
     "start", "whoami", "whereami", "reset", "tts", "ttsdemo", "quiet", "verbose",
     "status", "ampel", "presend", "usage", "hilfe", "restart", "setkanal",
     "selfcheck", "stopp", "technik", "spur", "updates", "freigaben",
-    "termine", "aufgaben",
+    "termine", "aufgaben", "links",
 }
 
 
@@ -6053,8 +6056,115 @@ async def on_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(ampel.add_rule(cap["color"], pattern, label))
         return
 
+    # 5.14 Link-Inbox: Eine Nachricht, die NUR aus Adressen besteht, wird
+    # abgelegt statt verarbeitet — deterministisch, ohne Modell-Aufruf. Schreibt
+    # er etwas dazu ("fass das zusammen"), ist es eine normale Anfrage und geht
+    # den gewohnten Weg; die Absicht steht dann ja im Text.
+    _links = linkinbox.urls_in(text)
+    if _links and not _text_ohne_links(text):
+        await _link_ablegen(update, _links)
+        return
+
     prefix = _extract_reply_context(update)
     await process_user_text(update, prefix + text)
+
+
+def _text_ohne_links(text: str) -> str:
+    """Was bleibt, wenn man die Adressen herausnimmt — Satzzeichen zählen nicht.
+
+    Der Maßstab ist bewusst eng: Schon ein einziges sinntragendes Wort neben dem
+    Link macht daraus einen Auftrag. Ein zu großzügiger Griff würde Adam Sätze
+    wegnehmen; ein zu enger nimmt ihm nur ein paar Tastendrücke ab.
+    """
+    rest = linkinbox._URL.sub(" ", text or "")
+    return re.sub(r"[\s.,;:!?\-–—•*_>()\[\]<→←↑↓⇒»«\"'`|/\\+#~=&%$§]+", "",
+                  rest).strip()
+
+
+async def _link_ablegen(update: Update, urls: list[str]) -> None:
+    """Legt Links ab und bietet die drei Wege an (5.14)."""
+    eintraege = []
+    for u in urls[:10]:
+        try:
+            eintraege.append(await asyncio.to_thread(
+                linkinbox.ablegen, u, update.effective_chat.id,
+                update.message.message_id))
+        except Exception:
+            log.exception("Link nicht ablegbar: %s", u)
+    if not eintraege:
+        await update.message.reply_text(
+            "❌ Der Link ließ sich nicht ablegen — sag mir kurz, was ich damit "
+            "tun soll, dann mache ich es direkt.")
+        return
+
+    zeilen = [f"• {e.lesbar()}" for e in eintraege]
+    mehrzahl = len(eintraege) > 1
+    kopf = ("🔗 " + ("Abgelegt" if mehrzahl else "Abgelegt") + ":\n"
+            + "\n".join(zeilen))
+    # Der Titel ist aus der Adresse GERATEN — das wird gesagt, damit er nicht
+    # wie ein gelesener aussieht (Beleg-Grundsatz).
+    hinweis = ("\n\nDie Bezeichnung habe ich aus der Adresse abgeleitet, nicht "
+               "gelesen — abgerufen wird erst auf deinen Knopfdruck.")
+    erster = eintraege[0]
+    reihen = [[
+        InlineKeyboardButton("📝 Zusammenfassen", callback_data="lnk:kurz"),
+        InlineKeyboardButton("🔍 Vertiefen", callback_data="lnk:tief"),
+    ]]
+    if erster.art in ("video", "audio") and not mehrzahl:
+        reihen.append([InlineKeyboardButton("📜 Volltranskript",
+                                            callback_data="lnk:volltext")])
+    reihen.append([InlineKeyboardButton("🗂 Nur ablegen", callback_data="lnk:ruhen")])
+    await update.message.reply_text(
+        kopf + hinweis, reply_markup=InlineKeyboardMarkup(reihen),
+        disable_web_page_preview=True)
+
+
+async def on_link_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """5.14: Erst hier beginnt die Verarbeitung — auf Adams Knopfdruck."""
+    query = update.callback_query
+    await query.answer()
+    if not authorized(update):
+        return
+    was = (query.data or "").split(":", 1)[-1]
+    offen = await asyncio.to_thread(linkinbox.offene)
+    if not offen:
+        await query.edit_message_text("Die Link-Ablage ist inzwischen leer.")
+        return
+    if was == "ruhen":
+        await query.edit_message_text(
+            "🗂 Bleibt liegen. Mit /links siehst du die Ablage wieder.")
+        return
+
+    # Die zuletzt abgelegten Links dieser Nachricht verarbeiten.
+    bezug = [e for e in offen if e.message_id == (query.message.reply_to_message.message_id
+                                                 if query.message and query.message.reply_to_message
+                                                 else None)] or offen[-3:]
+    auftrag = {
+        "kurz": ("Fasse die folgenden Fundstücke knapp zusammen — je Eintrag "
+                 "wenige Sätze, das Wesentliche zuerst."),
+        "tief": ("Arbeite die folgenden Fundstücke gründlich durch: Kernaussagen, "
+                 "wofür es bei uns brauchbar ist, und was daran fraglich bleibt. "
+                 "Nenne deine Quellen und kennzeichne Unsicheres."),
+        "volltext": ("Hole zum folgenden Fundstück den vollständigen Wortlaut "
+                     "(Transkript) und gib ihn geordnet wieder."),
+    }.get(was)
+    if auftrag is None:
+        return
+    liste = "\n".join(f"- {e.url}" for e in bezug)
+    await query.edit_message_text(f"⏳ Ich arbeite daran ({was}) …")
+    for e in bezug:
+        await asyncio.to_thread(linkinbox.abhaken, e.url, f"verarbeitet: {was}")
+    fake = update
+    await process_user_text(fake, f"{auftrag}\n{liste}")
+
+
+async def cmd_links(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """5.14: Die Ablage ansehen — deterministisch, kein Modell-Aufruf."""
+    if not authorized(update):
+        return
+    text = await asyncio.to_thread(linkinbox.uebersicht)
+    await send_chunked(update.get_bot(), update.effective_chat.id, text,
+                       reply_to=update.message.message_id)
 
 
 async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -7579,6 +7689,8 @@ def main() -> None:
     app.add_handler(CommandHandler("freigaben", cmd_freigaben))
     app.add_handler(CommandHandler("termine", cmd_termine))
     app.add_handler(CommandHandler("aufgaben", cmd_aufgaben))
+    app.add_handler(CommandHandler("links", cmd_links))
+    app.add_handler(CallbackQueryHandler(on_link_callback, pattern=r"^lnk:"))
     app.add_handler(CallbackQueryHandler(on_option_callback, pattern=r"^opt:"))
     app.add_handler(CallbackQueryHandler(on_permission_callback, pattern=r"^p:"))
     app.add_handler(CallbackQueryHandler(on_ampel_callback, pattern=r"^amp:"))

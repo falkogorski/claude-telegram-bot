@@ -1,6 +1,18 @@
 <!-- ROLLE: audit-statusuebersicht -->
 # Phasen-Audit 5 → Phase 3 — Voll-Statusübersicht
 
+> **⚠️ Gültigkeits-Kopf** (Regel ⑪, nachgetragen 25.07.2026, 05:31 geprüfte Zeit)
+> **Die Statusangaben dieses Dokuments sind auf den 23.07.2026 eingefroren und
+> teils überholt.**
+> **Überholt durch:** Adams Entscheide vom 24. und 25.07.2026 — u. a. 6.6-Zimmer
+> FINAL v3, Webhook-Weg (Self-Signed, live), Emoji-Ersatz, Log-Sync-Repo, Hermes
+> Option B, faster-whisper, Node-Aufschub — sowie die neuen Punkte 5.28 bis 5.34.
+> **Maßgeblich ist ausschließlich die Status-Zeile des jeweiligen Punkts im
+> Master-Drehbuch `MIGRATION.md`.** Genau vier Punkte galten hier fälschlich
+> weiter als offen; das ist der Schaden, den dieser Kopf künftig verhindert.
+> **Der eingefrorene Nenner vom 23.07. bleibt gültig** — er ist die
+> Vergleichsbasis für den Sprint, keine Statusaussage.
+
 **Stichtag / eingefrorener Nenner: 23.07.2026.** Alles, was nach diesem Datum
 neu ins Drehbuch kommt, zählt beim Prozent-Vergleich **separat** (Neuzugänge),
 nicht gegen diesen Nenner — sonst „läuft der Fortschritt vor der Arbeit davon".

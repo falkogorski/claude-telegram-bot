@@ -186,6 +186,7 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 | **Eine Regel ohne Prüfer ist eine Bitte** — jede Disziplin-Regel bekommt eine maschinelle Entsprechung, sonst verfällt sie still. Beleg: Der Prüfer fand beim allerersten Lauf eine Lücke und beim zweiten das eigene, Minuten alte Skript | R2 | **universell** |
 | **Einen Zielkonflikt auflösen statt ihn zu verwalten:** Feine Abtastung und schlanker Kontext widersprechen sich nur, solange jedes Einzelstück einzeln übergeben wird. Ein Übersichtsbild plus Verzeichnis kehrt das um — Überblick sofort, Details auf Abruf. Gilt über Video hinaus für jede dichte Datenmenge (Logzeilen, Messreihen, Seiten) | 5.28 | **universell** |
 | **Aktualität gilt dem VERFAHREN, nicht nur der Versionsnummer** — regelmäßig prüfen, ob es einen besseren Weg gibt, aber Solides nicht wegwerfen, nur weil Neues existiert. Wo sich Neuheit nicht maschinell feststellen lässt, im Register ehrlich als „manuell prüfen“ führen statt eine Attrappe zu bauen | CLAUDE.md | **universell** |
+| **Kein Eingriff ohne gesicherten Rueckweg — auch nicht durch das Sicherheitsnetz selbst.** Spiegelbild der Regel "kein Einspielen ohne Rollback-Stand": Wer eingreifen will, ohne zurueck zu koennen, richtet Schaden ohne Aussicht auf Besserung an. Im Trockenlauf haette der Waechter genau so einen gesunden Dienst beendet. Merkmal: Rettungslogik braucht dieselbe Vorpruefung wie die Aenderungslogik, die sie bewacht | B1 | **universell** |
 
 ---
 

@@ -133,6 +133,86 @@ class WhisperCppTranscriber(Transcriber):
             wav.unlink(missing_ok=True)
 
 
+class FasterWhisperTranscriber(Transcriber):
+    """Lokale Transkription über faster-whisper (CTranslate2) — Adam-Entscheid 25.07.
+
+    **Warum umgestellt wurde:** Der abgenommene Benchmark auf dem VPS (4 Threads,
+    int8, echte Adam-Sprachnachrichten) ergab bei gleicher Modellstufe
+    **6,3-fach** (131-Sekunden-Voice: 36,8 s → 21,0 s) bzw. **7,1-fach**
+    (9-Minuten-Voice: 143 s → 75 s) schnellere Verarbeitung bei gleicher oder
+    leicht besserer Textqualität. Die Transkription war laut Adams eigenem
+    Befund der einzige spürbare Engpass der Antwortkette.
+
+    Drei Eigenschaften bleiben bewusst erhalten:
+    * **Dieselbe Sperre `_WHISPER_SEM`** — das Abhängigkeits-Register warnt
+      ausdrücklich, dass ein Tempo-Ausbau sie übernehmen MUSS; ohne sie kehrt
+      der Ressourcen-Kollaps vom 22.07. zurück.
+    * **Lokal und kostenfrei** — kein Netz zur Laufzeit, keine Gebühren.
+    * **Das Modell wird einmal geladen** und bleibt im Speicher; der
+      Lade-Aufwand fällt im Dauerbetrieb also nur beim ersten Mal an.
+    """
+
+    # Modellstufen des Umschalters (5.22) → faster-whisper-Bezeichner.
+    _STUFEN = {"small": "small", "medium": "medium", "large": "large-v3",
+               "base": "base", "tiny": "tiny"}
+
+    def __init__(self, model_size: str = "small", threads: int | None = None,
+                 compute_type: str = "int8") -> None:
+        try:
+            from faster_whisper import WhisperModel     # noqa: PLC0415
+        except ImportError as e:                        # pragma: no cover
+            raise RuntimeError(
+                "faster-whisper ist nicht installiert — "
+                "`pip install faster-whisper` in der venv des Bots") from e
+        env_threads = 0
+        try:
+            env_threads = int(os.environ.get("WHISPER_THREADS") or 0)
+        except ValueError:
+            env_threads = 0
+        self.threads = threads or env_threads or (os.cpu_count() or 4)
+        self.compute_type = compute_type
+        self._WhisperModel = WhisperModel
+        self.model_size = self._STUFEN.get(model_size, model_size)
+        self.model = self._laden(self.model_size)
+
+    def _laden(self, size: str):
+        return self._WhisperModel(size, device="cpu",
+                                  compute_type=self.compute_type,
+                                  cpu_threads=self.threads)
+
+    def set_model(self, model_path: str | Path) -> None:
+        """Stufe wechseln (5.22). Nimmt „small"/„medium" ODER einen Dateipfad an.
+
+        Der Umschalter im Bot übergibt historisch **Pfade** zu ggml-Dateien.
+        Damit der Knopf weiter funktioniert, wird die Stufe aus dem Dateinamen
+        gelesen — ein Umbau der Oberfläche wäre sonst Bedingung für den
+        Backend-Wechsel gewesen, und das wäre die falsche Reihenfolge.
+        """
+        wunsch = str(model_path)
+        stufe = None
+        for name in self._STUFEN:
+            if name in wunsch.lower():
+                stufe = name
+                break
+        stufe = self._STUFEN.get(stufe or wunsch, wunsch)
+        if stufe == self.model_size:
+            return
+        self.model = self._laden(stufe)       # erst laden, dann übernehmen
+        self.model_size = stufe
+
+    def _lauf(self, audio_path: Path, language: str | None) -> str:
+        segmente, _info = self.model.transcribe(
+            str(audio_path), language=language, beam_size=5,
+            vad_filter=True)                  # Stille überspringen
+        return " ".join(s.text.strip() for s in segmente).strip()
+
+    async def transcribe(self, audio_path: Path, language: str | None = None) -> str:
+        # Rechenarbeit in einen Faden auslagern, damit der Bot antwortfähig
+        # bleibt; die Sperre serialisiert wie bisher auf EINEN Lauf.
+        async with _WHISPER_SEM:
+            return await asyncio.to_thread(self._lauf, Path(audio_path), language)
+
+
 class NullTranscriber(Transcriber):
     """Used when STT is disabled; surfaces a user-facing hint."""
 
@@ -146,10 +226,25 @@ def build_transcriber() -> Transcriber:
     Add a new STT_BACKEND value here (e.g. "openai") to wire in another impl;
     the rest of the bot doesn't change.
     """
-    backend = (os.environ.get("STT_BACKEND") or "whisper_cpp").lower().strip()
+    # Vorgabe seit Adams Entscheid 25.07.: faster-whisper. whisper.cpp bleibt
+    # als Rückweg genau eine Umgebungsvariable entfernt (STT_BACKEND=whisper_cpp).
+    backend = (os.environ.get("STT_BACKEND") or "faster_whisper").lower().strip()
 
     if backend == "off":
         return NullTranscriber()
+
+    if backend == "faster_whisper":
+        stufe = os.environ.get("STT_MODEL_SIZE") or "small"
+        try:
+            return FasterWhisperTranscriber(model_size=stufe)
+        except Exception as e:
+            # Kein stiller Ausfall der Voice-Kette: Wenn faster-whisper hier
+            # nicht trägt, wird auf den bewährten Weg zurückgefallen — aber
+            # LAUT, damit der Rückfall nicht als Normalzustand durchgeht.
+            logging.getLogger(__name__).error(
+                "faster-whisper nicht verfügbar (%s) — falle auf whisper.cpp "
+                "zurück. Das ist ein Befund, kein Normalzustand.", e)
+            backend = "whisper_cpp"
 
     if backend == "whisper_cpp":
         default_model = (

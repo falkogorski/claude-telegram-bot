@@ -46,6 +46,10 @@ class FakeBot:
         self.sent.append(kw)
         return SimpleNamespace(message_id=777)
 
+    async def set_message_reaction(self, **kw):
+        self.reactions_set = getattr(self, "reactions_set", [])
+        self.reactions_set.append(kw)
+
 
 def _rx_update(emoji: str, message_id: int, fake_bot: FakeBot,
                old: list[str] | None = None):
@@ -163,6 +167,7 @@ async def main() -> None:
 
     # (8) Ersetzen: 👍 → 👎 in einem Update → neuer Job nennt die Ersetzung
     fake.sent.clear()
+    bot.BOT_MSGS[(CHAT, 801)] = "Soll ich den Entwurf so lassen?"
     await bot.on_reaction(_rx_update("👎", 801, fake, old=["👍"]), None)
     if len(mb.queue) != 1:
         _fail("Ersetzte Reaktion hat keinen Job erzeugt")
@@ -171,6 +176,34 @@ async def main() -> None:
         _fail("Ersetzungs-Job nennt Wechsel/Bedeutung nicht")
     pending.resolve(job.pending_key)
     print("✓ Ersetzen: neuer Job mit Ersetzungs-Vermerk")
+
+    # (7) H3: 👍 OHNE registrierte offene Frage → stille Quittung, KEIN Lauf
+    bot.BOT_MSGS[(CHAT, 520)] = "Bin gleich soweit."
+    await bot.on_reaction(_rx_update("👍", 520, fake), None)
+    if mb.queue:
+        _fail("👍 ohne offene Frage hat einen Modelllauf ausgelöst (H3)")
+    if not getattr(fake, "reactions_set", None):
+        _fail("👍 ohne offene Frage bekam keine sichtbare Quittung (H3)")
+    print("✓ H3: 👍 ohne offene Frage → stille Quittung statt Modelllauf")
+
+    # (8) H3: 👍 AUF eine registrierte Frage → weiterhin Antwort an den Agenten
+    reactions.register_question(CHAT, 521, "Soll ich das so bauen?")
+    await bot.on_reaction(_rx_update("👍", 521, fake), None)
+    if len(mb.queue) != 1:
+        _fail("👍 auf eine offene Frage löste KEINEN Lauf aus (H3 zu scharf)")
+    mb.queue.clear()
+    print("✓ H3: 👍 auf eine offene Frage bleibt die Antwort an den Agenten")
+
+    # (9) H3: Handlungs-Reaktion ohne Frage UND ohne Bezugstext → nie raten,
+    #     aber auch nicht verschlucken: kurze Rückfrage statt Modelllauf.
+    fake.sent.clear()
+    bot.BOT_MSGS.pop((CHAT, 522), None)
+    await bot.on_reaction(_rx_update("👎", 522, fake), None)
+    if mb.queue:
+        _fail("Lauf ohne jeden Bezugstext gestartet — das ist Raten (H3)")
+    if not any("bezieht sie sich" in (m.get("text") or "") for m in fake.sent):
+        _fail("Reaktion ohne Bezugstext wurde stillschweigend verschluckt (H3)")
+    print("✓ H3: ohne Bezugstext keine Lauf-Raterei, sondern kurze Rückfrage")
 
     print("\nALLE TEILPRÜFUNGEN BESTANDEN")
 

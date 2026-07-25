@@ -173,6 +173,43 @@ check("gescheiterte Rettung wird doppelt laut", _rettung_scheitert_laut)
 check("Bericht liegt auch für den 4-Uhr-Check bereit", _bericht_auch_ohne_bot)
 check("eigener Prozess zählt nicht als Bot", _eigener_prozess_zaehlt_nicht)
 
+# --- Kein Rückweg → NICHT eingreifen (Trockenlauf-Lehre 25.07.) ------------
+def _ohne_rueckweg_kein_eingriff():
+    _leeren()
+    gekillt, gerollt = [], []
+    _patch(prozess=None)
+    w.neustart_ausloesen = lambda: (gekillt.append(1), "beendet")[1]
+    w.zurueckrollen = lambda v, f: (gerollt.append(1), (True, ""))[1]
+    fehlt = _TMP / "gibtsnicht-freeze.txt"
+    rc = w.bewachen(Path("/tmp/venv"), fehlt, frist=0.2, grund_text="einem Test")
+    assert not gekillt, "der Bot wurde beendet, obwohl kein Rückweg vorlag!"
+    assert not gerollt, "es wurde ein Rückbau versucht, obwohl die Datei fehlt"
+    assert rc == 2, f"Rückgabewert falsch: {rc}"
+    b = _berichte()
+    assert b and "NICHT ein" in b[0], f"Verzicht auf den Eingriff nicht benannt: {b}"
+
+
+# --- Meldeziel auch ohne Umgebungsvariable (Trockenlauf-Lehre) -------------
+def _melde_ziel_aus_einstellungen():
+    import json as _j
+    alt = os.environ.pop("ALLOWED_USER_IDS", None)
+    prefs = Path.home() / ".config" / "claude-telegram-bot" / "prefs.json"
+    try:
+        assert w._melde_ziel() == "" or w._melde_ziel().isdigit(), \
+            "Meldeziel ohne Umgebungsvariable liefert Unsinn"
+        if prefs.exists():
+            daten = _j.loads(prefs.read_text(encoding="utf-8"))
+            if any(str(k).isdigit() for k in daten):
+                assert w._melde_ziel().isdigit(), \
+                    "Rückfallweg über die Einstellungsdatei greift nicht"
+    finally:
+        if alt is not None:
+            os.environ["ALLOWED_USER_IDS"] = alt
+
+
+check("kein Rückweg → nicht eingreifen, laut melden", _ohne_rueckweg_kein_eingriff)
+check("Meldeziel notfalls aus der Einstellungsdatei", _melde_ziel_aus_einstellungen)
+
 if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")
     sys.exit(1)

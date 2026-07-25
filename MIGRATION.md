@@ -22,6 +22,8 @@ metadata:
 
 ## Änderungshistorie
 
+- **2026-07-25 (4)** — **H3 umgesetzt (neuer Punkt 5.30) + drei echte Funde am Start-Wächter behoben.** H3: 👍/👌 ohne offene Frage bekommen eine Quittung statt eines Modelllaufs. **Wichtiger noch die Funde aus dem B1-Trockenlauf auf dem VPS:** (1) Der Wächter erbte die systemd-Umgebung nicht und meldete „MEMORY.md fehlt" — ein Fehlalarm über die Umgebung des *Prüfers*, nicht des Bots. (2) Er fand ohne `ALLOWED_USER_IDS` gar kein Meldeziel und wäre stumm geblieben; jetzt Rückfallweg über die Einstellungsdatei. (3) **Der schwerste:** Er beendete einen gesunden Bot, obwohl der Rückweg fehlte — ein Neustart ohne Rückbau ist reiner Schaden. Neue Regel, gespiegelt aus A1: *kein Einspielen ohne Rückweg — und kein Beenden ohne Rückweg.* Alle drei sind jetzt durch eigene Prüfungen abgedeckt (B1-Test auf 8 Prüfungen).
+
 - **2026-07-25 (3)** — **B1 umgesetzt: Start-Wächter außerhalb des Bot-Prozesses (neuer Punkt 5.29).** Schließt die einzige Lücke der Updater-Sicherheitskette — den Bot, der nach dem Neustart nicht mehr hochkommt. Abgekoppelter Prozess, dreifache Gesundheitsprüfung, Rückbau auf den eingefrorenen Stand, Meldung über das Postfach plus Zustandsdatei für den 4-Uhr-Check. Regressionslauf **18/18**. Damit sind B2 (Auto-Neustart) und B3 (Wartungsfenster) technisch freigeschaltet — beide brauchen aber noch Adams Ja.
 
 - **2026-07-25 (2)** — **H1 umgesetzt: Bild-/Video-Transport repariert (neuer Punkt 5.28).** Der 1-MB-Abbruch war eine Transport-, keine Fähigkeitsgrenze; Puffer auf 32 MB, Bilder werden für die Übergabe verkleinert (Original unangetastet), Videos in Einzelbilder + Tonspur zerlegt, Fehlerfall mit ehrlicher Meldung statt Sitzungstod. Neuer Verhaltenstest `test_media_h1.py` (Regressionslauf **17/17**), neue Selbstcheck-Zeile (22), Register- und Blaupause-Eintrag. Die Blaupause hält als Nebenwirkung fest, dass der Selbstcheck eine **zweite** Options-Stelle aufdeckte, die denselben Puffer braucht — eine Zahl an nur einer Stelle hätte den Bruch bloß verschoben.
@@ -765,6 +767,17 @@ Absturzfall ausdrücklich auf 5.18).
 - **Meldeweg:** über das Boten-Postfach (der Token liegt nur im Bot) — die Nachricht erreicht Adam also nach der Genesung; zusätzlich landet der Befund in `~/.claude/updater/startwaechter.json`, damit der 4-Uhr-Check (8.1) ihn auch dann findet, wenn der Bot gar nicht zurückkehrt.
 - **Akzeptanzkriterium:** Sauberer Hochlauf → nichts wird angefasst, kurze Erfolgsmeldung. Toter oder invarianten-roter Bot → Rückbau auf den eingefrorenen Stand, Neustart, klare 🔴-Meldung. Gescheiterte Rettung → doppelt laute 🔴🔴-Meldung mit dem Hinweis, dass ein Eingriff von Hand nötig ist.
 - **Test:** `scripts/test_start_waechter_b1.py` (6 Prüfungen, im Regressionslauf → **18/18**) — darunter der Fall „Prozess lebt, Selbstcheck rot" und die Prüfung, dass der Wächter seinen **eigenen** Prozess nicht für den Bot hält (genau dieses Messartefakt täuschte am 24.07. eine Zweitinstanz vor).
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** 25.07.2026
+
+### 5.30 Stille Quittung statt Modelllauf bei Bestätigungs-Reaktionen (H3) `[NEU 2026-07-25]`
+- **Status:** ✅ VERIFIZIERT (25.07.)
+- **Befund (24.07., 11:56:00 / :02 / :09 / :13 / :16):** Fünf Modellläufe in sechzehn Sekunden, Ergebnis „Passt." und „Gut." — teils sogar ohne verfügbaren Bezugstext. Adam schickt 👍 fast ausschließlich als Bestätigung; ein Haken als Empfangszeichen genügt ihm.
+- **Umsetzung:** 👍/👌 **ohne registrierte offene Frage** lösen keinen Lauf mehr aus, sondern eine **sichtbare Quittung** (Bot-Reaktion 🫡) plus Eintrag ins Gesprächs-Log. Auf eine **registrierte Frage** bleibt alles wie bisher — dort ist die Reaktion die Antwort und gehört an den Agenten.
+- **Warum 🫡 und kein Haken:** Telegram lässt für Bot-Reaktionen nur eine feste Emoji-Liste zu, ✅ gehört nicht dazu. 🫡 steht in Adams eigenem Vokabular für „erledigt" und ist damit das nächstliegende erlaubte Empfangszeichen (`reaktionen-vokabular.md` auf v2.2 nachgezogen).
+- **Fehlender Bezugstext:** Liegt weder eine Frage noch der Wortlaut der Nachricht vor, wird **nie** ein Lauf gestartet. Bewusst aber auch **nicht** still quittiert — ein 👎 oder 🤨 trägt ein Signal, das nicht verschluckt werden darf; stattdessen eine kurze Rückfrage ohne Modell-Beteiligung.
+- **Akzeptanzkriterium:** 👍 auf eine beliebige Bot-Nachricht erzeugt keinen Lauf, aber eine sichtbare Quittung; 👍 auf eine offene Frage wirkt unverändert als Antwort; ohne Bezugstext wird nichts geraten.
+- **Test:** `scripts/test_reactions_5_9.py` um drei Prüfungen erweitert (11 gesamt, im Regressionslauf).
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** 25.07.2026
 

@@ -3202,6 +3202,34 @@ async def on_permission_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -
 _REACTION_DECISIONS = {"👍": "allow", "👎": "deny"}
 
 
+# H3: Reaktionen, die reine Empfangsbestätigung sind — sie beantworten nichts
+# und beauftragen nichts. Ohne registrierte offene Frage bekommen sie eine
+# Quittung statt eines Modelllaufs.
+_QUITTUNG_EMOJIS = {reactions.normalize(e) for e in ("👍", "👌")}
+# Telegram lässt für Bot-Reaktionen nur eine feste Emoji-Liste zu; ein Haken (✅)
+# gehört NICHT dazu. 🫡 steht in Adams eigenem Vokabular für „erledigt" und ist
+# damit das nächstliegende erlaubte Empfangszeichen.
+_QUITTUNG_ZEICHEN = "🫡"
+
+
+async def _stille_quittung(bot_obj, chat_id: int, message_id: int, emoji: str,
+                           sess) -> None:
+    """H3: Empfang sichtbar bestätigen, ohne das Modell zu bemühen.
+
+    Sichtbar, damit Adam den Empfang sieht — und protokolliert, damit die
+    Reaktion für die Kontrollsitzung nicht unsichtbar bleibt.
+    """
+    try:
+        await bot_obj.set_message_reaction(
+            chat_id=chat_id, message_id=message_id,
+            reaction=[ReactionTypeEmoji(_QUITTUNG_ZEICHEN)])
+    except Exception:
+        log.info("Quittungs-Reaktion nicht setzbar (ignoriert)", exc_info=True)
+    if sess is not None and sess.logger:
+        sess.logger.log_event(
+            f"{emoji} von Adam als Bestätigung verbucht — quittiert, kein Modelllauf")
+
+
 async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Reaktionen auswerten: erst Permission-Flow (Vorrang), dann 5.9-Vokabular.
 
@@ -3290,6 +3318,32 @@ async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if frage is None and not entry.active:
         log.info("Reaktion %s (%s) ohne offene Frage — stille Wertschätzung, kein Lauf",
                  emoji, entry.kind)
+        return
+
+    # ── H3 (Befund 24.07.): stille Quittung statt Modelllauf ──
+    # Am 24.07. um 11:56 liefen fünf Modellläufe in sechzehn Sekunden — Ergebnis:
+    # „Passt." und „Gut.". Adam schickt 👍 fast nur als Bestätigung; ein Haken als
+    # Empfangszeichen genügt ihm. Ein Lauf ohne registrierte Frage erzeugt hier
+    # keinen Erkenntnisgewinn, kostet aber Kontingent und Aufmerksamkeit.
+    if frage is None and reactions.normalize(emoji) in _QUITTUNG_EMOJIS:
+        await _stille_quittung(update.get_bot(), chat_id, rx.message_id, emoji, sess)
+        return
+
+    # Fehlt der Bezugstext, weiß der Agent nicht, worauf sich die Reaktion
+    # bezieht — ein Lauf wäre blindes Raten. Hier aber NICHT still quittieren:
+    # ein 👎 oder 🤨 trägt ein Signal, das nicht verschluckt werden darf. Also
+    # kurz zurückfragen, ohne das Modell zu bemühen.
+    if frage is None and not bezug_kurz:
+        log.info("Reaktion %s ohne Frage UND ohne Bezugstext — kein Lauf, Rückfrage",
+                 emoji)
+        try:
+            await update.get_bot().send_message(
+                chat_id=chat_id,
+                text=(f"{emoji} — der Wortlaut dieser Nachricht liegt mir nicht "
+                      "mehr vor, deshalb rate ich nicht. Worauf bezieht sie sich?"),
+                reply_to_message_id=rx.message_id)
+        except Exception:
+            log.exception("Rückfrage ohne Bezugstext nicht zustellbar")
         return
 
     # Antwort/Handlung → als Job an den Agenten (5.2-persistiert, Reply-Bezug).

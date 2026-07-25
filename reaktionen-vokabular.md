@@ -33,8 +33,8 @@ Ja/Nein hat immer Vorrang, der Rest ist kontextabhängig.
 ## Als Reaktion (alle gemessen verfügbar)
 
 **Ja/Nein & Bestätigung**
-👍 Ja / passt / finde gut / Dank
-👌 Ja / OK / alles klar
+👍 Ja / passt / finde gut / Dank `[v2.2: ohne offene Frage nur Empfangs-Quittung 🫡 — kein Modelllauf]`
+👌 Ja / OK / alles klar `[v2.2: wie 👍]`
 🫡 Ja — bzw. „erledigt", wenn's eine Aufgabe für mich war `[v2: ersetzt ✅]`
 👎 Nein
 

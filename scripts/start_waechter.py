@@ -107,6 +107,15 @@ def selbstcheck(venv: Path) -> tuple[bool, str]:
     umgebung = dict(os.environ)
     umgebung.setdefault("TELEGRAM_BOT_TOKEN", "000000:startwaechter-dummy")
     umgebung.setdefault("ALLOWED_USER_IDS", "1")
+    # ⚠️ Gemessen, nicht angenommen (Fund im Trockenlauf 25.07., 04:18): Der
+    # Wächter erbt NICHT die systemd-Umgebung des Dienstes. Ohne den
+    # Memory-Ordner meldete der Selbstcheck „MEMORY.md fehlt" — ein Fehlalarm
+    # über die Umgebung des PRÜFERS, nicht über die des Bots. Derselbe Griff
+    # wie im Regressionslauf: den echten Ordner suchen, statt ihn vorauszusetzen.
+    if not umgebung.get("CLAUDE_MEMORY_DIR"):
+        kandidat = Path.home() / ".claude" / "memory"
+        if (kandidat / "MEMORY.md").exists():
+            umgebung["CLAUDE_MEMORY_DIR"] = str(kandidat)
     try:
         p = subprocess.run(
             [str(py), "-c",
@@ -168,13 +177,36 @@ def neustart_ausloesen() -> str:
         return f"Beenden fehlgeschlagen: {e}"
 
 
+def _melde_ziel() -> str:
+    """Adams Chat-Kennung — ohne an Geheimnisse zu rühren.
+
+    ⚠️ Zweiter Fund aus dem Trockenlauf: `ALLOWED_USER_IDS` steht auf dem VPS
+    nur in der root-geschützten systemd-Umgebung; der Wächter sah sie nicht und
+    hätte still gar niemanden erreicht. Der Rückfallweg ist die
+    Einstellungsdatei des Bots — sie enthält die Kennung ohnehin und **kein**
+    Geheimnis, ist für den Wächter also der richtige Griff.
+    """
+    aus_umgebung = (os.environ.get("ALLOWED_USER_IDS") or "").split(",")[0].strip()
+    if aus_umgebung.isdigit():
+        return aus_umgebung
+    prefs = Path.home() / ".config" / "claude-telegram-bot" / "prefs.json"
+    try:
+        daten = json.loads(prefs.read_text(encoding="utf-8"))
+        for schluessel in daten:
+            if str(schluessel).isdigit():
+                return str(schluessel)
+    except Exception:
+        pass
+    return ""
+
+
 def melden(text: str) -> None:
     """Bericht ablegen: Postfach (für Adam) + Zustandsdatei (für 8.1).
 
     Doppelt mit Absicht — der Bot kann beim Schreiben noch tot sein; dann holt
     der tägliche Funktionscheck den Befund aus der Zustandsdatei nach.
     """
-    ziel = (os.environ.get("ALLOWED_USER_IDS") or "").split(",")[0].strip()
+    ziel = _melde_ziel()
     if ziel.isdigit():
         try:
             POSTFACH.mkdir(parents=True, exist_ok=True)
@@ -210,6 +242,19 @@ def bewachen(venv: Path, freeze: Path, frist: int, grund_text: str) -> int:
         melden(f"✅ Start-Wächter: Der Bot ist nach „{grund_text}“ sauber "
                f"hochgekommen (Prozess, Dienst und Selbstcheck geprüft).")
         return 0
+
+    # ⚠️ Kein Eingriff ohne gesicherten Rückweg (Fund im Trockenlauf 25.07.):
+    # Fehlt die Freeze-Datei, bringt ein Rückbau nichts — und den Bot dann
+    # trotzdem zu beenden, ist reiner Schaden ohne Aussicht auf Besserung.
+    # Genau das ist im Trockenlauf passiert. Es ist dieselbe Regel wie A1 im
+    # Updater, nur andersherum gelesen: kein Einspielen ohne Rückweg — und
+    # kein Beenden ohne Rückweg.
+    if not freeze.exists():
+        melden(f"🔴 Start-Wächter: Nach „{grund_text}“ kam der Bot nicht sauber "
+               f"hoch ({grund}). Ich greife NICHT ein, weil kein gesicherter "
+               f"Rückweg vorliegt (Freeze-Datei fehlt: {freeze}) — ein Neustart "
+               f"ohne Rückbau würde nur schaden. Bitte sieh selbst nach.")
+        return 2
 
     # Der Fall, für den es diesen Wächter gibt.
     zurueck_ok, zurueck_fehler = zurueckrollen(venv, freeze)

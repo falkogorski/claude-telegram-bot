@@ -131,6 +131,8 @@ def _befunde() -> list[str]:
             raus.append(f"nur noch {frei:.1f} GiB Plattenplatz frei")
     except Exception:
         pass
+    # 2b. Wird der Arbeitsspeicher knapp? `[NEU 26.07.]`
+    raus.extend(speicher_pruefen())
     # 3. Staut sich das Boten-Postfach? (ein Zeichen, dass der Bot nicht arbeitet)
     try:
         wartend = len(list(POSTFACH.glob("*.json")))
@@ -140,6 +142,81 @@ def _befunde() -> list[str]:
         pass
     # 4. Ist die Anmeldung gekippt? (C2)
     raus.extend(anmeldung_pruefen())
+    return raus
+
+
+# ------------------------------------------------------------ Speicher-Wache --
+# **Warum das hier steht und nicht in Adams Aufmerksamkeit** (Werte-Charta 7a):
+# *Was vorhersehbar knapp wird, wird beobachtet, bevor es knapp ist.* Der
+# Arbeitsspeicher ist der Musterfall — er läuft nicht langsam voll wie eine
+# Platte, sondern kippt: Der OOM-Killer schlägt ohne Vorwarnung zu und reißt
+# mit, was gerade am meisten braucht. Am 25.07. gemessen: 7,53 GiB Spitzen bei
+# 7,75 GiB vorhanden, und **kein Swap**.
+#
+# **Zwei Schwellen, weil sie zwei verschiedene Dinge bedeuten:** Unter 800 MiB
+# ist es ein Hinweis, unter 400 MiB ist es die letzte Warnung vor dem Kippen.
+# Bewusst nicht in Prozent — bei einer kleinen Maschine sind zehn Prozent von
+# fast nichts immer noch fast nichts.
+SPEICHER_HINWEIS_MIB = int(os.environ.get("BLUMEN_SPEICHER_HINWEIS") or 800)
+SPEICHER_ENG_MIB = int(os.environ.get("BLUMEN_SPEICHER_ENG") or 400)
+
+
+def _meminfo() -> dict[str, int]:
+    """Liest /proc/meminfo — Werte in MiB. Leer, wenn es die Datei nicht gibt."""
+    raus: dict[str, int] = {}
+    try:
+        for zeile in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            name, _, rest = zeile.partition(":")
+            teile = rest.split()
+            if teile and teile[0].isdigit():
+                raus[name.strip()] = int(teile[0]) // 1024
+    except Exception:
+        pass
+    return raus
+
+
+def speicher_pruefen() -> list[str]:
+    """Meldet knappen Arbeitsspeicher, bevor der OOM-Killer entscheidet.
+
+    **Gemessen wird `MemAvailable`, nicht `MemFree`** — und das ist der ganze
+    Trick: `MemFree` sieht auf einem gesunden Linux immer bedrohlich klein aus,
+    weil der Kernel freien Speicher als Zwischenspeicher benutzt und ihn
+    jederzeit wieder hergibt. Ein Wächter auf `MemFree` wäre ein Dauer-Alarm und
+    damit binnen zwei Tagen abgeschaltet. `MemAvailable` ist die Schätzung des
+    Kernels selbst, wie viel wirklich zu holen wäre.
+
+    **Der Swap wird mitgemeldet, wenn er benutzt wird** — nicht als Alarm,
+    sondern als Beobachtung: Er soll das Netz für den Notfall sein, keine
+    Ausweichfläche im Alltag (deshalb `vm.swappiness=10`). Wird er im Alltag
+    angefasst, ist das der Hinweis, dass die Auslegung nicht mehr passt.
+    """
+    m = _meminfo()
+    if not m:
+        return []                         # kein Linux: keine Aussage, kein Raten
+    verfuegbar = m.get("MemAvailable")
+    if verfuegbar is None:
+        return []
+    raus: list[str] = []
+    gesamt = m.get("MemTotal", 0)
+    if verfuegbar < SPEICHER_ENG_MIB:
+        raus.append(
+            f"🔴 Nur noch {verfuegbar} MiB Arbeitsspeicher verfügbar von "
+            f"{gesamt} MiB — das ist der Bereich, in dem der Kernel anfängt, "
+            "Prozesse zu beenden. Wenn es den Bot trifft, merkt es niemand "
+            "außer diesem Hinweis.")
+    elif verfuegbar < SPEICHER_HINWEIS_MIB:
+        raus.append(
+            f"🟡 Der Arbeitsspeicher wird knapp: {verfuegbar} MiB verfügbar von "
+            f"{gesamt} MiB. Noch kein Grund zur Eile, aber der Zeitpunkt, "
+            "hinzusehen — bevor es einer werden muss.")
+    swap_gesamt = m.get("SwapTotal", 0)
+    swap_frei = m.get("SwapFree", 0)
+    if swap_gesamt and (swap_gesamt - swap_frei) > 256:
+        raus.append(
+            f"↔️ Es liegen {swap_gesamt - swap_frei} MiB im Auslagerungsbereich. "
+            "Der soll das Netz für den Notfall sein, keine Ausweichfläche im "
+            "Alltag — wird er regelmäßig angefasst, passt die Auslegung nicht "
+            "mehr.")
     return raus
 
 

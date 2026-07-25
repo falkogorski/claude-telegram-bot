@@ -187,6 +187,86 @@ def _kein_geheimniswert_im_code():
         "der Wert eines Umgebungs-Geheimnisses wird gelesen!"
 
 
+def _speicher_wache_misst_das_richtige():
+    """Der Wächter darf nicht auf `MemFree` schauen — sonst ist er Dauer-Alarm.
+
+    Auf einem gesunden Linux ist `MemFree` fast immer klein, weil der Kernel
+    freien Speicher als Zwischenspeicher benutzt und jederzeit wieder hergibt.
+    Ein Wächter darauf wäre binnen zwei Tagen abgeschaltet — und damit keiner
+    mehr.
+    """
+    quelle = Path(sb.__file__).read_text(encoding="utf-8")
+    block = quelle.split("def speicher_pruefen")[1].split("\ndef ")[0]
+    assert "MemAvailable" in block, "die Wache misst nicht MemAvailable"
+    assert 'm.get("MemFree")' not in block, \
+        "die Wache stützt sich auf MemFree — das wäre ein Dauer-Alarm"
+
+    echt = sb._meminfo
+    # Gesund: 3 GiB verfügbar, kein Swap benutzt → Schweigen.
+    sb._meminfo = lambda: {"MemTotal": 7940, "MemAvailable": 3000,
+                           "SwapTotal": 4096, "SwapFree": 4096}
+    assert sb.speicher_pruefen() == [], "Fehlalarm bei gesunder Lage"
+
+    # Knapp, aber nicht kritisch → Hinweis, kein Alarm.
+    sb._meminfo = lambda: {"MemTotal": 7940, "MemAvailable": 600,
+                           "SwapTotal": 0, "SwapFree": 0}
+    b = sb.speicher_pruefen()
+    assert len(b) == 1 and b[0].startswith("🟡"), f"falsche Stufe: {b}"
+
+    # Kritisch → deutliche Warnung.
+    sb._meminfo = lambda: {"MemTotal": 7940, "MemAvailable": 200,
+                           "SwapTotal": 0, "SwapFree": 0}
+    b = sb.speicher_pruefen()
+    assert b and b[0].startswith("🔴"), f"die enge Lage wurde nicht erkannt: {b}"
+
+    # Swap in Benutzung → eigene Beobachtung, unabhängig von der Speicherlage.
+    sb._meminfo = lambda: {"MemTotal": 7940, "MemAvailable": 3000,
+                           "SwapTotal": 4096, "SwapFree": 1000}
+    b = sb.speicher_pruefen()
+    assert any("Auslagerungsbereich" in x for x in b), \
+        "benutzter Swap wird nicht bemerkt"
+
+    # Kein Linux (leeres meminfo) → keine Aussage statt Raterei.
+    sb._meminfo = lambda: {}
+    assert sb.speicher_pruefen() == [], "ohne Messwerte wurde etwas behauptet"
+    sb._meminfo = echt
+
+
+def _lagebericht_nur_zustand():
+    """G3: Ein Meldeweg, der ohne den Bot auskommt — aber nichts ausplaudert.
+
+    Was hier landet, wandert in ein Repo und ist sichtbar, sobald jemand es
+    einsieht. Deshalb **nur Zustand**: keine Nachrichteninhalte, keine
+    Adressaten, keine Geheimnisse.
+    """
+    _leeren()
+    ziel = _TMP / "logsync"
+    ziel.mkdir(exist_ok=True)
+    echt = sb.LAGEBERICHT
+    sb.LAGEBERICHT = ziel / "zustand.json"
+
+    sb._befunde = lambda: ["nur noch 2.0 GiB Plattenplatz frei"]
+    sb.bluehen(_t(0))
+    assert sb.LAGEBERICHT.exists(), "der Lagebericht wurde nicht geschrieben"
+    d = json.loads(sb.LAGEBERICHT.read_text(encoding="utf-8"))
+    assert set(d) == {"stand", "befunde", "luecke_s", "ruhe", "abdruck"}, \
+        f"der Lagebericht führt mehr Felder als vorgesehen: {sorted(d)}"
+    assert d["befunde"] == ["nur noch 2.0 GiB Plattenplatz frei"]
+
+    # Auch wenn NICHTS zu melden ist, wird geschrieben — gerade das Ausbleiben
+    # der Datei soll später der Alarm sein.
+    sb._befunde = lambda: []
+    sb.bluehen(_t(60))
+    d = json.loads(sb.LAGEBERICHT.read_text(encoding="utf-8"))
+    assert d["befunde"] == [], "bei ruhiger Lage wird nicht fortgeschrieben"
+
+    # Ohne Klon wird nichts erfunden.
+    sb.LAGEBERICHT = _TMP / "gibtsnicht" / "zustand.json"
+    sb.bluehen(_t(120))
+    assert not sb.LAGEBERICHT.exists(), "ein fehlender Klon wurde angelegt"
+    sb.LAGEBERICHT = echt
+
+
 def _eine_wortliste_fuer_beide():
     """G1: Zwei Listen driften — deshalb darf es nur eine geben.
 
@@ -275,6 +355,9 @@ check("echte Befunde melden sich", _befunde_melden_sich)
 check("Anmelde-Bruch wird sofort gemeldet (C2)", _anmeldung_bruch_wird_gemeldet)
 check("gesunde Anmeldung schweigt (C2)", _anmeldung_still_wenn_gesund)
 check("nie der Wert eines Geheimnisses (C2)", _kein_geheimniswert_im_code)
+check("Speicher-Wache misst MemAvailable, nicht MemFree",
+      _speicher_wache_misst_das_richtige)
+check("Lagebericht führt nur Zustand (G3)", _lagebericht_nur_zustand)
 check("EINE Wortliste für Bot und Blume (G1)", _eine_wortliste_fuer_beide)
 check("die Marke schlägt das Journal (G1)", _marke_schlaegt_journal)
 check("kein Geheimniswert in der Marke (G1)", _kein_geheimniswert_in_der_marke)

@@ -131,6 +131,29 @@ if [ -f "$(dirname "$0")/stundenblume.py" ]; then
 fi
 
 
+
+# --- 10. Vorraete: Speicher, Platte, Auslagerung ---------------------------
+# Werte-Charta 7a: "Was vorhersehbar knapp wird, wird beobachtet, BEVOR es
+# knapp ist." Der Unterschied zu den Stundenblumen ist die Absicht — die Blume
+# schlaegt Alarm, wenn es eng WIRD; diese Zeile schreibt den Stand jeden Tag
+# mit, damit man die ENTWICKLUNG sieht. Ein Wert, den man nur im Notfall
+# ansieht, hat keine Geschichte, und ohne Geschichte gibt es keine Vorwarnung.
+if [ -r /proc/meminfo ]; then
+  mem_verf=$(awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo)
+  mem_ges=$(awk '/^MemTotal:/{print int($2/1024)}' /proc/meminfo)
+  swap_ges=$(awk '/^SwapTotal:/{print int($2/1024)}' /proc/meminfo)
+  swap_frei=$(awk '/^SwapFree:/{print int($2/1024)}' /proc/meminfo)
+  swap_benutzt=$(( swap_ges - swap_frei ))
+  platte_frei=$(df -BG --output=avail / 2>/dev/null | tail -1 | tr -dc '0-9')
+  lines+=("📊 Vorraete: ${mem_verf} von ${mem_ges} MiB Speicher verfuegbar · ${platte_frei:-?} GiB Platte frei · Auslagerung ${swap_benutzt} von ${swap_ges} MiB benutzt")
+  if [ "${mem_verf:-9999}" -lt 400 ]; then
+    problems+=("Nur noch ${mem_verf} MiB Arbeitsspeicher verfuegbar — in diesem Bereich beendet der Kernel Prozesse ohne Vorwarnung.")
+  fi
+  if [ "${swap_ges:-0}" -eq 0 ]; then
+    lines+=("~ Kein Auslagerungsbereich eingerichtet — bei Speichermangel gibt es kein Abfedern, nur den OOM-Killer (Befehlsblock Schritt 4a).")
+  fi
+fi
+
 {
   echo "===== 4-Uhr-Check $STAMP ====="
   printf '%s\n' "${lines[@]}"

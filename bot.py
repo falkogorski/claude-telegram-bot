@@ -242,7 +242,7 @@ MEDIA_BUDGET = media.transport_budget(SDK_MAX_BUFFER)
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")
 # Kurznamen → vollständige Modell-IDs, die das SDK versteht
 _MODEL_ALIASES: dict[str, str] = {
-    "opus":   "claude-opus-4-8",   # angehoben 22.07. nach OAuth-Probe (war 4-7)
+    "opus":   "claude-opus-5",     # angehoben 25.07. (H4); Probe: diese Modellreihe läuft auf Adams Abo
     "sonnet": "claude-sonnet-5",   # angehoben 22.07. nach OAuth-Probe (war 4-6)
     "haiku":  "claude-haiku-4-5-20251001",
     "fable":  "claude-fable-5",
@@ -412,6 +412,57 @@ def is_context_overflow(exc: Exception) -> bool:
         "reduce the length",
     )
     return any(n in msg for n in needles)
+
+
+def is_session_limit(exc: Exception) -> bool:
+    """True bei erreichtem Nutzungs-/Kontingent-Limit des Abos (H2).
+
+    Belegter Verlust (24.07.): Adams Nachricht um 20:13 kam nie an; er musste
+    sie um 22:47 wiederholen. Der Code kannte diesen Fall bis dahin gar nicht —
+    er fiel in den allgemeinen Fehlerzweig, der die Session schließt und den
+    Auftrag als gescheitert abhakt.
+    """
+    msg = str(exc).lower()
+    needles = ("usage limit", "session limit", "rate limit", "limit reached",
+               "quota exceeded", "kontingent", "too many requests", "429")
+    return any(n in msg for n in needles)
+
+
+_RESET_MUSTER = (
+    # „resets 8:50pm" / „resets at 8pm" / „resets 20:50"
+    re.compile(r"resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", re.I),
+)
+
+
+def parse_reset_zeit(text: str, jetzt: float | None = None) -> float | None:
+    """Liest die Reset-Uhrzeit aus der Fehlermeldung — nur was dort steht.
+
+    Bewusst kein Schätzen: Steht keine Zeit in der Meldung, gibt es keine
+    Zeitangabe an Adam. Eine erfundene Uhrzeit wäre schlimmer als gar keine.
+    """
+    from datetime import datetime, timedelta
+    basis = datetime.fromtimestamp(jetzt if jetzt is not None else time.time()).astimezone()
+    for muster in _RESET_MUSTER:
+        m = muster.search(text or "")
+        if not m:
+            continue
+        try:
+            stunde = int(m.group(1))
+        except (TypeError, ValueError):
+            continue
+        minute = int(m.group(2) or 0)
+        haelfte = (m.group(3) or "").lower()
+        if haelfte == "pm" and stunde < 12:
+            stunde += 12
+        elif haelfte == "am" and stunde == 12:
+            stunde = 0
+        if not (0 <= stunde <= 23 and 0 <= minute <= 59):
+            continue
+        ziel = basis.replace(hour=stunde, minute=minute, second=0, microsecond=0)
+        if ziel <= basis:                      # Zeitpunkt liegt schon hinter uns
+            ziel += timedelta(days=1)          # → gemeint ist der nächste Tag
+        return ziel.timestamp()
+    return None
 
 
 def is_transport_overflow(exc: Exception) -> bool:
@@ -897,6 +948,10 @@ class Mailbox:
     # „fehler" — für Adam wirkte die Antwort verloren). Stattdessen nur Prefs
     # speichern + diesen Merker setzen; der Worker schließt nach Job-Abschluss.
     switch_pending: bool = False
+    # H2 Ebene 1 (Befund 24.07.): Beim Kontingent-Limit wartet die Warteschlange,
+    # statt Nachrichten fallen zu lassen. `pausiert_bis` ist ein Wanduhr-Zeitpunkt
+    # (time.time()); bis dahin ruht der Worker und nimmt weiter Nachrichten an.
+    pausiert_bis: float = 0.0
 
 
 MAILBOXES: dict[int, Mailbox] = {}
@@ -997,6 +1052,25 @@ def _ensure_worker(user_id: int) -> None:
 async def _session_worker(user_id: int) -> None:
     mb = _get_mailbox(user_id)
     while mb.queue:
+        # H2 Ebene 1: Warten statt Wegwerfen. In Häppchen schlafen, damit ein
+        # früher gesetzter Reset (oder ein Neustart) nicht ausgesessen wird.
+        while mb.pausiert_bis > time.time():
+            await asyncio.sleep(min(30.0, max(1.0, mb.pausiert_bis - time.time())))
+        if mb.pausiert_bis:
+            mb.pausiert_bis = 0.0
+            log.info("Kontingent-Pause vorbei — %d Nachricht(en) werden nachgeholt",
+                     len(mb.queue))
+            job0 = mb.queue[0] if mb.queue else None
+            if job0 is not None and (job0.bot or job0.update):
+                bot_obj = job0.bot or job0.update.get_bot()
+                try:
+                    await bot_obj.send_message(
+                        chat_id=user_id,
+                        text=("⏳ Kontingent ist wieder da — ich hole die "
+                              f"{len(mb.queue)} wartende(n) Nachricht(en) jetzt "
+                              "der Reihe nach nach."))
+                except Exception:
+                    log.exception("Nachhol-Ansage nicht zustellbar")
         job = mb.queue.popleft()
         mb.current_job = job
         mb.current_started = time.monotonic()
@@ -1206,6 +1280,41 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     log.exception("failed to send auth-error message")
                 await close_session(user_id)
                 return "aufgegeben"
+            # H2 Ebene 1: Kontingent-Limit — die Nachricht ist NICHT gescheitert,
+            # sie ist nur noch nicht dran. Sie geht unverändert zurück an den
+            # KOPF der Warteschlange (chronologische Reihenfolge bleibt), der
+            # Worker legt sich bis zum Reset schlafen und spielt danach alles
+            # der Reihe nach nach. Nichts geht verloren.
+            if is_session_limit(e):
+                mb = _get_mailbox(user_id)
+                bis = parse_reset_zeit(str(e))
+                mb.pausiert_bis = bis or (time.time() + 900)
+                mb.queue.appendleft(job)
+                if job.pending_key:
+                    pending.set_status(job.pending_key, pending.STATUS_OPEN)
+                if bis:
+                    from datetime import datetime as _dt2
+                    wann = _dt2.fromtimestamp(bis).astimezone().strftime("%H:%M")
+                    zeitsatz = (f"Das Kontingent ist wieder ab **{wann} Uhr** da — "
+                                "dann arbeite ich deine Nachrichten der Reihe nach ab.")
+                else:
+                    # Keine Zeit in der Meldung → keine erfinden.
+                    zeitsatz = ("Wann es wieder da ist, sagt die Meldung nicht — "
+                                "ich versuche es in einer Viertelstunde erneut.")
+                try:
+                    await send_chunked(
+                        sess.bot, sess.chat_id,
+                        "⏳ Das Nutzungskontingent ist gerade erschöpft.\n"
+                        f"{zeitsatz}\n"
+                        f"Deine Nachricht ist gespeichert und steht vorn in der "
+                        f"Schlange — du musst nichts wiederholen. "
+                        f"Warteschlange: {len(mb.queue)}.",
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                except Exception:
+                    log.exception("failed to send session-limit message")
+                await close_session(user_id)
+                return "offen"
             # H1: Transportgrenze der Leitung — eigener Zweig mit ehrlicher,
             # verständlicher Meldung. Vorher fiel dieser Fall in den allgemeinen
             # Zweig; Adam sah viermal denselben englischen Puffer-Fehler und

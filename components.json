@@ -87,6 +87,11 @@
       "name": "ffmpeg",
       "kind": "manual",
       "note": "Systempaket (ffmpeg + ffprobe). Traegt ZWEI Ketten: Tonspur-Umwandlung der Spracherkennung und seit 25.07. die Medien-Transportkette H1 (Bild verkleinern, Video in Einzelbilder + Tonspur zerlegen). Fehlt es, bleiben grosse Bilder und alle Videos liegen. Update ueber die Debian-Paketverwaltung, nicht ueber den Updater."
+    },
+    {
+      "name": "claude-modelle",
+      "kind": "manual",
+      "note": "Modell-Aliasse in bot.py (_MODEL_ALIASES: opus/sonnet/haiku/fable). Ob eine neuere Modellreihe verfuegbar ist, laesst sich NICHT offline ermitteln — deshalb bewusst 'manual' und kein erfundener Automatismus: beim Monitorlauf per Abo-Probe (claude -p --model <id>) gegenpruefen und den Alias anheben. Stand 25.07.: opus=claude-opus-5, sonnet=claude-sonnet-5, haiku=claude-haiku-4-5-20251001, fable=claude-fable-5. Abo-Weg, keine Kosten."
     }
   ]
 }

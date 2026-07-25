@@ -22,6 +22,8 @@ metadata:
 
 ## Änderungshistorie
 
+- **2026-07-25 (5)** — **H2 Ebene 1 und H4 umgesetzt (neue Punkte 5.31, 5.32).** Beim Kontingent-Limit wartet die Warteschlange jetzt, statt Nachrichten zu verlieren; die Reset-Uhrzeit wird aus der Meldung **gelesen, nie geraten**. Ebene 2 liegt als Entscheidungsvorlage bereit, ausdrücklich ungebaut. Opus-Alias auf `claude-opus-5`; Modell-Frische wandert in den bestehenden 5.21-Meldeweg statt in einen zweiten daneben. Regressionslauf **19/19**. **Nebenbefund:** der OAuth-Token der Mac-CLI ist abgelaufen — der VPS-Bot ist davon nicht betroffen.
+
 - **2026-07-25 (4)** — **H3 umgesetzt (neuer Punkt 5.30) + drei echte Funde am Start-Wächter behoben.** H3: 👍/👌 ohne offene Frage bekommen eine Quittung statt eines Modelllaufs. **Wichtiger noch die Funde aus dem B1-Trockenlauf auf dem VPS:** (1) Der Wächter erbte die systemd-Umgebung nicht und meldete „MEMORY.md fehlt" — ein Fehlalarm über die Umgebung des *Prüfers*, nicht des Bots. (2) Er fand ohne `ALLOWED_USER_IDS` gar kein Meldeziel und wäre stumm geblieben; jetzt Rückfallweg über die Einstellungsdatei. (3) **Der schwerste:** Er beendete einen gesunden Bot, obwohl der Rückweg fehlte — ein Neustart ohne Rückbau ist reiner Schaden. Neue Regel, gespiegelt aus A1: *kein Einspielen ohne Rückweg — und kein Beenden ohne Rückweg.* Alle drei sind jetzt durch eigene Prüfungen abgedeckt (B1-Test auf 8 Prüfungen).
 
 - **2026-07-25 (3)** — **B1 umgesetzt: Start-Wächter außerhalb des Bot-Prozesses (neuer Punkt 5.29).** Schließt die einzige Lücke der Updater-Sicherheitskette — den Bot, der nach dem Neustart nicht mehr hochkommt. Abgekoppelter Prozess, dreifache Gesundheitsprüfung, Rückbau auf den eingefrorenen Stand, Meldung über das Postfach plus Zustandsdatei für den 4-Uhr-Check. Regressionslauf **18/18**. Damit sind B2 (Auto-Neustart) und B3 (Wartungsfenster) technisch freigeschaltet — beide brauchen aber noch Adams Ja.
@@ -778,6 +780,24 @@ Absturzfall ausdrücklich auf 5.18).
 - **Fehlender Bezugstext:** Liegt weder eine Frage noch der Wortlaut der Nachricht vor, wird **nie** ein Lauf gestartet. Bewusst aber auch **nicht** still quittiert — ein 👎 oder 🤨 trägt ein Signal, das nicht verschluckt werden darf; stattdessen eine kurze Rückfrage ohne Modell-Beteiligung.
 - **Akzeptanzkriterium:** 👍 auf eine beliebige Bot-Nachricht erzeugt keinen Lauf, aber eine sichtbare Quittung; 👍 auf eine offene Frage wirkt unverändert als Antwort; ohne Bezugstext wird nichts geraten.
 - **Test:** `scripts/test_reactions_5_9.py` um drei Prüfungen erweitert (11 gesamt, im Regressionslauf).
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** 25.07.2026
+
+### 5.31 Kontingent-Limit: nichts geht verloren (H2 Ebene 1) `[NEU 2026-07-25]`
+- **Status:** ✅ VERIFIZIERT (25.07.)
+- **Belegter Verlust (24.07.):** Adams Nachricht um 20:13 kam nie an — er musste sie um 22:47 wiederholen. Der Code kannte das Kontingent-Limit gar nicht; es fiel in den allgemeinen Fehlerzweig, der die Session schließt und den Auftrag als gescheitert abhakt.
+- **Umsetzung:** Eigener Zweig `is_session_limit()` in `_run_job`. Der Auftrag gilt als **offen, nicht gescheitert**, geht unverändert an den **Kopf** der Warteschlange zurück (chronologische Reihenfolge bleibt), die Mailbox merkt sich `pausiert_bis`, und der Worker schläft in Häppchen bis dahin — Nachrichten werden weiter angenommen. Danach eine Ansage („Kontingent ist wieder da") und alles der Reihe nach.
+- **Uhrzeit: nur lesen, nie raten.** `parse_reset_zeit()` liest die Reset-Zeit aus der Meldung (`resets 8:50pm`, `resets at 20:15`; eine bereits vergangene Uhrzeit meint den nächsten Tag). Steht keine drin, bekommt Adam **keine** erfundene Uhrzeit, sondern den ehrlichen Satz, dass die Meldung nichts dazu sagt — der Bot versucht es dann in einer Viertelstunde erneut.
+- **Ebene 2 bewusst NICHT gebaut:** Der Möglichkeitsraum (API-Zweitweg 🟢 · lokal 🟢 · Zweit-Konto 🟡 · Fremdanbieter 🟡–🔴 · Zusatzguthaben 🟡) liegt als Entscheidungsvorlage unter [`docs/entscheidungsvorlagen/kontingent-fallback-ebene2.md`](docs/entscheidungsvorlagen/kontingent-fallback-ebene2.md). Grundsatz dort: **angeboten, nie automatisch genommen.** Conni-Empfehlung: erst messen, wie oft das Limit überhaupt beißt. Die 80-%-Vorwarnung ist über den Abo-Zugang **nicht sauber abfragbar** — nur Claudes eigene Warnmeldungen durchreichen, nichts approximieren.
+- **Test:** `scripts/test_session_limit_h2.py` (7 Prüfungen, im Regressionslauf → **19/19**).
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** 25.07.2026
+
+### 5.32 Modell-Alias auf Opus 5 + ein gemeinsamer Meldeweg (H4) `[NEU 2026-07-25]`
+- **Status:** ✅ VERIFIZIERT (25.07.), mit einem Nebenbefund für Adam
+- **Umsetzung:** `_MODEL_ALIASES["opus"]` von `claude-opus-4-8` auf **`claude-opus-5`** gehoben. Modell-Frische läuft ab jetzt über **denselben** Meldeweg wie Paket-Updates: Eintrag `claude-modelle` im E5-Register (`components.json`) — der Wochen-Monitor listet ihn in derselben Nachricht wie alles andere. Das ist die bestehende Regel „Aktualität als Qualitätskriterium", nicht eine zweite daneben.
+- **Bewusst als „manual" eingetragen:** Ob eine neuere Modellreihe existiert, lässt sich **offline nicht** ermitteln. Ein Automatismus, der das vorgäbe, wäre eine Attrappe; stattdessen steht im Register, wie gegengeprüft wird (Abo-Probe `claude -p --model <id>`, kostenfrei).
+- **⚠️ Nebenbefund für Adam (gehört zu 5.20):** Der **OAuth-Token der Claude-CLI auf dem Mac ist abgelaufen** („OAuth access token has expired. Re-authenticate to continue"). Der **VPS-Bot ist nicht betroffen** — er läuft über seinen eigenen Abo-Token und arbeitet normal weiter. Betroffen ist nur die Kommandozeile am Mac; ein `claude login` dort behebt es. Genau der Fall, für den 5.20 (Token-Frühwarner) gedacht ist.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** 25.07.2026
 

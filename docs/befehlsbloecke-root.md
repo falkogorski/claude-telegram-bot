@@ -242,6 +242,49 @@ sudo systemctl enable --now ollama
 
 ---
 
+## Schritt 4c — Webhook-Port auf Telegrams Netze beschränken (1.9 C.1)
+
+**Gefunden in der Nacht zum 26.07. beim Bau der Härtungsprüfung.** Der Webhook
+läuft, und Port **8443 ist von jeder Adresse der Welt erreichbar** — das habe
+ich von hier aus nachgemessen, nicht vermutet.
+
+**Zur Einordnung, ohne Dramatik:** Zwei der drei roten Auflagen greifen bereits,
+und zwar hart — der Bot **startet nicht**, wenn Geheimnis-Token oder
+unerratbarer Pfad fehlen. Ein fremder Ruf auf den Port wird ohne den richtigen
+Kopfzeilen-Wert verworfen. Dass der Port auf allen Adressen lauscht, ist bei
+der Self-Signed-Betriebsart **so vorgesehen** (Telegram muss ihn ja erreichen);
+die „nur 127.0.0.1"-Auflage gilt der Reverse-Proxy-Variante.
+
+**Was fehlt, ist die dritte Auflage:** die Beschränkung auf Telegrams Netze.
+Sie nimmt die Angriffsfläche von „die ganze Welt darf klopfen" auf „nur Telegram
+darf klopfen" — der Unterschied zwischen einem Schloss und einem Schloss hinter
+einer Tür.
+
+```bash
+sudo ufw allow from 149.154.160.0/20 to any port 8443 proto tcp && sudo ufw allow from 91.108.4.0/22 to any port 8443 proto tcp
+```
+
+```bash
+sudo ufw delete allow 8443/tcp 2>/dev/null; sudo ufw status numbered | grep 8443
+```
+
+**Prüfzeile:** In der Liste stehen **zwei** Regeln für 8443, beide mit einer
+Herkunft (`149.154.160.0/20` bzw. `91.108.4.0/22`) — und **keine** ohne. Danach
+muss der Bot weiter antworten: Schick ihm eine Nachricht, sie muss ankommen.
+
+> ⚠️ **Wenn keine Antwort mehr kommt, sofort den Rückweg gehen** — ein Bot, der
+> vierzehn Tage keine Nachrichten annimmt, ist teurer als der Gewinn dieser
+> Regel. **Rückweg:**
+>
+> ```bash
+> sudo ufw allow 8443/tcp && sudo ufw status | grep 8443
+> ```
+>
+> **Deshalb dieser Schritt bewusst NICHT am Abreisetag**, sondern wenn Adam
+> danach noch eine Weile am Rechner sitzt und es merken würde.
+
+---
+
 ## Schritt 5 (später) — Große Dateien: eigener Bot-API-Server (5.34)
 
 **Zurückgehalten, bis 1 bis 3 sitzen.** Die Bot-Seite ist gebaut und geprüft

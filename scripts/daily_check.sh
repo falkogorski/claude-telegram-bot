@@ -132,6 +132,52 @@ fi
 
 
 
+# --- 9b. Haertung: verfaellt sie still? (9.11 Punkt 1) ---------------------
+# Der Sinn dieser Zeilen ist NICHT, Haertung einzurichten - die steht laengst.
+# Der Sinn ist, dass eine ZURUECKGENOMMENE Haertung auffaellt. Bisher waere ein
+# entfernter Schutz niemandem aufgefallen; genau das ist die Klasse "Vorgabe da,
+# Pruefung fehlt", die dieses Projekt fuenfmal in zwei Tagen getroffen hat.
+haertung_fehlt=()
+for eigenschaft in NoNewPrivileges:yes PrivateTmp:yes ProtectSystem:strict; do
+  name="${eigenschaft%%:*}"; soll="${eigenschaft##*:}"
+  ist=$(systemctl show claude-telegram-bot -p "$name" --value 2>/dev/null)
+  [ "$ist" = "$soll" ] || haertung_fehlt+=("$name=$ist statt $soll")
+done
+if systemctl is-enabled fail2ban >/dev/null 2>&1; then :; else
+  haertung_fehlt+=("fail2ban nicht eingeschaltet")
+fi
+if [ "${#haertung_fehlt[@]}" -eq 0 ]; then
+  lines+=("✅ Haertung unveraendert (NoNewPrivileges, PrivateTmp, ProtectSystem, fail2ban)")
+else
+  lines+=("❌ Haertung: ${haertung_fehlt[*]}")
+  problems+=("Eine Haertung wurde zurueckgenommen: ${haertung_fehlt[*]}")
+fi
+
+# Offene Anschluesse: alles, was NICHT nur lokal lauscht, wird benannt. SSH und
+# der Webhook-Port sind erwartet - jeder weitere ist ein Befund, denn nach
+# CLAUDE.md gilt: kein eingehender Port ausser den ausdruecklich gewollten.
+unerwartet=$(ss -lntH 2>/dev/null \
+  | awk '{print $4}' \
+  | grep -vE '^(127\.0\.0\.1|\[::1\])' \
+  | grep -vE ':(22|8443)$' | sort -u | tr '\n' ' ')
+if [ -n "${unerwartet// /}" ]; then
+  lines+=("❌ Unerwartet offene Anschluesse: $unerwartet")
+  problems+=("Es lauschen Anschluesse nach aussen, die dort nicht hingehoeren: $unerwartet")
+else
+  lines+=("✅ Nach aussen lauschen nur SSH und der Webhook-Port")
+fi
+
+# 1.9 rote Auflage C.1, dritter Teil: Der Webhook-Port soll auf Telegrams Netze
+# beschraenkt sein. Geheimnis-Token und unerratbarer Pfad erzwingt der Bot beim
+# Start selbst (er startet sonst nicht) - die Firewall-Regel tut das niemand.
+if [ "${BOT_MODE:-polling}" = "webhook" ]; then
+  if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q '149.154.160.0/20'; then
+    lines+=("✅ Webhook-Port auf Telegram-Netze beschraenkt")
+  else
+    lines+=("~ Webhook-Port 8443 ist fuer JEDE Adresse erreichbar. Der Geheimnis-Token weist fremde Rufe ab - die Auflage 1.9 C.1 nennt zusaetzlich die Firewall-Beschraenkung auf 149.154.160.0/20 und 91.108.4.0/22. Braucht root, siehe docs/befehlsbloecke-root.md.")
+  fi
+fi
+
 # --- 10. Vorraete: Speicher, Platte, Auslagerung ---------------------------
 # Werte-Charta 7a: "Was vorhersehbar knapp wird, wird beobachtet, BEVOR es
 # knapp ist." Der Unterschied zu den Stundenblumen ist die Absicht — die Blume

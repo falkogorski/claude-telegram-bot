@@ -4478,6 +4478,33 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert "_postfach_target_ok" in s, "Postfach prüft Ziel nicht"
     check("Boten-Postfach (B)", _c_postfach)
 
+    # 19. C2 Divergenz-Wächter: installiert ↔ gepinnt. Deterministisch, ohne Netz.
+    # Hätte die Lücke 0.2.118 (Pin) ↔ 0.2.127 (installiert) von allein gemeldet —
+    # sonst fällt ein Rebuild stillschweigend auf die alte Version zurück.
+    def _c_pin_divergenz() -> None:
+        req = _REPO_DIR / "requirements.txt"
+        if not req.exists():
+            return
+        pins = dict(re.findall(r"^([A-Za-z0-9_.\-]+)(?:\[[^\]]*\])?==([^\s#]+)",
+                               req.read_text(encoding="utf-8"), re.MULTILINE))
+        if not pins:
+            return
+        try:
+            from importlib.metadata import version as _pkg_version
+        except Exception:
+            return
+        drift = []
+        for name, pinned in pins.items():
+            try:
+                have = _pkg_version(name)
+            except Exception:
+                continue  # nicht in DIESER Umgebung installiert — kein Befund
+            if have != pinned:
+                drift.append(f"{name}: installiert {have} ≠ gepinnt {pinned}")
+        assert not drift, ("Pin weicht ab (Rebuild würde zurückfallen!): "
+                           + "; ".join(drift))
+    check("Pin-Divergenz (C2)", _c_pin_divergenz)
+
     return state["ok"], results
 
 

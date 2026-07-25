@@ -22,6 +22,8 @@ metadata:
 
 ## Änderungshistorie
 
+- **2026-07-25 (9)** — **Phasen-Audit 5 → Phase 3: Gesamtdaumen von Adam gegeben (25.07.2026, 05:37, geprüft).** Grundlage: [`docs/AUDIT-STATUS-phase5.md`](docs/AUDIT-STATUS-phase5.md) (Stichtag 23.07., ~62 %) plus die seither verifizierten Abschlüsse — 1.9 Webhook live (Phase 1 damit vollständig), 3.1 LobeChat Grundinstallation, 5.21 Monitor + Updater gehärtet, 5.5/5.6, 8.7-Feinjustierung, Boten-Postfach, PDF-Kette. **Sprint bestätigt: „80 % bis Dienstag (28.07.)"**, gemessen gegen den eingefrorenen 23.07.-Nenner; Neuzugänge zählen separat, das nächste Audit weist **beide** Zahlen aus (X % gegen Stichtag · Y % gegen aktuellen Umfang · Z Neuzugänge).
+
 - **2026-07-25 (8)** — **faster-whisper aktiv (neuer Punkt 5.35), 5.34 entscheidungsreif gemessen, Regeln ⑪/⑫ verankert, Prüfraster erstellt.** Sprach-Backend gegengemessen statt übernommen: **1,81×** schneller (80,3 s statt 145,7 s) — und die kursierenden „6,3–7,1×" als **Echtzeit-Faktoren** richtiggestellt. **5.34:** VPS gemessen — 225 GB frei, 5,9 GB Speicher verfügbar, **keine Aufrüstung nötig, kein Cent Zusatzkosten**; Vorlage [`docs/entscheidungsvorlagen/grosse-dateien-bot-api-server.md`](docs/entscheidungsvorlagen/grosse-dateien-bot-api-server.md) entscheidungsreif. **Regel ⑫** („Status ist ein Befund, keine Behauptung") und **Regel ⑪** (Gültigkeits-Kopf) in CLAUDE.md; `AUDIT-STATUS-phase5.md` als überholt gekennzeichnet. **Prüfraster Basisfähigkeiten** erstellt — sechs echte Lücken benannt, Kalender und E-Mail an der Spitze.
 
 - **2026-07-25 (7)** — **Video-Abtastung nachgeschärft (5.28) + zwei Grundsätze verankert.** Adams Befund nach dem ersten Test: „viel zu große Sprünge". Neue laufzeitabhängige Dichte (30 s → jede Sekunde) plus **Übersichtsbögen und Zeitmarken**, die Dichte und schlanken Kontext zugleich möglich machen. In CLAUDE.md erweitert: **Aktualität gilt für VERFAHREN, nicht nur Versionsnummern** — qualitativ weit oben ansiedeln, wiederkehrend prüfen, Solides aber nicht wegwerfen, nur weil Neues existiert. Neuer Punkt **5.34**: Anbindung für große Dateien über einen selbst betriebenen Bot-API-Server (2 GB statt 20 MB), aktiv schaltbar, mit belastbarer Kostenangabe — Plattenplatz-Messung steht vor jedem Bau.
@@ -843,8 +845,9 @@ Absturzfall ausdrücklich auf 5.18).
 - **Verifiziert am:** 25.07.2026
 
 ### Phasen-Audit 5 → 6
-- **Audit-Status:** —
-- **Strategie-Recheck:** —
+- **Zwischen-Audit-Tor — ✅ PASSIERT (Adam, 25.07.2026, 05:37, geprüfte Zeit).** Übergang Phase 5 → Phase 3 freigegeben; **Phase 5 läuft als Feature-Phase parallel weiter.**
+- **Audit-Status:** ✅ 25.07.2026 — Gesamtdaumen gegeben (Grundlage siehe Änderungshistorie 2026-07-25 (9)).
+- **Strategie-Recheck:** ✅ 25.07.2026 — Reihenfolge bleibt: freigegebene Einzelpunkte durcharbeiten, B2/B3 erst nach Probelauf, 5.34 erst nach Kostenvorlage. Neue Erkenntnis fürs Vorgehen: **9.4 steigt in der Wichtigkeit** — es ist nicht nur ein Freigabe-Weg, sondern die fehlende Leitung zwischen Bot-Chat und Ablage.
 
 ---
 
@@ -1032,7 +1035,10 @@ Absturzfall ausdrücklich auf 5.18).
 - **Status:** OFFEN (Entscheidung E4: nach der Migration)
 - **Akzeptanzkriterium:** Permission-Anfragen beliebiger Claude-Sitzungen (Desktop, Web) laufen mit Sitzungs-Kennung im Telegram-Bot auf und sind per Button freigebbar. Skizze: kleiner HTTP-Endpoint im Bot (VPS ist 24/7 erreichbar) + pro Sitzung ein Hook/Wrapper, der `can_use_tool`-Entscheidungen dorthin delegiert.
 - `[ERWEITERT 2026-07-24, Marschordnung II E1]` **Zielbild „Fern-Orchestrierung" (Adam):** per Zuruf an den Bot **Code-Sitzungen starten/fortführen** (headless), Ergebnisse laufen über das **Boten-Postfach (B)** bzw. die Zimmer (Phase 6) zurück. Deckt das Ur-Requirement „Sessions von unterwegs fortführen" ab und das heute notierte „Einzel-Entscheidungen von unterwegs freigeben". 🔒 **Vor dem Bau eine eigenständige Rechte-/Sicherheitsbetrachtung:** wer darf welche Sitzung starten, was liest/schreibt sie, wie wird missbräuchliche Fern-Auslösung verhindert (die Fern-Orchestrierung ist eine erhebliche neue Angriffsfläche). Konzeption bewusst in der Kontrollsitzung.
-- **Test:** Eine Desktop-Sitzung stellt Permission-Frage → Button-Prompt erscheint in Telegram mit Sitzungs-Kennung → Freigabe wirkt.
+- `[ERWEITERT 2026-07-25, Adam & Conni]` **Der Hub ist zugleich das Entscheidungs-Protokoll — und damit wichtiger als bisher eingeordnet.** Jedes Urteil, **auch ein bloßes 👍 im Bot-Chat**, erzeugt zusätzlich zur Urteil-Datei eine **datierte Zeile im Drehbuch** mit geprüftem Zeitstempel und `beantwortet_von`.
+- **Der Befund dahinter (25.07.):** Der Gesamtdaumen für das Phasen-Audit war am 24.07. nie eingeholt worden, und Adams erinnerte Zustimmung zum LobeChat-Ausbau findet sich im Drehbuch nicht wieder. **Kein Verfahrensfehler** — autonomes Arbeiten war freigegeben. Es fehlt eine **Leitung**: Adam entscheidet häufig per Reaktion oder Sprachnachricht im Bot-Chat, und die Bot-Sitzung darf nicht ins Repo schreiben (8.7). Jede dort getroffene Entscheidung bleibt also im Bot-Gedächtnis liegen, bis ein Mensch sie überträgt. **9.4 ist diese fehlende Leitung** — nicht nur ein Freigabe-Weg.
+- **Dritter Fall derselben Klasse in 24 Stunden:** erst fehlte der **Prüfer** (R2), dann der **Gültigkeits-Vermerk** (⑪), jetzt der **Ablageweg**. Verallgemeinert als Grundsatz in CLAUDE.md: *Eine Entscheidung, die keinen Weg in die Ablage hat, ist verloren — egal wie klar sie getroffen wurde.*
+- **Test:** Eine Desktop-Sitzung stellt Permission-Frage → Button-Prompt erscheint in Telegram mit Sitzungs-Kennung → Freigabe wirkt. **Zusätzlich:** ein 👍-Urteil im Bot-Chat landet als datierte Zeile im Drehbuch, ohne dass ein Mensch es überträgt.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

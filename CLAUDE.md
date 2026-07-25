@@ -160,6 +160,34 @@ nicht der Normalfall für Endnutzer. Verzahnt mit „Selbstlernende Assistenz",
 Kanal-Routing (ein Kern, mehrere Frontends → perspektivisch eigene App statt
 Telegram-Pflicht) und der Werte-Charta (`docs/entscheidungsvorlagen/werte-charta-momo.md` §7).
 
+## 🛤️ ABLAGEWEG-GRUNDSATZ (Adam & Conni 2026-07-25)
+
+**Eine Entscheidung, die keinen Weg in die Ablage hat, ist verloren — egal wie
+klar sie getroffen wurde.**
+
+**Anlass:** Der Gesamtdaumen für das Phasen-Audit war nie eingeholt worden, und
+Adams erinnerte Zustimmung zum LobeChat-Ausbau stand nirgends im Drehbuch. Kein
+Verfahrensfehler — es fehlte eine **Leitung**: Adam entscheidet häufig per
+Reaktion oder Sprachnachricht im Bot-Chat, und die Bot-Sitzung darf nicht ins
+Repo schreiben (8.7). Also blieb jede dort getroffene Entscheidung im
+Bot-Gedächtnis liegen, bis ein Mensch sie übertrug.
+
+**Dritter Fall derselben Klasse binnen vierundzwanzig Stunden:** erst fehlte der
+**Prüfer** (R2 — eine Regel ohne Prüfer ist eine Bitte), dann der
+**Gültigkeits-Vermerk** (⑪ — eine alte Fassung liest sich wie der gültige
+Stand), jetzt der **Ablageweg**. Das Muster: Eine Vorgabe ohne technische
+Entsprechung verfällt still.
+
+**How to apply:**
+- **Bei jeder neuen Regel, Rolle oder Entscheidungsart mitfragen:** Wer prüft
+  sie? Wo wird sie sichtbar? **Und auf welchem Weg kommt sie in die Ablage?**
+  Fehlt eine der drei Antworten, ist die Vorgabe unvollständig.
+- **Solange 9.4 nicht steht**, trägt diese Lücke meine Aufmerksamkeit: Jede
+  Entscheidung, die Adam im Bot-Chat trifft, muss ich beim nächsten Zug in
+  `MIGRATION.md` nachtragen — mit geprüftem Zeitstempel. Nicht „später".
+- **9.4 ist deshalb hoch eingeordnet:** nicht als Bequemlichkeit, sondern als
+  die fehlende Leitung selbst.
+
 ## 🔍 PRÜFREGEL — Status ist ein Befund, keine Behauptung (Adam 2026-07-25)
 
 Gilt für **alle Instanzen**. Ein Punkt gilt **nicht** deshalb als offen, weil
@@ -191,6 +219,21 @@ jede alte Fassung wie der gültige Stand.
 Übergabe-Blöcke und Kontroll-/Sitzungs-Ausgaben tragen im **Kopf einen geprüften
 Zeitstempel** im Format **`TT.MM.JJJJ, HH:MM`** — per `date`/Systemuhr **geprüft,
 nie geschätzt** (Messbarkeits-Regel: Messbares wird gemessen, nicht erzählt).
+
+**[VERSCHÄRFT 2026-07-25, Conni ③]: Die Blockzeit wird aus dem Commit
+ÜBERNOMMEN, nicht getippt.** „`date` vor jedem Block" war richtig, hing aber
+wieder an Aufmerksamkeit — derselben Schwäche, die den Versatz erzeugt hat (zwei
+Blöcke lagen 14 bzw. 45 Minuten in der Zukunft). Der Blockkopf nennt ohnehin den
+Commit, und **Commit-Zeiten sind maschinell und lassen sich nicht schätzen** —
+an ihnen wurde der Versatz gemessen. Also:
+
+```bash
+git log -1 --format='%ad · %h' --date=format:'%d.%m.%Y, %H:%M'
+```
+
+Dieser Wert wandert unverändert in den Kopf. Gibt es keinen frischen Commit,
+tritt `date` ein — dann aber ausgeführt, nicht erinnert. So kann die Zeit nicht
+mehr driften: Sie ist dann ein **abgelesener** Wert, kein behaupteter.
 Bei mehreren Blöcken kurz hintereinander gilt der mit dem **späteren
 Zeitstempel**. Gilt für **alle Instanzen**, damit die Chronologie zwischen den
 Sitzungen eindeutig bleibt.

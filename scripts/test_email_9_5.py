@@ -158,6 +158,40 @@ def _leere_pflichtfelder_werden_abgewiesen():
     assert _weist_ab(_entwurf, text=""), "leerer Text kam durch"
 
 
+def _absender_nur_aus_der_liste():
+    """Ein frei wählbarer Absender käme einer Vollmacht gleich.
+
+    Mailtexte entstehen hier teils aus Inhalten, die von außen kommen. Wer das
+    `From` bestimmen kann, kann fremden Text unter Adams Adresse setzen —
+    deshalb eine Allowlist in der geschützten Umgebung, keine freie Wahl.
+    """
+    os.environ["MAIL_GESCHAEFTLICH_ALIASSE"] = "info@example.org, buero@example.org"
+    k = mk.konten()["geschaeftlich"]
+    assert k.aliasse == ("info@example.org", "buero@example.org")
+
+    # Erlaubt: Hauptadresse und beide Aliasse — ohne zweites Kennwort.
+    for gut in ("adam@example.org", "info@example.org", "BUERO@example.org"):
+        e = _entwurf(absender=gut)
+        assert e.absender.lower() == gut.lower()
+        assert gut.lower() in e.lesbar().lower(), \
+            "der Absender steht nicht in der Vorlage"
+
+    # Nicht erlaubt: alles andere.
+    for boese in ("fremd@angreifer.example", "adam@example.org.angreifer.example",
+                  "chef@grossefirma.example"):
+        assert _weist_ab(_entwurf, absender=boese), \
+            f"fremder Absender kam durch: {boese}"
+
+    # Und die zweite Prüfung kurz vor dem Absenden greift auch dann, wenn die
+    # Liste sich seit dem Entwurf geändert hat.
+    e = _entwurf(absender="info@example.org")
+    kennung = mk.zur_freigabe(e)
+    f.urteilen(kennung, True, "Adam")
+    os.environ["MAIL_GESCHAEFTLICH_ALIASSE"] = ""
+    assert _weist_ab(mk.senden, e), \
+        "ein inzwischen entfernter Absender ging trotzdem hinaus"
+
+
 def _posteingang_ist_nur_lesend():
     """Fremdtext ist Datum, kein Auftrag — und der Abruf verändert nichts."""
     quelle = Path(mk.__file__).read_text(encoding="utf-8")
@@ -183,6 +217,7 @@ check("harmloser Anhang geht durch und steht in der Vorlage",
 check("das Kennwort taucht nirgends auf", _kennwort_nirgends_sichtbar)
 check("halbfertiges Konto wird weggelassen", _halbfertiges_konto_wird_weggelassen)
 check("leere Pflichtfelder werden abgewiesen", _leere_pflichtfelder_werden_abgewiesen)
+check("Absender nur aus der Liste (Alias-Vollmacht)", _absender_nur_aus_der_liste)
 check("Posteingang ist nur lesend", _posteingang_ist_nur_lesend)
 
 if fails:

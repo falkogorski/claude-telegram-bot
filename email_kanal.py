@@ -86,6 +86,22 @@ class Konto:
     benutzer: str
     imap: str
     smtp: str
+    # `[NEU 26.07.]` Weitere Adressen desselben Kontos. Ein anwendungs-
+    # spezifisches Kennwort gilt **pro Konto, nicht pro Adresse** — Aliasse
+    # brauchen also weder eigenes Kennwort noch eigenen Eintrag, nur die
+    # Erlaubnis, als Absender aufzutreten.
+    #
+    # ⚠️ **Warum eine Liste und nicht freie Wahl:** Wer den Absender bestimmen
+    # kann, kann in Adams Namen schreiben. Mailtexte entstehen hier teils aus
+    # Inhalten, die von außen kommen — ein frei wählbares `From` wäre damit ein
+    # Weg, fremden Text unter Adams Adresse zu setzen. Was nicht in dieser
+    # Liste steht, kann kein Absender werden.
+    aliasse: tuple[str, ...] = ()
+
+    def darf_senden_als(self, adresse: str) -> bool:
+        ziel = (adresse or "").strip().lower()
+        return ziel == self.adresse.lower() or ziel in (
+            a.lower() for a in self.aliasse)
     # Das Kennwort steht bewusst NICHT im Datensatz: Ein Datensatz wandert in
     # Protokolle, Fehlermeldungen und Fehlersuchen. Es wird bei Bedarf frisch
     # aus der Umgebung geholt und sofort wieder vergessen.
@@ -113,9 +129,12 @@ def konten() -> dict[str, Konto]:
         if not all(werte[f] for f in ("ADRESSE", "BENUTZER", "KENNWORT",
                                       "IMAP", "SMTP")):
             continue
+        roh = os.environ.get(f"MAIL_{n}_ALIASSE", "")
+        aliasse = tuple(a.strip() for a in re.split(r"[,\s]+", roh)
+                        if a.strip() and "@" in a)
         raus[n.lower()] = Konto(name=n.lower(), adresse=werte["ADRESSE"],
                                 benutzer=werte["BENUTZER"], imap=werte["IMAP"],
-                                smtp=werte["SMTP"])
+                                smtp=werte["SMTP"], aliasse=aliasse)
     return raus
 
 
@@ -132,6 +151,7 @@ class Entwurf:
     text: str
     anhaenge: list[str] = field(default_factory=list)
     kennung: str = ""          # Freigabe-Kennung, sobald vorgelegt
+    absender: str = ""         # leer = die Hauptadresse des Kontos
 
     def lesbar(self) -> str:
         """Die wörtliche Vorlage — Konkret vor Label.
@@ -140,7 +160,7 @@ class Entwurf:
         und Größe. Wer eine Mail freigibt, muss sehen, was hinausgeht, nicht
         eine Beschreibung davon.
         """
-        zeilen = [f"Von:     {self.konto}",
+        zeilen = [f"Von:     {self.absender or self.konto}",
                   f"An:      {', '.join(self.an)}",
                   f"Betreff: {self.betreff}", "", self.text.strip()]
         for p in self.anhaenge:
@@ -186,13 +206,21 @@ def _anhang_pruefen(pfad: str) -> str:
 
 
 def entwerfen(konto: str, an, betreff: str, text: str,
-              anhaenge=None) -> Entwurf:
+              anhaenge=None, absender: str = "") -> Entwurf:
     """Baut einen Entwurf und prüft ihn — **sendet nichts.**"""
     verfuegbar = konten()
     if konto not in verfuegbar:
         raise Abgewiesen(
             f"Kein Konto „{konto}“ eingerichtet. Vorhanden: "
             + (", ".join(verfuegbar) or "keines"))
+    k = verfuegbar[konto]
+    if absender and not k.darf_senden_als(absender):
+        erlaubt = ", ".join((k.adresse,) + k.aliasse)
+        raise Abgewiesen(
+            f"„{absender}“ ist für dieses Konto nicht als Absender hinterlegt. "
+            f"Erlaubt sind: {erlaubt}. Ein frei wählbarer Absender käme einer "
+            "Vollmacht gleich — die Liste steht bewusst in der geschützten "
+            "Umgebungsdatei und nicht im Gespräch.")
     ziele = [an] if isinstance(an, str) else list(an or [])
     if not ziele:
         raise Abgewiesen("Ohne Empfänger kein Entwurf.")
@@ -205,7 +233,8 @@ def entwerfen(konto: str, an, betreff: str, text: str,
                    an=[_adresse_pruefen(z) for z in ziele],
                    betreff=_kopffeld(betreff, "Betreff")[:200],
                    text=text,
-                   anhaenge=[_anhang_pruefen(p) for p in (anhaenge or [])])
+                   anhaenge=[_anhang_pruefen(p) for p in (anhaenge or [])],
+                   absender=_kopffeld(absender, "Absender") or k.adresse)
 
 
 def zur_freigabe(e: Entwurf, herkunft: str = "E-Mail") -> str:
@@ -252,8 +281,14 @@ def senden(e: Entwurf) -> str:
     _freigabe_pruefen(e)
     k = konten()[e.konto]
 
+    # Zweite Prüfung kurz vor dem Absenden: Die Liste kann sich seit dem
+    # Entwurf geändert haben, und dies ist die letzte Stelle, an der es noch
+    # jemand merken kann.
+    if not k.darf_senden_als(e.absender or k.adresse):
+        raise Abgewiesen(f"„{e.absender}“ ist kein erlaubter Absender.")
+
     m = EmailMessage()
-    m["From"] = k.adresse
+    m["From"] = e.absender or k.adresse
     m["To"] = ", ".join(e.an)
     m["Subject"] = e.betreff
     m["Date"] = formatdate(localtime=True)
@@ -325,7 +360,11 @@ def uebersicht() -> str:
                 "Je Konto gehören Adresse, Benutzer, Kennwort sowie IMAP- und "
                 "SMTP-Adresse in die geschützte Umgebungsdatei auf dem Server — "
                 "**nie in den Chat.** Sag Bescheid, dann nenne ich dir den Weg.")
-    zeilen = [f"• {n} — {c.adresse}" for n, c in k.items()]
+    zeilen = []
+    for n, c in k.items():
+        zeilen.append(f"• {n} — {c.adresse}")
+        if c.aliasse:
+            zeilen.append("   auch als: " + ", ".join(c.aliasse))
     return ("📮 Eingerichtete Konten:\n" + "\n".join(zeilen)
             + "\n\nVersand geht immer über den Freigabe-Knopf: Ich lege dir "
               "Empfänger, Betreff und Anhänge wörtlich vor, und erst dein "

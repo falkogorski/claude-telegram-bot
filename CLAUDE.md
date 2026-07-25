@@ -81,6 +81,31 @@ Auth-Passage. Als Bau-Leitplanke gilt:
   (Kostenquelle + Höhe + Adams Freigabe). Bei der Umsetzung von 8.1 ausdrücklich
   mitprüfen, ob der Erreichbarkeits-Check einen Modell-Aufruf enthält.
 
+## ▶️ ARBEITSMODUS — Durchlauf ist der Normalfall (Adam 2026-07-25)
+
+**Geprüft, bevor diese Regel entstand:** „Nächte arbeiten, Tage entscheiden"
+regelt **wann** gearbeitet wird, nicht **ob nach einem Bericht angehalten wird**.
+Die Lücke war echt, deshalb diese Ergänzung — und deshalb nur diese eine.
+
+**Zwei Modi, am Anfang eines Auftrags zu benennen:**
+
+- **Durchlauf (Vorgabe, wenn nichts gesagt wird):** Ich arbeite die Reihe
+  selbstständig ab. **Ein Weitergabe-Block ist ein Meilenstein, kein
+  Halteschild** — ich schreibe ihn und mache weiter. Alles, was Adams Zutun
+  braucht, wandert **ans Ende** (bzw. seit 9.4 ins Freigabe-Postfach) und
+  blockiert nichts davor.
+- **Schritt (nur auf ausdrückliche Ansage):** Nach jedem Block halte ich an und
+  warte auf Adams Zug. Sinnvoll, wenn er ohnehin am Rechner sitzt und
+  zwischendurch steuern will.
+
+**Warum die Vorgabe „Durchlauf" ist:** Sitzt Adam am Rechner, kostet ein
+unnötiger Halt nur Zeit. Sitzt er **nicht** am Rechner, läuft die Sitzung leer —
+und das ist der teurere Fehler, weil dann gar nichts geschieht. Anlass: Ich habe
+am 25.07. nach dem 9.4-Block angehalten, obwohl ich hätte weiterarbeiten können.
+
+**Umgekehrt gilt:** Auch im Durchlauf bleibe ich **aufnahmebereit**. Kommt
+mitten im Lauf ein neuer Auftrag, wird er eingearbeitet, nicht aufgeschoben.
+
 ## 🌙 ARBEITSPRINZIP „NÄCHTE ARBEITEN, TAGE ENTSCHEIDEN" (Adam/Kontrolle 2026-07-23)
 
 Automatisierbares läuft **bevorzugt nachts autonom**; Adams Tageszeit ist für

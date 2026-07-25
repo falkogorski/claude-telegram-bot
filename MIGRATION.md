@@ -22,6 +22,8 @@ metadata:
 
 ## Änderungshistorie
 
+- **2026-07-25 (20)** — **Hora gebaut (neuer Punkt 9.8) + Arbeitsmodus-Regel.** Der autonome Läufer steht mit allen fünf Bedingungen im Code und je einem Test; Schwerpunkt der Prüfungen ist, was er **nicht** tut: entscheiden, auf rotem Fundament bauen, Gescheitertes abhaken, sich Befehle ausdenken, endlos weiterlaufen. **Zur Kontingent-Auflage:** Die Grenzen ließen sich von hier nicht messen — statt zu raten ist Hora **ohne Kenntnis** gebaut (ein Auftrag je Lauf, Rest über die 5.31-Pause); der Plan steht damit auf keiner Annahme. **Arbeitsmodus in CLAUDE.md:** „Durchlauf" ist der Normalfall, ein Weitergabe-Block ist ein **Meilenstein, kein Halteschild** — Anlass war mein unnötiger Halt nach dem 9.4-Block. Geprüft, dass keine vorhandene Regel das schon abdeckte.
+
 - **2026-07-25 (19)** — **9.4 Phase A gebaut — die fehlende Leitung steht.** Freigabe-Postfach mit allen sieben Leitplanken, Bot als **Bote und Menschen-Gatter, nie Akteur**, und dem Übertrager außerhalb des Bots, der Urteile als datierte Zeilen ins Drehbuch hängt. **Durchstich in einem Lauf geprüft.** Vier der neun Testprüfungen sind Abweisungen — dies ist der Weg, über den fremde Anfragen an Adams Entscheidung herankommen, er muss enger sein als bequem. Regressionslauf **27/27**. Damit ist die Voraussetzung für **Hora** erfüllt: Ein autonomer Läufer darf nicht entscheiden, er muss parken — hier ist der Parkplatz.
 
 - **2026-07-25 (18)** — **5.14 Link-Inbox gebaut.** Nackte Links werden abgelegt statt verarbeitet — **kein Modell-Aufruf, kein Netzabruf**, drei Knöpfe für später, `/links` als Übersicht. Die Weiche zwischen Ablage und Auftrag ist ein einzelnes sinntragendes Wort; der Behelfstitel wird ausdrücklich als „abgeleitet, nicht gelesen" gekennzeichnet. Regressionslauf **25/25**. Offen bleibt der quellkanal-abhängige Teil des Akzeptanzkriteriums — er hängt an den vier Telegram-Gruppen und wandert mit ihnen.
@@ -897,6 +899,19 @@ Absturzfall ausdrücklich auf 5.18).
 - **Eine Auslegung, die ich ausdrücklich benenne:** „Erst nach sauberen Läufen schaltet es scharf" habe ich **nicht** als Selbst-Scharfschaltung gebaut. Nach drei sauberen Probeläufen **fragt** das Fenster und sagt zu, den Schritt nicht von selbst zu tun. Begründung: Scharfschalten ist genau der Schritt, der Adam aus der Schleife nimmt — er soll ihn selbst tun. Ein Test hält das fest. Wenn ihr es anders wollt, ist es eine Zeile.
 - **Test:** `scripts/test_wartungsfenster_b3.py` (8 Prüfungen, im Regressionslauf → **23/23**) — darunter „Probelauf spielt NICHTS ein", „schaltet sich nicht selbst scharf" und beide Nachprüfungs-Fälle.
 - **Noch zu tun (root, Adam):** den Fenster-Aufruf an den 04:00-Timer hängen. Befehlsblock kommt über das Postfach.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
+### 9.8 Hora — der autonome Läufer `[NEU 2026-07-25]`
+- **Status:** 🔄 GEBAUT — Zeitgeber fehlt noch (root) und die Auftragsliste ist leer
+- **Wofür:** Adam ist ab Dienstag rund **vierzehn Tage** nicht erreichbar. Ein Zeitgeber auf dem **VPS** startet zweimal täglich eine **frische**, nicht-interaktive Sitzung, die eine **vorab freigegebene** Auftragsliste abarbeitet, berichtet und endet. Niemand startet ihn; Adam füllt nur die Liste.
+- **Zwei Bauentscheidungen, die tragen:** **Nicht auf dem Mac** — ein Rechner, der vierzehn Tage wach bleiben muss, ist das zerbrechlichste Glied. Und **je Lauf eine frische Sitzung** — eine, die vierzehn Tage lebt, stirbt sicher; den Zustand liest er aus Drehbuch, Status-Zeilen, Liste und `WIEDERANLAUF.md`, also aus dem, was ohnehin die Wahrheit ist.
+- **Kein Widerspruch zu 8.7:** Die Schreibsperre gilt der **Bot-Sitzung**, nicht jedem Prozess auf dem Server. Hora ist eine getrennte Instanz mit eigenem Auftragsbuch.
+- **Die fünf Bedingungen — jede im Code, jede mit Test:** ① **Keine Entscheidungen** — Zustimmungspflichtiges wird über **9.4 geparkt**. ② **Leere Liste** → melden und nichts tun. ③ **Grün oder zurück** — und, aus A5 übernommen: auf **rotem Fundament wird gar nicht erst gearbeitet**, sonst ist die Ursache später nicht zuzuordnen; ein Fehlschlag hakt **nichts** ab. ④ **Nach drei Fehlläufen in Folge hält er an** — ein Läufer, der gegen dieselbe Wand rennt, richtet mehr Schaden an als einer, der stehen bleibt. ⑤ **Bericht ins Postfach, auch bei Leerlauf.**
+- **⚠️ Zur Kontingent-Auflage, ehrlich:** Die Wochengrenzen des Abos ließen sich von hier **nicht messen** — der Zugang der Kommandozeile ist abgelaufen, und der Bot-Token liegt root-geschützt. Statt zu raten ist Hora so gebaut, dass er sie **nicht kennen muss**: **ein** Auftrag je Lauf, den Rest trägt die Kontingent-Pause (5.31), die beim Anschlagen wartet und danach fortsetzt. Damit steht der Plan auf **keiner** Annahme — was besser ist als eine geprüfte Zahl, die morgen anders lautet.
+- **Sicherheit:** Hora führt **nur aus, was in der Liste steht** — ohne hinterlegten Befehl wird nichts geraten. Ein Probelauf (`--trocken`) meldet, was er getan hätte, ohne zu handeln.
+- **Test:** `scripts/test_hora.py` (7 Prüfungen, im Regressionslauf → **28/28**) — Schwerpunkt auf dem, was er **nicht** tut.
+- **Noch zu tun:** Zeitgeber anlegen (root, Befehlsblock folgt) · **Auftragsliste füllen — das ist Adams Teil vor Dienstag.**
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

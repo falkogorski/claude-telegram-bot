@@ -67,7 +67,8 @@ run "Kalender/CalDAV (7.x)"             "$PY" scripts/test_kalender_caldav.py
 run "Wartungsfenster B2/B3"             "$PY" scripts/test_wartungsfenster_b3.py
 run "Link-Inbox 5.14"                   "$PY" scripts/test_linkinbox_5_14.py
 run "Freigabe-Postfach 9.4"             "$PY" scripts/test_freigaben_9_4.py
+run "Hora (autonomer Laeufer)"          "$PY" scripts/test_hora.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
-echo "== Ergebnis: $((27-FAILS))/27 bestanden =="
+echo "== Ergebnis: $((28-FAILS))/28 bestanden =="
 exit $FAILS

@@ -188,3 +188,33 @@ if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")
     sys.exit(1)
 print("\nAlle 5.14-Link-Inbox-Tests bestanden.")
+
+
+def _volltextknopf_bei_unklarer_art():
+    """`[NEU 26.07.]` Bei Instagram und Facebook steckt die Art NICHT in der
+    Adresse: `/reel/` gilt als Video, `/p/` als Beitrag — obwohl ein `/p/` sehr
+    wohl ein Video sein kann. Der Knopf fehlte damit genau dort, wo er am
+    ehesten gebraucht wird.
+
+    **Ein Fehlversuch kostet eine ehrliche Meldung, ein fehlender Knopf kostet
+    eine unsichtbare Fähigkeit** — man merkt ihn nicht, es sieht nur aus, als
+    könne das System es nicht.
+    """
+    quelle = Path(bot.__file__)
+    block = quelle.read_text(encoding="utf-8")
+    i = block.find("lnk:volltext")
+    umfeld = block[max(0, i - 700):i]
+    assert "Instagram" in umfeld and "Facebook" in umfeld, (
+        "der Volltext-Knopf hängt wieder allein an der Art — bei Instagram und "
+        "Facebook erscheint er dann nicht")
+
+    # Und die Einordnung selbst muss die beiden Fälle so liefern, wie der
+    # Knopf sie erwartet.
+    assert linkinbox.einordnen("https://www.instagram.com/p/ABC/")[0] == "Instagram"
+    assert linkinbox.einordnen("https://www.facebook.com/x/posts/1")[0] == "Facebook"
+
+
+check("Volltext-Knopf auch bei unklarer Art (Instagram/Facebook)",
+      _volltextknopf_bei_unklarer_art)
+if fails:
+    raise SystemExit(1)

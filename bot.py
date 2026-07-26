@@ -6369,7 +6369,18 @@ async def _link_ablegen(update: Update, urls: list[str]) -> None:
         InlineKeyboardButton("📝 Zusammenfassen", callback_data="lnk:kurz"),
         InlineKeyboardButton("🔍 Vertiefen", callback_data="lnk:tief"),
     ]]
-    if erster.art in ("video", "audio") and not mehrzahl:
+    # Der Volltext-Knopf. `[ERWEITERT 26.07.]` Er hing allein an der Art — und
+    # die steckt bei Instagram und Facebook nicht in der Adresse: `/reel/` gilt
+    # als Video, `/p/` als Beitrag, **obwohl ein `/p/` sehr wohl ein Video sein
+    # kann**. Der Knopf fehlte damit genau dort, wo Adam ihn am ehesten braucht.
+    #
+    # Die Abwägung, die den Ausschlag gibt: **Ein Fehlversuch kostet eine
+    # ehrliche Meldung, ein fehlender Knopf kostet eine unsichtbare Fähigkeit.**
+    # Das erste merkt man und kann es einordnen; das zweite merkt niemand — es
+    # sieht aus, als könne das System es nicht. Dasselbe Muster wie bei „ein
+    # vorhandenes Bauteil ist kein erreichbares Bauteil".
+    _unklar = erster.quelle in ("Instagram", "Facebook")
+    if (erster.art in ("video", "audio") or _unklar) and not mehrzahl:
         reihen.append([InlineKeyboardButton("📜 Volltranskript",
                                             callback_data="lnk:volltext")])
     reihen.append([InlineKeyboardButton("🗂 Nur ablegen", callback_data="lnk:ruhen")])

@@ -285,6 +285,32 @@ muss der Bot weiter antworten: Schick ihm eine Nachricht, sie muss ankommen.
 
 ---
 
+## Schritt 4d — Ollama: zwei Einstellungen ausdrücklich setzen (N2)
+
+**Klein, risikoarm, jederzeit umkehrbar.** Heute gelten beide Werte nur als
+Voreinstellung des Herstellers — sie könnten sich mit einer neuen Fassung
+ändern, ohne dass es jemandem auffiele.
+
+```bash
+sudo mkdir -p /etc/systemd/system/ollama.service.d && sudo tee /etc/systemd/system/ollama.service.d/speicher.conf >/dev/null <<'CONF'
+[Service]
+Environment="OLLAMA_KEEP_ALIVE=5m"
+Environment="OLLAMA_MAX_LOADED_MODELS=1"
+CONF
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl restart ollama && systemctl show ollama -p Environment --value
+```
+
+**Prüfzeile:** Die Ausgabe nennt beide Werte. · **Rückweg:**
+
+```bash
+sudo rm /etc/systemd/system/ollama.service.d/speicher.conf && sudo systemctl daemon-reload && sudo systemctl restart ollama
+```
+
+---
+
 ## Schritt 5 (später) — Große Dateien: eigener Bot-API-Server (5.34)
 
 **Zurückgehalten, bis 1 bis 3 sitzen.** Die Bot-Seite ist gebaut und geprüft

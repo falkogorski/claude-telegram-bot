@@ -16,6 +16,7 @@
 | Frage | Vermutung vorher | **Gemessen am 26.07.** |
 |---|---|---|
 | Wie viel belegt das lokale Modell? | „5,10 GiB" | **3017 MiB** — und **nur, solange es geladen ist** |
+| *(dazu: warum beide Zahlen stimmen)* | — | **aufgelöst am 26.07.** — die 5,10 GiB sind `MemoryPeak` **inklusive Datei-Zwischenspeicher** über elf Tage; gemessen: 2217 MiB Zwischenspeicher gegen 31 MiB echten Anwendungsspeicher. Beleg und Herleitung in [`arbeitsspeicher-messung-c1.md`](arbeitsspeicher-messung-c1.md) |
 | Wie lange bleibt es geladen? | unbekannt | **5 Minuten** nach der letzten Anfrage, dann entlädt es sich |
 | Was belegt es im Ruhezustand? | „der Brocken" | **nichts.** `ollama ps` war leer; der Dienst allein ist unauffällig |
 

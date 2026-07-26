@@ -2,11 +2,71 @@
 # C1 — Arbeitsspeicher: gemessen, nicht geschätzt
 
 > **Gültigkeits-Kopf** (Regel ⑪) · **Stichtag:** 25.07.2026, 23:20 ·
+> **Ergänzt 26.07.2026, 03:40** (Abschnitt „Zwei Zahlen, zwei Definitionen") ·
 > **Überholt durch:** — · **Maßgeblich** bleibt die Status-Zeile im Drehbuch.
 >
 > **💰 Die Messung selbst kostet nichts.** Die einzige mögliche Kostenquelle
 > wäre das Aufstocken des VPS — dazu unten ein eigener Abschnitt, ohne
 > Empfehlung ins Blaue.
+
+---
+
+## Zwei Zahlen, zwei Definitionen — aufgelöst `[NEU 26.07., 03:40]`
+
+Am 25.07. stand hier **5,10 GiB**, gemessen. Am 26.07. kamen **3017 MiB**
+heraus, ebenfalls gemessen. Zwei Messungen, zwei Ergebnisse, beide richtig —
+und die zweite hätte die erste beinahe stillschweigend überschrieben. **Genau
+das ist der Fehler, den dieses Projekt viermal hatte: eine Kennzahl ohne
+Definition.** Also die Definitionen nebeneinander, statt die eine durch die
+andere zu ersetzen.
+
+| | **5,10 GiB** (25.07.) | **3017 MiB** (26.07.) |
+|---|---|---|
+| **Was gemessen wurde** | `MemoryPeak` von Ollama | Rückgang von `MemAvailable` beim Laden eines Modells |
+| **Zeitraum** | Höchststand **seit dem 15. Juli** (elf Tage) | ein einzelner Augenblick |
+| **Enthält Datei-Zwischenspeicher?** | **ja** | **nein** |
+| **Beantwortet die Frage** | „Wie viel hat die cgroup je gehalten?" | „Wie viel fehlt beim Laden tatsächlich?" |
+
+### Der Beleg, dass es am Zwischenspeicher liegt
+
+Ollama hält laut cgroup gerade 2256 MiB — **obwohl kein Modell geladen ist.**
+Aufgeschlüsselt:
+
+```
+anon (echter Anwendungsspeicher):    31 MiB
+file (Datei-Zwischenspeicher):     2217 MiB
+slab (Kernel):                        5 MiB
+```
+
+**31 MiB gegen 2217 MiB.** Der weit überwiegende Teil ist die Modelldatei im
+Lese-Zwischenspeicher — und den gibt der Kernel **jederzeit her**, sobald
+jemand Speicher braucht. `MemoryPeak` zählt ihn mit, `MemAvailable` rechnet ihn
+heraus. Daher die Differenz.
+
+### Die Gegenprobe, die keine Zweifel lässt
+
+Die Summe aller `MemoryPeak`-Werte auf dieser Maschine beträgt **23 005 MiB** —
+auf einem Server mit **7940 MiB**. Eine Zahl, die das Dreifache des Vorhandenen
+ergibt, kann keine Belegung sein. **Spitzenwerte sind weder addierbar noch als
+gleichzeitige Belegung lesbar**; sie liegen zu verschiedenen Zeiten und
+enthalten Freigebbares.
+
+### Was daraus folgt
+
+**Für die Frage „reicht der Speicher" ist `MemAvailable` der richtige Maßstab**,
+nicht `MemoryPeak`. Die 5,10 GiB waren nicht falsch — sie beantworteten eine
+andere Frage, als ihnen gestellt wurde.
+
+**Die Empfehlung ändert sich dadurch nicht**, und das ist der Grund, warum sie
+trägt: **Swap ja, aufstocken nein.** Sie stand schon bei der pessimistischeren
+Zahl und steht bei der genaueren erst recht.
+
+**Ehrlich zur Herkunft des Missverständnisses:** Die 5,10 GiB wurden ohne
+Rückfrage nach ihrer Definition weitergereicht — von mir gemessen, von der
+Kontrollsitzung übernommen. Keiner von uns hat gefragt, was `MemoryPeak`
+eigentlich zählt. Die Zahl war korrekt abgelesen und trotzdem irreführend, und
+das ist die unangenehmere Sorte Fehler: Sie besteht jede Prüfung, die nur das
+Ablesen prüft.
 
 ## Wie gemessen wurde — und warum ohne Lasttest
 

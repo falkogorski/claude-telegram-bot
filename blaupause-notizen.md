@@ -266,3 +266,12 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   Ein abgekoppelter Prozess überlebt das Testende; eine Momentaufnahme direkt
   danach spricht den Täter frei. Wer nach einem Verursacher sucht, muss zuerst
   wissen, ob er überhaupt schon fertig ist.
+
+- **Eine Kennzahl ohne Definition ist keine Messung** · ② · **universell** —
+  5,10 GiB und 3017 MiB waren **beide** korrekt abgelesen und meinten
+  Verschiedenes: `MemoryPeak` zählt den Datei-Zwischenspeicher mit,
+  `MemAvailable` rechnet ihn heraus. **Nebenwirkung, die den Beleg lieferte:**
+  Die Summe aller Spitzenwerte ergab 23 005 MiB auf einer 7940-MiB-Maschine —
+  eine Zahl, die das Dreifache des Vorhandenen ergibt, kann keine Belegung sein.
+  Die unangenehmere Sorte Fehler: Sie besteht jede Prüfung, die nur das Ablesen
+  prüft.

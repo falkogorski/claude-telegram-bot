@@ -220,3 +220,33 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 - **Modell-Abhängigkeit prüfen:** Wie viel der Verhaltensregeln trägt ein schwächeres oder lokales Modell noch? Die Charta muss kennzeichnen, was ein Modell *können* muss, damit eine Regel greift.
 - **Widerspruch Komfort ↔ Sicherheit — Grenzlinie gefunden (Adam-Entscheid 20.07.):** Auto-Freigaben (5.25) und „im Zweifel fragen" ziehen gegeneinander; die Linie verläuft **nicht** am Werkzeug, sondern an der **Herkunft der Zieladresse** — aus Nutzer-Eingabe oder eigener Suche: automatisch; von fremden Inhalten nachgereicht: fragen. In der Blaupause als eigenes Muster ausformulieren, weil es weit über WebFetch hinaus trägt (jede Automatik, deren Ziel von außen bestimmt werden könnte).
 - **Was ohne Telegram bleibt:** Reaktions-Vokabular, Inline-Freigaben und Kanal-Routing sind eng an Telegram gebaut. Für die Blaupause das *Bedürfnis* beschreiben (schnelle Antwort ohne Tippen, Freigabe von unterwegs), nicht die Telegram-Lösung.
+
+- **Zustell-Wächter** · ② · **universell** — Jedes System, das über einen fremden
+  Dienst erreichbar sein muss, braucht einen Wächter für die **Gegenrichtung**.
+  Alle unsere Wächter prüften, ob *wir* leben; keiner, ob man uns noch erreicht.
+  Der Ausfall, bei dem jede Anzeige auf Grün steht, ist der teuerste.
+  **Nebenwirkung, die niemand erwartet hatte:** Der Schlüssel steht bei Telegram
+  im Aufruf-Pfad, also in jeder Fehlermeldung mit Adresse — der Wächter musste
+  gegen das Ausplaudern gebaut werden, bevor er gegen den Ausfall wachen durfte.
+
+- **Ein vorhandenes Bauteil ist kein erreichbares Bauteil** · ⑥ · **universell**
+  — „Der Knopf existiert" wurde zu „der Knopf erscheint"; tatsächlich hing er an
+  einer Bedingung, die bei Instagram nie zutraf. Vorhandensein prüfen heißt: den
+  **Weg dorthin** prüfen, nicht die Zeile im Code.
+
+- **Wo Struktur und Prüfer beide möglich sind, gewinnt die Struktur** · ⑥ ·
+  **universell** — Ein Test meldet Drift; eine gemeinsame Quelle lässt ihn nicht
+  entstehen (`authmarke.py`). Der Prüfer ist die Notlösung für das, was sich
+  nicht zusammenlegen lässt. **In derselben Nacht zweimal angewandt:** die
+  Wegwerf-Umgebung im Regressionslauf statt vierzehn einzelner Test-Korrekturen.
+
+- **Prüfläufe brauchen eine Wegwerf-Umgebung** · ① · **universell** — Ein
+  Testszenario hat Adam nachts um 01:44 eine echte Nachricht geschickt („Update
+  von demo"). **Nebenwirkung, die die eigentliche Lehre ist:** Der Schaden ist
+  nicht die Menge sinnloser Meldungen, sondern die **Gewöhnung** — wer gelernt
+  hat, einen Absender zu überlesen, überliest auch dessen echte Meldung.
+
+- **Attrappen belegen die Verkettung nicht** · ① · **anpassbar** — Hora bestand
+  elf Tests und hatte drei Fehler, die erst der erste echte Lauf zeigte. Der
+  schwerste: Ein geparkter Auftrag wurde abgehakt, Adams Zustimmung wäre ins
+  Leere gelaufen. **Kein Test prüfte den Rückweg**, weil alle den Hinweg prüften.

@@ -178,6 +178,19 @@ if [ "${BOT_MODE:-polling}" = "webhook" ]; then
   fi
 fi
 
+# --- 9c. Erreicht Telegram uns noch? ---------------------------------------
+# Der Bot fragt selbst nach (er hat den Schluessel ohnehin) und legt bei
+# Stoerung eine Marke. Hier wird nur die Marke gelesen - kein zweiter Ort fuer
+# ein Geheimnis, dieselbe Bauart wie bei der Anmeldung.
+ZUSTELLMARKE="$HOME/.claude/zustellung-gestoert"
+if [ -f "$ZUSTELLMARKE" ]; then
+  grund=$("$VENVPY" -c "import json,sys;print(json.load(open(sys.argv[1])).get('grund','ohne Angabe'))" "$ZUSTELLMARKE" 2>/dev/null)
+  lines+=("❌ Zustellung gestoert: $grund")
+  problems+=("Telegram erreicht uns nicht mehr zuverlaessig: $grund — der Bot laeuft, aber es kommt womoeglich nichts mehr an.")
+else
+  lines+=("✅ Zustellung: keine Stoerung vermerkt")
+fi
+
 # --- 10. Vorraete: Speicher, Platte, Auslagerung ---------------------------
 # Werte-Charta 7a: "Was vorhersehbar knapp wird, wird beobachtet, BEVOR es
 # knapp ist." Der Unterschied zu den Stundenblumen ist die Absicht — die Blume

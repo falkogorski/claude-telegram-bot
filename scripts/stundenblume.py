@@ -142,7 +142,29 @@ def _befunde() -> list[str]:
         pass
     # 4. Ist die Anmeldung gekippt? (C2)
     raus.extend(anmeldung_pruefen())
+    # 5. Erreicht Telegram uns noch? Dieselbe Bauart wie bei der Anmeldung: Der
+    # Bot hat den Schlüssel ohnehin und fragt selbst nach; die Blume liest nur
+    # seine Marke. So gibt es keinen ZWEITEN Ort für ein Geheimnis.
+    raus.extend(zustellung_pruefen())
     return raus
+
+
+def zustellung_pruefen() -> list[str]:
+    """Liest die Zustell-Marke — mehr nicht, und genau das ist der Punkt.
+
+    Der gefährlichste Ausfall ist der, bei dem alle Anzeigen auf Grün stehen:
+    Der Bot läuft, der Selbstcheck ist grün, die Kette wächst — und trotzdem
+    kommt seit Stunden nichts mehr an. Die Marke ist das einzige Zeichen.
+    """
+    m = zustellmarke.gesetzt()
+    if not m:
+        return []
+    seit = int((time.time() - float(m.get("zeit", 0))) / 60)
+    zusatz = ("" if m.get("adresse_unveraendert", True)
+              else " Die eingetragene Adresse weicht zudem von der erwarteten ab.")
+    return [f"📵 Zustellung gestört (seit {seit} Min): "
+            f"{m.get('grund', 'ohne Angabe')}{zusatz} "
+            "Der Bot läuft — aber es erreicht ihn womöglich nichts mehr."]
 
 
 # ------------------------------------------------------------ Speicher-Wache --

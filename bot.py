@@ -65,8 +65,19 @@ import media
 import pending
 import presend
 import reactions
+import zustellmarke
 
 load_dotenv(Path(__file__).parent / ".env")
+
+# Zustell-Wächter: Wie oft wird nachgefragt, ob Telegram uns noch erreicht?
+# Drei Stunden — oft genug, dass eine gestörte Zustellung nicht über Nacht
+# unbemerkt bleibt, selten genug, um niemandem zur Last zu fallen. Der
+# 4-Uhr-Lauf fragt zusätzlich.
+ZUSTELL_TAKT_S = int(os.environ.get("ZUSTELL_TAKT_S") or 3 * 3600)
+BOT_MODE = (os.environ.get("BOT_MODE") or "polling").strip().lower()
+# Womit die eingetragene Adresse beginnen MUSS. Weicht sie ab, ist der Server
+# umgezogen oder jemand hat den Webhook verstellt — beides will man wissen.
+WEBHOOK_URL_ERWARTET = (os.environ.get("WEBHOOK_URL") or "").strip().rstrip("/")
 
 # ---------- user prefs (überleben Session-Reset und Bot-Neustart) ----------
 
@@ -3738,6 +3749,62 @@ async def cmd_aufgaben(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 
+# ── Zustell-Wächter: erreicht Telegram uns noch? ─────────────────────────────
+async def zustellung_pruefen(app) -> tuple[bool, str]:
+    """Fragt Telegram, ob die Zustellung an uns funktioniert.
+
+    **Deterministisch, kostenlos, ohne Modell-Aufruf** — eine Auskunftsfrage an
+    dieselbe Schnittstelle, über die ohnehin jede Nachricht läuft.
+
+    ⚠️ **Der Schlüssel steht im Aufruf-Pfad.** Deshalb wird eine Ausnahme hier
+    **niemals im Wortlaut** weitergereicht: Ihr Text enthielte die Adresse und
+    damit den Schlüssel. Weitergegeben wird nur der **Typ** der Ausnahme.
+    """
+    try:
+        info = await app.bot.get_webhook_info()
+        daten = {
+            "url": getattr(info, "url", "") or "",
+            "pending_update_count": getattr(info, "pending_update_count", 0),
+            "last_error_message": getattr(info, "last_error_message", "") or "",
+            "last_error_date": getattr(info, "last_error_date", 0) or 0,
+        }
+        if hasattr(daten["last_error_date"], "timestamp"):
+            daten["last_error_date"] = daten["last_error_date"].timestamp()
+    except Exception as e:
+        # Der Typ sagt genug (Zeitüberschreitung, Netzfehler, …) und enthält
+        # keine Adresse. `str(e)` enthielte sie.
+        return True, (f"Telegram war nicht erreichbar ({type(e).__name__}). "
+                      "Entweder liegt das Netz, oder der Zugang trägt nicht mehr.")
+
+    gestoert, text = zustellmarke.bewerten(daten)
+    # Im Abhol-Betrieb gibt es keine Adresse — und das ist dort völlig richtig.
+    if gestoert and not daten["url"] and BOT_MODE != "webhook":
+        gestoert, text = False, "Abhol-Betrieb — keine Zustelladresse nötig."
+
+    if gestoert:
+        gleich = (not WEBHOOK_URL_ERWARTET
+                  or daten["url"].startswith(WEBHOOK_URL_ERWARTET))
+        if not gleich:
+            text += (" Zusätzlich: Die eingetragene Adresse ist nicht die "
+                     "erwartete — das passiert bei einem Serverumzug.")
+        await asyncio.to_thread(zustellmarke.setzen, text, gleich)
+    else:
+        await asyncio.to_thread(zustellmarke.loeschen)
+    return gestoert, text
+
+
+async def zustell_worker(app) -> None:
+    """Fragt alle paar Stunden nach. Ruhig genug, um niemandem zur Last zu fallen."""
+    while True:
+        try:
+            gestoert, text = await zustellung_pruefen(app)
+            if gestoert:
+                log.warning("Zustell-Wächter: %s", text)
+        except Exception:
+            log.exception("Zustell-Wächter (ignoriert)")
+        await asyncio.sleep(ZUSTELL_TAKT_S)
+
+
 # ── 9.4 Freigabe-Postfach: der Bot als Bote, nie als Akteur ──────────────────
 
 # Wann hat Adam zuletzt IRGENDETWAS getan? Wandzeit, nicht `monotonic` — der
@@ -5346,6 +5413,7 @@ async def post_init(app: Application) -> None:
     # B: Boten-Postfach — Ausgangs-Aufträge anderer Instanzen zustellen.
     app.create_task(postfach_worker(app), name="postfach")
     app.create_task(freigabe_worker(app), name="freigaben")  # 9.4
+    app.create_task(zustell_worker(app), name="zustellung")  # erreicht uns Telegram?
 
     # Bot-Username für Rücksprung-Links (Ausgabekanal → Bot-Chat) einmalig cachen.
     global _BOT_USERNAME

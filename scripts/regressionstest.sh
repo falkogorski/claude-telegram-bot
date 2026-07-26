@@ -108,6 +108,7 @@ run "E-Mail-Kanal 9.5"                  "$PY" scripts/test_email_9_5.py
 run "Freigabe-Postfach 9.4"             "$PY" scripts/test_freigaben_9_4.py
 run "Hora (autonomer Laeufer)"          "$PY" scripts/test_hora.py
 run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py
+run "Zustell-Waechter (erreicht uns TG?)" "$PY" scripts/test_zustellwaechter.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
 # Der Nachweis, dass die Wegwerf-Umgebung wirklich gegriffen hat. Nachmessen,

@@ -252,3 +252,17 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   Leere gelaufen. **Kein Test prüfte den Rückweg**, weil alle den Hinweg prüften.
 
 - **Wer vom Ziel aus zieht, sichert nur, solange das Ziel wach ist** · ⑤ · **universell** — Eine Sicherung, die der Empfaenger anstoesst, faellt genau dann aus, wenn der Empfaenger laenger fehlt. **Nebenwirkung beim Bauen:** Der Ersatz-Schnappschuss liegt auf derselben Maschine und ist damit KEIN Backup, sondern ein Rueckweg — das musste in den Kopf des Skripts, sonst haelt ihn spaeter jemand fuer mehr.
+
+- **Ein Riegel an einer Stelle ist eine Momentaufnahme** · ① · **universell** —
+  Drei Riegel, weil jeder allein zu wenig deckt: die Wegwerf-Umgebung des
+  Läufers (hilft nur, wenn über ihn gestartet wird), die Ersetzung im Test
+  (hilft nur für *diesen* Test), der Prüfsatz (gilt auch für das, was noch
+  niemand geschrieben hat). **Nebenwirkung:** Der Prüfsatz fand beim ersten Lauf
+  nichts — und genau das war der Beleg, dass die ersten beiden schon saßen.
+
+- **Eine anonyme Nachricht darf es im eigenen Haus nicht geben** · ① ·
+  **universell** — Leitplanke 7 galt fürs Freigabe-Postfach, nicht fürs
+  Boten-Postfach. **Nebenwirkung beim Suchen, die die eigentliche Lehre ist:**
+  Ein abgekoppelter Prozess überlebt das Testende; eine Momentaufnahme direkt
+  danach spricht den Täter frei. Wer nach einem Verursacher sucht, muss zuerst
+  wissen, ob er überhaupt schon fertig ist.

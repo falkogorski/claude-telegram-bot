@@ -275,3 +275,11 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   eine Zahl, die das Dreifache des Vorhandenen ergibt, kann keine Belegung sein.
   Die unangenehmere Sorte Fehler: Sie besteht jede Prüfung, die nur das Ablesen
   prüft.
+
+- **Eine erfundene Zusammenfassung ist schlechter als keine** · ③ ·
+  **universell** — „Schnell Rechnen Üben" für „wie man eine Rechnung schreibt":
+  Die Form stimmt, der Inhalt ist erdacht, und **nichts an der Ausgabe verrät
+  es**. Dieselbe Klasse wie die neun Merkmale bei vier Bildpunkten. **Der
+  deterministische Gegenentwurf ist sprachlich schwächer und kann nicht lügen** —
+  jedes Wort stand vorher im Text, Wort für Wort nachprüfbar. Das ist der Preis
+  und der Gewinn in einem Satz.

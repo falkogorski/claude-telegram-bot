@@ -11,6 +11,37 @@ cd "$(dirname "$0")/.."
 PY="python3"
 if [ -x ".venv/bin/python3" ]; then PY=".venv/bin/python3"; fi
 
+# --- Der Prüflauf bekommt eine WEGWERF-Umgebung -----------------------------
+# BELEGTER VORFALL (26.07.2026, 01:44): Ein Regressionslauf auf dem VPS hat
+# Adam nachts um Viertel vor zwei eine Meldung geschickt — „Der Bot ist nach
+# dem Update von demo sauber hochgekommen". Es gab kein Update und kein „demo";
+# es war ein Testszenario, das ins ECHTE Boten-Postfach schrieb, aus dem der
+# Bot alles zustellt, was er dort findet.
+#
+# Vierzehn Tage Abwesenheit mal zwei Hora-Läufe am Tag mal jeder Auftrag — das
+# wären Dutzende sinnloser Nachrichten gewesen, die niemand einordnen kann.
+# Und der Schaden ist nicht die Menge, sondern die Gewöhnung: Wer gelernt hat,
+# Meldungen dieses Absenders zu überlesen, überliest auch die echte.
+#
+# Die Ursache war NICHT ein einzelner nachlässiger Test — die meisten setzen
+# ihr Postfach ordentlich selbst. Sie war, dass es überhaupt möglich ist. Also
+# der strukturelle Riegel statt vierzehn einzelner: Der Läufer legt für ALLE
+# Prüfungen ein Wegwerf-Verzeichnis an. Was ein Test dorthin schreibt, sieht
+# nie ein Mensch. (Regel: Wo Struktur und Prüfer beide möglich sind, gewinnt
+# die Struktur — ein Prüfer meldet Drift, eine gemeinsame Quelle lässt sie
+# nicht entstehen.)
+PRUEFHEIM="$(mktemp -d "${TMPDIR:-/tmp}/regress-XXXXXX")"
+export POSTFACH_DIR="$PRUEFHEIM/postfach"
+export FREIGABE_DIR="$PRUEFHEIM/freigaben"
+export HORA_DIR="$PRUEFHEIM/hora"
+export BLUMEN_DIR="$PRUEFHEIM/blumen"
+mkdir -p "$POSTFACH_DIR/outbox" "$FREIGABE_DIR" "$HORA_DIR" "$BLUMEN_DIR"
+trap 'rm -rf "$PRUEFHEIM"' EXIT
+
+# Stand des ECHTEN Postfachs VOR dem Lauf — der Nachweis am Ende vergleicht.
+ECHTPOST="${HOME}/postfach/outbox"
+POST_VORHER="$(ls -A "$ECHTPOST" 2>/dev/null | wc -l | tr -d ' ')"
+
 FAILS=0
 # GESAMT wird GEZAEHLT, nicht getippt. Vorher stand die Zahl fest im
 # Schlusssatz — beim Aufnehmen der 9.5-Pruefung meldete der Lauf "29/29",
@@ -78,6 +109,26 @@ run "Freigabe-Postfach 9.4"             "$PY" scripts/test_freigaben_9_4.py
 run "Hora (autonomer Laeufer)"          "$PY" scripts/test_hora.py
 run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
+
+# Der Nachweis, dass die Wegwerf-Umgebung wirklich gegriffen hat. Nachmessen,
+# was ankam — nicht die Konfiguration lesen (Wirkungs-Regel). Steht bewusst am
+# ENDE, nach allen Prüfungen: Erst dann ist etwas zu sehen, falls ein Test die
+# Umgebung doch umgangen hat.
+# Gemessen wird der ZUWACHS, nicht der Bestand: Im echten Postfach kann eine
+# echte, noch nicht zugestellte Nachricht liegen — die ist kein Fehler. Ein
+# Prüfer, der darüber rot wird, ist ein Dauer-Alarm und binnen zwei Tagen
+# abgeschaltet. (Derselbe Grund, aus dem die Speicher-Wache MemAvailable misst
+# und nicht MemFree.)
+GESAMT=$((GESAMT+1))
+POST_NACHHER="$(ls -A "$ECHTPOST" 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$POST_NACHHER" -gt "$POST_VORHER" ]; then
+  echo "❌ Eine Pruefung hat ins ECHTE Postfach geschrieben ($((POST_NACHHER-POST_VORHER)) neu)."
+  echo "   Ein Testszenario wuerde damit als echte Nachricht bei Adam landen —"
+  echo "   belegt am 26.07. um 01:44 mit einer Meldung ueber ein 'Update von demo'."
+  FAILS=$((FAILS+1))
+else
+  echo "✅ Wegwerf-Umgebung: keine Pruefung hat ins echte Postfach geschrieben"
+fi
 
 echo "== Ergebnis: $((GESAMT-FAILS))/$GESAMT bestanden =="
 exit $FAILS

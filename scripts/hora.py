@@ -100,6 +100,71 @@ def _kontingent_erschoepft(text: str) -> bool:
     return any(n in t for n in _LIMIT)
 
 
+def _fehlgrund(erfolg: bool, nachher_ok: bool, ausgabe: str,
+               lage: str) -> str:
+    """Sagt, **woran** es lag — und unterscheidet die zwei Fälle.
+
+    Ein Auftrag kann auf zwei ganz verschiedene Arten scheitern, und sie
+    verlangen verschiedene Antworten: Entweder der **Befehl** ging schief (dann
+    zählt seine Ausgabe), oder der Befehl lief und hat dabei **etwas anderes
+    kaputtgemacht** (dann zählt der Regressionsstand — und das ist der weit
+    ernstere Fall, weil er den Rückweg verlangt).
+    """
+    if not erfolg:
+        text = (ausgabe or "").strip()
+        if not text:
+            return ("der Befehl endete mit einem Fehler, ohne etwas zu sagen "
+                    "(kein Text auf beiden Ausgabekanälen)")
+        return "der Befehl meldete: " + text.splitlines()[-1][:200]
+    if not nachher_ok:
+        return (f"der Befehl lief durch, aber DANACH war der Regressionslauf "
+                f"rot ({lage}) — hier hat die Arbeit etwas anderes beschädigt")
+    return f"unklar ({lage})"
+
+
+def _urteil_einholen(auftrag: dict) -> tuple[str, str]:
+    """Die Parkstrecke — **und der Weg zurück.**
+
+    **Der Fund, dem diese Funktion ihr Dasein verdankt (Echtlauf 26.07., 01:45):**
+    Ein geparkter Auftrag wurde vorher **abgehakt**. Er verschwand damit aus der
+    Liste — und Adams Zustimmung wäre ins Leere gelaufen, weil niemand die
+    Aktion danach je ausgeführt hätte. Die Meldung sagte „ich lege es dir wieder
+    vor", und der Code hatte den Auftrag bereits weggeräumt. Der Grundsatz
+    lautet „die Antwort holt ihn später ein, nicht umgekehrt" — dafür muss
+    etwas da sein, das eingeholt werden kann.
+
+    Rückgabe: (Lage, Text). Lagen:
+    * ``wartet`` — Anfrage liegt (neu gestellt oder noch unbeantwortet)
+    * ``freigegeben`` — Adam hat zugestimmt, der Auftrag darf jetzt laufen
+    * ``abgelehnt`` — Adam hat abgelehnt; damit ist der Auftrag erledigt
+    * ``unparkbar`` — die Anfrage verletzt eine Leitplanke (z. B. Geheimnis)
+    """
+    kennung = auftrag.get("freigabe_kennung")
+    if kennung:
+        urteil = freigaben.urteil_lesen(kennung)
+        if urteil:
+            return (("freigegeben", "von dir freigegeben")
+                    if urteil.get("urteil") == "freigegeben"
+                    else ("abgelehnt", "von dir abgelehnt"))
+        # Kein Urteil und keine offene Anfrage mehr? Dann ist sie verlorengegangen
+        # — neu stellen ist richtiger als schweigen.
+        if freigaben.finden(kennung) is not None:
+            return "wartet", "liegt bei dir"
+    try:
+        a = freigaben.stellen(
+            titel=auftrag["titel"],
+            aktion=auftrag.get("aktion") or auftrag["titel"],
+            ampel=auftrag.get("ampel", "gelb"),
+            herkunft="Hora",
+            begruendung=auftrag.get("begruendung", ""),
+            rueckweg=auftrag.get("rueckweg", ""))
+    except freigaben.Abgewiesen as e:
+        return "unparkbar", str(e)
+    _vermerken(auftrag["titel"], freigabe_kennung=a.kennung,
+               geparkt_am=time.strftime("%Y-%m-%d %H:%M"))
+    return "wartet", "neu vorgelegt"
+
+
 def _blockiert(auftrag: dict, ausgefallen: set[str]) -> str | None:
     """Hängt der Auftrag an etwas, das geparkt oder gescheitert ist?
 
@@ -142,6 +207,22 @@ def abhaken(titel: str, ergebnis: str) -> None:
             a["erledigt"] = True
             a["ergebnis"] = ergebnis[:400]
             a["erledigt_am"] = time.strftime("%Y-%m-%d %H:%M")
+    _liste_schreiben(daten)
+
+
+def _vermerken(titel: str, **felder) -> None:
+    """Schreibt Felder an einen Auftrag, OHNE ihn abzuhaken.
+
+    Gebraucht für die Parkstrecke: Ein geparkter Auftrag ist **nicht erledigt**,
+    er wartet. Siehe `_urteil_einholen`.
+    """
+    try:
+        daten = json.loads(LISTE.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    for a in daten:
+        if a.get("titel") == titel:
+            a.update(felder)
     _liste_schreiben(daten)
 
 
@@ -244,6 +325,7 @@ def lauf(trocken: bool = False) -> int:
     geparkt: list[str] = []
     uebersprungen: list[str] = []
     gescheitert: list[str] = []
+    freigegeben_jetzt: list[str] = []
     probe: list[str] = []                # nur im Probelauf
     abbruch = ""
     letzte_lage = vorher
@@ -260,21 +342,24 @@ def lauf(trocken: bool = False) -> int:
         # Bedingung 1: Braucht der Auftrag eine Entscheidung, wird er GEPARKT —
         # und Hora geht SOFORT weiter. Fragen sind Wegsteine, keine Halteschilder.
         if auftrag.get("braucht_zustimmung"):
-            try:
-                freigaben.stellen(
-                    titel=titel,
-                    aktion=auftrag.get("aktion") or titel,
-                    ampel=auftrag.get("ampel", "gelb"),
-                    herkunft="Hora",
-                    begruendung=auftrag.get("begruendung", ""),
-                    rueckweg=auftrag.get("rueckweg", ""))
-                abhaken(titel, "zur Freigabe geparkt")
-                geparkt.append(titel)
-            except freigaben.Abgewiesen as e:
-                abhaken(titel, f"nicht parkbar: {e}")
-                uebersprungen.append(f"{titel} (nicht parkbar: {e})")
-            ausgefallen.add(titel)
-            continue
+            lage, text = _urteil_einholen(auftrag)
+            if lage == "wartet":
+                geparkt.append(f"{titel} ({text})")
+                ausgefallen.add(titel)
+                continue
+            if lage == "abgelehnt":
+                abhaken(titel, "von Adam abgelehnt")
+                uebersprungen.append(f"{titel} (abgelehnt)")
+                ausgefallen.add(titel)
+                continue
+            if lage == "unparkbar":
+                abhaken(titel, f"nicht parkbar: {text}")
+                uebersprungen.append(f"{titel} (nicht parkbar: {text})")
+                ausgefallen.add(titel)
+                continue
+            # lage == "freigegeben": weiter unten normal ausführen — die Antwort
+            # hat den Auftrag eingeholt, genau wie vorgesehen.
+            freigegeben_jetzt.append(titel)
 
         if trocken:
             probe.append(titel)
@@ -315,7 +400,13 @@ def lauf(trocken: bool = False) -> int:
 
         n = _fehlserie(False)
         ausgefallen.add(titel)
-        gescheitert.append(f"{titel} ({letzte_lage})")
+        # **Fund aus dem Echtlauf (26.07.):** Hier stand `letzte_lage`, also das
+        # Ergebnis des Regressionslaufs. Die Meldung las sich dadurch als
+        # „gescheitert (30/30 bestanden)" — die Zahl war richtig und die Aussage
+        # sinnlos, weil sie die falsche Frage beantwortet. Wer nachts eine
+        # Fehlermeldung liest, will wissen, **woran der Auftrag scheiterte**,
+        # nicht, wie es dem Fundament geht.
+        gescheitert.append(f"{titel} — {_fehlgrund(erfolg, nachher_ok, ausgabe, letzte_lage)}")
         _protokollieren({"zeit": beginn, "titel": titel, "ergebnis": "rot",
                          "regression": letzte_lage, "ausgabe": ausgabe[-400:]})
         if n >= FEHLGRENZE:
@@ -331,11 +422,16 @@ def lauf(trocken: bool = False) -> int:
                      + ". Es wurde nichts getan.")
     if erledigt:
         teile.append(f"✅ Erledigt ({len(erledigt)}): " + " · ".join(erledigt))
+    if freigegeben_jetzt:
+        teile.append(f"🔓 Nach deiner Freigabe ausgeführt "
+                     f"({len(freigegeben_jetzt)}): "
+                     + " · ".join(freigegeben_jetzt))
     if geparkt:
-        teile.append(f"🗝️ Zur Freigabe geparkt ({len(geparkt)}): "
+        teile.append(f"🗝️ Wartet auf dein Urteil ({len(geparkt)}): "
                      + " · ".join(geparkt)
                      + "\n   Ohne Antwort geschieht nichts — und nichts gilt "
-                       "als abgelehnt. Ich lege es dir wieder vor.")
+                       "als abgelehnt. Der Auftrag bleibt in der Liste und "
+                       "läuft, sobald du zustimmst.")
     if uebersprungen:
         teile.append(f"⏭️ Übersprungen ({len(uebersprungen)}): "
                      + " · ".join(uebersprungen))

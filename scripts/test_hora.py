@@ -113,7 +113,87 @@ def _zustimmung_wird_geparkt():
     offen = freigaben.offene()
     assert len(offen) == 1 and offen[0].herkunft == "Hora", \
         f"nichts geparkt: {offen}"
-    assert "geparkt" in _meldungen()[0]
+    assert "Wartet auf dein Urteil" in _meldungen()[0]
+
+
+def _geparktes_bleibt_in_der_liste_und_laeuft_nach_der_freigabe():
+    """**Der Fund aus dem Echtlauf vom 26.07., 01:45.**
+
+    Ein geparkter Auftrag wurde abgehakt und verschwand damit aus der Liste.
+    Adams Zustimmung wäre ins Leere gelaufen — niemand hätte die Aktion je
+    ausgeführt. Die Meldung versprach „ich lege es dir wieder vor", und der
+    Code hatte den Auftrag schon weggeräumt.
+
+    Der Grundsatz lautet: *Die Antwort holt den Läufer später ein, nicht
+    umgekehrt.* Dafür muss etwas dasein, das eingeholt werden kann. Genau das
+    prüft dieser Test — in beide Richtungen, Ja **und** Nein.
+    """
+    _leeren()
+    _liste({"titel": "SDK anheben", "braucht_zustimmung": True,
+            "aktion": "pip install claude-agent-sdk==0.3.0", "ampel": "gelb",
+            "rueckweg": "pip install claude-agent-sdk==0.2.127",
+            "befehl": "echo eingespielt"})
+
+    # Lauf 1: parken — und NICHT abhaken.
+    ausgefuehrt = _patch()
+    hora.lauf()
+    daten = json.loads(hora.LISTE.read_text(encoding="utf-8"))
+    assert not daten[0].get("erledigt"), \
+        "der geparkte Auftrag wurde abgehakt — Adams Ja liefe ins Leere"
+    kennung = daten[0].get("freigabe_kennung")
+    assert kennung, "ohne vermerkte Kennung findet Hora sein Urteil nie wieder"
+    assert not ausgefuehrt, "die Aktion lief schon VOR der Freigabe"
+
+    # Lauf 2, immer noch ohne Urteil: nicht doppelt vorlegen, nichts ausführen.
+    ausgefuehrt = _patch()
+    hora.lauf()
+    assert len(freigaben.offene()) == 1, \
+        "dieselbe Frage wurde ein zweites Mal in die Liste gelegt"
+    assert not ausgefuehrt, "ohne Urteil wurde ausgeführt"
+
+    # Adam sagt Ja → beim nächsten Lauf wird die Aktion ausgeführt und abgehakt.
+    freigaben.urteilen(kennung, True, "Adam")
+    ausgefuehrt = _patch()
+    hora.lauf()
+    assert ausgefuehrt, "nach der Freigabe geschah nichts — der Kreis ist offen"
+    daten = json.loads(hora.LISTE.read_text(encoding="utf-8"))
+    assert daten[0].get("erledigt"), "nach Ausführung nicht abgehakt"
+    assert any("Nach deiner Freigabe" in m for m in _meldungen()), \
+        "die Ausführung nach der Freigabe wird nicht berichtet"
+
+    # Gegenprobe: ein Nein beendet den Auftrag, ohne ihn auszuführen.
+    _leeren()
+    _liste({"titel": "riskant", "braucht_zustimmung": True, "ampel": "gelb",
+            "aktion": "rm -rf /wichtig", "befehl": "echo DAS DARF NIE LAUFEN"})
+    _patch()
+    hora.lauf()
+    kennung = json.loads(hora.LISTE.read_text(encoding="utf-8"))[0]["freigabe_kennung"]
+    freigaben.urteilen(kennung, False, "Adam")
+    ausgefuehrt = _patch()
+    hora.lauf()
+    assert not ausgefuehrt, "ein abgelehnter Auftrag wurde ausgeführt!"
+    assert json.loads(hora.LISTE.read_text(encoding="utf-8"))[0].get("erledigt"), \
+        "ein abgelehnter Auftrag bleibt ewig in der Liste"
+
+
+def _fehlgrund_nennt_den_befehl_nicht_die_regression():
+    """**Zweiter Fund aus dem Echtlauf.** Die Meldung lautete sinngemäß
+    „gescheitert (30/30 bestanden)" — die Zahl war richtig und die Aussage
+    nutzlos, weil sie die falsche Frage beantwortet. Wer nachts eine
+    Fehlermeldung liest, will wissen, **woran der Auftrag scheiterte**.
+    """
+    _leeren()
+    _liste({"titel": "kaputt", "befehl": "false"})
+    hora.regression = lambda: (True, "== Ergebnis: 30/30 bestanden ==")
+    hora.subprocess.run = lambda cmd, **kw: type(
+        "P", (), {"returncode": 1, "stdout": "",
+                  "stderr": "Datei nicht gefunden: docs/fehlt.md"})()
+    hora.lauf()
+    zeile = next(m for m in _meldungen() if "Nicht sauber" in m)
+    assert "Datei nicht gefunden" in zeile, \
+        f"der Fehlgrund fehlt in der Meldung: {zeile}"
+    assert "30/30 bestanden ==)" not in zeile, \
+        "der Regressionsstand wird immer noch als Fehlgrund ausgegeben"
 
 
 # --- Bedingung 4: Abbruch nach drei Fehlläufen ----------------------------
@@ -238,6 +318,10 @@ check("abhängiger Auftrag wird übersprungen (B2)", _abhaengiger_auftrag_wird_u
 check("Kontingent-Halt hakt nichts ab", _kontingent_haelt_an_ohne_abzuhaken)
 check("rotes Fundament → nicht arbeiten", _rotes_fundament_stoppt)
 check("Zustimmungspflichtiges wird geparkt, nicht entschieden", _zustimmung_wird_geparkt)
+check("Geparktes bleibt in der Liste und laeuft nach der Freigabe",
+      _geparktes_bleibt_in_der_liste_und_laeuft_nach_der_freigabe)
+check("Fehlgrund nennt den Befehl, nicht den Regressionsstand",
+      _fehlgrund_nennt_den_befehl_nicht_die_regression)
 check("Abbruch nach drei Fehlläufen", _abbruch_nach_drei_fehllaeufen)
 check("Fehlschlag hakt nichts ab", _fehlschlag_haekelt_nicht_ab)
 check("Probelauf führt nichts aus", _probelauf_fuehrt_nichts_aus)

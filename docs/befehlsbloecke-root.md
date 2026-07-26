@@ -311,6 +311,63 @@ sudo rm /etc/systemd/system/ollama.service.d/speicher.conf && sudo systemctl dae
 
 ---
 
+## Schritt 4e — Täglicher Schnappschuss auf dem Server selbst (⑤)
+
+**Warum es das zusätzlich braucht:** Die Sicherung 4.1 zieht der **Mac** vom
+Server. Schläft er — geschlossener Deckel, Reise —, holt der Rechner den Lauf
+erst **nach dem Aufwachen** nach. In vierzehn Tagen Abwesenheit hieße das:
+vierzehn Tage keine Sicherung, und niemand, der es bemerkt. Betroffen wären
+ausgerechnet die Dateien, die **nur dort** liegen — das Gedächtnis, deine
+eigene Offen-Liste, die Ampel-Regeln.
+
+**Ehrlich, damit ihn niemand für mehr hält:** Der Schnappschuss liegt auf
+**derselben Maschine**. Gegen ein Überschreiben oder einen missratenen Eingriff
+hilft er, **gegen den Verlust des Servers nicht.** Er ersetzt 4.1 nicht — beide
+zusammen ergeben erst eine Sicherung.
+
+*Erprobt am 26.07.: 180 KB je Stand, vierzehn Stände also rund 2,5 MB. Das
+Verzeichnis wird als `700` angelegt, die Archive als `600` — wie rote Daten.*
+
+```bash
+sudo tee /etc/systemd/system/claude-schnappschuss.service >/dev/null <<'UNIT'
+[Unit]
+Description=Taeglicher Schnappschuss der nur-lokalen Daten
+
+[Service]
+Type=oneshot
+User=claudebot
+WorkingDirectory=/home/claudebot/claude-telegram-bot
+ExecStart=/bin/bash /home/claudebot/claude-telegram-bot/scripts/vps_schnappschuss.sh
+UNIT
+```
+
+```bash
+sudo tee /etc/systemd/system/claude-schnappschuss.timer >/dev/null <<'UNIT'
+[Unit]
+Description=Schnappschuss taeglich
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now claude-schnappschuss.timer && sudo systemctl start claude-schnappschuss.service && ls -l /home/claudebot/schnappschuesse/
+```
+
+**Prüfzeile:** Im Verzeichnis liegt ein Archiv mit dem heutigen Datum, Rechte
+`-rw-------`. · **Rückweg:**
+
+```bash
+sudo systemctl disable --now claude-schnappschuss.timer
+```
+
+---
+
 ## Schritt 5 (später) — Große Dateien: eigener Bot-API-Server (5.34)
 
 **Zurückgehalten, bis 1 bis 3 sitzen.** Die Bot-Seite ist gebaut und geprüft

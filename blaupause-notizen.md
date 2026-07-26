@@ -250,3 +250,5 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   elf Tests und hatte drei Fehler, die erst der erste echte Lauf zeigte. Der
   schwerste: Ein geparkter Auftrag wurde abgehakt, Adams Zustimmung wäre ins
   Leere gelaufen. **Kein Test prüfte den Rückweg**, weil alle den Hinweg prüften.
+
+- **Wer vom Ziel aus zieht, sichert nur, solange das Ziel wach ist** · ⑤ · **universell** — Eine Sicherung, die der Empfaenger anstoesst, faellt genau dann aus, wenn der Empfaenger laenger fehlt. **Nebenwirkung beim Bauen:** Der Ersatz-Schnappschuss liegt auf derselben Maschine und ist damit KEIN Backup, sondern ein Rueckweg — das musste in den Kopf des Skripts, sonst haelt ihn spaeter jemand fuer mehr.

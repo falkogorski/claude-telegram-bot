@@ -75,6 +75,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import botenpost  # noqa: E402
+
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scripts"))
@@ -257,24 +260,14 @@ def _fehlserie(neu: bool | None = None) -> int:
 
 
 def melden(text: str) -> None:
-    ziel = (os.environ.get("ALLOWED_USER_IDS") or "").split(",")[0].strip()
-    if not ziel.isdigit():
-        try:
-            prefs = json.loads((Path.home() / ".config" / "claude-telegram-bot"
-                                / "prefs.json").read_text(encoding="utf-8"))
-            ziel = next((str(k) for k in prefs if str(k).isdigit()), "")
-        except Exception:
-            ziel = ""
-    if not ziel.isdigit():
-        return
-    try:
-        POSTFACH.mkdir(parents=True, exist_ok=True)
-        tmp = POSTFACH / f".hora{time.time_ns()}.tmp"
-        tmp.write_text(json.dumps({"target_chat_id": int(ziel), "text": text},
-                                  ensure_ascii=False), encoding="utf-8")
-        tmp.rename(POSTFACH / f"hora-{time.time_ns()}.json")
-    except Exception:
-        pass
+    """Meldet ueber die gemeinsame Botenpost — mit Absender.
+
+    Vorher legte jeder Schreiber seine Datei selbst ab, mit vier fast
+    gleichen Codebloecken und OHNE Absender. Als am 26.07. nachts eine
+    Meldung bei Adam ankam, kostete die Suche nach ihrem Urheber ueber
+    eine Stunde. Die Nachricht haette es selbst sagen koennen.
+    """
+    botenpost.legen(text, "hora")
 
 
 def _protokollieren(eintrag: dict) -> None:

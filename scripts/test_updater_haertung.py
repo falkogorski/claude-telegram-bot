@@ -14,8 +14,33 @@ from pathlib import Path
 
 _TMP = Path(tempfile.mkdtemp(prefix="updtest-"))
 os.environ["UPDATER_STATE_DIR"] = str(_TMP / "state")
+# Hermetisch, nicht `setdefault`: Ein Test, der die Umgebung des Aufrufers erbt,
+# schreibt in dessen echte Ordner. (Register-Lehre zur Umgebungs-Vererbung.)
+os.environ["POSTFACH_DIR"] = str(_TMP / "postfach")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import updater as u  # noqa: E402
+
+# ---------------------------------------------------------------------------
+# DIE QUELLE DES VORFALLS VOM 26.07., 01:44 — hier war sie.
+#
+# `_waechter_scharf` startet den Start-Wächter als **abgekoppelten Prozess**.
+# Der überlebt das Testende, wartet seine Nachfrist ab und schreibt DANACH ins
+# Boten-Postfach — in Adams echtes, wenn er die Umgebung des Aufrufers geerbt
+# hat. Genau so kam die Meldung „Der Bot ist nach dem Update von demo sauber
+# hochgekommen" bei Adam an, um Viertel vor zwei in der Nacht.
+#
+# Meine erste Suche fand ihn nicht, weil ich **zu ungeduldig gemessen** habe:
+# direkt nach dem Testlauf war das Postfach leer, denn der Wächter wartete noch.
+# Ein Prozess, der die eigene Laufzeit überlebt, ist mit einer Momentaufnahme
+# nicht zu fassen.
+#
+# Deshalb hier die Ersetzung: Der Test prüft die ENTSCHEIDUNG, ob scharfgestellt
+# wird — nicht, ob ein Prozess wirklich startet. Das ist ohnehin der Teil, auf
+# den es ankommt.
+_scharf_gerufen: list[tuple] = []
+u._waechter_scharf = lambda frozen, installed: (
+    _scharf_gerufen.append((dict(frozen), list(installed))) or True)
+# ---------------------------------------------------------------------------
 
 fails = []
 

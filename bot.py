@@ -4163,6 +4163,16 @@ async def _postfach_send_one(app: Application, claimed: Path,
         _move(failed_dir, f"Ziel {chat_id} nicht in der Allowlist (Adam/Ausgabekanal/Haus).")
         return
 
+    # Leitplanke 7, jetzt auch hier: JEDE Nachricht nennt ihren Absender.
+    # Anlass war der 26.07., 01:44 — eine anonyme Testmeldung erreichte Adam,
+    # und die Suche nach ihrem Urheber kostete über eine Stunde, weil weder
+    # Dateiname noch Inhalt ihn nannten. Eine anonyme Nachricht darf es im
+    # eigenen Haus nicht geben; steht sie im Protokoll, ist die nächste
+    # Forensik eine Minute statt einer Nacht.
+    herkunft = str(data.get("herkunft") or "").strip() or "ohne Absender"
+    log.info("Postfach zugestellt: %s → %s (Absender: %s)",
+             orig, chat_id, herkunft)
+
     thread_id = data.get("thread_id")
     text = data.get("text")
     filep = data.get("file")

@@ -44,6 +44,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import botenpost  # noqa: E402
+
 REPO = Path(__file__).resolve().parent.parent
 STATE_DIR = Path(os.environ.get("UPDATER_STATE_DIR")
                  or (Path.home() / ".claude" / "updater"))
@@ -206,16 +209,7 @@ def melden(text: str) -> None:
     Doppelt mit Absicht — der Bot kann beim Schreiben noch tot sein; dann holt
     der tägliche Funktionscheck den Befund aus der Zustandsdatei nach.
     """
-    ziel = _melde_ziel()
-    if ziel.isdigit():
-        try:
-            POSTFACH.mkdir(parents=True, exist_ok=True)
-            tmp = POSTFACH / f".{time.time_ns()}.tmp"
-            tmp.write_text(json.dumps({"target_chat_id": int(ziel), "text": text},
-                                      ensure_ascii=False), encoding="utf-8")
-            tmp.rename(POSTFACH / f"{time.time_ns()}.json")
-        except Exception:
-            pass
+    botenpost.legen(text, "waechter")
     try:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         BERICHT.write_text(json.dumps(

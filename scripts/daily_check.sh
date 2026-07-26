@@ -132,6 +132,14 @@ fi
 
 
 
+# Kette rollen, wenn sie zu lang wird. Gemessen: 20160 Glieder = 3,2 MiB,
+# --pruefen in 0,15 s - also Vorsorge, keine Not. Die Naht sorgt dafuer, dass
+# das erste Glied der neuen Datei auf das letzte der alten zeigt.
+if [ -f "$(dirname "$0")/stundenblume.py" ]; then
+  gerollt=$("$VENVPY" "$(dirname "$0")/stundenblume.py" --rollen 2>/dev/null)
+  [ -n "$gerollt" ] && lines+=("📜 Belegkette beiseitegelegt: $gerollt")
+fi
+
 # --- 9b. Haertung: verfaellt sie still? (9.11 Punkt 1) ---------------------
 # Der Sinn dieser Zeilen ist NICHT, Haertung einzurichten - die steht laengst.
 # Der Sinn ist, dass eine ZURUECKGENOMMENE Haertung auffaellt. Bisher waere ein

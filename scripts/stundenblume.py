@@ -149,6 +149,56 @@ def _befunde() -> list[str]:
     return raus
 
 
+def rollen(grenze: int | None = None, jetzt: float | None = None) -> str | None:
+    """Legt die Kette beiseite und beginnt eine neue — **ohne sie zu zerreißen.**
+
+    **Die Falle, um die es hier geht:** Ein Rollen, das einfach die Datei
+    umbenennt, **bricht genau die Verkettung, die den Beleg ausmacht.** Das
+    erste Glied der neuen Datei stünde ohne Vorgänger da, und die Prüfung
+    könnte von da an nichts mehr über die Zeit davor sagen. Der Bruch sähe
+    obendrein aus wie eine Manipulation — der Wächter würde sich selbst
+    anzeigen.
+
+    Deshalb: Das erste Glied der neuen Datei **zeigt auf das letzte der alten**.
+    Die Kette läuft über die Dateigrenze hinweg weiter; nur das Lesen wird
+    wieder billig.
+
+    **Gemessen am 26.07., bevor das hier gebaut wurde:** 20 160 Glieder (also
+    vierzehn Tage minütlich) sind **3,2 MiB**, und `--pruefen` braucht dafür
+    **0,15 Sekunden**. Das Rollen ist also **keine Not, sondern Vorsorge** — bei
+    einem Jahr Dauerbetrieb wären es rund 84 MiB, die jede Prüfung vollständig
+    liest. Die Zahl steht hier, damit niemand später eine Dringlichkeit
+    hineinliest, die nie gemessen wurde.
+    """
+    grenze = grenze or ROLL_GRENZE
+    if not KETTE.exists():
+        return None
+    try:
+        with KETTE.open("r", encoding="utf-8") as f:
+            zeilen = sum(1 for _ in f)
+    except OSError:
+        return None
+    if zeilen < grenze:
+        return None
+
+    letzte = _letzte()
+    stempel = time.strftime("%Y%m%d-%H%M",
+                            time.localtime(jetzt or time.time()))
+    archiv = KETTE.with_name(f"{KETTE.name}.{stempel}")
+    try:
+        KETTE.rename(archiv)
+    except OSError:
+        return None
+    # Der Anschluss: Das erste Glied der neuen Datei trägt den Abdruck des
+    # letzten alten als `vorher` — genau wie jedes andere Glied auch. Damit ist
+    # die Naht von einer gewöhnlichen Fortsetzung nicht zu unterscheiden.
+    if letzte:
+        _NAHT.write_text(json.dumps(
+            {"vorher": letzte.get("abdruck", "—"),
+             "quelle": archiv.name}, ensure_ascii=False), encoding="utf-8")
+    return archiv.name
+
+
 def zustellung_pruefen() -> list[str]:
     """Liest die Zustell-Marke — mehr nicht, und genau das ist der Punkt.
 
@@ -250,6 +300,7 @@ def speicher_pruefen() -> list[str]:
 # gemeinsame kann es nicht. Das ist stärker als ein Test, der den Drift meldet.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import authmarke  # noqa: E402
+import zustellmarke  # noqa: E402
 
 
 def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
@@ -358,15 +409,30 @@ def bluehen(jetzt: float | None = None) -> dict:
     if vorige is not None:
         luecke = jetzt - float(vorige.get("zeit", jetzt))
 
+    # Ist die Kette frisch gerollt, steht der Vorgaenger in der Naht — sonst
+    # begaenne die neue Datei ohne Anschluss und der Beleg waere zerrissen.
+    naht = None
+    if vorige is None:
+        try:
+            naht = json.loads(_NAHT.read_text(encoding="utf-8"))
+        except Exception:
+            naht = None
+
     eintrag = {
         "zeit": round(jetzt, 3),
         "menschlich": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(jetzt)),
-        "vorher": (vorige or {}).get("abdruck", "—"),
+        "vorher": ((vorige or {}).get("abdruck")
+                   or (naht or {}).get("vorher") or "—"),
         "luecke_s": round(luecke, 1) if luecke is not None else None,
         "ruhe": ruhegrund,
         "befunde": _befunde(),
     }
     eintrag["abdruck"] = _fingerabdruck(eintrag)
+    if naht:                       # Naht verbraucht — sie gilt genau einmal
+        try:
+            _NAHT.unlink()
+        except OSError:
+            pass
     try:
         with KETTE.open("a", encoding="utf-8") as f:
             f.write(json.dumps(eintrag, ensure_ascii=False) + "\n")
@@ -399,6 +465,11 @@ def bluehen(jetzt: float | None = None) -> dict:
 # Wie lange ein bereits gemeldeter Befund schweigt, bevor er sich wiederholt.
 WIEDERVORLAGE_S = int(os.environ.get("BLUMEN_WIEDERVORLAGE") or 3600)
 _GEDAECHTNIS = ZUSTAND / "gemeldet.json"
+# Naht-Speicher fuer das Rollen: haelt den Abdruck des letzten Glieds der
+# beiseitegelegten Datei fest, damit die neue Kette daran anschliesst.
+_NAHT = ZUSTAND / "naht.json"
+# Ab wie vielen Zeilen gerollt wird. 20160 = vierzehn Tage minuetlich.
+ROLL_GRENZE = int(os.environ.get("BLUMEN_ROLL_GRENZE") or 20160)
 
 
 def _daempfen(gruende: list[str], jetzt: float) -> tuple[list[str], list[str]]:
@@ -551,12 +622,19 @@ def melden(text: str) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Stundenblumen — Belegkette")
     ap.add_argument("--pruefen", action="store_true", help="Kette bewerten")
+    ap.add_argument("--rollen", action="store_true",
+                    help="Kette beiseitelegen, wenn sie zu lang ist")
     ap.add_argument("--ruhe", type=int, metavar="MINUTEN",
                     help="Ruhefenster setzen (kein Alarm)")
     a = ap.parse_args()
     if a.ruhe:
         ruhe_setzen(a.ruhe)
         print(f"Ruhe für {a.ruhe} Minuten gesetzt.")
+        return 0
+    if a.rollen:
+        name = rollen()
+        if name:
+            print(name)
         return 0
     if a.pruefen:
         e = kette_pruefen()

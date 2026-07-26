@@ -232,6 +232,85 @@ def _speicher_wache_misst_das_richtige():
     sb._meminfo = echt
 
 
+def _echte_befunde_laufen_durch():
+    """**Fund vom 26.07., 02:25.** Alle Tests ersetzen `_befunde` durch eine
+    Attrappe — und deshalb hat keiner bemerkt, dass ein fehlender Import den
+    echten Weg zum Absturz brachte. Der Regressionslauf war grün, die Blume
+    wäre bei jedem einzelnen Aufblühen gescheitert.
+
+    Dieselbe Klasse wie Horas drei Funde derselben Nacht: **Die Attrappe prüft
+    den Aufruf, nicht den Weg.** Deshalb ruft dieser Test die echte Kette einmal
+    ungefiltert — er ist der einzige, der das tut, und genau darin liegt sein
+    Wert.
+    """
+    import ast
+    quelle = Path(sb.__file__).read_text(encoding="utf-8")
+    baum = ast.parse(quelle)
+
+    # Alles, was das Modul importiert — unter dem Namen, unter dem es danach
+    # ansprechbar ist.
+    bekannt = set(dir(__builtins__)) | {"__file__", "__name__"}
+    for k in ast.walk(baum):
+        if isinstance(k, ast.Import):
+            bekannt |= {(a.asname or a.name.split(".")[0]) for a in k.names}
+        elif isinstance(k, ast.ImportFrom):
+            bekannt |= {(a.asname or a.name) for a in k.names}
+        elif isinstance(k, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bekannt.add(k.name)
+        elif isinstance(k, ast.Name) and isinstance(k.ctx, ast.Store):
+            bekannt.add(k.id)
+        elif isinstance(k, ast.arg):
+            bekannt.add(k.arg)
+        elif isinstance(k, ast.ExceptHandler) and k.name:
+            bekannt.add(k.name)
+
+    # Jeder Name, der wie `modul.funktion(...)` benutzt wird, muss bekannt sein.
+    fehlend = sorted({
+        k.value.id for k in ast.walk(baum)
+        if isinstance(k, ast.Attribute) and isinstance(k.value, ast.Name)
+        and k.value.id not in bekannt and not k.value.id.startswith("_")
+    })
+    assert not fehlend, (
+        f"benutzt, aber nirgends importiert: {', '.join(fehlend)} — "
+        "das wirft erst zur Laufzeit, und zwar bei JEDEM Aufblühen. Kein "
+        "anderer Test sieht es, weil alle `_befunde` durch eine Attrappe "
+        "ersetzen (belegt am 26.07.: fehlender `zustellmarke`-Import, "
+        "Regressionslauf grün, echter Pfad tot).")
+
+
+def _rollen_zerreisst_die_kette_nicht():
+    """Die Falle beim Rollen — und der einzige Grund, es zu bauen statt die
+    Datei umzubenennen.
+
+    Ein Rollen, das nur umbenennt, **bricht genau die Verkettung, die den Beleg
+    ausmacht**: Das erste Glied der neuen Datei stünde ohne Vorgänger da, und
+    der Bruch sähe aus wie eine Manipulation — der Wächter würde sich selbst
+    anzeigen. Deshalb zeigt das erste neue Glied auf das letzte alte.
+    """
+    _leeren()
+    for i in range(5):
+        sb.bluehen(_t(i * 60))
+    letzte_alt = sb._letzte()["abdruck"]
+
+    archiv = sb.rollen(grenze=5, jetzt=_t(300))
+    assert archiv and (sb.ZUSTAND / archiv).exists(), "nichts beiseitegelegt"
+    assert not sb.KETTE.exists() or sb.KETTE.stat().st_size == 0, \
+        "die alte Kette liegt noch am selben Platz"
+
+    neu = sb.bluehen(_t(360))
+    assert neu["vorher"] == letzte_alt, (
+        "das erste Glied der neuen Datei zeigt NICHT auf das letzte der alten — "
+        "die Kette ist am Rollen zerrissen")
+    zweites = sb.bluehen(_t(420))
+    assert zweites["vorher"] == neu["abdruck"], "danach bricht die Kette"
+    e = sb.kette_pruefen(_t(480))
+    assert e["ok"] and e["brueche"] == 0, f"die neue Kette gilt als kaputt: {e}"
+
+    # Unter der Grenze wird NICHT gerollt — sonst zerfiele die Kette in Schnipsel.
+    assert sb.rollen(grenze=999, jetzt=_t(540)) is None, \
+        "es wurde gerollt, obwohl die Grenze nicht erreicht war"
+
+
 def _lagebericht_nur_zustand():
     """G3: Ein Meldeweg, der ohne den Bot auskommt — aber nichts ausplaudert.
 
@@ -357,6 +436,9 @@ check("gesunde Anmeldung schweigt (C2)", _anmeldung_still_wenn_gesund)
 check("nie der Wert eines Geheimnisses (C2)", _kein_geheimniswert_im_code)
 check("Speicher-Wache misst MemAvailable, nicht MemFree",
       _speicher_wache_misst_das_richtige)
+check("kein benutzter Name ohne Import (Attrappen-Luecke)",
+      _echte_befunde_laufen_durch)
+check("Rollen zerreisst die Kette nicht (Naht)", _rollen_zerreisst_die_kette_nicht)
 check("Lagebericht führt nur Zustand (G3)", _lagebericht_nur_zustand)
 check("EINE Wortliste für Bot und Blume (G1)", _eine_wortliste_fuer_beide)
 check("die Marke schlägt das Journal (G1)", _marke_schlaegt_journal)

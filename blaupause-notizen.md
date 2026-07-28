@@ -349,3 +349,4 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   unterlaufen — die Fundliste wurde zunächst nur ausgegeben, wenn es *auch*
   Updates gab. **Ein blinder Fleck ist meldepflichtig, gerade wenn es sonst
   nichts gibt.**
+- **Umschalter mit ehrlichem Haken** · B3 · **universell** — gebaut: ein Modus-Knopf wurde von der Einmal-Aktion zum gespeicherten Zustand. Geprueft: dass beide Beschriftungen bedienbar sind und die Tiefe an der Sitzungserzeugung haengt. **Tatsaechlich aufgetreten:** Die sichtbare Beschwerde („er geht nicht mehr aus“) war die harmlosere Haelfte — die stille war ein `close_session` je Anfrage, das den Gespraechsfaden zerschnitten haette, ohne dass es je als Fehler aufgefallen waere. **Lehre: Wer eine Beschwerde behebt, muss pruefen, was am selben Schalter haengt, worueber sich niemand beschweren KANN.**

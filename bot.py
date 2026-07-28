@@ -320,7 +320,45 @@ _BTN_STT_FAST_ACTIVE = "🎙️ Flott ✓"
 # Effort + Pflicht-Quellencheck beantworten (für wichtige Fragen, die stimmen
 # müssen). Danach wieder Standard. Kein Opus-Zwang mehr (Adam-Entscheid 22.07.).
 _BTN_THOROUGH = "🎯 Gründlich"
-_THOROUGH_PENDING: set[int] = set()
+# **B3 (28.07.): Gründlich ist ein UMSCHALTER, kein Einmal-Knopf.**
+#
+# Adams Anlass: „Ist so lange praktisch, wie ich nicht aus Versehen auf den
+# Knopf komme — weil ich kann ihn nicht mehr ausschalten." Der Modus ließ sich
+# nur beenden, indem man eine Nachricht schickte, die ihn verbrauchte.
+#
+# Zwei Beschriftungen, damit der Zustand **sichtbar** ist. Beide MÜSSEN in
+# `_ALL_KEYBOARD_BTNS` stehen — sonst wird ein Druck auf die Haken-Fassung
+# nicht als Taste erkannt, sondern als Frage an den Agenten weitergereicht.
+# Genau das ist am 23.07. mit dem Transkriptions-Knopf schon einmal live
+# passiert.
+_BTN_THOROUGH_ACTIVE = "🎯 Gründlich ✓"
+
+
+def _thorough_on(user_id: int | None) -> bool:
+    """Ist der Gründlich-Modus an? Liegt bei den Vorlieben, nicht im Speicher.
+
+    Der frühere `_THOROUGH_PENDING`-Satz war reiner Arbeitsspeicher und
+    überlebte keinen Neustart — der Haken wäre nach jedem Neustart weg gewesen,
+    während Adam ihn noch für gesetzt hielt.
+    """
+    if user_id is None:
+        return False
+    return bool(_USER_PREFS.get(str(user_id), {}).get("thorough"))
+
+
+def _set_thorough(user_id: int, on: bool) -> None:
+    """Setzt den Modus dauerhaft. **Eine Wahrheit, keine zwei.**
+
+    Bewusst ohne zusätzlichen Speicher-Satz: Zwei Quellen für denselben Zustand
+    driften auseinander, und dann zeigt der Knopf etwas anderes, als gearbeitet
+    wird — ein Haken, der lügt, ist schlimmer als keiner.
+    """
+    prefs = _USER_PREFS.setdefault(str(user_id), {})
+    if on:
+        prefs["thorough"] = True
+    else:
+        prefs.pop("thorough", None)
+    _save_prefs(_USER_PREFS)
 # Ampel-Regel-Erfassungsmodus (/ampel → ➕ Neue Regel → Farbe → nächste Nachricht
 # wird DETERMINISTISCH (ohne Claude) als Regel übernommen). Verfällt nach 60 s.
 _AMPEL_CAPTURE: dict[int, dict] = {}
@@ -365,7 +403,7 @@ _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_FABLE,
                       _BTN_STT_TO_FAST, _BTN_STT_TO_ACCURATE,
                       _BTN_STT_ACCURATE, _BTN_STT_FAST,
                       _BTN_STT_ACCURATE_ACTIVE, _BTN_STT_FAST_ACTIVE,
-                      _BTN_THOROUGH}
+                      _BTN_THOROUGH, _BTN_THOROUGH_ACTIVE}
 # Aliase statt fester Versionen → Bot nutzt automatisch das jeweils
 # höchstwertige aktuelle Modell, Label muss bei neuen Versionen nicht angepasst werden.
 _MODEL_IDS = {
@@ -555,9 +593,23 @@ def _stt_label(name: str) -> str:
     return _STT_LABELS.get(name, name)
 
 
-def _main_keyboard(tts_on: bool, model: str, effort: str | None = None) -> ReplyKeyboardMarkup:
+def _main_keyboard(tts_on: bool, model: str, effort: str | None = None,
+                   user_id: int | None = None) -> ReplyKeyboardMarkup:
     # Layout Y (Adam-Entscheid 22.07.): Zeile 1+2 = Dauer-Zustand (Modelle,
     # Effort-Stufen), Zeile 3 = Umschalter/Einmal-Aktionen (STT-Toggle, Gründlich).
+    #
+    # **B3:** `user_id` kam dazu, damit der Gründlich-Haken gezeichnet werden
+    # kann. Fehlt er an einer Aufrufstelle, verschwindet der Haken nach genau
+    # jener Bot-Antwort — der Modus ist an, die Tastatur behauptet das
+    # Gegenteil. Der Prüfer `_c_keyboard_userid` fängt das.
+    _gruendlich = _thorough_on(user_id)
+    _gruendlich_btn = _BTN_THOROUGH_ACTIVE if _gruendlich else _BTN_THOROUGH
+    if _gruendlich:
+        # **Ehrlicher Haken, keine Höflichkeit:** Bei Gründlich läuft alles auf
+        # höchster Stufe. Ohne diese Zeile trüge „⚖️ Normal" den Haken, während
+        # tatsächlich auf Max gearbeitet wird. Ein Haken, der lügt, ist
+        # schlimmer als keiner.
+        effort = "max"
     haiku_label = _BTN_HAIKU_ACTIVE if "haiku" in model else _BTN_HAIKU
     sonnet_label = _BTN_SONNET_ACTIVE if "sonnet" in model else _BTN_SONNET
     opus_label = _BTN_OPUS_ACTIVE if "opus" in model else _BTN_OPUS
@@ -579,9 +631,9 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None) -> Reply
     if "small" in _STT_MODELS and "medium" in _STT_MODELS:
         stt_toggle = (_BTN_STT_FAST_TO_ACC if _ACTIVE_STT == "small"
                       else _BTN_STT_ACC_TO_FAST)
-        rows.append([stt_toggle, _BTN_THOROUGH])
+        rows.append([stt_toggle, _gruendlich_btn])
     else:
-        rows.append([_BTN_THOROUGH])
+        rows.append([_gruendlich_btn])
     return ReplyKeyboardMarkup(
         rows,
         resize_keyboard=True,
@@ -1253,14 +1305,21 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                       nach einer Frist, sondern erst durch ein neues Token.
       "offen"       — wg. Kontext-Überlauf re-enqueued (Record bleibt, kommt gleich neu dran)
       "fehler"      — sonstiger Session-Fehler (Record bleibt liegen → Hybrid-Reconcile meldet ihn)"""
-    if job.thorough:
-        # 🎯 Gründlich: max Effort + Pflicht-Quellencheck im AKTIV gewählten Modell.
-        # (Zuvor war Opus hart gesetzt — jetzt modell-agnostisch: Fable+Gründlich =
-        # höchste Qualitäts-Kombination, Opus+Gründlich = bewährte Tiefe. Kein
-        # Auto-Upgrade — Adam wählt das Modell bewusst; Adam-Entscheid 22.07.)
-        sess = await ensure_session(user_id, effort_override="max", fresh=True)
-    else:
-        sess = await ensure_session(user_id)
+    # **B3, Kernpunkt D — die Sonderbehandlung ist ENTFALLEN.**
+    #
+    # Hier stand bis zum 28.07. `ensure_session(..., fresh=True)`: Für jede
+    # gründliche Anfrage wurde eine **frische** Sitzung erzwungen und danach
+    # wieder weggeworfen. Als Einmal-Aktion war das vertretbar. Im Dauerbetrieb
+    # — und genau den will Adam — hätte **jede** Nachricht ohne Gesprächsfaden
+    # begonnen: kein Bezug auf die vorige Antwort, kein Anschluss.
+    #
+    # **Das meldet niemand als Fehler; es sieht aus wie Vergesslichkeit.**
+    # Deshalb ist es der Abnahmepunkt des ganzen Umbaus (Schritt 4 der Abnahme:
+    # zwei Nachrichten, die zweite mit Bezug auf die erste).
+    #
+    # Die Tiefe kommt jetzt aus `ensure_session` selbst (Kernpunkt C), der
+    # Quellencheck weiterhin aus `_THOROUGH_PREFIX` — der bleibt unverändert.
+    sess = await ensure_session(user_id)
     # 5.25 (a): Herkunfts-Menge PRO AUFGABE frisch aufsetzen — Adressen aus Adams
     # Nachricht; Suchtreffer der Aufgabe kommen in stream_response dazu. Nur
     # dorthin darf WebFetch ohne Rückfrage.
@@ -1477,14 +1536,12 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             # Kurze Klartext-Meldung versuchen (22.07.) — der einfache Sendepfad
             # kann funktionieren, auch wenn die volle Antwort-Zustellung scheiterte.
             await _notify_job_failed(job)
-            if job.thorough and user_id in SESSIONS:
-                await close_session(user_id)
             return "fehler"
 
-    # 🎯 Gründlich war einmalig: Session schließen → nächste Nachricht wieder Standard.
-    if job.thorough and user_id in SESSIONS:
-        await close_session(user_id)
-
+    # **B3, Kernpunkt D:** Hier standen zwei `close_session`-Aufrufe — „Gründlich
+    # war einmalig". Beide sind ersatzlos entfallen. Der Modus ist jetzt ein
+    # Umschalter; eine Sitzung nach jeder Nachricht wegzuwerfen hieße im
+    # Dauerbetrieb, den Gesprächsfaden nach jedem Satz zu zerschneiden.
     return "beantwortet"
 
 
@@ -2237,6 +2294,18 @@ async def ensure_session(
     model_short = model_override or user_prefs.get("model", DEFAULT_MODEL)
     model_full = _MODEL_ALIASES.get(model_short, model_short)  # vollständige SDK-ID
     effort = user_prefs.get("effort", None) if effort_override is _UNSET else effort_override
+    # **B3, Kernpunkt C — die Tiefe wird HIER erzwungen, nicht beim Aufrufer.**
+    #
+    # Die Sitzung wird an mehreren Stellen neu aufgebaut: beim Modellwechsel,
+    # beim Tiefenwechsel, nach einem Neustart. Läge die Regel nur im
+    # Auftragslauf, verlöre ein Modellwechsel bei aktivem Gründlich still die
+    # Tiefe — der Knopf zeigte weiter den Haken, gearbeitet würde flach.
+    # **Genau die Sorte Fehler, die niemandem auffällt.**
+    #
+    # Ein ausdrückliches `effort_override` behält Vorrang: Wer die Tiefe von
+    # außen setzt, meint es so.
+    if effort_override is _UNSET and _thorough_on(user_id):
+        effort = "max"
     context_via_file = _write_context_claude_md(context)
     # Memory-Ordner mitgeben, damit der Agent Detailwissen bei Bedarf nachlesen
     # kann (Session-Diät 5.23) — liegt außerhalb des WORKDIR.
@@ -2329,6 +2398,7 @@ async def cmd_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         tts_on=user_prefs.get("tts_enabled", False),
         model=user_prefs.get("model", DEFAULT_MODEL),
         effort=user_prefs.get("effort", None),
+        user_id=user_id,
     )
     await update.message.reply_text(
         "👋 Claude-Code-Bot bereit.\n\n"
@@ -2399,6 +2469,7 @@ async def cmd_reset(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         tts_on=user_prefs.get("tts_enabled", False),
         model=user_prefs.get("model", DEFAULT_MODEL),
         effort=user_prefs.get("effort", None),
+        user_id=user_id,
     )
     msg = "🔄 Session beendet. Nächste Nachricht startet eine neue."
     if dropped:
@@ -2466,8 +2537,8 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     eff = sess.current_effort if sess is not None else prefs.get("effort", None)
     lines.append(f"{_model_btn_label(kurz)} · Kennung `{voll}`")
     lines.append(f"⚙️ Tempo: {tempo_namen.get(eff, str(eff))}")
-    if user_id in _THOROUGH_PENDING:
-        lines.append("🎯 Gründlich ist für die nächste Anfrage vorgemerkt")
+    if _thorough_on(user_id):
+        lines.append("🎯 Gründlich ist **an** (höchste Tiefe · Quellencheck)")
     lines.append(_blumen_zeile())
     lines.append("")
 
@@ -2778,8 +2849,9 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "⚡ Schnell / ⚖️ Normal / 🚀 Max — Denk-Tiefe\n"
         "🎙️ Genau ✓ → Flott (bzw. umgekehrt) — Transkriptions-Tempo: ✓ markiert "
         "den aktiven Modus, ein Tipp führt den gezeigten Wechsel aus\n"
-        "🎯 Gründlich — nächste Frage besonders sorgfältig "
-        "(aktives Modell · max. Tiefe · Quellencheck)\n\n"
+        "🎯 Gründlich ✓ — Umschalter: solange er an ist, läuft JEDE Frage mit "
+        "höchster Denktiefe und Pflicht-Quellencheck. Nochmal tippen schaltet "
+        "ihn aus; der Haken zeigt dir, ob er läuft\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
     )
     await update.message.reply_text(text)
@@ -2793,7 +2865,7 @@ async def cmd_tts(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     sess.tts_enabled = not sess.tts_enabled
     _USER_PREFS.setdefault(str(user_id), {})["tts_enabled"] = sess.tts_enabled
     _save_prefs(_USER_PREFS)
-    keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
+    keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
     if sess.tts_enabled:
         await update.message.reply_text(
             f"🔊 Sprachnachricht-Modus an — Stimme: {TTS_VOICE}",
@@ -5081,24 +5153,38 @@ def run_self_check() -> tuple[bool, list[str]]:
     def _c_keyboard_complete() -> None:
         global _ACTIVE_STT
         saved_models, saved_active = dict(_STT_MODELS), _ACTIVE_STT
+        # **B3 / J.2:** Der Gründlich-Zustand wird MITVARIIERT. Ohne das bekäme
+        # diese Prüfung die Aktiv-Beschriftung „🎯 Gründlich ✓" nie zu Gesicht —
+        # und genau die wäre dann nicht in `_ALL_KEYBOARD_BTNS`, was einen Druck
+        # darauf als Frage an den Agenten schickte. Der Knopf existierte, wäre
+        # aber nicht bedienbar.
+        _PROBE_ID = -1
+        saved_prefs = dict(_USER_PREFS.get(str(_PROBE_ID), {}))
         try:
             _STT_MODELS.clear()
             _STT_MODELS.update({"small": "x", "medium": "y"})
-            for active in ("small", "medium"):
-                _ACTIVE_STT = active
-                for model in ("haiku", "sonnet", "opus", "fable"):
-                    for effort in (None, "low", "max"):
-                        for row in _main_keyboard(False, model, effort).keyboard:
-                            for btn in row:
-                                assert btn.text in _ALL_KEYBOARD_BTNS, \
-                                    f"Knopf „{btn.text}“ fehlt in _ALL_KEYBOARD_BTNS"
-                                if btn.text.startswith("🎙️"):
-                                    assert btn.text in _STT_BTN_TARGET, \
-                                        f"STT-Knopf „{btn.text}“ fehlt in _STT_BTN_TARGET"
+            for gruendlich in (False, True):
+                _USER_PREFS.setdefault(str(_PROBE_ID), {})["thorough"] = gruendlich
+                for active in ("small", "medium"):
+                    _ACTIVE_STT = active
+                    for model in ("haiku", "sonnet", "opus", "fable"):
+                        for effort in (None, "low", "max"):
+                            for row in _main_keyboard(False, model, effort,
+                                                      user_id=_PROBE_ID).keyboard:
+                                for btn in row:
+                                    assert btn.text in _ALL_KEYBOARD_BTNS, \
+                                        f"Knopf „{btn.text}“ fehlt in _ALL_KEYBOARD_BTNS"
+                                    if btn.text.startswith("🎙️"):
+                                        assert btn.text in _STT_BTN_TARGET, \
+                                            f"STT-Knopf „{btn.text}“ fehlt in _STT_BTN_TARGET"
         finally:
             _STT_MODELS.clear()
             _STT_MODELS.update(saved_models)
             _ACTIVE_STT = saved_active
+            if saved_prefs:
+                _USER_PREFS[str(_PROBE_ID)] = saved_prefs
+            else:
+                _USER_PREFS.pop(str(_PROBE_ID), None)
     check("Tastatur-Vollständigkeit", _c_keyboard_complete)
 
     # 16. Reibungslose Recherche (5.25) — Herkunfts-Schranke + Geheimnis-Schutz.
@@ -5300,6 +5386,34 @@ def run_self_check() -> tuple[bool, list[str]]:
                            + ", ".join(fehlt))
     check("Register-Vollständigkeit (R2)", _c_register_vollstaendig)
 
+    def _c_keyboard_userid() -> None:
+        """Jeder `_main_keyboard`-Aufruf muss `user_id` mitgeben (B3, H).
+
+        **Was sonst geschieht:** Der Gründlich-Haken verschwindet nach genau
+        jener Bot-Antwort, deren Aufruf ihn vergessen hat — der Modus ist an,
+        die Tastatur behauptet das Gegenteil. Adam drückt daraufhin erneut und
+        schaltet ihn versehentlich **aus**.
+
+        **Geprüft wird über den Syntaxbaum, nicht über ein Textmuster.** Ein
+        Regex hätte die mehrzeiligen Aufrufe zerlegt und wäre entweder blind
+        oder voller Fehlalarme gewesen — bei sechs von siebzehn Aufrufen steht
+        `user_id` in einer Folgezeile.
+        """
+        import ast as _ast
+        baum = _ast.parse(Path(__file__).read_text(encoding="utf-8"))
+        fehlend = []
+        for k in _ast.walk(baum):
+            if not (isinstance(k, _ast.Call) and isinstance(k.func, _ast.Name)
+                    and k.func.id == "_main_keyboard"):
+                continue
+            hat = any(s.arg == "user_id" for s in k.keywords) or len(k.args) >= 4
+            if not hat:
+                fehlend.append(k.lineno)
+        assert not fehlend, (
+            f"_main_keyboard ohne user_id in Zeile(n) {fehlend} — dort "
+            "verschwindet der Gründlich-Haken still")
+    check("Tastatur kennt den Nutzer (B3)", _c_keyboard_userid)
+
     def _c_stt_backend() -> None:
         """Welches Sprach-Backend trägt gerade — gemessen, nicht angenommen.
 
@@ -5333,7 +5447,7 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert "_MODEL_ALIASES.get(kurz" in src or "voll = _MODEL_ALIASES" in src, \
             "/status nennt die vollständige Modell-Kennung nicht (Konkret vor Label)"
         assert "Tempo" in src, "/status nennt das Tempo nicht"
-        assert "_THOROUGH_PENDING" in src, "/status zeigt nicht, ob Gründlich vorgemerkt ist"
+        assert "_thorough_on" in src, "/status zeigt nicht, ob Gründlich an ist"
         wechsel = inspect.getsource(_handle_keyboard_btn)
         assert "_MODEL_ALIASES.get(new_sess.current_model" in wechsel, \
             "die Wechsel-Bestätigung nennt die Kennung nicht — ein stiller " \
@@ -5745,7 +5859,7 @@ async def post_init(app: Application) -> None:
                 prefs = _USER_PREFS.get(str(uid), {})
                 kb = _main_keyboard(prefs.get("tts_enabled", False),
                                     prefs.get("model", DEFAULT_MODEL),
-                                    prefs.get("effort", None))
+                                    prefs.get("effort", None), user_id=uid)
                 tts_on = prefs.get("tts_enabled", False)
                 tts_clean = _strip_markdown_for_tts(startup_msg) if tts_on else ""
                 if tts_on and tts_clean:
@@ -5915,8 +6029,11 @@ async def process_user_text(
     except Exception:
         log.exception("Ampel-observe übersprungen (nicht-fatal)")
 
-    thorough = user_id in _THOROUGH_PENDING
-    _THOROUGH_PENDING.discard(user_id)
+    # **B3, Kernpunkt F:** Der Modus wird nicht mehr VERBRAUCHT. Die
+    # Job-Eigenschaft bleibt richtig: Sie haelt fest, wie DIESER Auftrag
+    # laufen sollte — wird er nach einem Neustart nachgeholt, behaelt er seine
+    # Gruendlichkeit, auch wenn Adam den Modus inzwischen ausgeschaltet hat.
+    thorough = _thorough_on(user_id)
 
     msg = update.message
     chat_id = update.effective_chat.id
@@ -6260,20 +6377,43 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         await _request_restart_confirm(update, user_id)
         return
 
-    if text == _BTN_THOROUGH:
-        _THOROUGH_PENDING.add(user_id)
+    if text in (_BTN_THOROUGH, _BTN_THOROUGH_ACTIVE):
+        # **B3, Kernpunkt E — umschalten statt vormerken.**
+        # Auf BEIDE Beschriftungen prüfen: Sonst käme ein Druck auf die
+        # Haken-Fassung als Frage beim Agenten an.
+        neu = not _thorough_on(user_id)
+        _set_thorough(user_id, neu)
+        mb = MAILBOXES.get(user_id)
         sess = SESSIONS.get(user_id)
         _p = _USER_PREFS.get(str(user_id), {})
         tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
         cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
-        cur_effort = sess.current_effort if sess else _p.get("effort")
+
+        if mb and mb.current_job is not None:
+            # Läuft gerade etwas, wird es nicht abgebrochen — wie beim Modell-
+            # und Tiefenwechsel auch.
+            zusatz = "\n\n(Gilt ab der nächsten Aufgabe — die laufende bleibt unberührt.)"
+        else:
+            # Sonst sofort wirksam machen: neue Sitzung mit der neuen Tiefe.
+            await close_session(user_id)
+            await ensure_session(user_id)
+            zusatz = ""
+
+        if neu:
+            text_an = (
+                "🎯 Gründlich ist **an** — bis du ihn wieder ausschaltest:\n"
+                f"{_model_btn_label(cur_model)} · höchste Denktiefe · "
+                "Pflicht-Quellencheck.\n\n"
+                "Er kostet spürbar mehr Zeit und Kontingent. Der Haken auf dem "
+                "Knopf zeigt dir, dass er läuft." + zusatz)
+        else:
+            text_an = "🎯 Gründlich ist **aus** — wieder normales Tempo." + zusatz
+
         await update.message.reply_text(
-            "🎯 Gründlich-Modus für deine NÄCHSTE Nachricht aktiv:\n"
-            f"{_model_btn_label(cur_model)} · hoher Effort · Pflicht-Quellencheck. "
-            "Schick jetzt deine Frage.\n"
-            "(Danach wieder Standard.)",
-            reply_markup=_main_keyboard(tts_on, cur_model, cur_effort),
-        )
+            text_an, parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_main_keyboard(tts_on, cur_model,
+                                        _USER_PREFS.get(str(user_id), {}).get("effort"),
+                                        user_id=user_id))
         return
 
     if text in (_BTN_TTS_ON, _BTN_TTS_OFF):
@@ -6282,7 +6422,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         _USER_PREFS.setdefault(str(user_id), {})["tts_enabled"] = sess.tts_enabled
         _save_prefs(_USER_PREFS)
         label = "🔊 Sprachnachricht-Modus an." if sess.tts_enabled else "🔇 Sprachnachricht-Modus aus."
-        keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
+        keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
         await update.message.reply_text(label, reply_markup=keyboard)
         return
 
@@ -6290,7 +6430,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
     if new_model is not None:
         sess = SESSIONS.get(user_id)
         if sess and sess.current_model == new_model:
-            keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
+            keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
             model_label = ("Opus" if "opus" in new_model
                            else "Haiku" if "haiku" in new_model
                            else "Fable" if "fable" in new_model
@@ -6308,7 +6448,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         if mb and mb.current_job is not None:
             mb.switch_pending = True
             _p = _USER_PREFS.get(str(user_id), {})
-            keyboard = _main_keyboard(_p.get("tts_enabled", False), new_model, _p.get("effort"))
+            keyboard = _main_keyboard(_p.get("tts_enabled", False), new_model, _p.get("effort"), user_id=user_id)
             await update.message.reply_text(
                 f"🔄 Vorgemerkt: {model_label} gilt ab der nächsten Aufgabe — "
                 "die laufende wird noch im bisherigen Modus fertiggestellt.",
@@ -6318,7 +6458,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         # Leerlauf: Modell wechseln, Session sofort neu starten
         await close_session(user_id)
         new_sess = await ensure_session(user_id)
-        keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort)
+        keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort, user_id=user_id)
         # Konkret vor Label (Adam 25.07.): Die vollständige Kennung mit
         # nennen, damit ein stiller Alias-Wechsel sichtbar wird — mit
         # automatisierter Modell-Frische kann sich der Alias sonst unter Adam
@@ -6335,7 +6475,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         new_effort = _EFFORT_IDS[text]
         sess = SESSIONS.get(user_id)
         if sess and sess.current_effort == new_effort:
-            keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
+            keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
             effort_name = {None: "Normal", "low": "Schnell", "max": "Max"}.get(new_effort, str(new_effort))
             await update.message.reply_text(f"Denke nach: {effort_name} ist bereits aktiv.", reply_markup=keyboard)
             return
@@ -6354,7 +6494,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             mb.switch_pending = True
             _p = _USER_PREFS.get(str(user_id), {})
             keyboard = _main_keyboard(_p.get("tts_enabled", False),
-                                      _p.get("model", DEFAULT_MODEL), new_effort)
+                                      _p.get("model", DEFAULT_MODEL), new_effort,
+                                      user_id=user_id)
             await update.message.reply_text(
                 f"🔄 Vorgemerkt: Denke nach {effort_label} gilt ab der nächsten Aufgabe — "
                 "die laufende wird noch im bisherigen Modus fertiggestellt.",
@@ -6364,7 +6505,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         # Leerlauf: Session sofort neu starten (effort ist ein Session-Start-Parameter)
         await close_session(user_id)
         new_sess = await ensure_session(user_id)
-        keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort)
+        keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort, user_id=user_id)
         await update.message.reply_text(
             f"Denke nach: {effort_label} aktiv. Session neu gestartet.",
             reply_markup=keyboard,
@@ -6380,7 +6521,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
         cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
         cur_effort = sess.current_effort if sess else _p.get("effort")
-        kb = lambda: _main_keyboard(tts_on, cur_model, cur_effort)
+        kb = lambda: _main_keyboard(tts_on, cur_model, cur_effort, user_id=user_id)
         if want not in _STT_MODELS:
             await update.message.reply_text(
                 f"🎙️ Modell „{want}“ ist auf dem Server nicht installiert.", reply_markup=kb())
@@ -6456,6 +6597,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             sess.tts_enabled if sess else False,
             sess.current_model if sess else DEFAULT_MODEL,
             sess.current_effort if sess else None,
+            user_id=user_id,
         )
         await update.message.reply_text("\n".join(lines), reply_markup=kb)
         return
@@ -8030,7 +8172,7 @@ async def send_answer_to_user(
         return True  # nichts zu senden ist kein Zustellfehler
     use_tts = sess.tts_enabled or force_tts
     first_pending = reply_to is not None
-    kb = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort)
+    kb = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
 
     # 5.9: Nummerierte Optionsliste → Inline-Ziffern-Knöpfe direkt an der
     # Nachricht (Telegram bietet keine Ziffern-Reaktionen; Adam-Entscheid).

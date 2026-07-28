@@ -77,6 +77,41 @@ def _kein_traeger_ohne_wache():
         "der Tagescheck bewacht die Belegkette nicht — die Verschränkung ist einseitig"
 
 
+def _kostenzahl_nie_ohne_das_wort_nennwert():
+    """Connis Auflage vom 28.07. abends — in die Doku, nicht nur in den Bericht.
+
+    `total_cost_usd` ist der Listenpreis, den dieselbe Arbeit über die API
+    gekostet hätte. **Über vierzehn Tage summiert er sich auf gut 3400 Dollar,
+    von denen nie einer abgebucht wurde** — wir laufen über das Abo. Ohne das
+    Wort „Nennwert" daneben liest sich diese Zahl wie eine Rechnung, und sie
+    wird irgendwann jemanden zu Recht erschrecken.
+
+    Geprüft wird nur, wo die Zahl **ausgegeben** wird. Dass sie intern
+    aufsummiert wird, ist unbedenklich — gefährlich ist erst der Blick darauf.
+    """
+    quelle = (ROOT / "bot.py").read_text(encoding="utf-8").splitlines()
+    treffer = []
+    for i, zeile in enumerate(quelle):
+        if 'cost_usd' not in zeile or zeile.lstrip().startswith("#"):
+            continue
+        if "get(" not in zeile:
+            continue                       # kein Auslesen zur Anzeige
+        # **Das Fenster geht in BEIDE Richtungen.** Der erste Entwurf schaute
+        # nur nach unten und verfehlte damit genau die Stelle, an der die
+        # Klarstellung hingehört: Ein erklärender Kommentar steht per
+        # Konvention ÜBER der Zeile, die er erklärt.
+        umfeld = "\n".join(quelle[max(0, i - 12):i + 25])
+        # Schreibweise offenlassen: Ein Prüfer, der auf „Nennwert" besteht und
+        # „NENNWERT" ablehnt, verlangt eine Formatierung statt der Sache — und
+        # genau daran ist er beim ersten Lauf hängengeblieben.
+        if "nennwert" not in umfeld.lower():
+            treffer.append(str(i + 1))
+    assert not treffer, (
+        "eine Kostenzahl wird ohne das Wort Nennwert angezeigt - im Abo wird "
+        "nichts davon berechnet, und ueber vierzehn Tage sind es 3400 Dollar. "
+        "Zeilen: " + ", ".join(treffer))
+
+
 def _das_verfahren_ist_abgelegt():
     """Ein Verfahren, das nur in einem Commit steht, ist beim nächsten Mal
     vergessen. Der Ablageweg-Grundsatz gilt auch für Verfahren."""
@@ -148,6 +183,8 @@ check("beide Register-Auswerter melden ihre blinden Flecken (Frage ①)",
       _jeder_waechter_meldet_seine_blinden_flecken)
 check("kein Träger ohne Wache — Verschränkung beidseitig (Frage ②)",
       _kein_traeger_ohne_wache)
+check("Kostenzahl nie ohne das Wort Nennwert (Conni 28.07.)",
+      _kostenzahl_nie_ohne_das_wort_nennwert)
 check("das Verfahren ist abgelegt und trägt den Gültigkeits-Kopf",
       _das_verfahren_ist_abgelegt)
 

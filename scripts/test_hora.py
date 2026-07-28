@@ -328,10 +328,6 @@ check("Fehlschlag hakt nichts ab", _fehlschlag_haekelt_nicht_ab)
 check("Probelauf führt nichts aus", _probelauf_fuehrt_nichts_aus)
 check("ohne Befehl wird nichts geraten", _ohne_befehl_kein_raten)
 
-if fails:
-    print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")
-    sys.exit(1)
-print("\nAlle Hora-Tests bestanden.")
 
 
 def _nur_ein_lauf_zugleich():
@@ -415,3 +411,70 @@ check("nur ein Hora-Lauf zugleich (Schloss, auch nach Absturz)",
 check("Leerlauf wird gedämpft (nicht 168× dasselbe)", _leerlauf_wird_gedaempft)
 if fails:
     raise SystemExit(1)
+
+
+# ---------- Halt vom 28.07., 16:15: die Meldung war nutzlos ------------------
+def _fehlgrund_nennt_die_rote_zeile_nicht_die_letzte():
+    """**Die letzte Zeile ist eine Positionsannahme, kein Inhaltsmerkmal.**
+
+    Am 28.07. hielt Hora nach drei Fehllaeufen an. Die Notbremse war richtig,
+    aber die Meldung war unbrauchbar: Der Selbstcheck gibt neunundzwanzig
+    Zeilen aus, eine davon rot - und die stand mittendrin. Gemeldet wurde die
+    letzte, eine gruene. Die Aussage war korrekt und vollkommen nutzlos.
+
+    In Adams Abwesenheit haette das niemand aufloesen koennen; jede Diagnose
+    haette eine Hand gebraucht, die nicht da ist.
+    """
+    echt = "\n".join([
+        "✓ Nachrichten-Persistenz (5.2)",
+        "✗ Memory erreichbar: MEMORY.md fehlt",
+        "✓ Medien-Transport (H1)",
+        "✓ Medien-Eingangsschutz (5.2)",
+    ])
+    grund = hora._fehlgrund(False, True, echt, "39/39 bestanden")
+    assert "MEMORY.md fehlt" in grund, (
+        "die rote Zeile fehlt in der Meldung: " + grund)
+    assert "Medien-Eingangsschutz" not in grund, (
+        "es wird weiter die LETZTE Zeile gemeldet statt der roten: " + grund)
+
+
+def _mehrere_rote_zeilen_werden_gekuerzt():
+    """Eine Meldung, die dreissig rote Zeilen mitschleppt, wird nicht gelesen -
+    und die ersten sagen ohnehin das Meiste."""
+    viele = "\n".join(f"✗ Pruefung {i} fehlgeschlagen" for i in range(10))
+    grund = hora._fehlgrund(False, True, viele, "x")
+    assert "Pruefung 0" in grund and "Pruefung 9" not in grund
+    assert "weitere" in grund, "die Kuerzung wird verschwiegen: " + grund
+
+
+def _ohne_auffaellige_zeile_bleibt_die_letzte():
+    """Der Rueckweg: Meldet ein Befehl nichts Erkennbares, ist die letzte Zeile
+    immer noch besser als gar nichts."""
+    grund = hora._fehlgrund(False, True, "irgendwas\nund noch etwas", "x")
+    assert "und noch etwas" in grund
+
+
+def _regressionsstand_bleibt_dem_ANDEREN_fall_vorbehalten():
+    """Der Fund vom 26.07. darf nicht zurueckfallen: Der Regressionsstand
+    gehoert in die Meldung, wenn der Befehl LIEF und etwas anderes beschaedigt
+    hat - nicht, wenn der Befehl selbst scheiterte."""
+    lief_schief = hora._fehlgrund(False, True, "✗ kaputt", "39/39 bestanden")
+    assert "39/39" not in lief_schief, (
+        "der Regressionsstand beantwortet hier die falsche Frage: " + lief_schief)
+    hat_beschaedigt = hora._fehlgrund(True, False, "", "12/39 bestanden")
+    assert "12/39" in hat_beschaedigt, "der ernstere Fall nennt den Stand nicht"
+
+
+check("Fehlgrund nennt die ROTE Zeile, nicht die letzte (Halt 28.07.)",
+      _fehlgrund_nennt_die_rote_zeile_nicht_die_letzte)
+check("mehrere rote Zeilen werden gekuerzt, und das wird gesagt",
+      _mehrere_rote_zeilen_werden_gekuerzt)
+check("ohne auffaellige Zeile bleibt die letzte (Rueckweg)",
+      _ohne_auffaellige_zeile_bleibt_die_letzte)
+check("Regressionsstand bleibt dem anderen Fall vorbehalten (26.07.)",
+      _regressionsstand_bleibt_dem_ANDEREN_fall_vorbehalten)
+
+if fails:
+    print(f"\n❌ {len(fails)} Hora-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
+    raise SystemExit(1)
+print("\nAlle Hora-Tests bestanden.")

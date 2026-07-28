@@ -70,6 +70,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -175,6 +176,14 @@ def _leerlauf_entwarnen() -> None:
     LEERLAUF_MARKE.unlink(missing_ok=True)
 
 
+# Woran eine auffällige Zeile erkennbar ist. Bewusst breit: Unsere Prüfskripte
+# benutzen ✗ und ❌, Python meldet Traceback und Error, bash meldet „command not
+# found". Ein zu enges Muster fände genau die Ausgabe nicht, die neu ist.
+_ROT_ZEILE = re.compile(
+    r"(✗|❌|FEHLGESCHLAGEN|fehlgeschlagen|Traceback|Error|error:|"
+    r"not found|No such file|Permission denied|refused)")
+
+
 def _fehlgrund(erfolg: bool, nachher_ok: bool, ausgabe: str,
                lage: str) -> str:
     """Sagt, **woran** es lag — und unterscheidet die zwei Fälle.
@@ -190,6 +199,24 @@ def _fehlgrund(erfolg: bool, nachher_ok: bool, ausgabe: str,
         if not text:
             return ("der Befehl endete mit einem Fehler, ohne etwas zu sagen "
                     "(kein Text auf beiden Ausgabekanälen)")
+        # **Die letzte Zeile ist eine Positionsannahme, kein Inhaltsmerkmal**
+        # (Halt vom 28.07., 16:15). Der Selbstcheck gibt neunundzwanzig Zeilen
+        # aus, eine davon rot — und die stand mittendrin. Gemeldet wurde
+        # stattdessen die letzte, eine grüne. Die Aussage war damit korrekt und
+        # vollkommen nutzlos: „der Befehl meldete: ✓ Medien-Eingangsschutz".
+        #
+        # Adam hätte in seiner Abwesenheit keine Möglichkeit gehabt, das
+        # aufzulösen; jede Diagnose hätte eine Hand gebraucht, die nicht da ist.
+        # Also werden die AUFFÄLLIGEN Zeilen gesucht, nicht die letzte.
+        auffaellig = [z.strip() for z in text.splitlines()
+                      if _ROT_ZEILE.search(z)]
+        if auffaellig:
+            # Höchstens drei — eine Meldung, die dreißig rote Zeilen mitschleppt,
+            # wird nicht gelesen, und die ersten sagen ohnehin das Meiste.
+            gekuerzt = [z[:160] for z in auffaellig[:3]]
+            rest = len(auffaellig) - len(gekuerzt)
+            schluss = f" (und {rest} weitere)" if rest > 0 else ""
+            return "der Befehl meldete: " + " · ".join(gekuerzt) + schluss
         return "der Befehl meldete: " + text.splitlines()[-1][:200]
     if not nachher_ok:
         return (f"der Befehl lief durch, aber DANACH war der Regressionslauf "

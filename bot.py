@@ -162,6 +162,13 @@ def _record_usage(model: str, result: Any) -> None:
             if wert:
                 bucket[ziel] = bucket.get(ziel, 0) + wert
     if result.total_cost_usd:
+        # **Was hier summiert wird, ist ein NENNWERT, kein abgebuchtes Geld.**
+        # Der Wert nennt den Listenpreis, den dieselbe Arbeit über die API
+        # gekostet hätte; wir laufen über das Abo, es wird nichts davon
+        # berechnet. Gemessen über vierzehn Tage: rund 3400 Dollar, die nie
+        # jemand bezahlt hat. Der Hinweis steht am Ursprung und nicht nur an den
+        # Anzeigestellen — wer diese Speicherstelle liest, soll sofort wissen,
+        # was die Zahl ist, ohne ihren Weg bis zur Ausgabe verfolgen zu müssen.
         bucket["cost_usd"] = bucket.get("cost_usd", 0.0) + result.total_cost_usd
     _save_usage(data)
 

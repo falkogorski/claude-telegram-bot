@@ -717,6 +717,31 @@ weniger heikle Begriffe okay, für das Heikelste den Button-Weg nutzen.
   bricht, ist zuerst zu prüfen, ob sie die richtige Ursache benennt** — nicht,
   ob man sie strenger formulieren kann.
 
+## 🔤 STICHWORT-FILTER: keine schließende Wortgrenze (Conni 2026-07-28)
+
+**Gilt für jeden Textfilter, den wir bauen — Ampel-Regeln, Rot-Bremsen,
+Vorlese-Ausnahmen, Suchmuster.** Deutsche Zusammensetzungen hängen ihr
+Bestimmungswort **vorn** an. Ein `\bklient\b` trifft „Klient" und verfehlt
+**„Klientendaten"** — und damit genau den Fall, für den der Filter gebaut wurde.
+Belegt am 28.07. im Auftragsbuch, gefunden von der eigenen Prüfung beim ersten
+Lauf; dieselbe Falle lauert bei Kundenliste, Passwortdatei, Löschauftrag,
+Kostenstelle, Tokenpfad.
+
+**Regel:** Vorn eine Wortgrenze, hinten **keine** (`\b(klient|kunde|token)`).
+Der Preis ist ein gelegentlicher Fehlalarm — **bei einer Bremse ist das die
+richtige Fehlerrichtung.** Lieber einmal zu oft rot als einmal zu wenig.
+
+## 💵 KOSTENZAHLEN NUR MIT DEM WORT „NENNWERT" (Conni 2026-07-28)
+
+`total_cost_usd` ist der Listenpreis, den dieselbe Arbeit über die API gekostet
+hätte. **Gemessen über vierzehn Tage: rund 3400 Dollar, von denen nie einer
+abgebucht wurde** — wir laufen über das Abo. Ohne das Wort daneben liest sich
+die Zahl wie eine Rechnung und erschreckt irgendwann jemanden zu Recht.
+
+Der Hinweis steht **am Ursprung** (`_record_usage`) und an jeder Anzeigestelle.
+Ein Prüfer hält es fest: `scripts/test_blinde_flecken_b6.py`, Zeile
+„Kostenzahl nie ohne das Wort Nennwert" — Gegenprobe gefahren.
+
 ## Remote-/Mobil-Weiterführung von Sitzungen (WICHTIG)
 
 - Nutzer startet oft Prozesse, die Berechtigungen/Bestätigungen brauchen, muss

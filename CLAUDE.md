@@ -158,6 +158,28 @@ keine Kostenquelle, keine Architekturänderung. **Im Zweifel ist Liegenlassen
 richtig** — eine geparkte Idee kostet nichts, eine ungeprüft gebaute kostet
 Vertrauen.
 
+## 😴 RUHEMODUS (Conni-Entscheid 2026-07-28 abends, gilt bis ~15.08.)
+
+**Nur Wächter. Kein Bauen, kein Deploy, keine neuen Aufträge.** Der VPS bleibt
+auf `6ed4b91`; alles vom 28.07. liegt geprüft und ruhend auf dem Mac und wartet
+auf die Gesamtabnahme.
+
+- **Der Kurier-Ordner wird gelesen, Neues wird GEPARKT, nicht gebaut.** Auch
+  wenn es klein aussieht und der Lösungsweg klar ist — die Ausnahme für
+  Wächter-Befunde aus dem Bauauftrags-Regime gilt hier **nicht** mehr.
+- **Läuft ein Wächter rot: anhalten und melden schlägt reparieren.** Eine
+  ungeprüfte Reparatur in einer Abwesenheit ist teurer als eine liegende
+  Störung — niemand kann sie gegenlesen.
+- **Zwei Entscheide, damit sie nicht erneut aufgeworfen werden:** Der
+  Abo-Token wird **nicht** erneuert (ausgestellt 14.07.2026, Gültigkeit rund
+  ein Jahr — gemessen; die C2-Sofortmeldung beim Kippen bleibt das Netz). Und
+  Horas **Wiederholungs-Merkmal wird nicht gebaut** — „nichts Neues" gilt auch
+  für uns; die Stundenblumen tragen die Dauerwache.
+
+**Rückkehr-Punkt Nr. 3:** Die Rundenlisten-Idee gehört zur Entwicklungskette
+und wird dort zusammen mit den `haengt_an`-Bezügen entworfen — Adams Gedanke
+ist die Vorgabe dafür, nicht ein nachträglicher Anbau an Hora.
+
 ## 🎚️ MODELL- UND MODUS-AUTONOMIE (Adam 2026-07-28, dauerhaft und projektweit)
 
 **Grundeinstellung: Opus 5, mittlere Denktiefe.** Innerhalb dieses Rahmens

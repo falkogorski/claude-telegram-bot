@@ -618,6 +618,13 @@ weniger heikle Begriffe okay, für das Heikelste den Button-Weg nutzen.
 - **Shell ist `zsh`:** KEINE `#`-Kommentarzeilen in Befehlsblöcken — zsh führt
   `#` interaktiv als Befehl aus („command not found: #"). Nur reine Befehle
   geben, Erklärungen außerhalb des Code-Blocks.
+- **Deutsche Anführungszeichen sprengen Python-Einzeiler** (3× passiert,
+  25.–27.07.): Ein Skript, das eine Zeile mit `„…"` per `t.replace("…„X"…")`
+  sucht, bricht mit SyntaxError ab — das schließende `"` ist zugleich das
+  Python-Stringende. Tückisch daran: Der Fehler kommt NACH dem Commit-Teil
+  einer verketteten Befehlszeile, der Commit ist durch, die Datei-Änderung
+  fehlt still. **Regel: Dateien mit deutschen Anführungszeichen nur über
+  Edit/Write ändern, nie über Inline-Python mit doppelt gequoteten Strings.**
 
 ## Remote-/Mobil-Weiterführung von Sitzungen (WICHTIG)
 

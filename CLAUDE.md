@@ -696,6 +696,16 @@ weniger heikle Begriffe okay, für das Heikelste den Button-Weg nutzen.
     einhalten lässt, auch wenn man die andere gerade vergisst — und sie
     verwandelt den gefährlichen Fall zurück in den harmlosen.
 
+  **`[KORRIGIERT 2026-07-28, 17:5x]` Die Regel hatte den falschen Täter
+  benannt.** Sie sagte „nur über Edit/Write" — und dann sprengte ein
+  **frisch geschriebenes** `Write` genau daran. Nicht das Werkzeug ist die
+  Ursache, sondern **ein deutsches Anführungszeichen innerhalb eines doppelt
+  gequoteten Strings**, egal wie der String entsteht. Die tragfähige Fassung:
+  **In Python-Zeichenketten — besonders in `f"…"`-Meldungen — keine deutschen
+  Anführungszeichen.** Eckige Klammern (`[{wert}]`) tun denselben Dienst und
+  können nicht brechen. Im Fließtext von Docstrings und Kommentaren sind sie
+  unbedenklich; nur in Zeichenketten nicht.
+
 ## Remote-/Mobil-Weiterführung von Sitzungen (WICHTIG)
 
 - Nutzer startet oft Prozesse, die Berechtigungen/Bestätigungen brauchen, muss

@@ -155,6 +155,22 @@ fi
 # DIE ZEITGEBER WERDEN GESUCHT, NICHT AUFGEZAEHLT. Eine feste Liste waere die
 # Positivlisten-Falle: Der achte Zeitgeber fiele durch, und niemand merkte es -
 # derselbe Fehler, den der Register-Waechter am 27.07. bei den Modulen fand.
+#
+# [KORRIGIERT 2026-07-28, B6] DIESER KOMMENTAR STAND HIER - UND DARUNTER STAND
+# EINE POSITIVLISTE. Gefiltert wurde auf die Namensanfaenge claude-, hora und
+# stundenblume. Das ist genau die Falle, vor der der Absatz warnt, nur in
+# Verkleidung: Ein neunter Zeitgeber mit anderem Namen (engywuk, fuchur, ein
+# Erinnerungs-Lauf) waere durchgefallen, und der Kommentar haette behauptet,
+# er sei abgedeckt. Eine Vorgabe, die im Text steht und im Code nicht gilt,
+# ist schlechter als keine - man verlaesst sich auf sie.
+#
+# DER EHRLICHE MASSSTAB IST NICHT DER NAME, SONDERN DAS ZIEL: Was in unser
+# Verzeichnis zeigt, ist unseres. Gemessen (28.07.): Alle sieben eigenen
+# Zeitgeber tragen /home/claudebot in ihrem ExecStart, und KEIN einziger
+# System-Zeitgeber (apt-daily, fstrim, logrotate, e2scrub_all, dpkg-db-backup,
+# systemd-tmpfiles-clean) tut das. Das Merkmal trennt sauber und ueberlebt
+# jede Umbenennung.
+UNSER_PFAD="${UNSER_PFAD:-/home/claudebot}"
 zeitgeber_still=()
 while read -r t; do
   [ -n "$t" ] || continue
@@ -190,8 +206,15 @@ while read -r t; do
     fi
   fi
 done < <(systemctl list-timers --all --no-pager 2>/dev/null \
-         | awk '$NF ~ /^(claude-|hora|stundenblume)/ {print $NF}' \
-         | sed 's/\.service$/.timer/' | sort -u)
+         | awk '$NF ~ /\.(service|timer)$/ {print $NF}' \
+         | sed 's/\.service$/.timer/' | sort -u \
+         | while read -r kandidat; do
+             dienst="${kandidat%.timer}.service"
+             if systemctl show "$dienst" -p ExecStart --value 2>/dev/null \
+                  | grep -qF "$UNSER_PFAD"; then
+               echo "$kandidat"
+             fi
+           done)
 
 if [ "${#zeitgeber_still[@]}" -eq 0 ]; then
   lines+=("✅ Zeitgeber: alle aktiv und in ihrem Takt")

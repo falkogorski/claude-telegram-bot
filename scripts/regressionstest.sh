@@ -114,6 +114,7 @@ run "Versions-Monitor (5.21)"           "$PY" scripts/test_version_monitor.py
 run "Gruendlich-Umschalter (B3)"        "$PY" scripts/test_gruendlich_b3.py
 run "Limit-Vorwarnung 5.20 (B4)"        "$PY" scripts/test_limitwarnung_b4.py
 run "Vorlese-Regeln (B5)"               "$PY" scripts/test_vorlese_b5.py
+run "Blinde-Flecken-Verfahren (B6)"     "$PY" scripts/test_blinde_flecken_b6.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
 # Der Nachweis, dass die Wegwerf-Umgebung wirklich gegriffen hat. Nachmessen,

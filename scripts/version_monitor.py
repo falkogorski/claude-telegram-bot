@@ -52,8 +52,21 @@ def _vtuple(v: str) -> tuple[int, ...]:
     return tuple(int(n) for n in nums[:4]) or (0,)
 
 
-def _cmp(cur: str, latest: str) -> tuple[bool, bool]:
+# **Nicht jede Art lässt sich der Größe nach vergleichen.**
+# Ein Docker-Fingerabdruck hat keine Reihenfolge — er ist gleich oder anders.
+# Und eine Debian-Version wie `7:5.1.6-0+deb12u1` zerfällt beim Zahlenlesen in
+# Ziffern, deren Reihenfolge nichts mehr bedeutet (die führende `7` ist eine
+# Epoche, keine Hauptversion). Bei beiden ist die Frage ohnehin eine andere:
+# nicht „gibt es irgendwo Neueres", sondern „weicht das ab, was diese Maschine
+# mir anbietet". Darum wird hier auf UNGLEICHHEIT geprüft, nicht auf Größe —
+# ein Zahlenvergleich hätte hier still immer „aktuell" gemeldet.
+_VERGLEICH_UNGLEICH = {"docker", "systempaket"}
+
+
+def _cmp(cur: str, latest: str, kind: str = "") -> tuple[bool, bool]:
     """(update_verfügbar, ist_major). Major = erste Zahlgruppe unterscheidet sich."""
+    if kind in _VERGLEICH_UNGLEICH:
+        return (bool(cur) and bool(latest) and cur != latest, False)
     c, l = _vtuple(cur), _vtuple(latest)
     if not c or not l:
         return (False, False)
@@ -101,10 +114,107 @@ def latest_node(_comp: dict) -> str:
     return d[0].get("version", "") if d else ""
 
 
+# --- Systempakete (apt) ------------------------------------------------------
+# Beides lokal und kostenfrei. Der Vergleich ist hier NICHT „installiert gegen
+# neueste der Welt", sondern „installiert gegen das, was die Paketverwaltung
+# anbietet" — die Debian-Antwort ist die einzige, die auf dieser Maschine
+# überhaupt erreichbar ist. Eine Meldung „ffmpeg 8.0 ist draußen" wäre nutzlos,
+# solange Debian bei 7.1 steht.
+def _apt_policy(ref: str, feld: str) -> str:
+    # **Beide Werte aus DERSELBEN Auskunft.** Naheliegend wäre `dpkg-query` für
+    # das Installierte gewesen — aber dessen Format-Zeichenkette enthält
+    # `${Version}`, und beim Messen über eine Fernsitzung hat die Shell genau
+    # das zu einer leeren Zeichenkette gemacht. Der Wert sah dann aus wie
+    # „nicht installiert". Im Python-Aufruf wäre das nicht passiert (dort geht
+    # kein Shell dazwischen), aber eine Quelle, die je nach Aufrufweg etwas
+    # anderes sagt, ist eine schlechte Quelle.
+    out = _run(["apt-cache", "policy", ref])
+    m = re.search(rf"^\s*{feld}:\s*(\S+)", out, re.MULTILINE)
+    v = m.group(1).strip() if m else ""
+    return "" if v in ("(none)", "") else v
+
+
+def cur_apt(comp: dict) -> str:
+    return _apt_policy(comp["ref"], "Installed")
+
+
+def latest_apt(comp: dict) -> str:
+    return _apt_policy(comp["ref"], "Candidate")
+
+
+# --- Docker-Abbilder ---------------------------------------------------------
+# **Hier wird bewusst NICHT nach Versionsnummern gesucht.** LobeChat läuft auf
+# `:latest` — dort ändert sich der Inhalt, ohne dass sich der Name ändert. Ein
+# Namensvergleich meldete also nie etwas, während das Abbild monatelang
+# veraltet. Verglichen wird der Fingerabdruck: der, den die Registry heute für
+# `:latest` ausliefert, gegen den, aus dem der laufende Container stammt.
+_DOCKER_ACCEPT = ",".join([
+    "application/vnd.oci.image.index.v1+json",
+    "application/vnd.docker.distribution.manifest.list.v2+json",
+    "application/vnd.oci.image.manifest.v1+json",
+    "application/vnd.docker.distribution.manifest.v2+json",
+])
+
+
+def _docker_teile(ref: str) -> tuple[str, str]:
+    name, _, tag = ref.partition(":")
+    if "/" not in name:          # „redis" ist in Wahrheit „library/redis"
+        name = "library/" + name
+    return name, (tag or "latest")
+
+
+def cur_docker(comp: dict) -> str:
+    """Fingerabdruck des lokal vorhandenen Abbilds."""
+    out = _run(["docker", "image", "inspect", comp["ref"],
+                "--format", "{{index .RepoDigests 0}}"])
+    _, _, digest = out.strip().partition("@")
+    return digest
+
+
+def latest_docker(comp: dict) -> str:
+    name, tag = _docker_teile(comp["ref"])
+    # Anonymes Lese-Token — kein Konto, keine Kosten, kein Abbild-Download:
+    # geholt wird nur der Kopf des Manifests, nicht das Abbild selbst.
+    tok = _get_json("https://auth.docker.io/token?service=registry.docker.io"
+                    f"&scope=repository:{name}:pull")
+    token = (tok or {}).get("token")
+    if not token:
+        return ""
+    try:
+        req = urllib.request.Request(
+            f"https://registry-1.docker.io/v2/{name}/manifests/{tag}",
+            headers={"Authorization": "Bearer " + token,
+                     "Accept": _DOCKER_ACCEPT,
+                     "User-Agent": "momo-version-monitor"})
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as r:
+            return r.headers.get("Docker-Content-Digest", "")
+    except Exception:
+        return ""
+
+
+# --- GitHub-Veröffentlichungen ----------------------------------------------
+# Für Eigenbauten (git-Klon), die keine Paketverwaltung kennt. Anonym: 60
+# Anfragen je Stunde — bei einem wöchentlichen Lauf reichlich.
+def cur_github(comp: dict) -> str:
+    befehl = comp.get("current_cmd")
+    if not befehl:
+        return ""
+    out = _run(["sh", "-c", befehl])
+    return out.strip().splitlines()[0].strip() if out.strip() else ""
+
+
+def latest_github(comp: dict) -> str:
+    d = _get_json(f"https://api.github.com/repos/{comp['repo']}/releases/latest")
+    return (d or {}).get("tag_name", "") if d else ""
+
+
 HANDLERS = {
     "pip": (cur_pip, latest_pip),
     "npm_global": (cur_npm, latest_npm),
     "node": (cur_node, latest_node),
+    "systempaket": (cur_apt, latest_apt),
+    "docker": (cur_docker, latest_docker),
+    "github_release": (cur_github, latest_github),
 }
 
 
@@ -131,19 +241,82 @@ def _send_telegram(text: str) -> None:
             pass
 
 
+SEENFILE = Path(os.environ.get("VERSION_MONITOR_SEEN")
+                or "/home/claudebot/claude-telegram-bot/logs/version-monitor-gesehen.json")
+INTERVALL_STD_TAGE = 90
+
+
+def _kurz(v: str) -> str:
+    """Ein Fingerabdruck ist 71 Zeichen lang und in einer Telegram-Meldung
+    unlesbar. Wer ihn wirklich braucht, findet ihn im Protokoll — dort steht
+    er ungekürzt."""
+    return v[:19] + "…" if v.startswith("sha256:") else v
+
+
+def _gesehen_laden() -> dict:
+    try:
+        return json.loads(SEENFILE.read_text())
+    except Exception:
+        return {}
+
+
+def _faellig(name: str, comp: dict, gesehen: dict) -> tuple[bool, int]:
+    """(ist_faellig, Tage seit der letzten Sichtung).
+
+    Beim ALLERERSTEN Lauf ist nichts faellig - sonst kaeme die ganze Liste auf
+    einen Schlag, und eine Meldung, die zwoelf Punkte gleichzeitig nennt, wird
+    einmal ueberflogen und nie wieder. Stattdessen wird der Startpunkt gesetzt
+    und ab da gezaehlt. (Derselbe Grund, aus dem die Zeitgeber-Wache nicht das
+    Alter des letzten Laufs misst: Ein Pruefer, der beim ersten Mal anschlaegt,
+    erzieht dazu, ihn zu ueberlesen.)
+    """
+    tage_soll = int(comp.get("intervall_tage") or INTERVALL_STD_TAGE)
+    eintrag = gesehen.get(name)
+    if not eintrag:
+        return (False, 0)
+    try:
+        seit = (datetime.now() - datetime.fromisoformat(eintrag)).days
+    except Exception:
+        return (False, 0)
+    return (seit >= tage_soll, max(seit, 0))
+
+
 def main() -> int:
     reg = json.loads(REGISTER.read_text())
     updates: list[str] = []   # meldepflichtig
     manual: list[str] = []    # nur Reminder
     blind: list[str] = []     # Befund A/D: was der Monitor NICHT prueft
     loglines: list[str] = []
+    gesehen = _gesehen_laden()
+    faellig_neu: list[str] = []
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     for comp in reg.get("components", []):
         name, kind = comp["name"], comp["kind"]
         if kind == "manual":
-            manual.append(f"• {name}: manuell prüfen — {comp.get('note', '')}")
-            loglines.append(f"~ {name}: manual")
+            # **Der stille Teil des Registers — und der Grund für diesen Umbau.**
+            #
+            # Manuelle Einträge hingen bisher als Anhängsel an einer Meldung,
+            # die es nur gab, wenn ANDERSWO ein Update gefunden wurde. Läuft
+            # alles rund, meldet der Monitor nichts — und dann meldet er auch
+            # die manuellen Punkte nicht. Ausgerechnet die, die niemand sonst
+            # prüft, waren an die Existenz eines fremden Fundes gekoppelt.
+            #
+            # Das trifft genau die zwei Einträge, bei denen es am meisten
+            # wehtut: `claude-modelle` und `verfahren-medien`. Beide lassen sich
+            # nicht automatisch ermitteln (die CLI führt keinen Katalog, und ob
+            # es ein besseres Video-Verfahren gibt, ist ein Urteil, keine
+            # Abfrage). Statt dafür eine Attrappe zu bauen, bekommen sie eine
+            # FÄLLIGKEIT: Nach `intervall_tage` melden sie sich von selbst.
+            faellig, seit = _faellig(name, comp, gesehen)
+            if faellig:
+                updates.append(f"🔎 {name}: seit {seit} Tagen nicht geprüft — "
+                               f"{comp.get('note', '')}")
+                loglines.append(f"FAELLIG {name}: {seit} Tage")
+                faellig_neu.append(name)
+            else:
+                manual.append(f"• {name}: manuell prüfen — {comp.get('note', '')}")
+                loglines.append(f"~ {name}: manual (vor {seit} Tagen gesehen)")
             continue
         handler = HANDLERS.get(kind)
         if not handler:
@@ -173,14 +346,40 @@ def main() -> int:
                          f"(installiert={cur or '?'}, verfügbar={latest or '?'})")
             loglines.append(f"? {name}: cur={cur or '?'} latest={latest or '?'} (Quelle n/a, GEMELDET)")
             continue
-        newer, major = _cmp(cur, latest)
+        newer, major = _cmp(cur, latest, kind)
         if newer:
             tag = "🔴 MAJOR" if major else "🟡"
             pin = " (gepinnt — bewusst, Wartungsfenster)" if comp.get("pinned") else ""
-            updates.append(f"{tag} {name}: {cur} → {latest}{pin}")
+            updates.append(f"{tag} {name}: {_kurz(cur)} → {_kurz(latest)}{pin}")
             loglines.append(f"UPDATE {name}: {cur} -> {latest}{' MAJOR' if major else ''}")
         else:
             loglines.append(f"ok {name}: {cur} (aktuell)")
+
+    # Sichtungs-Gedächtnis fortschreiben.
+    #
+    # **Zwei Fälle, absichtlich verschieden behandelt.** Ein Eintrag, der zum
+    # ersten Mal gesehen wird, bekommt schlicht sein Startdatum. Ein Eintrag,
+    # der gerade als fällig GEMELDET wurde, bekommt das Datum ebenfalls neu —
+    # sonst stünde er in jedem folgenden Lauf wieder drin, und aus der
+    # Erinnerung würde binnen dreier Wochen ein Dauerton, den niemand mehr
+    # liest. Die Meldung ist damit ein Anstoß, keine Mahnung: Sie kommt einmal,
+    # und dann erst wieder nach der nächsten Frist.
+    #
+    # Das ist bewusst schwächer, als es sein könnte — ein „erledigt"-Knopf
+    # wäre genauer. Der wäre aber ein zweiter Weg für einen Zustand, und die
+    # kosten hier erfahrungsgemäß mehr, als sie einbringen.
+    jetzt_iso = datetime.now().isoformat(timespec="seconds")
+    for comp in reg.get("components", []):
+        if comp["kind"] != "manual":
+            continue
+        if comp["name"] not in gesehen or comp["name"] in faellig_neu:
+            gesehen[comp["name"]] = jetzt_iso
+    try:
+        SEENFILE.parent.mkdir(parents=True, exist_ok=True)
+        SEENFILE.write_text(json.dumps(gesehen, indent=2, ensure_ascii=False),
+                            encoding="utf-8")
+    except Exception:
+        pass
 
     # Protokoll immer
     try:

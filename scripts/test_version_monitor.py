@@ -15,6 +15,7 @@ from pathlib import Path
 _TMP = Path(tempfile.mkdtemp(prefix="vm-"))
 os.environ["VERSION_MONITOR_LOG"] = str(_TMP / "monitor.log")
 os.environ["BOT_ENVFILE"] = str(_TMP / "kein.env")   # kein Versand im Test
+os.environ["VERSION_MONITOR_SEEN"] = str(_TMP / "gesehen.json")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import version_monitor as vm  # noqa: E402
 
@@ -42,14 +43,18 @@ def _lauf(components):
 
 
 def _unbekannte_art_wird_gemeldet():
-    """**Befund A.** Das Register nennt Arten, für die es keinen Handler gibt —
-    `github_release` ist heute genau so ein Fall. Bisher landete das im
-    Protokoll, und ein Protokoll, das niemand liest, ist kein Prüfer.
+    """**Befund A.** Wer eine Komponente mit einer Art eintraegt, fuer die es
+    keinen Handler gibt, bekam stille Nichtpruefung: Der Eintrag stand im
+    Register, sah nach Abdeckung aus, und wurde nie angesehen.
+
+    Der Beispielfall war urspruenglich `github_release` — und ist es seit dem
+    28.07. nicht mehr, weil diese Art jetzt einen Handler hat. Deshalb steht
+    hier bewusst eine Art, die es NIE geben wird: Ein Pruefer, der an einer
+    Tatsache haengt, die sich aendern darf, faellt beim naechsten Ausbau um.
     """
-    msg = _lauf([{"name": "irgendwas", "kind": "github_release",
-                  "repo": "x/y"}])
+    msg = _lauf([{"name": "irgendwas", "kind": "gibtesnicht"}])
     assert msg, "eine unbekannte Art erzeugte GAR KEINE Meldung"
-    assert "irgendwas" in msg and "github_release" in msg, \
+    assert "irgendwas" in msg and "gibtesnicht" in msg, \
         f"die Komponente wird nicht beim Namen genannt: {msg[:120]}"
     assert "NICHT geprüft" in msg, \
         "die Meldung sagt nicht, dass der Eintrag ungeprüft dasteht"
@@ -98,6 +103,76 @@ def _kein_modell_und_keine_installation():
             f"der Monitor enthält `{verboten}` — er soll melden, nicht handeln"
 
 
+def _fingerabdruck_statt_nummer():
+    """**Docker und apt vergleichen auf UNGLEICHHEIT, nicht auf Groesse.**
+
+    LobeChat laeuft auf `:latest` — dort aendert sich der Inhalt, ohne dass sich
+    der Name aendert. Und eine Debian-Version wie `7:5.1.6-0+deb12u1` zerfaellt
+    beim Zahlenlesen in Ziffern ohne Bedeutung (die fuehrende `7` ist eine
+    Epoche, keine Hauptversion). Ein Groessenvergleich haette hier still
+    IMMER "aktuell" gemeldet — die gefaehrlichste Art von Fehler.
+    """
+    alt, neu_ = "sha256:" + "a" * 64, "sha256:" + "b" * 64
+    assert vm._cmp(alt, neu_, "docker")[0], "abweichender Fingerabdruck faellt nicht auf"
+    assert not vm._cmp(alt, alt, "docker")[0], "gleicher Fingerabdruck meldet faelschlich"
+    # Der Beweis, dass der Zahlenweg hier versagt haette:
+    assert not vm._cmp(alt, neu_)[0], (
+        "der Zahlenvergleich erkennt den Unterschied doch — dann traegt die "
+        "Begruendung fuer die Sonderbehandlung nicht mehr")
+    # Und die Epochen-Falle bei apt, an einem echten Debian-Paar:
+    assert vm._cmp("7:5.1.6-0+deb12u1", "7:5.1.7-0+deb12u1", "systempaket")[0]
+
+
+def _fingerabdruck_wird_gekuerzt():
+    """71 Zeichen Fingerabdruck in einer Telegram-Meldung liest niemand."""
+    # Auf dem Mac laeuft kein Docker — der echte Handler laege leer und der
+    # Eintrag erschiene als "Quelle nicht erreichbar". Geprueft werden soll
+    # aber die DARSTELLUNG, also wird die Quelle gestellt.
+    vm.HANDLERS["docker"] = (lambda c: "sha256:" + "a" * 64,
+                             lambda c: "sha256:" + "b" * 64)
+    try:
+        txt = _lauf([{"name": "abbild", "kind": "docker", "ref": "x/y:latest"}])
+    finally:
+        vm.HANDLERS["docker"] = (vm.cur_docker, vm.latest_docker)
+    assert "sha256:" in txt and "a" * 64 not in txt, \
+        f"der Fingerabdruck steht ungekuerzt in der Meldung: {txt[:200]}"
+
+
+def _manual_meldet_sich_nach_frist_von_selbst():
+    """**Der eigentliche Kern dieses Umbaus.**
+
+    Manuelle Eintraege hingen bisher als Anhaengsel an einer Meldung, die es nur
+    gab, wenn ANDERSWO ein Update gefunden wurde. Laeuft alles rund, schweigt
+    der Monitor — und schwieg damit auch ueber die Punkte, die NIEMAND SONST
+    prueft. Ausgerechnet `claude-modelle` und `verfahren-medien`, die sich nicht
+    automatisch ermitteln lassen, waren an einen fremden Fund gekoppelt.
+    """
+    from datetime import datetime, timedelta
+    eintrag = {"name": "verfahren-x", "kind": "manual",
+               "intervall_tage": 30, "note": "Urteil, keine Abfrage"}
+
+    # Erster Lauf: NICHTS ist faellig — sonst kaeme die ganze Liste auf einen
+    # Schlag, und eine Meldung mit zwoelf Punkten wird einmal ueberflogen.
+    Path(os.environ["VERSION_MONITOR_SEEN"]).unlink(missing_ok=True)
+    assert not _lauf([eintrag]), "der ERSTE Lauf meldet bereits — Startpunkt fehlt"
+
+    # ... aber er merkt sich den Startpunkt.
+    seen = json.loads(Path(os.environ["VERSION_MONITOR_SEEN"]).read_text())
+    assert "verfahren-x" in seen, "der Startpunkt wurde nicht gemerkt"
+
+    # Frist abgelaufen -> meldet sich von selbst, OHNE dass es sonst etwas gibt.
+    alt = (datetime.now() - timedelta(days=45)).isoformat(timespec="seconds")
+    Path(os.environ["VERSION_MONITOR_SEEN"]).write_text(
+        json.dumps({"verfahren-x": alt}), encoding="utf-8")
+    txt = _lauf([eintrag])
+    assert "verfahren-x" in txt and "45 Tagen" in txt, \
+        f"die abgelaufene Frist meldet sich nicht: {txt[:200]}"
+
+    # Und danach ist Ruhe — eine Erinnerung, die jede Woche wiederkommt, wird
+    # nicht gelesen, sondern abgeschaltet.
+    assert not _lauf([eintrag]), "die Meldung wiederholt sich im naechsten Lauf"
+
+
 check("unbekannte Art wird GEMELDET, nicht übersprungen (Befund A)",
       _unbekannte_art_wird_gemeldet)
 check("weggebrochene Quelle wird gemeldet (Befund D)",
@@ -105,6 +180,11 @@ check("weggebrochene Quelle wird gemeldet (Befund D)",
 check("gesunde Lage schweigt", _gesunde_lage_schweigt)
 check("Update wird gemeldet, Major markiert", _update_wird_gemeldet_major_markiert)
 check("kein Modell-Aufruf, keine Installation", _kein_modell_und_keine_installation)
+check("Fingerabdruck/apt: Vergleich auf Ungleichheit, nicht Groesse",
+      _fingerabdruck_statt_nummer)
+check("Fingerabdruck wird in der Meldung gekuerzt", _fingerabdruck_wird_gekuerzt)
+check("manual meldet sich nach Fristablauf VON SELBST",
+      _manual_meldet_sich_nach_frist_von_selbst)
 
 print()
 if fails:

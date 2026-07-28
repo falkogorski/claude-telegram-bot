@@ -327,3 +327,16 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   stündliche Meldung gewesen; die richtige war eine Zeile in `/status`.
   **Ein Wächter, der regelmäßig „alles gut" sagt, wird überlesen — und dann
   auch die eine Meldung, die zählt.**
+
+- **Eine geratene Schwelle kann den Takt nicht kennen — systemd kennt ihn** ·
+  B2/Befund E · **universell** — Die Zeitgeber-Wache hatte zuerst eine feste
+  Grenze von 26 Stunden und hätte beim **ersten** Lauf einen Fehlalarm erzeugt:
+  Der Versions-Monitor läuft wöchentlich, sein letzter Lauf lag zu Recht 33
+  Stunden zurück. **Nebenwirkung, die den Umbau erzwang:** Der richtige Maßstab
+  stand die ganze Zeit daneben — `NextElapseUSecRealtime`. Ein überfälliger
+  *nächster* Lauf ist taktunabhängig; ein altes *letztes* Datum ist es nie.
+
+- **Kein Prüfweg darf voraussetzen, was ein Wächter als Fehler wertet** · K3 ·
+  **universell** — Der Modell-Abgleich sollte einen API-Schlüssel nutzen; die
+  Anmelde-Prüfung meldet genau dessen Anwesenheit als Alarm. Zwei Teile des
+  Systems hätten gegeneinander gearbeitet, **und beide hätten recht gehabt**.

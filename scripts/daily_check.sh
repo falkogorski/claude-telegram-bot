@@ -140,6 +140,66 @@ if [ -f "$(dirname "$0")/stundenblume.py" ]; then
   [ -n "$gerollt" ] && lines+=("📜 Belegkette beiseitegelegt: $gerollt")
 fi
 
+# --- 9d. ZEITGEBER-WACHE (Befund E aus Vorlage 5.21-E) ---------------------
+#
+# DIE LUECKE: Dieser Check prueft die DIENSTE - und keinen einzigen ZEITGEBER.
+# Faellt einer aus (Fehler, Systemupdate, versehentliches Abschalten), laeuft
+# das dahinter Liegende nie wieder. Und von aussen ist das NICHT von "diese
+# Woche gab es nichts zu melden" zu unterscheiden. Genau die Signatur, die
+# dieses Projekt am haeufigsten trifft: ein Ausbleiben, das wie Ruhe aussieht.
+#
+# Drei Instanzen haben diese Luecke unabhaengig voneinander gefunden. Der
+# Selbstcheck im Bot prueft nur prozessinterne Worker; LastTriggerUSec prueft
+# im ganzen Repo bisher niemand.
+#
+# DIE ZEITGEBER WERDEN GESUCHT, NICHT AUFGEZAEHLT. Eine feste Liste waere die
+# Positivlisten-Falle: Der achte Zeitgeber fiele durch, und niemand merkte es -
+# derselbe Fehler, den der Register-Waechter am 27.07. bei den Modulen fand.
+zeitgeber_still=()
+while read -r t; do
+  [ -n "$t" ] || continue
+  aktiv=$(systemctl is-active "$t" 2>/dev/null)
+  if [ "$aktiv" != "active" ]; then
+    zeitgeber_still+=("$t ist $aktiv")
+    continue
+  fi
+  # GEMESSEN WIRD DER NAECHSTE LAUF, NICHT DAS ALTER DES LETZTEN.
+  #
+  # Mein erster Entwurf hatte eine feste Schwelle von 26 Stunden - und haette
+  # beim ERSTEN Lauf einen Fehlalarm erzeugt: Der Versions-Monitor laeuft
+  # WOECHENTLICH (montags), sein letzter Lauf lag also zu Recht 33 Stunden
+  # zurueck. Eine geratene Schwelle kann den Takt nicht kennen; systemd kennt
+  # ihn. Also fragt man systemd, statt zu rechnen.
+  #
+  # Ein Zeitgeber ist genau dann auffaellig, wenn sein naechster Lauf
+  # UEBERFAELLIG ist - das gilt fuer minuetlich, taeglich und woechentlich
+  # gleichermassen, ohne eine einzige Zahl im Code.
+  naechste=$(systemctl show "$t" -p NextElapseUSecRealtime --value 2>/dev/null)
+  if [ -z "$naechste" ] || [ "$naechste" = "n/a" ] || [ "$naechste" = "0" ]; then
+    zeitgeber_still+=("$t ist aktiv, hat aber KEINEN naechsten Lauf geplant")
+    continue
+  fi
+  naechste_s=$(date -d "$naechste" +%s 2>/dev/null || echo 0)
+  if [ "$naechste_s" -gt 0 ]; then
+    ueberfaellig=$(( ($(date +%s) - naechste_s) / 60 ))
+    # Kleine Toleranz: systemd verschiebt Laeufe um Sekunden bis Minuten
+    # (AccuracySec, RandomizedDelaySec). Erst ab einer Viertelstunde Verzug
+    # ist es keine Ungenauigkeit mehr, sondern ein Stillstand.
+    if [ "$ueberfaellig" -gt 15 ]; then
+      zeitgeber_still+=("$t ist seit $ueberfaellig Minuten ueberfaellig")
+    fi
+  fi
+done < <(systemctl list-timers --all --no-pager 2>/dev/null \
+         | awk '$NF ~ /^(claude-|hora|stundenblume)/ {print $NF}' \
+         | sed 's/\.service$/.timer/' | sort -u)
+
+if [ "${#zeitgeber_still[@]}" -eq 0 ]; then
+  lines+=("✅ Zeitgeber: alle aktiv und in ihrem Takt")
+else
+  lines+=("❌ Zeitgeber: ${zeitgeber_still[*]}")
+  problems+=("Ein Zeitgeber steht still - was dahinter haengt, laeuft nicht mehr, und das sieht von aussen aus wie Ruhe: ${zeitgeber_still[*]}")
+fi
+
 # --- 9b. Haertung: verfaellt sie still? (9.11 Punkt 1) ---------------------
 # Der Sinn dieser Zeilen ist NICHT, Haertung einzurichten - die steht laengst.
 # Der Sinn ist, dass eine ZURUECKGENOMMENE Haertung auffaellt. Bisher waere ein

@@ -5053,6 +5053,33 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert "_postfach_target_ok" in s, "Postfach prüft Ziel nicht"
     check("Boten-Postfach (B)", _c_postfach)
 
+    def _c_waechter_werden_gestartet() -> None:
+        """Wird jeder gebaute Wächter auch **angeworfen**?
+
+        **Ein vorhandenes Bauteil ist kein erreichbares Bauteil.** Ein Wächter,
+        den niemand startet, wacht nicht — und das ist die stillste Art von
+        Ausfall, weil der Code vollständig dasteht und jeder Test ihn grün
+        meldet. Genau dasselbe Muster wie beim Volltext-Knopf, der existierte
+        und nie erschien.
+
+        Geprüft wird deshalb nicht, ob die Funktionen **da** sind, sondern ob
+        `post_init` sie **ruft** — die einzige Stelle, an der aus einer
+        geschriebenen Schleife ein laufender Wächter wird.
+        """
+        import inspect as _insp
+        start = _insp.getsource(post_init)
+        gebaut = {n for n, o in globals().items()
+                  if n.endswith("_worker") and _insp.iscoroutinefunction(o)}
+        # `_session_worker` gehört nicht dazu: Er wird je Nutzer bei Bedarf
+        # angeworfen, nicht einmalig beim Start.
+        gebaut -= {"_session_worker"}
+        vergessen = sorted(n for n in gebaut if f"{n}(app)" not in start
+                           and f"{n}()" not in start)
+        assert not vergessen, (
+            "gebaut, aber beim Start nie angeworfen: " + ", ".join(vergessen)
+            + " — der Code steht vollständig da und wacht trotzdem nicht")
+    check("jeder Wächter wird auch gestartet", _c_waechter_werden_gestartet)
+
     # 19. C2 Divergenz-Wächter: installiert ↔ gepinnt. Deterministisch, ohne Netz.
     # Hätte die Lücke 0.2.118 (Pin) ↔ 0.2.127 (installiert) von allein gemeldet —
     # sonst fällt ein Rebuild stillschweigend auf die alte Version zurück.

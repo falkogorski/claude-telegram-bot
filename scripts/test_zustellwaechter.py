@@ -56,12 +56,32 @@ def _keine_adresse_ist_der_stillste_ausfall():
 
 
 def _frischer_fehler_wird_gemeldet():
+    """Frischer Fehler UND Rueckstau — dann haengt es wirklich."""
     jetzt = time.time()
     gestoert, text = z.bewerten(
         _info(last_error_message="SSL error: certificate has expired",
-              last_error_date=jetzt - 600), jetzt=jetzt)
+              last_error_date=jetzt - 600, pending_update_count=45), jetzt=jetzt)
     assert gestoert, "ein frischer Zustellfehler wurde übergangen"
     assert "10 Minuten" in text, f"der Zeitbezug fehlt: {text}"
+
+
+def _neustart_nachhall_ist_kein_alarm():
+    """**Der Fehlalarm vom 28.07., 10:02 — mein eigener.**
+
+    Ein Neustart schliesst den Port fuer Sekunden; Telegram bekommt „Connection
+    refused" und merkt sich den Fehler. Der Waechter hielt das drei Stunden
+    lang fuer eine Stoerung — obwohl direkt daneben stand, dass alles laeuft:
+    **null wartende Updates** heisst, Telegram hat seitdem zugestellt.
+
+    *Ein vergangener Fehler ist kein Zustand.*
+    """
+    jetzt = time.time()
+    gestoert, text = z.bewerten(
+        _info(last_error_message="Connection refused",
+              last_error_date=jetzt - 660, pending_update_count=0), jetzt=jetzt)
+    assert not gestoert, (
+        "ein Neustart-Nachhall gilt als Stoerung, obwohl nichts wartet — "
+        f"genau der Fehlalarm vom 28.07.: {text}")
 
 
 def _alter_fehler_ist_geschichte():
@@ -133,7 +153,9 @@ def _kein_modellaufruf_im_modul():
 
 check("gesunde Lage schweigt", _gesunde_lage_schweigt)
 check("keine Zustelladresse — der stillste Ausfall", _keine_adresse_ist_der_stillste_ausfall)
-check("frischer Zustellfehler wird gemeldet", _frischer_fehler_wird_gemeldet)
+check("frischer Fehler MIT Rueckstau wird gemeldet", _frischer_fehler_wird_gemeldet)
+check("Neustart-Nachhall ist kein Alarm (Fehlalarm 28.07.)",
+      _neustart_nachhall_ist_kein_alarm)
 check("alter Fehler ist Geschichte, kein Dauer-Alarm", _alter_fehler_ist_geschichte)
 check("Rückstau fällt auf, ein einzelnes Update nicht", _rueckstau_faellt_auf)
 check("der Schlüssel taucht NIRGENDS auf (vier Wege)", _schluessel_taucht_nirgends_auf)

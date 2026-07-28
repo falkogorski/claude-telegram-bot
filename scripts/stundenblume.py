@@ -42,6 +42,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -475,6 +476,16 @@ _NAHT = ZUSTAND / "naht.json"
 ROLL_GRENZE = int(os.environ.get("BLUMEN_ROLL_GRENZE") or 20160)
 
 
+def _schluessel(grund: str) -> str:
+    """Der stabile Kern eines Befunds — ohne Zahlen, die mit der Zeit wandern.
+
+    „Zustellung gestört (seit 9 Min)" und „… (seit 10 Min)" sind **derselbe**
+    Befund. Wer sie unterscheidet, meldet jede Minute neu und entwarnt zugleich
+    die Vorminute.
+    """
+    return re.sub(r"\d+", "#", grund or "").strip()
+
+
 def _daempfen(gruende: list[str], jetzt: float) -> tuple[list[str], list[str]]:
     """Erste Meldung sofort, Wiederholung frühestens nach einer Stunde.
 
@@ -496,11 +507,25 @@ def _daempfen(gruende: list[str], jetzt: float) -> tuple[list[str], list[str]]:
     if not isinstance(bekannt, dict):
         bekannt = {}
 
+    # **Der Vergleich läuft über einen SCHLÜSSEL, nicht über den Wortlaut.**
+    #
+    # Belegt am 28.07., 10:02: Der Befund lautete „Zustellung gestört (seit 10
+    # Min)" — und die Minutenzahl wächst mit jeder Blume. Für einen Dämpfer,
+    # der Texte vergleicht, ist das jede Minute ein **neuer** Befund; zugleich
+    # gilt der Text der Vorminute als **weggefallen**. Ergebnis: zwei
+    # Nachrichten pro Minute, Alarm und Entwarnung im selben Atemzug — genau
+    # das Gegenteil dessen, wofür der Dämpfer gebaut wurde.
+    #
+    # Der Schlüssel lässt deshalb alle Zahlen weg. Ein Befund bleibt derselbe,
+    # auch wenn er seit zehn statt seit neun Minuten besteht.
     neu = [g for g in gruende
-           if jetzt - float(bekannt.get(g, 0) or 0) >= WIEDERVORLAGE_S]
-    entwarnt = [g for g in bekannt if g not in gruende]
+           if jetzt - float(bekannt.get(_schluessel(g), 0) or 0) >= WIEDERVORLAGE_S]
+    aktuell = {_schluessel(g) for g in gruende}
+    entwarnt = [k for k in bekannt if k not in aktuell]
 
-    stand = {g: (jetzt if g in neu else bekannt.get(g, jetzt)) for g in gruende}
+    stand = {_schluessel(g): (jetzt if g in neu
+                              else bekannt.get(_schluessel(g), jetzt))
+             for g in gruende}
     try:
         ZUSTAND.mkdir(parents=True, exist_ok=True)
         tmp = _GEDAECHTNIS.with_suffix(".tmp")

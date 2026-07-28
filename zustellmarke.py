@@ -89,11 +89,23 @@ def _befund(info: dict, jetzt: float | None = None) -> tuple[bool, str]:
         return True, ("Bei Telegram ist keine Zustelladresse eingetragen. "
                       "Im Webhook-Betrieb erreicht uns damit nichts mehr.")
 
-    # (2) Ein frischer Fehler: Telegram hat es versucht und ist gescheitert.
-    if fehler and (now - fehler_zeit) < FEHLER_FRISCH_S:
+    # (2) Ein frischer Fehler — **aber nur, wenn seitdem nichts ankam.**
+    #
+    # **Belegt am 28.07., 10:02 (mein eigener Fehlalarm):** Ein Neustart des
+    # Bots schließt den Port für Sekunden; Telegram bekommt „Connection
+    # refused" und merkt sich den Fehler. Der Wächter hielt das drei Stunden
+    # lang für eine Störung — obwohl **direkt daneben stand, dass alles
+    # läuft**: null wartende Updates heißt, Telegram hat seitdem erfolgreich
+    # zugestellt.
+    #
+    # Die Lehre ist allgemeiner als der Fall: *Ein vergangener Fehler ist kein
+    # Zustand.* Was zählt, ist, ob **jetzt** etwas hängt — und dafür gibt es
+    # einen direkten Messwert, der nicht geraten werden muss.
+    if fehler and (now - fehler_zeit) < FEHLER_FRISCH_S and stau > 0:
         vorher = int((now - fehler_zeit) / 60)
-        return True, (f"Telegram konnte vor {vorher} Minuten nicht zustellen: "
-                      f"{saeubern(fehler, 120)}")
+        return True, (f"Telegram konnte vor {vorher} Minuten nicht zustellen "
+                      f"({saeubern(fehler, 120)}) — und es warten {stau} "
+                      "Nachrichten, kommen also weiterhin nicht durch.")
 
     # (3) Rückstau: Telegram hat etwas für uns und wird es nicht los.
     if stau >= STAU_GRENZE:

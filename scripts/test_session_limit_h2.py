@@ -131,3 +131,44 @@ if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")
     sys.exit(1)
 print("\nAlle H2-Kontingent-Tests bestanden.")
+
+
+def _a1_zugangsfehler_legt_zurueck():
+    """A1 — die eine Luecke, die nicht vierzehn Tage warten durfte.
+
+    Beim Kontingent-Limit war seit dem 25.07. alles geregelt: Die Nachricht
+    geht an den Kopf der Schlange zurueck. Beim ZUGANGSFEHLER galt sie als
+    „aufgegeben" — und war damit fort, nicht verzoegert. Ausgerechnet im Fall,
+    fuer den die ganze Abwesenheits-Vorsorge gebaut wurde: Kippt das Token,
+    waehrend niemand da ist, verlaere Adams Nachricht.
+
+    Geprueft wird am Code, weil der Zweig nur im echten Fehlerpfad laeuft.
+    """
+    quelle = Path(bot.__file__).read_text(encoding="utf-8")
+    zweig = quelle.split("if is_auth_error(e):")[1].split("if is_session_limit(e):")[0]
+
+    assert "mb.queue.appendleft(job)" in zweig, \
+        "der Auftrag wird beim Zugangsfehler NICHT zurueckgelegt — er ist fort"
+    assert "STATUS_OPEN" in zweig, \
+        "der Auftrag bleibt nicht offen; er stuende als gescheitert im Register"
+    assert 'return "aufgegeben"' not in zweig, \
+        "der Zweig gilt weiterhin als aufgegeben"
+    assert 'return "zurueckgelegt"' in zweig, "kein eigener Ausgang"
+
+    # KEINE Pause: Ein Zugangsfehler heilt nicht nach einer Frist.
+    assert "pausiert_bis" not in zweig, (
+        "beim Zugangsfehler wird eine Pause gesetzt — das verspricht eine "
+        "Rueckkehr, die niemand geben kann; nur ein neues Token hilft")
+
+    # Und der Ausgang muss in der Persistenz-Pflege ankommen, sonst stuende der
+    # Auftrag als gescheitert da, obwohl er gleich wieder gezogen wird.
+    assert '("offen", "zurueckgelegt")' in quelle, \
+        "der neue Ausgang wird in der Persistenz nicht als OFFEN gefuehrt"
+
+    # Adam erfaehrt, dass nichts verloren ist.
+    assert "nicht verloren" in zweig, \
+        "die Meldung sagt Adam nicht, dass seine Nachricht erhalten bleibt"
+
+
+check("A1: Zugangsfehler legt den Auftrag zurueck, statt ihn aufzugeben",
+      _a1_zugangsfehler_legt_zurueck)

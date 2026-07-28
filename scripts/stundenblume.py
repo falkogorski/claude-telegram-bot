@@ -544,14 +544,28 @@ def _daempfen(gruende: list[tuple[str, str]],
     if not isinstance(bekannt, dict):
         bekannt = {}
 
-    neu = [text for kennung, text in gruende
-           if jetzt - float(bekannt.get(kennung, 0) or 0) >= WIEDERVORLAGE_S]
-    aktuell = {kennung for kennung, _ in gruende}
-    # Entwarnt wird mit der KENNUNG — der Wortlaut von damals ist nicht mehr da,
-    # und die Kennung sagt ohnehin genauer, was weggefallen ist.
-    entwarnt = [k for k in bekannt if k not in aktuell]
+    def _zeit(e) -> float:
+        return float((e or {}).get("zeit", e or 0) or 0) if isinstance(e, dict) \
+            else float(e or 0)
 
-    stand = {kennung: (jetzt if text in neu else bekannt.get(kennung, jetzt))
+    def _text(k: str) -> str:
+        e = bekannt.get(k)
+        return (e or {}).get("text", k) if isinstance(e, dict) else k
+
+    neu = [text for kennung, text in gruende
+           if jetzt - _zeit(bekannt.get(kennung)) >= WIEDERVORLAGE_S]
+    aktuell = {kennung for kennung, _ in gruende}
+    # **Entwarnt wird mit dem TEXT, nicht mit der Kennung.** `[LIVE-FUND 28.07.]`
+    # Der erste echte Lauf nach dem Umbau meldete Adam wörtlich „erledigt —
+    # kette-luecke". Technisch richtig, für einen Menschen unbrauchbar: Die
+    # Kennung ist das Werkzeug des Dämpfers, nicht seine Sprache. Deshalb legt
+    # das Gedächtnis neben dem Zeitpunkt auch den zuletzt gemeldeten Wortlaut
+    # ab — sonst wäre er beim Entwarnen nicht mehr da.
+    entwarnt = [_text(k) for k in bekannt if k not in aktuell]
+
+    stand = {kennung: {"zeit": (jetzt if text in neu
+                               else _zeit(bekannt.get(kennung)) or jetzt),
+                       "text": text}
              for kennung, text in gruende}
     try:
         ZUSTAND.mkdir(parents=True, exist_ok=True)

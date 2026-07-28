@@ -497,6 +497,33 @@ check("fortlaufende Zahl meldet nur EINMAL (Sturm 28.07.)",
 check("zwei Kennungen kommen beide durch (rot verschluckt gelb nicht)",
       _zwei_kennungen_kommen_beide_durch)
 
+
+def _entwarnung_nennt_den_text_nicht_die_kennung():
+    """**Live-Fund vom 28.07., 13:02 — im ersten echten Lauf nach dem Umbau.**
+
+    Adam bekam wörtlich „erledigt — kette-luecke". Technisch richtig, für einen
+    Menschen unbrauchbar: Die Kennung ist das Werkzeug des Dämpfers, nicht
+    seine Sprache. Deshalb legt das Gedächtnis den zuletzt gemeldeten Wortlaut
+    mit ab — sonst ist er beim Entwarnen nicht mehr da.
+    """
+    _leeren()
+    sb._befunde = lambda: [("kette-luecke", "Die Kette hatte eine Lücke von 179 Minuten")]
+    sb.bluehen(_t(0))
+    sb._befunde = lambda: []
+    sb.bluehen(_t(60))
+    m = _meldungen()
+    entwarnung = [x for x in m if "erledigt" in x]
+    assert entwarnung, "es wurde nicht entwarnt"
+    assert "Lücke von 179 Minuten" in entwarnung[0], (
+        "die Entwarnung nennt die Kennung statt des Wortlauts: "
+        f"{entwarnung[0][:120]}")
+    assert "kette-luecke" not in entwarnung[0], \
+        "die interne Kennung steht in Adams Nachricht"
+
+
+check("Entwarnung nennt den Text, nicht die Kennung (Live-Fund)",
+      _entwarnung_nennt_den_text_nicht_die_kennung)
+
 if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")
     sys.exit(1)

@@ -1129,7 +1129,12 @@ async def _session_worker(user_id: int) -> None:
         if job.pending_key:
             if outcome in ("beantwortet", "aufgegeben"):
                 pending.resolve(job.pending_key)
-            elif outcome == "offen":
+            elif outcome in ("offen", "zurueckgelegt"):
+                # A1: Ein Zugangsfehler legt den Auftrag zurück an den Kopf der
+                # Schlange — er bleibt damit OFFEN, nicht „fehlgeschlagen". Ohne
+                # diese Zeile stünde er im Register als gescheitert, obwohl er
+                # gleich wieder gezogen wird: zwei Wahrheiten über denselben
+                # Auftrag.
                 pending.set_status(job.pending_key, pending.STATUS_OPEN)
             else:
                 pending.set_status(job.pending_key, pending.STATUS_FAILED)
@@ -1241,7 +1246,11 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
 
     Rückgabe = Ausgang für die 5.2-Persistenz-Pflege im Worker:
       "beantwortet" — Turn lief durch (Record wird gelöscht)
-      "aufgegeben"  — Auth-/finaler Kontextfehler, wird nicht erneut versucht (Record gelöscht)
+      "aufgegeben"  — finaler Kontextfehler, wird nicht erneut versucht (Record gelöscht)
+      "zurueckgelegt" — Zugangsfehler (A1): Auftrag liegt wieder am KOPF der
+                      Schlange, Record bleibt OFFEN. Anders als beim Kontingent
+                      wird KEINE Pause gesetzt — ein Zugangsfehler heilt nicht
+                      nach einer Frist, sondern erst durch ein neues Token.
       "offen"       — wg. Kontext-Überlauf re-enqueued (Record bleibt, kommt gleich neu dran)
       "fehler"      — sonstiger Session-Fehler (Record bleibt liegen → Hybrid-Reconcile meldet ihn)"""
     if job.thorough:
@@ -1312,12 +1321,37 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 # Also eine Marke im eigenen Format, statt einen Wächter auf den
                 # Wortlaut des Anbieters horchen zu lassen. Kein Geheimniswert.
                 authmarke.setzen(str(e))
+                # A1 — Zugangs-Rücklage `[NEU 28.07.]`
+                #
+                # **Bis hierher galt der Auftrag als „aufgegeben".** Das war die
+                # eine Stelle, an der noch etwas verlorengehen konnte: Kippt das
+                # Token, während niemand da ist, wäre Adams Nachricht weg —
+                # nicht verzögert, sondern fort. Ausgerechnet im Fall, für den
+                # die ganze Abwesenheits-Vorsorge gebaut wurde.
+                #
+                # Der Kontingent-Zweig direkt darunter macht es seit dem 25.07.
+                # richtig; hier fehlte dieselbe Behandlung. **Ein Zugangsfehler
+                # ist kein Scheitern der Nachricht, sondern ein Zustand des
+                # Systems** — die Nachricht ist nur noch nicht dran.
+                mb = _get_mailbox(user_id)
+                mb.queue.appendleft(job)
+                if job.pending_key:
+                    pending.set_status(job.pending_key, pending.STATUS_OPEN)
+                # Bewusst KEINE Pause wie beim Kontingent: Ein Zugangsfehler
+                # heilt nicht von selbst nach einer Frist, sondern erst, wenn
+                # jemand ein neues Token erzeugt. Ein Zeitfenster zu setzen
+                # hieße, eine Rückkehr zu versprechen, die niemand geben kann.
                 try:
-                    await send_chunked(sess.bot, sess.chat_id, AUTH_HELP, parse_mode=ParseMode.MARKDOWN)
+                    await send_chunked(
+                        sess.bot, sess.chat_id,
+                        AUTH_HELP + "\n\n📥 **Deine Nachricht ist nicht verloren** "
+                        "— sie steht wieder an erster Stelle in der Warteschlange "
+                        "und wird bearbeitet, sobald die Anmeldung wieder trägt.",
+                        parse_mode=ParseMode.MARKDOWN)
                 except Exception:
                     log.exception("failed to send auth-error message")
                 await close_session(user_id)
-                return "aufgegeben"
+                return "zurueckgelegt"
             # H2 Ebene 1: Kontingent-Limit — die Nachricht ist NICHT gescheitert,
             # sie ist nur noch nicht dran. Sie geht unverändert zurück an den
             # KOPF der Warteschlange (chronologische Reihenfolge bleibt), der

@@ -103,6 +103,78 @@ def _kontingent_erschoepft(text: str) -> bool:
     return any(n in t for n in _LIMIT)
 
 
+# ---------------------------------------------------------- Lauf-Schloss ----
+# **Warum es das braucht (Conni, 28.07., zum Zweistunden-Takt):** Ein
+# verketteter Lauf kann länger dauern als der Abstand zum nächsten. Ohne
+# Schloss liefe der zweite **parallel in dieselbe Liste** — doppelte
+# Sitzungen, zwei Läufe, die denselben Auftrag abhaken wollen, und Kontingent
+# doppelt belastet. Bei zweimal täglich war das theoretisch; bei zwölfmal ist
+# es eine Frage der Zeit.
+#
+# **Bauart aus dem Updater gespiegelt (A4), nicht neu erfunden** — samt der
+# Alterung: Ein abgestürzter Lauf darf das Schloss nicht ewig halten, sonst
+# schweigt Hora bis zur Rückkehr, und niemand merkt es.
+SCHLOSS = ZUSTAND / "lauf.lock"
+SCHLOSS_ALT_S = int(os.environ.get("HORA_SCHLOSS_ALT") or 4 * 3600)
+
+
+def _schloss_nehmen() -> bool:
+    ZUSTAND.mkdir(parents=True, exist_ok=True)
+    try:
+        if SCHLOSS.exists():
+            alter = time.time() - SCHLOSS.stat().st_mtime
+            if alter < SCHLOSS_ALT_S:
+                return False
+            SCHLOSS.unlink(missing_ok=True)      # verwaistes Schloss räumen
+        fd = os.open(str(SCHLOSS), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(fd, f"{os.getpid()} {time.strftime('%Y-%m-%d %H:%M:%S')}\n".encode())
+        os.close(fd)
+        return True
+    except FileExistsError:
+        return False
+    except Exception:
+        return True          # ein Schloss darf den Betrieb nie ganz blockieren
+
+
+def _schloss_geben() -> None:
+    SCHLOSS.unlink(missing_ok=True)
+
+
+# ------------------------------------------------- Dämpfer für den Leerlauf --
+# **Auch das eine Folge des Takts:** `lauf()` meldet bei leerer Liste jedes Mal,
+# dass nichts zu tun war. Zweimal täglich ist das eine Auskunft — zwölfmal
+# täglich über vierzehn Tage sind **168 gleichlautende Nachrichten**, und wer
+# gelernt hat, diesen Absender zu überlesen, überliest auch die eine, die zählt.
+#
+# Dieselbe Lösung wie bei den Stundenblumen: **erste Meldung sofort**, danach
+# frühestens einmal am Tag, solange sich nichts ändert.
+LEERLAUF_MARKE = ZUSTAND / "leerlauf.json"
+LEERLAUF_STILLE_S = int(os.environ.get("HORA_LEERLAUF_STILLE") or 24 * 3600)
+
+
+def _leerlauf_melden(jetzt: float | None = None) -> bool:
+    """Darf der Leerlauf gemeldet werden? Beim ersten Mal ja, dann täglich."""
+    now = jetzt or time.time()
+    try:
+        zuletzt = float(json.loads(
+            LEERLAUF_MARKE.read_text(encoding="utf-8")).get("zuletzt", 0))
+    except Exception:
+        zuletzt = 0.0
+    if now - zuletzt < LEERLAUF_STILLE_S:
+        return False
+    try:
+        ZUSTAND.mkdir(parents=True, exist_ok=True)
+        LEERLAUF_MARKE.write_text(json.dumps({"zuletzt": now}), encoding="utf-8")
+    except Exception:
+        pass
+    return True
+
+
+def _leerlauf_entwarnen() -> None:
+    """Sobald wieder Arbeit da war, gilt die nächste Leere als neue Auskunft."""
+    LEERLAUF_MARKE.unlink(missing_ok=True)
+
+
 def _fehlgrund(erfolg: bool, nachher_ok: bool, ausgabe: str,
                lage: str) -> str:
     """Sagt, **woran** es lag — und unterscheidet die zwei Fälle.
@@ -281,7 +353,22 @@ def _protokollieren(eintrag: dict) -> None:
 
 # -------------------------------------------------------------------- Lauf ---
 def lauf(trocken: bool = False) -> int:
-    """Ein Hora-Lauf. Rückgabe 0 = gut, 1 = gemeldet, 2 = angehalten."""
+    """Ein Hora-Lauf — mit Schloss, damit nie zwei zugleich laufen.
+
+    Das ``finally`` ist der wichtige Teil: Auch ein Absturz mitten im Lauf gibt
+    das Schloss wieder her. Sonst schwiege Hora bis zur Rückkehr, und niemand
+    wüsste warum.
+    """
+    if not _schloss_nehmen():
+        return 0                   # ein anderer Lauf arbeitet noch — still gehen
+    try:
+        return _lauf(trocken)
+    finally:
+        _schloss_geben()
+
+
+def _lauf(trocken: bool = False) -> int:
+    """Rückgabe 0 = gut, 1 = gemeldet, 2 = angehalten."""
     beginn = time.strftime("%Y-%m-%d %H:%M")
 
     # Bedingung 4 zuerst: Wer schon dreimal gescheitert ist, fängt nicht wieder an.
@@ -295,11 +382,16 @@ def lauf(trocken: bool = False) -> int:
 
     offen = auftraege()
     if not offen:
-        # Bedingung 2 + 5: Auch Leerlauf wird berichtet.
-        melden(f"🌾 Hora ({beginn}): Die Auftragsliste ist leer — ich habe "
-               "nichts angefasst. Wenn etwas laufen soll, trag es in die Liste "
-               "ein; ohne Eintrag entscheide ich nichts von selbst.")
+        # Bedingung 2 + 5: Auch Leerlauf wird berichtet — aber gedämpft, sonst
+        # sind es bei Zweistunden-Takt zwölf gleichlautende Nachrichten am Tag.
+        if _leerlauf_melden():
+            melden(f"🌾 Hora ({beginn}): Die Auftragsliste ist leer — ich habe "
+                   "nichts angefasst. Wenn etwas laufen soll, trag es in die "
+                   "Liste ein; ohne Eintrag entscheide ich nichts von selbst. "
+                   "(Solange sie leer bleibt, melde ich das höchstens einmal "
+                   "am Tag.)")
         return 0
+    _leerlauf_entwarnen()          # es gibt wieder Arbeit
 
     # Bedingung 3, erste Hälfte: Auf rotem Fundament wird nicht gearbeitet
     # (dieselbe Regel wie A5 im Updater).

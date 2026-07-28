@@ -11,6 +11,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 _TMP = Path(tempfile.mkdtemp(prefix="hora-"))
@@ -331,3 +332,86 @@ if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")
     sys.exit(1)
 print("\nAlle Hora-Tests bestanden.")
+
+
+def _nur_ein_lauf_zugleich():
+    """Conni ②: Bei Zweistunden-Takt kann ein verketteter Lauf länger dauern
+    als der Abstand zum nächsten. Ohne Schloss liefen zwei parallel in dieselbe
+    Liste — doppelte Sitzungen, zwei Läufe, die denselben Auftrag abhaken
+    wollen, Kontingent doppelt belastet.
+    """
+    _leeren()
+    hora.SCHLOSS.unlink(missing_ok=True)
+    _liste({"titel": "x", "befehl": "echo x"})
+
+    # Ein Lauf hält das Schloss: der zweite geht still weg, ohne zu arbeiten.
+    assert hora._schloss_nehmen(), "das Schloss ließ sich nicht nehmen"
+    ausgefuehrt = _patch()
+    assert hora.lauf() == 0, "der zweite Lauf meldete einen Fehler statt zu gehen"
+    assert not ausgefuehrt, "zwei Läufe arbeiteten gleichzeitig!"
+    hora._schloss_geben()
+
+    # Danach geht es wieder.
+    ausgefuehrt = _patch()
+    hora.lauf()
+    assert ausgefuehrt, "nach Freigabe des Schlosses lief nichts mehr"
+    assert not hora.SCHLOSS.exists(), "das Schloss blieb nach dem Lauf liegen"
+
+    # Ein ABGESTÜRZTER Lauf darf das Schloss nicht ewig halten — sonst
+    # schwiege Hora bis zur Rückkehr, und niemand wüsste warum.
+    hora._schloss_nehmen()
+    alt = time.time() - hora.SCHLOSS_ALT_S - 60
+    os.utime(hora.SCHLOSS, (alt, alt))
+    assert hora._schloss_nehmen(), "ein verwaistes Schloss wird nicht geräumt"
+    hora._schloss_geben()
+
+    # Und es geht auch bei einem Absturz MITTEN im Lauf wieder auf.
+    def _kracht(*a, **kw):
+        raise RuntimeError("Absturz mitten im Lauf")
+    hora.regression = _kracht
+    try:
+        hora.lauf()
+    except RuntimeError:
+        pass
+    assert not hora.SCHLOSS.exists(), \
+        "nach einem Absturz blieb das Schloss liegen — Hora schwiege für immer"
+
+
+def _leerlauf_wird_gedaempft():
+    """Conni ③: Zwölf Läufe am Tag mal vierzehn Tage wären 168 gleichlautende
+    „Liste leer"-Nachrichten. Wer diesen Absender überliest, überliest auch die
+    eine, die zählt.
+    """
+    _leeren()
+    hora.SCHLOSS.unlink(missing_ok=True)
+    hora.LEERLAUF_MARKE.unlink(missing_ok=True)
+    _liste()
+    _patch()
+
+    hora.lauf()
+    assert len(_meldungen()) == 1, "die erste Leermeldung kam nicht"
+    for _ in range(5):
+        hora.lauf()
+    assert len(_meldungen()) == 1, \
+        f"der Leerlauf wurde {len(_meldungen())}× gemeldet statt einmal"
+
+    # Nach einem Tag darf er wieder — die Auskunft veraltet ja.
+    hora.LEERLAUF_MARKE.write_text(
+        json.dumps({"zuletzt": time.time() - hora.LEERLAUF_STILLE_S - 60}),
+        encoding="utf-8")
+    hora.lauf()
+    assert len(_meldungen()) == 2, "nach einem Tag kam keine neue Auskunft"
+
+    # Und sobald wieder Arbeit da war, gilt die nächste Leere als neue Auskunft.
+    _liste({"titel": "wieder was", "befehl": "echo x"})
+    _patch()
+    hora.lauf()
+    assert not hora.LEERLAUF_MARKE.exists(), \
+        "der Dämpfer entwarnt nicht, wenn wieder Arbeit da war"
+
+
+check("nur ein Hora-Lauf zugleich (Schloss, auch nach Absturz)",
+      _nur_ein_lauf_zugleich)
+check("Leerlauf wird gedämpft (nicht 168× dasselbe)", _leerlauf_wird_gedaempft)
+if fails:
+    raise SystemExit(1)

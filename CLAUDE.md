@@ -128,6 +128,55 @@ woanders, und Festhalten macht es schlimmer.
 Neues anhängen. Ein Wächter, der einen veralteten Plan liest, ist schlimmer als
 keiner.
 
+## 🛡️ KONTROLLE WÄHREND DER ABWESENHEIT (Adam/Conni 2026-07-28, verbindlich)
+
+Gilt vom 28.07. bis zur Rückkehr (~13.–15.08.), solange die Kontrollsitzung
+nicht erreichbar ist.
+
+**① Widerlegungs-Gegenprüfung je gebautem Punkt.** Jeder abgeschlossene Punkt
+bekommt **vor dem Abhaken** eine Gegenprüfung durch eine **frische, getrennte
+Sitzung** mit dem ausdrücklichen Auftrag: **„Finde, was daran nicht trägt"** —
+nicht „prüfe, ob es stimmt". *Wer bestätigen soll, bestätigt.* Der Befund wird
+committet. **Eine Gegenprüfung, die nie etwas findet, ist selbst der Befund.**
+
+**② Nachlaufende Gesamtabnahme.** Nichts, was in der Abwesenheit entsteht,
+erhält den Status **VERIFIZIERT** — höchstens **„GEBAUT (Abwesenheit, Abnahme
+ausstehend)"**. Bis dahin gilt: **jeder Punkt einzeln committet, Rückweg
+dokumentiert** — im schlimmsten Fall ist die Reparatur ein `git revert`, kein
+Wiederaufbau.
+
+**③ Der Deckel bleibt hart.** Nichts Neues, nichts mit root, nichts nach außen,
+keine Kostenquelle, keine Architekturänderung. **Im Zweifel ist Liegenlassen
+richtig** — eine geparkte Idee kostet nichts, eine ungeprüft gebaute kostet
+Vertrauen.
+
+## 🎚️ MODELL- UND MODUS-AUTONOMIE (Adam 2026-07-28, dauerhaft und projektweit)
+
+**Grundeinstellung: Opus 5, mittlere Denktiefe.** Innerhalb dieses Rahmens
+gilt: **Das Werkzeug passt sich der Aufgabe an, nicht umgekehrt — selbsttätig.**
+
+- **Runterschalten ist ausdrücklich erwünscht.** Mechanische Teilschritte
+  (Umbenennen, Doku-Commits, Formatarbeit, Massenänderungen) dürfen an
+  Unter-Sitzungen auf Sonnet gehen. **Sparsamkeit ist hier Qualität, kein Geiz.**
+- **Denktiefe je Schritt selbst dosieren.** Heikle Einzelstellen — Eingriffe in
+  Fehlerpfade, Änderungen, deren Bruch **wie Ruhe aussieht** — gründlich
+  durchdenken; Routineschritte im Normalgang. **Kein Dauermaximum.**
+- **Hochschalten auf Fable ist die Ausnahme**, nicht der Normalfall: nur bei
+  erkennbarer Urteils- oder Entwurfstiefe (Architektur, Gesamtabnahmen, harte
+  Widerlegungsprüfungen). **Vorher den Kontingentstand deterministisch prüfen** —
+  kein Hochschalten nahe am Limit oder während einer Autonomiephase, in der das
+  Kontingent die Maschine trägt. Und **als Unter-Sitzung, nicht als Dauerzustand.**
+- **Sichtbarkeit:** Wurde etwas auf einem anderen Modell gebaut oder geprüft als
+  dem eingestellten, steht das im Bericht — eine Zeile genügt. *Unsichtbar ist
+  die Mechanik, sichtbar die Auswirkung.*
+- **Adams Vorrang bleibt:** Sagt er „nimm X", gilt X. Die Autonomie füllt nur
+  den Raum, in dem nicht entschieden wurde.
+
+**Einordnung:** Das ist der Dirigenten-Gedanke im Kleinen — auf die eigene
+Werkzeugwahl angewandt, **bevor** er als Architektur gebaut wird. Gilt sinngemäß
+auch für **Hora** (dessen frische Sitzungen nehmen das jeweils kleinste
+taugliche Modell) und für künftige Instanzen.
+
 ## 🌙 ARBEITSPRINZIP „NÄCHTE ARBEITEN, TAGE ENTSCHEIDEN" (Adam/Kontrolle 2026-07-23)
 
 Automatisierbares läuft **bevorzugt nachts autonom**; Adams Tageszeit ist für

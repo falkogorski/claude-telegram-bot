@@ -307,3 +307,23 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   Updates). Was zählt, ist nicht **ob** etwas schiefging, sondern **ob jetzt
   etwas hängt** — und dafür gab es einen direkten Messwert, den ich nicht
   ausgewertet hatte.
+
+- **Eine Kette, die entscheidet, ist keine Entlastung, sondern ein zweiter
+  Herr** · Entwicklungskette · **universell** — der Satz, an dem sich jede
+  Automatisierungsstufe messen lassen muss.
+
+- **Der Maßstab der Automatisierung: Wie oft muss Adam etwas tun, das keine
+  Entscheidung ist?** · Entwicklungskette · **universell** — die messbare Form
+  des Momo-Nordsterns. Alles andere (Zeitersparnis, Durchsatz) ist Nebenwirkung.
+
+- **Der Kurier ersetzt den Transport, nie die Prüfung** · A3 · **universell** —
+  Ein Weg, auf dem Arbeit ohne Gegenlesung ankommt, ist keine Leitung, sondern
+  eine zweite Bauleitung. **Nebenwirkung beim Bauen:** Der Weg existierte
+  bereits (`~/workspace` im Log-Abgleich) und war nur nicht benannt — gebaut
+  wurde am Ende nichts, vereinbart alles. Das ist der billigste Fall.
+
+- **Überblick auf Abruf schlägt Dauerfunk** · Statuszeile · **universell** —
+  Adam wollte sehen, dass es läuft. Die naheliegende Antwort wäre eine
+  stündliche Meldung gewesen; die richtige war eine Zeile in `/status`.
+  **Ein Wächter, der regelmäßig „alles gut" sagt, wird überlesen — und dann
+  auch die eine Meldung, die zählt.**

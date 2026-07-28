@@ -109,13 +109,23 @@ def _fingerabdruck(eintrag: dict) -> str:
 
 
 # ------------------------------------------------------------- die Prüfungen --
-def _befunde() -> list[str]:
+def _befunde() -> list[tuple[str, str]]:
     """Billige, deterministische Prüfungen — kein Modell, kein Netz.
+
+    **Jeder Befund trägt eine KENNUNG neben seinem Text** — die Kennung geht
+    ins Gedächtnis des Dämpfers, der Text an Adam.
+
+    **Warum eine Kennung und nicht ein bereinigter Text** (Conni, 28.07.): Eine
+    Bereinigung wäre eine Heuristik, die im Hintergrund rät; die Kennung ist
+    eine Zusage, die die Signatur **erzwingt**. Wer künftig einen Prüfer ohne
+    Kennung anhängt, kann es gar nicht erst — statt unbemerkt auf den Lärm-Weg
+    zurückzufallen. *Wo Struktur und Prüfer beide möglich sind, gewinnt die
+    Struktur.*
 
     Bewusst klein gehalten: Eine Blume, die eine Minute rechnet, ist keine
     Blume mehr. Was teuer zu prüfen ist, gehört in den 4-Uhr-Check.
     """
-    raus: list[str] = []
+    raus: list[tuple[str, str]] = []
     # 1. Lebt der Bot? (die verlässliche Auskunft, nicht die selbstzählende)
     if shutil.which("systemctl"):
         try:
@@ -124,15 +134,16 @@ def _befunde() -> list[str]:
                                capture_output=True, text=True, timeout=10)
             pid = (p.stdout or "").strip()
             if not pid or pid == "0":
-                raus.append("Bot-Prozess nicht vorhanden")
+                raus.append(("bot-prozess", "Bot-Prozess nicht vorhanden"))
         except Exception as e:
-            raus.append(f"Dienst nicht abfragbar: {e}")
+            raus.append(("dienst-unabfragbar", f"Dienst nicht abfragbar: {e}"))
     # 2. Läuft die Platte voll?
     try:
         s = os.statvfs("/")
         frei = s.f_bavail * s.f_frsize / (1024 ** 3)
         if frei < 5:
-            raus.append(f"nur noch {frei:.1f} GiB Plattenplatz frei")
+            raus.append(("platte-knapp",
+                         f"nur noch {frei:.1f} GiB Plattenplatz frei"))
     except Exception:
         pass
     # 2b. Wird der Arbeitsspeicher knapp? `[NEU 26.07.]`
@@ -141,7 +152,8 @@ def _befunde() -> list[str]:
     try:
         wartend = len(list(POSTFACH.glob("*.json")))
         if wartend > 20:
-            raus.append(f"{wartend} unzugestellte Postfach-Aufträge")
+            raus.append(("postfach-stau",
+                         f"{wartend} unzugestellte Postfach-Aufträge"))
     except Exception:
         pass
     # 4. Ist die Anmeldung gekippt? (C2)
@@ -216,9 +228,10 @@ def zustellung_pruefen() -> list[str]:
     seit = int((time.time() - float(m.get("zeit", 0))) / 60)
     zusatz = ("" if m.get("adresse_unveraendert", True)
               else " Die eingetragene Adresse weicht zudem von der erwarteten ab.")
-    return [f"📵 Zustellung gestört (seit {seit} Min): "
-            f"{m.get('grund', 'ohne Angabe')}{zusatz} "
-            "Der Bot läuft — aber es erreicht ihn womöglich nichts mehr."]
+    return [("zustellung-gestoert",
+             f"📵 Zustellung gestört (seit {seit} Min): "
+             f"{m.get('grund', 'ohne Angabe')}{zusatz} "
+             "Der Bot läuft — aber es erreicht ihn womöglich nichts mehr.")]
 
 
 # ------------------------------------------------------------ Speicher-Wache --
@@ -275,24 +288,27 @@ def speicher_pruefen() -> list[str]:
     raus: list[str] = []
     gesamt = m.get("MemTotal", 0)
     if verfuegbar < SPEICHER_ENG_MIB:
-        raus.append(
+        raus.append((
+            "speicher-eng",
             f"🔴 Nur noch {verfuegbar} MiB Arbeitsspeicher verfügbar von "
             f"{gesamt} MiB — das ist der Bereich, in dem der Kernel anfängt, "
             "Prozesse zu beenden. Wenn es den Bot trifft, merkt es niemand "
-            "außer diesem Hinweis.")
+            "außer diesem Hinweis."))
     elif verfuegbar < SPEICHER_HINWEIS_MIB:
-        raus.append(
+        raus.append((
+            "speicher-hinweis",
             f"🟡 Der Arbeitsspeicher wird knapp: {verfuegbar} MiB verfügbar von "
             f"{gesamt} MiB. Noch kein Grund zur Eile, aber der Zeitpunkt, "
-            "hinzusehen — bevor es einer werden muss.")
+            "hinzusehen — bevor es einer werden muss."))
     swap_gesamt = m.get("SwapTotal", 0)
     swap_frei = m.get("SwapFree", 0)
     if swap_gesamt and (swap_gesamt - swap_frei) > 256:
-        raus.append(
+        raus.append((
+            "swap-benutzt",
             f"↔️ Es liegen {swap_gesamt - swap_frei} MiB im Auslagerungsbereich. "
             "Der soll das Netz für den Notfall sein, keine Ausweichfläche im "
             "Alltag — wird er regelmäßig angefasst, passt die Auslegung nicht "
-            "mehr.")
+            "mehr."))
     return raus
 
 
@@ -340,15 +356,15 @@ def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
     also heute kein blinder Fleck; aber sobald sich der Dienstnutzer oder die
     Härtung ändert, wird er einer, und dann soll es auffallen.
     """
-    raus: list[str] = []
+    raus: list[tuple[str, str]] = []
 
     # (0) Die Marke — der vorrangige Weg.
     marke = authmarke.gesetzt()
     if marke:
-        raus.append("🔑 Die Anmeldung hat versagt (" + marke.get("menschlich", "?")
+        raus.append(("anmeldung-gekippt", "🔑 Die Anmeldung hat versagt (" + marke.get("menschlich", "?")
                     + "): " + str(marke.get("ursache", ""))[:120]
                     + " — das Abo-Token muss neu erzeugt werden. Bis dahin "
-                      "arbeitet nichts, was ein Modell braucht.")
+                      "arbeitet nichts, was ein Modell braucht."))
 
     pid = ""
     if shutil.which("systemctl"):
@@ -358,8 +374,9 @@ def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
                                capture_output=True, text=True, timeout=10)
             pid = (p.stdout or "").strip()
         except Exception:
-            raus.append("👁️ Ich konnte den Dienst nicht abfragen — ab hier "
-                        "sehe ich die Anmeldung nicht mehr.")
+            raus.append(("blind-dienst",
+                         "👁️ Ich konnte den Dienst nicht abfragen — ab hier "
+                         "sehe ich die Anmeldung nicht mehr."))
             return raus
     if not pid or pid == "0":
         return raus                       # kein Prozess — meldet Prüfung 1 schon
@@ -370,14 +387,16 @@ def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
         namen = {z.split("=", 1)[0] for z in roh.split("\0") if "=" in z}
         if "CLAUDE_CODE_OAUTH_TOKEN" not in namen:
             if "ANTHROPIC_API_KEY" in namen:
-                raus.append("⚠️ Der Bot läuft über einen API-Schlüssel statt "
-                            "über das Abo-Token — das bucht Geld ab!")
+                raus.append(("api-schluessel",
+                             "⚠️ Der Bot läuft über einen API-Schlüssel statt "
+                             "über das Abo-Token — das bucht Geld ab!"))
             else:
-                raus.append("Keine Abo-Anmeldung in der Dienst-Umgebung")
+                raus.append(("keine-abo-anmeldung", "Keine Abo-Anmeldung in der Dienst-Umgebung"))
     except Exception as e:
-        raus.append("👁️ Ich darf die Umgebung des Bot-Prozesses nicht lesen "
-                    f"({type(e).__name__}) — diese Prüfung ist blind. Das ist "
-                    "kein Entwarnungs-, sondern ein Rechte-Befund.")
+        raus.append(("blind-umgebung",
+                     "👁️ Ich darf die Umgebung des Bot-Prozesses nicht lesen "
+                     f"({type(e).__name__}) — diese Prüfung ist blind. Das ist "
+                     "kein Entwarnungs-, sondern ein Rechte-Befund."))
 
     # (2) Zweites Netz: Wortlaute im Journal. Nur die letzten Minuten, damit ein
     # alter Fehler nicht ewig nachhallt — und nur, wenn keine Marke liegt.
@@ -388,17 +407,22 @@ def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
                  f"{max(60, seit_s)} seconds ago", "--no-pager", "-q"],
                 capture_output=True, text=True, timeout=20)
             if p.returncode != 0:
-                raus.append("👁️ Ich darf das Journal des Dienstes nicht lesen — "
-                            "das zweite Netz für Anmelde-Brüche ist blind.")
+                raus.append(("blind-journal",
+                             "👁️ Ich darf das Journal des Dienstes nicht lesen — "
+                             "das zweite Netz für Anmelde-Brüche ist blind."))
             else:
                 text = (p.stdout or "").lower()
                 treffer = [m for m in authmarke.NADELN if m in text]
                 if treffer:
-                    raus.append("🔑 Die Anmeldung hat versagt (" + treffer[0]
-                                + ") — das Abo-Token muss neu erzeugt werden.")
+                    raus.append((
+                        "anmeldung-gekippt",
+                        "🔑 Die Anmeldung hat versagt (" + treffer[0]
+                        + ") — das Abo-Token muss neu erzeugt werden."))
         except Exception:
-            raus.append("👁️ Das Journal war nicht abfragbar — das zweite Netz "
-                        "für Anmelde-Brüche ist blind.")
+            raus.append((
+                "journal-unabfragbar",
+                "👁️ Das Journal war nicht abfragbar — das zweite Netz "
+                "für Anmelde-Brüche ist blind."))
     return raus
 
 
@@ -408,6 +432,7 @@ def bluehen(jetzt: float | None = None) -> dict:
     ZUSTAND.mkdir(parents=True, exist_ok=True)
     vorige = _letzte()
     ruhegrund = _in_ruhe(jetzt)
+    befunde = _befunde()          # (Kennung, Text) je Befund
 
     luecke = None
     if vorige is not None:
@@ -429,7 +454,9 @@ def bluehen(jetzt: float | None = None) -> dict:
                    or (naht or {}).get("vorher") or "—"),
         "luecke_s": round(luecke, 1) if luecke is not None else None,
         "ruhe": ruhegrund,
-        "befunde": _befunde(),
+        # In der Kette stehen nur die TEXTE — sie ist ein Beleg für Menschen.
+        # Die Kennungen begleiten den Lauf und gehen an den Dämpfer.
+        "befunde": [t for _, t in befunde],
     }
     eintrag["abdruck"] = _fingerabdruck(eintrag)
     if naht:                       # Naht verbraucht — sie gilt genau einmal
@@ -450,17 +477,21 @@ def bluehen(jetzt: float | None = None) -> dict:
     # Melden: nur bei echtem Anlass, nie in der Ruhe — und nicht minütlich
     # dasselbe (G4).
     if not ruhegrund:
-        gruende = list(eintrag["befunde"])
+        gruende = [(k, t) for k, t in befunde]
         if luecke is not None and luecke > TOLERANZ_S:
-            gruende.insert(0, f"Die Kette hatte eine Lücke von "
-                              f"{luecke / 60:.0f} Minuten — in dieser Zeit hat "
-                              "niemand belegt, dass das System lebt.")
+            gruende.insert(0, ("kette-luecke",
+                               f"Die Kette hatte eine Lücke von "
+                               f"{luecke / 60:.0f} Minuten — in dieser Zeit hat "
+                               "niemand belegt, dass das System lebt."))
         neu, entwarnt = _daempfen(gruende, jetzt)
+        # 🪷 Lotus für den neuen Befund, 🌺 Hibiskus für die Entwarnung
+        # (Adams Festlegung, 28.07.): die beginnende gegen die vollendete Blüte.
+        # Die Signatur sagt **wer**, die Zustandszeichen im Text sagen **was**.
         if neu:
-            melden("🌼 Stundenblume " + eintrag["menschlich"] + ":\n• "
+            melden("🪷 Stundenblume " + eintrag["menschlich"] + ":\n• "
                    + "\n• ".join(neu))
         if entwarnt:
-            melden("🌱 Stundenblume " + eintrag["menschlich"]
+            melden("🌺 Stundenblume " + eintrag["menschlich"]
                    + ": erledigt —\n• " + "\n• ".join(entwarnt))
     return eintrag
 
@@ -476,25 +507,31 @@ _NAHT = ZUSTAND / "naht.json"
 ROLL_GRENZE = int(os.environ.get("BLUMEN_ROLL_GRENZE") or 20160)
 
 
-def _schluessel(grund: str) -> str:
-    """Der stabile Kern eines Befunds — ohne Zahlen, die mit der Zeit wandern.
-
-    „Zustellung gestört (seit 9 Min)" und „… (seit 10 Min)" sind **derselbe**
-    Befund. Wer sie unterscheidet, meldet jede Minute neu und entwarnt zugleich
-    die Vorminute.
-    """
-    return re.sub(r"\d+", "#", grund or "").strip()
-
-
-def _daempfen(gruende: list[str], jetzt: float) -> tuple[list[str], list[str]]:
+def _daempfen(gruende: list[tuple[str, str]],
+              jetzt: float) -> tuple[list[str], list[str]]:
     """Erste Meldung sofort, Wiederholung frühestens nach einer Stunde.
 
     **Warum das kein Feinschliff ist (G4):** Ohne Dämpfer meldet ein
     anhaltender Befund **minütlich** — eine Stunde sind sechzig Nachrichten,
     vierzehn Tage wären es theoretisch zwanzigtausend. Das widerspricht dem
     eigenen Satz im Dateikopf: *Ein Wächter, dem niemand mehr glaubt, ist
-    schlimmer als keiner.* Ein Wächter, der Adam zuschüttet, wird
-    stummgeschaltet — und dann ist er gar keiner mehr.
+    schlimmer als keiner.*
+
+    **Verglichen wird die KENNUNG, nie der Wortlaut.** `[ERSETZT 28.07.]`
+
+    Belegt am selben Tag um 10:02: Der Befund lautete „Zustellung gestört (seit
+    9 Min)", eine Minute später „(seit 10 Min)". Ein Dämpfer, der Texte
+    vergleicht, hält das für einen **neuen** Befund — und den Text der
+    Vorminute für **weggefallen**. Ergebnis: zwei Nachrichten pro Minute,
+    Alarm und Entwarnung im selben Atemzug. Der Dämpfer, der den Lärm
+    verhindern sollte, hat ihn verdoppelt.
+
+    Mein erster Fix bereinigte die Zahlen aus dem Text. Das hätte funktioniert
+    und war trotzdem der schwächere Weg: **eine Heuristik, die im Hintergrund
+    rät.** Die Kennung ist eine Zusage, die die Signatur erzwingt — wer künftig
+    einen Prüfer anhängt, *kann* die Kennung nicht vergessen, statt unbemerkt
+    auf den Lärm-Weg zurückzufallen. *Wo Struktur und Prüfer beide möglich
+    sind, gewinnt die Struktur.*
 
     **Die Kette schreibt weiter minütlich; nur der Mund wird leiser, nicht das
     Auge.** Und was wegfällt, wird ausdrücklich **entwarnt** — sonst weiß
@@ -507,25 +544,15 @@ def _daempfen(gruende: list[str], jetzt: float) -> tuple[list[str], list[str]]:
     if not isinstance(bekannt, dict):
         bekannt = {}
 
-    # **Der Vergleich läuft über einen SCHLÜSSEL, nicht über den Wortlaut.**
-    #
-    # Belegt am 28.07., 10:02: Der Befund lautete „Zustellung gestört (seit 10
-    # Min)" — und die Minutenzahl wächst mit jeder Blume. Für einen Dämpfer,
-    # der Texte vergleicht, ist das jede Minute ein **neuer** Befund; zugleich
-    # gilt der Text der Vorminute als **weggefallen**. Ergebnis: zwei
-    # Nachrichten pro Minute, Alarm und Entwarnung im selben Atemzug — genau
-    # das Gegenteil dessen, wofür der Dämpfer gebaut wurde.
-    #
-    # Der Schlüssel lässt deshalb alle Zahlen weg. Ein Befund bleibt derselbe,
-    # auch wenn er seit zehn statt seit neun Minuten besteht.
-    neu = [g for g in gruende
-           if jetzt - float(bekannt.get(_schluessel(g), 0) or 0) >= WIEDERVORLAGE_S]
-    aktuell = {_schluessel(g) for g in gruende}
+    neu = [text for kennung, text in gruende
+           if jetzt - float(bekannt.get(kennung, 0) or 0) >= WIEDERVORLAGE_S]
+    aktuell = {kennung for kennung, _ in gruende}
+    # Entwarnt wird mit der KENNUNG — der Wortlaut von damals ist nicht mehr da,
+    # und die Kennung sagt ohnehin genauer, was weggefallen ist.
     entwarnt = [k for k in bekannt if k not in aktuell]
 
-    stand = {_schluessel(g): (jetzt if g in neu
-                              else bekannt.get(_schluessel(g), jetzt))
-             for g in gruende}
+    stand = {kennung: (jetzt if text in neu else bekannt.get(kennung, jetzt))
+             for kennung, text in gruende}
     try:
         ZUSTAND.mkdir(parents=True, exist_ok=True)
         tmp = _GEDAECHTNIS.with_suffix(".tmp")
@@ -661,7 +688,7 @@ def main() -> int:
                 f"{e.get('brueche', 0)} Bruchstelle(n))")
         return 0 if e["ok"] else 1
     e = bluehen()
-    print(f"🌼 {e['menschlich']} · {e['abdruck']} · "
+    print(f"🪷 {e['menschlich']} · {e['abdruck']} · "
           + (", ".join(e["befunde"]) if e["befunde"] else "nichts Auffälliges")
           + (f" · {e['ruhe']}" if e["ruhe"] else ""))
     return 0

@@ -283,3 +283,27 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   deterministische Gegenentwurf ist sprachlich schwächer und kann nicht lügen** —
   jedes Wort stand vorher im Text, Wort für Wort nachprüfbar. Das ist der Preis
   und der Gewinn in einem Satz.
+
+- **Ein Wächter kann selbst zur Störquelle werden** · ④ · **universell** — Zwei
+  fehlerhafte Wächter schickten zusammen 26 Nachrichten in dreizehn Minuten.
+  Beide Fehler waren behebbar; **dass es keinen Riegel gab, der so etwas
+  überhaupt begrenzt, war der eigentliche Mangel.** Die Obergrenze sitzt am
+  **Ausgang**, nicht an der Quelle — eine Grenze an der Quelle hilft nur der
+  bekannten Quelle, eine am Ausgang hilft allen, auch den ungeschriebenen.
+  **Nebenwirkung, die die Bauart bestimmt hat:** Zurückgehaltenes darf nicht
+  verschwinden. Es wird gezählt und in der nächsten durchgelassenen Nachricht
+  genannt — sonst wäre die Meldung darüber selbst wieder eine Nachricht.
+
+- **Ein Dämpfer, der Texte vergleicht, wird von einem Zeitstempel ausgehebelt**
+  · ① · **universell** — „(seit 9 Min)" und „(seit 10 Min)" gelten als zwei
+  Befunde: der eine neu, der andere weggefallen. **Der Dämpfer verdoppelt den
+  Lärm, statt ihn zu dämpfen.** Meine erste Lösung bereinigte die Zahlen — eine
+  Heuristik, die im Hintergrund rät. Die **Kennung** ist eine Zusage, die die
+  Signatur erzwingt: Wer einen Prüfer anhängt, *kann* sie nicht vergessen.
+
+- **Ein vergangener Fehler ist kein Zustand** · ② · **universell** — Der
+  Zustell-Wächter hielt einen elf Minuten alten „Connection refused" für eine
+  Störung, obwohl direkt daneben stand, dass alles läuft (null wartende
+  Updates). Was zählt, ist nicht **ob** etwas schiefging, sondern **ob jetzt
+  etwas hängt** — und dafür gab es einen direkten Messwert, den ich nicht
+  ausgewertet hatte.

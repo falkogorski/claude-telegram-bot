@@ -385,7 +385,7 @@ def _lauf(trocken: bool = False) -> int:
         # Bedingung 2 + 5: Auch Leerlauf wird berichtet — aber gedämpft, sonst
         # sind es bei Zweistunden-Takt zwölf gleichlautende Nachrichten am Tag.
         if _leerlauf_melden():
-            melden(f"🌾 Hora ({beginn}): Die Auftragsliste ist leer — ich habe "
+            melden(f"🕰️ Hora ({beginn}): Die Auftragsliste ist leer — ich habe "
                    "nichts angefasst. Wenn etwas laufen soll, trag es in die "
                    "Liste ein; ohne Eintrag entscheide ich nichts von selbst. "
                    "(Solange sie leer bleibt, melde ich das höchstens einmal "
@@ -500,7 +500,7 @@ def _lauf(trocken: bool = False) -> int:
             break
 
     # Bedingung 5: Bericht, auch wenn nichts zu tun war.
-    teile = [f"🌾 Hora ({beginn}) — Lauf beendet."]
+    teile = [f"🕰️ Hora ({beginn}) — Lauf beendet."]
     if probe:
         teile.append(f"🧪 Probelauf: Ich HÄTTE {len(probe)} Auftrag/Aufträge "
                      "bearbeitet — " + " · ".join(probe)

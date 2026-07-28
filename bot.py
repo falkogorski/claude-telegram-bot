@@ -4173,6 +4173,17 @@ async def _postfach_send_one(app: Application, claimed: Path,
     log.info("Postfach zugestellt: %s → %s (Absender: %s)",
              orig, chat_id, herkunft)
 
+    # Obergrenze je Absender. Zurückgehaltenes wandert nach `sent`, nicht nach
+    # `failed` — es ist kein Fehler, sondern eine bewusste Entscheidung, und im
+    # Protokoll steht, was drinstand.
+    if _postfach_drosseln(herkunft):
+        log.warning("Postfach gedrosselt (%s): %s", herkunft,
+                    str(data.get("text", ""))[:200])
+        _move(sent_dir, f"zurückgehalten (mehr als {POSTFACH_GRENZE}/h von "
+                        f"{herkunft})")
+        return
+    sammel = _postfach_sammelmeldung(herkunft)
+
     thread_id = data.get("thread_id")
     text = data.get("text")
     filep = data.get("file")
@@ -4196,13 +4207,69 @@ async def _postfach_send_one(app: Application, claimed: Path,
                     chat_id=chat_id, document=fh, filename=Path(filep).name,
                     caption=(caption or None), message_thread_id=thread_id)
         if text:
+            # Die Sammelmeldung hängt an der NÄCHSTEN durchgelassenen Nachricht
+            # — so erfährt Adam vom Zurückgehaltenen, ohne dass die Meldung
+            # darüber selbst eine zusätzliche Nachricht wird.
             await app.bot.send_message(
-                chat_id=chat_id, text=text, message_thread_id=thread_id)
+                chat_id=chat_id,
+                text=(text + "\n\n" + sammel) if sammel else text,
+                message_thread_id=thread_id)
         _move(sent_dir)
         log.info("postfach: Auftrag %s an %s zugestellt.", orig, chat_id)
     except Exception as e:
         _log_bot_error("postfach send", e)
         _move(failed_dir, f"Sende-Fehler: {e}")
+
+
+# ── Obergrenze je Absender: ein Wächter darf nicht zur Störquelle werden ─────
+#
+# **Der Anlass, belegt (28.07., 09:52–10:05):** Zwei fehlerhafte Wächter haben
+# zusammen **sechsundzwanzig** Nachrichten an Adam geschickt, zwei pro Minute.
+# Beide Fehler wurden behoben — aber die eigentliche Lehre ist eine andere:
+# **Es gab keinen Riegel, der so etwas überhaupt hätte begrenzen können.**
+#
+# Diese Grenze deckt jeden künftigen Wächter, auch die, die noch niemand
+# geschrieben hat. Dieselbe Logik wie beim Prüfsatz über die Prüfungen: Ein
+# Riegel an der Quelle hilft nur der bekannten Quelle; einer am Ausgang hilft
+# allen.
+#
+# **Nichts wird verworfen** — was über der Grenze liegt, wird gezählt und in
+# einer Sammelmeldung genannt. Ein Wächter, der Nachrichten verliert, wäre
+# schlimmer als einer, der zu viele schickt.
+POSTFACH_GRENZE = int(os.environ.get("POSTFACH_GRENZE") or 5)
+POSTFACH_FENSTER_S = int(os.environ.get("POSTFACH_FENSTER_S") or 3600)
+_postfach_zaehler: dict[str, list[float]] = {}
+_postfach_zurueckgehalten: dict[str, int] = {}
+
+
+def _postfach_drosseln(herkunft: str, jetzt: float | None = None) -> bool:
+    """True, wenn diese Nachricht zurückgehalten werden soll.
+
+    Gezählt wird je Absender in einem gleitenden Fenster. Absender „unbekannt"
+    zählt als eigener Topf — sonst könnten mehrere namenlose Quellen einander
+    gegenseitig drosseln.
+    """
+    now = jetzt or time.time()
+    fenster = _postfach_zaehler.setdefault(herkunft, [])
+    fenster[:] = [t for t in fenster if now - t < POSTFACH_FENSTER_S]
+    if len(fenster) >= POSTFACH_GRENZE:
+        _postfach_zurueckgehalten[herkunft] = \
+            _postfach_zurueckgehalten.get(herkunft, 0) + 1
+        return True
+    fenster.append(now)
+    return False
+
+
+def _postfach_sammelmeldung(herkunft: str) -> str | None:
+    """Was zurückgehalten wurde, wird genannt — nicht verschwiegen."""
+    n = _postfach_zurueckgehalten.pop(herkunft, 0)
+    if not n:
+        return None
+    return (f"🔇 {n} weitere Meldung(en) von {herkunft} wurden "
+            f"zurückgehalten — mehr als {POSTFACH_GRENZE} in einer Stunde. "
+            "Sie sind nicht verloren; sie stehen im Protokoll des Servers. "
+            "Wenn dieser Absender so viel zu sagen hat, stimmt bei ihm etwas "
+            "nicht.")
 
 
 async def postfach_worker(app: Application) -> None:

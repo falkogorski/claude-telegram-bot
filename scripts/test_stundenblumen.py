@@ -136,7 +136,7 @@ def _manipulation_wird_sichtbar():
 
 def _befunde_melden_sich():
     _leeren()
-    sb._befunde = lambda: ["Bot-Prozess nicht vorhanden"]
+    sb._befunde = lambda: [("bot-prozess", "Bot-Prozess nicht vorhanden")]
     sb.bluehen(_t(0))
     m = _meldungen()
     assert m and "Bot-Prozess" in m[0], f"Befund nicht gemeldet: {m}"
@@ -158,7 +158,7 @@ def _anmeldung_bruch_wird_gemeldet():
         return _P("Jul 25 23:00 bot: anthropic: OAuth token expired\n")
     sb.subprocess.run = _run
     befunde = sb.anmeldung_pruefen()
-    assert any("Anmeldung hat versagt" in b for b in befunde), \
+    assert any("Anmeldung hat versagt" in text for _, text in befunde), \
         f"der Anmelde-Bruch wurde nicht gemeldet: {befunde}"
     assert "journalctl" in ruf, "das Journal wurde gar nicht gelesen"
 
@@ -172,8 +172,7 @@ def _anmeldung_still_wenn_gesund():
         def __init__(self, out): self.stdout, self.stderr, self.returncode = out, "", 0
     sb.subprocess.run = lambda cmd, **kw: _P(
         "4711\n" if cmd[0] == "systemctl" else "alles ruhig\n")
-    assert not [b for b in sb.anmeldung_pruefen()
-                if "versagt" in b], "Fehlalarm bei gesunder Anmeldung"
+    assert not [t for _, t in sb.anmeldung_pruefen() if "versagt" in t], "Fehlalarm bei gesunder Anmeldung"
 
 
 def _kein_geheimniswert_im_code():
@@ -211,19 +210,19 @@ def _speicher_wache_misst_das_richtige():
     sb._meminfo = lambda: {"MemTotal": 7940, "MemAvailable": 600,
                            "SwapTotal": 0, "SwapFree": 0}
     b = sb.speicher_pruefen()
-    assert len(b) == 1 and b[0].startswith("🟡"), f"falsche Stufe: {b}"
+    assert len(b) == 1 and b[0][1].startswith("🟡"), f"falsche Stufe: {b}"
 
     # Kritisch → deutliche Warnung.
     sb._meminfo = lambda: {"MemTotal": 7940, "MemAvailable": 200,
                            "SwapTotal": 0, "SwapFree": 0}
     b = sb.speicher_pruefen()
-    assert b and b[0].startswith("🔴"), f"die enge Lage wurde nicht erkannt: {b}"
+    assert b and b[0][1].startswith("🔴"), f"die enge Lage wurde nicht erkannt: {b}"
 
     # Swap in Benutzung → eigene Beobachtung, unabhängig von der Speicherlage.
     sb._meminfo = lambda: {"MemTotal": 7940, "MemAvailable": 3000,
                            "SwapTotal": 4096, "SwapFree": 1000}
     b = sb.speicher_pruefen()
-    assert any("Auslagerungsbereich" in x for x in b), \
+    assert any("Auslagerungsbereich" in t for _, t in b), \
         "benutzter Swap wird nicht bemerkt"
 
     # Kein Linux (leeres meminfo) → keine Aussage statt Raterei.
@@ -324,7 +323,7 @@ def _lagebericht_nur_zustand():
     echt = sb.LAGEBERICHT
     sb.LAGEBERICHT = ziel / "zustand.json"
 
-    sb._befunde = lambda: ["nur noch 2.0 GiB Plattenplatz frei"]
+    sb._befunde = lambda: [("platte-knapp", "nur noch 2.0 GiB Plattenplatz frei")]
     sb.bluehen(_t(0))
     assert sb.LAGEBERICHT.exists(), "der Lagebericht wurde nicht geschrieben"
     d = json.loads(sb.LAGEBERICHT.read_text(encoding="utf-8"))
@@ -375,7 +374,7 @@ def _marke_schlaegt_journal():
     authmarke.setzen("Error: OAuth token has expired")
     sb.shutil.which = lambda n: None          # weder systemctl noch journalctl
     befunde = sb.anmeldung_pruefen()
-    assert any("Anmeldung hat versagt" in b for b in befunde), \
+    assert any("Anmeldung hat versagt" in text for _, text in befunde), \
         "die Marke allein genügt nicht — der Wächter hängt am Journal"
     authmarke.loeschen()
     assert not [b for b in sb.anmeldung_pruefen() if "versagt" in b], \
@@ -394,7 +393,7 @@ def _kein_geheimniswert_in_der_marke():
 def _daempfer_wiederholt_nicht_minuetlich():
     """G4: 60 Meldungen je Stunde wären das Ende der Glaubwürdigkeit."""
     _leeren()
-    sb._befunde = lambda: ["Bot-Prozess nicht vorhanden"]
+    sb._befunde = lambda: [("bot-prozess", "Bot-Prozess nicht vorhanden")]
     for i in range(5):
         sb.bluehen(_t(i * 60))
     m = _meldungen()
@@ -407,7 +406,7 @@ def _daempfer_wiederholt_nicht_minuetlich():
 def _daempfer_entwarnt():
     """Was wegfällt, wird gesagt — sonst weiß niemand, ob es behoben ist."""
     _leeren()
-    sb._befunde = lambda: ["nur noch 2.0 GiB Plattenplatz frei"]
+    sb._befunde = lambda: [("platte-knapp", "nur noch 2.0 GiB Plattenplatz frei")]
     sb.bluehen(_t(0))
     sb._befunde = lambda: []
     sb.bluehen(_t(60))
@@ -421,6 +420,52 @@ def _kein_modellaufruf_im_modul():
                      "requests", "urlopen"):
         assert verdacht not in quelle, \
             f"eine Blume darf nichts Teures tun, fand aber: {verdacht}"
+
+
+def _fortlaufende_zahl_meldet_nur_einmal():
+    """**Der Sturm vom 28.07., 10:02 — als Prüfung.**
+
+    Der Befund lautete „Zustellung gestört (seit 9 Min)", eine Minute später
+    „(seit 10 Min)". Ein Dämpfer, der Texte vergleicht, hält das für einen
+    **neuen** Befund und den alten für **weggefallen**: zwei Nachrichten pro
+    Minute, Alarm und Entwarnung im selben Atemzug.
+
+    Mit Kennung ist es dreimal derselbe Befund — eine Meldung, keine Entwarnung.
+    """
+    _leeren()
+    for i, minuten in enumerate((9, 10, 11)):
+        sb._befunde = lambda m=minuten: [
+            ("zustellung-gestoert", f"📵 Zustellung gestört (seit {m} Min)")]
+        sb.bluehen(_t(i * 60))
+    m = _meldungen()
+    assert len(m) == 1, (
+        f"{len(m)} Meldungen statt einer — die wandernde Zahl gilt wieder als "
+        f"neuer Befund: {[x[:50] for x in m]}")
+    assert "erledigt" not in m[0], "es wurde zugleich entwarnt"
+
+
+def _zwei_kennungen_kommen_beide_durch():
+    """Die Gegenprobe: Der Dämpfer darf nicht zusammenfassen, was verschieden ist.
+
+    Wichtig gerade bei den zwei Speicherschwellen — **die rote Warnung darf
+    nicht von der gelben verschluckt werden.** Eine Zahlen-Bereinigung hätte
+    sie nur zufällig getrennt (weil die Wortlaute sich unterscheiden), die
+    Kennung trennt sie absichtlich.
+    """
+    _leeren()
+    sb._befunde = lambda: [
+        ("speicher-eng", "🔴 Nur noch 200 MiB verfügbar"),
+        ("platte-knapp", "nur noch 2.0 GiB Plattenplatz frei")]
+    sb.bluehen(_t(0))
+    m = _meldungen()
+    assert len(m) == 1, "die Befunde kamen nicht in EINER Meldung"
+    assert "200 MiB" in m[0] and "2.0 GiB" in m[0], \
+        f"ein Befund wurde verschluckt: {m[0]}"
+
+    quelle = Path(sb.__file__).read_text(encoding="utf-8")
+    for k in ("speicher-eng", "speicher-hinweis"):
+        assert f'"{k}"' in quelle, \
+            f"die Kennung {k} fehlt — die zwei Schwellen hängen wieder zusammen"
 
 
 check("Kette wächst und ist verkettet", _kette_waechst_verkettet)
@@ -447,6 +492,10 @@ check("Dämpfer: kein minütliches Wiederholen (G4)",
       _daempfer_wiederholt_nicht_minuetlich)
 check("Dämpfer entwarnt, wenn ein Befund wegfällt (G4)", _daempfer_entwarnt)
 check("kein Modell- und kein Netzaufruf im Modul", _kein_modellaufruf_im_modul)
+check("fortlaufende Zahl meldet nur EINMAL (Sturm 28.07.)",
+      _fortlaufende_zahl_meldet_nur_einmal)
+check("zwei Kennungen kommen beide durch (rot verschluckt gelb nicht)",
+      _zwei_kennungen_kommen_beide_durch)
 
 if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")

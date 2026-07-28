@@ -164,6 +164,59 @@ def _jede_postfach_nachricht_nennt_ihren_absender():
 check("jede Postfach-Nachricht nennt ihren Absender",
       _jede_postfach_nachricht_nennt_ihren_absender)
 
+
+def _postfach_hat_eine_obergrenze():
+    """④ Ein Wächter darf nicht zur Störquelle werden.
+
+    **Belegt am 28.07.:** Zwei fehlerhafte Wächter schickten zusammen
+    sechsundzwanzig Nachrichten, zwei pro Minute. Beide Fehler sind behoben —
+    aber es gab **keinen Riegel, der so etwas überhaupt hätte begrenzen
+    können**. Dieser deckt jeden künftigen Wächter, auch die ungeschriebenen.
+
+    **Nichts wird verworfen:** Was über der Grenze liegt, wird gezählt und in
+    einer Sammelmeldung genannt. Ein Meldeweg, der Nachrichten verliert, wäre
+    schlimmer als einer, der zu viele schickt.
+    """
+    import os as _os
+    _os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:test")
+    _os.environ.setdefault("ALLOWED_USER_IDS", "1")
+    sys.path.insert(0, str(HIER.parent))
+    import bot
+
+    bot._postfach_zaehler.clear()
+    bot._postfach_zurueckgehalten.clear()
+    grenze = bot.POSTFACH_GRENZE
+
+    # Bis zur Grenze geht alles durch.
+    for i in range(grenze):
+        assert not bot._postfach_drosseln("blume"), \
+            f"Nachricht {i + 1} von {grenze} wurde schon gedrosselt"
+    # Danach wird zurückgehalten — und GEZÄHLT, nicht verworfen.
+    for _ in range(21):
+        assert bot._postfach_drosseln("blume"), "über der Grenze kam etwas durch"
+    sammel = bot._postfach_sammelmeldung("blume")
+    assert sammel and "21" in sammel, f"das Zurückgehaltene wird nicht genannt: {sammel}"
+    assert "nicht verloren" in sammel, "die Meldung sagt nicht, dass nichts fehlt"
+
+    # Ein ANDERER Absender hat seinen eigenen Topf — sonst drosseln sich
+    # unabhängige Wächter gegenseitig.
+    assert not bot._postfach_drosseln("waechter"), \
+        "ein zweiter Absender erbt die Drosselung des ersten"
+
+    # Und nach dem Fenster geht es wieder.
+    import time as _t
+    spaeter = _t.time() + bot.POSTFACH_FENSTER_S + 60
+    assert not bot._postfach_drosseln("blume", jetzt=spaeter), \
+        "die Drosselung löst sich nach dem Fenster nicht"
+
+    # Die Sammelmeldung wird nur EINMAL ausgegeben.
+    assert bot._postfach_sammelmeldung("blume") is None, \
+        "dieselbe Sammelmeldung kommt mehrfach"
+
+
+check("Postfach hat eine Obergrenze je Absender (④)",
+      _postfach_hat_eine_obergrenze)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Prüfung(en) über die Prüfumgebung fehlgeschlagen.")

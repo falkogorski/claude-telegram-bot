@@ -51,6 +51,16 @@ from claude_agent_sdk import (
     create_sdk_mcp_server,
 )
 
+# 5.20/B4: Die Limit-Vorwarnung des Anbieters. **Bewusst weich eingebunden** —
+# der Bot muss auch mit einem SDK starten, das sie noch nicht kennt (sie kam
+# erst im Lauf der 0.2er-Reihe dazu). Ein harter Import hätte aus einem
+# fehlenden Zusatzsignal einen Startabbruch gemacht: Der Bot wäre stumm
+# geblieben, weil eine WARNUNG fehlt. Genau verkehrt herum.
+try:
+    from claude_agent_sdk import RateLimitEvent as _RateLimitEvent
+except ImportError:      # pragma: no cover — älteres SDK
+    _RateLimitEvent = None
+
 import tempfile
 
 from transcribe import Transcriber, build_transcriber
@@ -134,11 +144,115 @@ def _record_usage(model: str, result: Any) -> None:
     bucket = day.setdefault(model, {"input": 0, "output": 0, "requests": 0, "cost_usd": 0.0})
     bucket["requests"] += 1
     if result.usage:
+        # **GEMESSEN 28.07.2026 (B4): Der Zähler hat die Eingabe massiv
+        # unterschätzt.** Über 442 Antworten wies er 63 Eingabe-Token je
+        # Antwort aus — allein der Systemprompt ist ein Vielfaches davon. Der
+        # Grund: `input_tokens` zählt NUR den frisch übertragenen Teil. Was aus
+        # dem Zwischenspeicher gelesen wird — bei einem laufenden Gespräch der
+        # weitaus größte Anteil — steht in eigenen Feldern und fehlte komplett.
+        #
+        # Die Felder werden getrennt geführt statt aufaddiert: Zwischenspeicher
+        # ist billiger als frische Eingabe, und wer beides in eine Zahl wirft,
+        # kann später nicht mehr erkennen, ob ein Anstieg teuer oder harmlos war.
         bucket["input"] += result.usage.get("input_tokens", 0)
         bucket["output"] += result.usage.get("output_tokens", 0)
+        for feld, ziel in (("cache_read_input_tokens", "cache_read"),
+                           ("cache_creation_input_tokens", "cache_write")):
+            wert = result.usage.get(feld, 0)
+            if wert:
+                bucket[ziel] = bucket.get(ziel, 0) + wert
     if result.total_cost_usd:
         bucket["cost_usd"] = bucket.get("cost_usd", 0.0) + result.total_cost_usd
     _save_usage(data)
+
+
+# ---------- 5.20 / B4: Limit-Vorwarnung des Anbieters ----------
+#
+# Gemerkt wird je Kontingent-Art der zuletzt gemeldete Zustand samt
+# Reset-Zeitpunkt. Ohne dieses Gedächtnis käme die Warnung mit **jeder**
+# Antwort — der Anbieter schickt sie bei jedem Lauf mit, nicht nur beim
+# Umschlagen. Genau daran ist der Meldungssturm vom 28.07. früh gescheitert:
+# ein Wächter ohne Dämpfer meldet zweimal je Minute dasselbe.
+_LIMIT_GEMELDET: dict[str, tuple[str, float]] = {}
+
+_LIMIT_NAMEN = {
+    "five_hour": "Fünf-Stunden-Fenster",
+    "seven_day": "Wochenkontingent",
+    "seven_day_opus": "Wochenkontingent für Opus",
+    "seven_day_sonnet": "Wochenkontingent für Sonnet",
+    "overage": "Zusatzverbrauch",
+}
+
+
+def _limit_zeitspanne(resets_at: float | None) -> str:
+    """Menschliche Angabe statt einer Unix-Zeit.
+
+    Bewusst grob: Ab zwei Stunden ist die Minute uninteressant — „in gut zwei
+    Stunden" trägt genauso weit wie „in 2 Stunden 7 Minuten" und liest sich
+    vorgelesen deutlich besser.
+    """
+    if not resets_at:
+        return ""
+    rest = int(resets_at - time.time())
+    if rest <= 0:
+        return " — das Fenster sollte bereits zurückgesetzt sein"
+    minuten = rest // 60
+    if minuten < 1:
+        return " — in weniger als einer Minute wieder frei"
+    if minuten < 45:
+        return f" — in {minuten} Minuten wieder frei"
+    if minuten < 75:
+        return " — in etwa einer Stunde wieder frei"
+    stunden = round(minuten / 60)
+    return f" — in etwa {stunden} Stunden wieder frei"
+
+
+async def _limit_warnung_melden(chat_id: int, thread_id, ereignis) -> None:
+    """Reicht die Vorwarnung des Anbieters durch — **ohne eigene Rechnung.**
+
+    Ein selbstgebauter Token-Zähler wäre eine Schätzung: Er kennt weder die
+    Höhe des Kontingents noch, was Adams Desktop-Sitzungen und claude.ai auf
+    dasselbe Konto buchen. Der Anbieter kennt beides. Deshalb wird hier nichts
+    berechnet, nur weitergegeben — und geschwiegen, solange alles im Rahmen
+    ist.
+    """
+    info = getattr(ereignis, "rate_limit_info", None) or getattr(ereignis, "info", None)
+    if info is None:
+        return
+    status = getattr(info, "status", "") or ""
+    art = getattr(info, "rate_limit_type", "") or "unbekannt"
+    resets_at = getattr(info, "resets_at", None)
+    name = _LIMIT_NAMEN.get(art, art)
+
+    bekannt = _LIMIT_GEMELDET.get(art)
+    if status == "allowed":
+        # Entwarnung nur, wenn vorher wirklich gewarnt wurde. Sonst wäre die
+        # gute Nachricht selbst das Rauschen.
+        if bekannt:
+            _LIMIT_GEMELDET.pop(art, None)
+            await send_chunked(chat_id, f"✅ {name}: wieder im grünen Bereich.",
+                               thread_id=thread_id)
+        return
+    if status not in ("allowed_warning", "rejected"):
+        return
+    # Derselbe Zustand im selben Fenster wird nur EINMAL gemeldet.
+    if bekannt and bekannt[0] == status and bekannt[1] == (resets_at or 0):
+        return
+    _LIMIT_GEMELDET[art] = (status, resets_at or 0)
+
+    wann = _limit_zeitspanne(resets_at)
+    anteil = getattr(info, "utilization", None)
+    # Der Anteil wird nur genannt, wenn der Anbieter ihn mitschickt — eine
+    # ausgedachte Prozentzahl wäre schlimmer als gar keine.
+    quote = f" ({round(anteil * 100)} % aufgebraucht)" if isinstance(anteil, (int, float)) else ""
+    if status == "rejected":
+        text = (f"🚫 {name} ist aufgebraucht{quote}{wann}.\n"
+                "Ich lege nichts beiseite — was du schickst, arbeite ich ab, "
+                "sobald es wieder geht.")
+    else:
+        text = (f"⏳ {name} neigt sich{quote}{wann}.\n"
+                "Noch geht alles durch; ich sage Bescheid, falls es kippt.")
+    await send_chunked(chat_id, text, thread_id=thread_id)
 
 
 def _usage_today() -> dict:
@@ -2796,13 +2910,23 @@ async def cmd_usage(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         out = u.get("output", 0)
         reqs = u.get("requests", 0)
         cost = u.get("cost_usd", 0.0)
+        cr = u.get("cache_read", 0)
+        cw = u.get("cache_write", 0)
         lines.append(f"\n{short}:")
-        lines.append(f"  Input:    {inp:,} Tokens")
-        lines.append(f"  Output:   {out:,} Tokens")
-        lines.append(f"  Gesamt:   {inp + out:,} Tokens")
-        lines.append(f"  Anfragen: {reqs}")
+        lines.append(f"  Eingabe frisch:  {inp:,} Tokens")
+        if cr or cw:
+            lines.append(f"  aus Zwischensp.: {cr:,} Tokens")
+            lines.append(f"  Zwischensp. neu: {cw:,} Tokens")
+        lines.append(f"  Ausgabe:         {out:,} Tokens")
+        lines.append(f"  Gesamt:          {inp + out + cr + cw:,} Tokens")
+        lines.append(f"  Antworten:       {reqs}")
         if cost:
-            lines.append(f"  Kosten:   ~${cost:.4f}")
+            # **Diese Zahl ist KEIN abgebuchtes Geld.** Sie ist der Listenpreis,
+            # den dieselbe Arbeit über die API gekostet hätte. Wir laufen über
+            # das Abo — dort wird nichts davon berechnet. Ohne diesen Zusatz
+            # liest sich der Wert wie eine Rechnung: über vierzehn Tage summiert
+            # er sich auf gut 3400 Dollar.
+            lines.append(f"  Nennwert:        ~${cost:.2f} (Abo — nicht berechnet)")
     lines.append("\n⚠️ Desktop-App und claude.ai werden hier nicht erfasst.")
     await update.message.reply_text("\n".join(lines))
 
@@ -6592,10 +6716,12 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             lines.append("📊 Bot-Verbrauch heute:")
             for mk, u in today.items():
                 short = "Opus" if "opus" in mk else ("Haiku" if "haiku" in mk else "Sonnet")
-                total = u.get("input", 0) + u.get("output", 0)
+                total = (u.get("input", 0) + u.get("output", 0)
+                         + u.get("cache_read", 0) + u.get("cache_write", 0))
                 reqs = u.get("requests", 0)
                 cost = u.get("cost_usd", 0.0)
-                cost_str = f"  ~${cost:.3f}" if cost else ""
+                # „Nennwert", nicht „$" — im Abo wird nichts davon berechnet.
+                cost_str = f"  · Nennwert ~${cost:.2f}" if cost else ""
                 lines.append(f"  {short}: {total:,} Tok · {reqs} Anfragen{cost_str}")
         else:
             lines.append("")
@@ -8139,6 +8265,17 @@ async def stream_response(
                             sess.task_origins |= _extract_hosts(str(block.content))
                 except Exception:
                     pass
+            elif _RateLimitEvent is not None and isinstance(msg, _RateLimitEvent):
+                # **5.20 / B4 — die einzige Vorwarnung, die etwas wert ist.**
+                #
+                # Ein eigener Token-Zähler wäre eine Schätzung gewesen: Er
+                # kennt weder das Kontingent noch, was die Desktop-Sitzungen
+                # und claude.ai auf dasselbe Konto buchen. Der Anbieter kennt
+                # beides. Also wird NICHTS gerechnet, nur durchgereicht.
+                try:
+                    await _limit_warnung_melden(chat_id, thread_id, msg)
+                except Exception:
+                    log.exception("Limit-Warnung konnte nicht gemeldet werden")
             elif isinstance(msg, ResultMessage):
                 if sess.logger and claude_turn_started:
                     sess.logger.end_turn()

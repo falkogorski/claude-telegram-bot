@@ -207,6 +207,48 @@ def _limit_zeitspanne(resets_at: float | None) -> str:
     return f" — in etwa {stunden} Stunden wieder frei"
 
 
+# ---------- B7: Sparmodus — Stufe 2, GEBAUT UND RUHEND ----------
+#
+# Stufe 1 (B4) reicht die Vorwarnung des Anbieters durch. Stufe 2 wäre, auf
+# sie zu reagieren: bei Annäherung ans Limit die Tiefe zurücknehmen, damit das
+# Fenster länger trägt — dieselbe Überlegung wie beim Nachtlauf, wo Durchhalten
+# das Klotzen schlägt.
+#
+# **Er ist bewusst NICHT scharfgestellt.** Ein Bot, der von sich aus die
+# Arbeitstiefe senkt, ändert sein Verhalten in dem Moment, in dem Adam am
+# wenigsten damit rechnet — mitten in einer Antwort, ohne dass er den Anlass
+# sieht. Das ist eine Verhaltensänderung, die ihm gehört, nicht mir; und der
+# Deckel für die Abwesenheit sagt ausdrücklich: nichts Neues scharfstellen.
+#
+# Was hier steht, ist die Verrohrung: Der Schalter existiert, ist geprüft, und
+# steht auf aus. Wird er eingeschaltet, senkt eine Limit-Warnung die Tiefe
+# einmalig auf „schnell" und sagt es dazu. Zurückgestellt wird NICHT
+# automatisch — wer das Kontingent geschont hat, will nicht überrascht werden,
+# wenn es wieder hochspringt.
+SPARMODUS_STANDARD = False
+
+
+def _sparmodus_an(user_id: int) -> bool:
+    return bool(_USER_PREFS.get(str(user_id), {}).get("sparmodus", SPARMODUS_STANDARD))
+
+
+def _sparmodus_greifen(user_id: int) -> str | None:
+    """Senkt die Tiefe einmalig. Gibt die neue Stufe zurück oder None.
+
+    Gibt None auch dann, wenn ohnehin schon sparsam gearbeitet wird — eine
+    Meldung „ich schalte auf schnell" an jemanden, der längst auf schnell
+    steht, ist Lärm ohne Inhalt.
+    """
+    if not _sparmodus_an(user_id):
+        return None
+    prefs = _USER_PREFS.setdefault(str(user_id), {})
+    if prefs.get("effort") == "low":
+        return None
+    prefs["effort"] = "low"
+    _save_prefs(_USER_PREFS)
+    return "low"
+
+
 async def _limit_warnung_melden(chat_id: int, thread_id, ereignis) -> None:
     """Reicht die Vorwarnung des Anbieters durch — **ohne eigene Rechnung.**
 
@@ -252,6 +294,14 @@ async def _limit_warnung_melden(chat_id: int, thread_id, ereignis) -> None:
     else:
         text = (f"⏳ {name} neigt sich{quote}{wann}.\n"
                 "Noch geht alles durch; ich sage Bescheid, falls es kippt.")
+    # B7: Falls der Sparmodus eingeschaltet ist — er steht standardmäßig auf
+    # aus. **Die Änderung wird IMMER genannt**, nie stillschweigend vollzogen:
+    # Eine Tiefe, die sich unbemerkt senkt, sieht von außen aus wie ein
+    # schlechter gewordener Assistent.
+    if _sparmodus_greifen(chat_id):
+        text += ("\n\n💤 Sparmodus greift: Ich arbeite ab jetzt auf der Stufe "
+                 "'schnell', damit das Fenster länger trägt. Zurückstellen "
+                 "musst du selbst — ich springe nicht von allein wieder hoch.")
     await send_chunked(chat_id, text, thread_id=thread_id)
 
 

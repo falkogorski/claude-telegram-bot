@@ -199,8 +199,51 @@ check("Verbrauch zählt den Zwischenspeicher mit (gemessener Fehler)",
 check("Nennwert ist als Nennwert gekennzeichnet",
       _nennwert_ist_als_solcher_gekennzeichnet)
 
-print()
+
+
+# ---------- B7: Sparmodus — gebaut und ruhend --------------------------------
+def _sparmodus_ist_standardmaessig_AUS():
+    """**Der wichtigste Teil dieser Stufe.**
+
+    Ein Bot, der von sich aus die Arbeitstiefe senkt, ändert sein Verhalten in
+    dem Moment, in dem Adam am wenigsten damit rechnet — mitten in einer
+    Antwort, ohne dass er den Anlass sieht. Von außen sähe das aus wie ein
+    schlechter gewordener Assistent. Die Verrohrung darf da sein; scharf
+    stellt sie Adam.
+    """
+    assert bot.SPARMODUS_STANDARD is False, "der Sparmodus ist scharfgestellt"
+    bot._USER_PREFS.pop("9001", None)
+    assert not bot._sparmodus_an(9001), "er greift ohne Zutun"
+    assert bot._sparmodus_greifen(9001) is None, "er senkt die Tiefe ungefragt"
+
+
+def _eingeschaltet_senkt_er_die_tiefe_genau_einmal():
+    uid = 9002
+    bot._USER_PREFS[str(uid)] = {"sparmodus": True, "effort": None}
+    assert bot._sparmodus_greifen(uid) == "low", "eingeschaltet greift er nicht"
+    assert bot._USER_PREFS[str(uid)]["effort"] == "low"
+    # Wer ohnehin sparsam arbeitet, braucht keine Meldung darüber.
+    assert bot._sparmodus_greifen(uid) is None, \
+        "er meldet die Umstellung erneut, obwohl schon umgestellt ist"
+
+
+def _die_umstellung_wird_immer_genannt():
+    """Eine Tiefe, die sich unbemerkt senkt, ist schlimmer als eine, die
+    bleibt — man sucht den Fehler dann bei der Qualität."""
+    quelle = Path(bot.__file__).read_text(encoding="utf-8")
+    block = quelle.split("async def _limit_warnung_melden")[1].split("\ndef ")[0]
+    assert "_sparmodus_greifen" in block and "Sparmodus greift" in block, \
+        "der Sparmodus wirkt, ohne dass die Meldung es sagt"
+
+
+check("Sparmodus ist standardmäßig AUS (gebaut und ruhend)",
+      _sparmodus_ist_standardmaessig_AUS)
+check("eingeschaltet senkt er die Tiefe genau einmal",
+      _eingeschaltet_senkt_er_die_tiefe_genau_einmal)
+check("die Umstellung wird immer genannt, nie stillschweigend",
+      _die_umstellung_wird_immer_genannt)
+
 if fails:
-    print(f"❌ {len(fails)} B4-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
+    print(f"\n❌ {len(fails)} B4/B7-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)
-print("Alle B4-Limitwarnungs-Tests bestanden.")
+print("\nAlle B4/B7-Tests bestanden.")

@@ -696,15 +696,26 @@ weniger heikle Begriffe okay, für das Heikelste den Button-Weg nutzen.
     einhalten lässt, auch wenn man die andere gerade vergisst — und sie
     verwandelt den gefährlichen Fall zurück in den harmlosen.
 
-  **`[KORRIGIERT 2026-07-28, 17:5x]` Die Regel hatte den falschen Täter
-  benannt.** Sie sagte „nur über Edit/Write" — und dann sprengte ein
-  **frisch geschriebenes** `Write` genau daran. Nicht das Werkzeug ist die
-  Ursache, sondern **ein deutsches Anführungszeichen innerhalb eines doppelt
-  gequoteten Strings**, egal wie der String entsteht. Die tragfähige Fassung:
-  **In Python-Zeichenketten — besonders in `f"…"`-Meldungen — keine deutschen
-  Anführungszeichen.** Eckige Klammern (`[{wert}]`) tun denselben Dienst und
-  können nicht brechen. Im Fließtext von Docstrings und Kommentaren sind sie
-  unbedenklich; nur in Zeichenketten nicht.
+  **`[KORRIGIERT 2026-07-28]` Die Regel hatte den Täter zweimal falsch
+  benannt — und beide Male zu breit.** Erst hieß es „liegt am Werkzeug, nimm
+  Edit/Write" — dann sprengte ein **frisch geschriebenes** `Write` genau
+  daran. Dann hieß es „keine deutschen Anführungszeichen in Zeichenketten" —
+  auch das war zu grob, denn `bot.py` enthält mehrere sauber gesetzte Paare,
+  die nie etwas gebrochen haben.
+
+  **Die tragfähige Fassung:** Der Bruch entsteht ausschließlich beim
+  **gemischten Paar** — typographischer Öffner `„` und gerader Schließer `"`.
+  Das gerade Zeichen beendet die Zeichenkette, der Rest der Zeile hängt in der
+  Luft. Also: **typographische Anführungszeichen in Zeichenketten paarweise
+  (`„…“`) oder gar nicht** — eckige Klammern (`[{wert}]`) tun in Meldungen
+  denselben Dienst. In Docstrings und Kommentaren ist alles erlaubt.
+
+  **Der Prüfer dazu** (`scripts/test_blinde_flecken_b6.py`, Zeile
+  „kein gemischtes Anfuehrungspaar") meldet genau das Ungleichgewicht — ein
+  breiterer schlüge dreimal täglich grundlos an und wäre binnen einer Woche
+  abgeschaltet. **Lehre über die Regel hinaus: Wenn eine Regel wiederholt
+  bricht, ist zuerst zu prüfen, ob sie die richtige Ursache benennt** — nicht,
+  ob man sie strenger formulieren kann.
 
 ## Remote-/Mobil-Weiterführung von Sitzungen (WICHTIG)
 

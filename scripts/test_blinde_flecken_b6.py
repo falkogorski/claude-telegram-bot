@@ -90,6 +90,58 @@ def _das_verfahren_ist_abgelegt():
         assert frage in t, f"die Frage [{frage}] fehlt im Verfahren"
 
 
+def _kein_gemischtes_anfuehrungspaar_in_zeichenketten():
+    """Die Falle, die heute FÜNFMAL zugeschnappt ist — jetzt mit Prüfer.
+
+    **Und beim Bauen dieses Prüfers habe ich zum zweiten Mal denselben Fehler
+    gemacht: den Täter zu breit benannt.** Erst hieß es „liegt am Werkzeug",
+    dann „liegt am deutschen Anführungszeichen". Beides war zu grob.
+
+    Der Bruch entsteht ausschließlich beim **gemischten Paar**: ein
+    typographisches `„` als Öffner und ein gerades `"` als Schließer — Letzteres
+    beendet die Zeichenkette, und der Rest der Zeile hängt in der Luft. Ein
+    sauber gesetztes Paar (`„…“`) ist völlig unbedenklich; bot.py enthält
+    mehrere davon, und keines hat je etwas gebrochen.
+
+    Der Prüfer meldet deshalb genau das Ungleichgewicht: einen Öffner ohne
+    seinen typographischen Partner. Wäre er breiter, würde er dreimal am Tag
+    grundlos anschlagen und wäre binnen einer Woche abgeschaltet.
+
+    Docstrings sind ausgenommen — dort ist gutes Deutsch erwünscht und
+    ungefährlich, weil die dreifachen Anführungszeichen anders schließen.
+    """
+    import io
+    import tokenize
+    treffer = []
+    for datei in sorted((ROOT / "scripts").glob("*.py")) + [ROOT / "bot.py"]:
+        if datei.name == Path(__file__).name:
+            # **Selbstbezug, passend zum Thema:** Dieser Prüfer MUSS die
+            # Zeichen enthalten, um nach ihnen zu suchen. Er nimmt sich aus —
+            # und das ist keine Bequemlichkeit, sondern dieselbe Einsicht wie
+            # bei Connis Fund: Was ein Prüfer trägt, kann er nicht prüfen.
+            continue
+        quelle = datei.read_text(encoding="utf-8")
+        try:
+            marken = list(tokenize.generate_tokens(io.StringIO(quelle).readline))
+        except (tokenize.TokenError, IndentationError, SyntaxError):
+            continue                       # zerbrochene Datei: Sache des Syntaxlaufs
+        for mark in marken:
+            if mark.type != tokenize.STRING:
+                continue
+            roh = mark.string
+            if roh.lstrip("rbfuRBFU").startswith(('"""', "'''")):
+                continue                   # Docstring: gutes Deutsch erwünscht
+            if roh.count("„") != roh.count("“"):
+                treffer.append(f"{datei.name}:{mark.start[0]}")
+    assert not treffer, (
+        "gemischtes Anfuehrungspaar in einer Zeichenkette - ein typographischer "
+        "Oeffner ohne seinen Partner. Sobald der Schliesser ein gerades "
+        "Anfuehrungszeichen ist, bricht die Datei. Paarweise setzen oder "
+        "eckige Klammern nehmen: " + ", ".join(treffer[:8]))
+
+
+check("kein gemischtes Anfuehrungspaar in Zeichenketten (5x gebrochen)",
+      _kein_gemischtes_anfuehrungspaar_in_zeichenketten)
 check("die Zeitgeber-Suche ist keine Positivliste (Frage ③)",
       _zeitgeber_suche_ist_keine_positivliste)
 check("beide Register-Auswerter melden ihre blinden Flecken (Frage ①)",

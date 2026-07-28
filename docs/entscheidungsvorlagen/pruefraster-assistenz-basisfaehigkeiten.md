@@ -32,9 +32,9 @@ folgt danach, wenn klar ist, wonach zu suchen ist.
 | Gedächtnis über Sitzungen | ✅ | Memory-Ordner, `CLAUDE_MEMORY_DIR` |
 | Eigene Fehler melden statt schweigen | ✅ | `_notify_job_failed`, `bot-errors.log`, Selbstcheck |
 | **Dateien SENDEN können** | ✅ | Boten-Postfach, PDF-Paar-Regel |
-| **Große Dateien empfangen** | 🕳️ | 20-MB-Grenze von Telegram · Vorlage 5.34 liegt, Messung erledigt |
-| **Kalender lesen und schreiben** | 🕳️ | Nichts vorhanden. AppleScript-Weg fällt auf Linux weg → iCloud/CalDAV, beim Bau verifizieren (5.19) |
-| **E-Mail lesen und senden** | 🕳️ | Nichts vorhanden (9.5). „Schick raus" geht heute nicht |
+| **Große Dateien empfangen** | 🔄 | `[K4, 28.07.]` **Bot-Seite gebaut** (5.34): Umschalter `TELEGRAM_API_BASE`, Aufräum-Pflege mit 30-GiB-Deckel, Deckel-Prüfung im 4-Uhr-Lauf. **Offen bleibt der Server-Teil** — er braucht Adams `api_id`/`api_hash` und root (Schritt 5 der Befehlsblöcke) |
+| **Kalender lesen und schreiben** | 🔄 | `[K4, 28.07.]` **Gebaut** (7.4, `kalender.py`, CalDAV): `/termine` und `/aufgaben` stehen, sechs Prüfungen. **Wartet auf ein Ding:** Adams anwendungsspezifisches Apple-Kennwort. Ohne es meldet das Modul `NichtEingerichtet`, statt still zu schweigen |
+| **E-Mail lesen und senden** | 🔄 | `[K4, 28.07.]` **Gebaut** (9.5, `email_kanal.py`): 14 Prüfungen · Senden verlangt eine Freigabe · Kopffelder mit Steuerzeichen werden **abgewiesen statt gesäubert** · Posteingang nur-lesend · Absender nur aus einer Allowlist. **Wartet auf zwei Dinge:** die App-Kennwörter der beiden Konten |
 | **Erinnern zur richtigen Zeit** | 🔄 | 7.3 dokumentiert, nicht gebaut. Zeit-Trigger müssen ohne Modell-Aufruf laufen (AGB) |
 
 ## SOLL — macht sie brauchbar statt nur funktionsfähig
@@ -48,7 +48,7 @@ folgt danach, wenn klar ist, wonach zu suchen ist.
 | Sich selbst aktualisieren | ✅ | Monitor (5.21) + Updater + Nachzieher (C1) |
 | Nach Absturz sauber hochkommen | ✅ | Start-Wächter (B1), systemd `Restart=always` |
 | Mehrere Themen getrennt halten | 🔄 | Kanal-Routing gebaut (Phase 6), **vier Gruppen fehlen noch** |
-| **Sammelstelle für Links/Fundstücke** | 🕳️ | 5.14 Link-Inbox, nicht gebaut |
+| **Sammelstelle für Links/Fundstücke** | ✅ | `[K4, 28.07.]` **Gebaut** (5.14, `linkinbox.py`): Eine Nachricht, die nur aus Adressen besteht, wird abgelegt statt verarbeitet — deterministisch, ohne Modell. **Kein Netzabruf vor Adams Knopfdruck**, und der Titel ist als *abgeleitet* gekennzeichnet, nicht als gelesen |
 | **Bilder/Diagramme selbst erzeugen** | 🕳️ | Nichts vorhanden. Nicht dringend, aber bislang nie benannt |
 | **Tabellen/Rechenblätter erzeugen** | 🔄 | Rechnungs-Werkzeuge existieren extern (5.19), im Bot nicht angebunden |
 | **Mehrere Sitzungen gleichzeitig** | 🔄 | 5.1, nach Phase 3 |

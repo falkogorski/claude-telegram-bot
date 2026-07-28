@@ -162,7 +162,66 @@ def _befunde() -> list[tuple[str, str]]:
     # Bot hat den Schlüssel ohnehin und fragt selbst nach; die Blume liest nur
     # seine Marke. So gibt es keinen ZWEITEN Ort für ein Geheimnis.
     raus.extend(zustellung_pruefen())
+    # 6. Lebt der 4-Uhr-Check noch? (Connis Fund, 28.07.)
+    raus.extend(tagescheck_pruefen())
     return raus
+
+
+# Der Tagescheck läuft täglich um 04:10. 26 Stunden lassen einen verspäteten
+# Lauf (Neustart, Wartungsfenster, Zeitumstellung) durch und schlagen erst an,
+# wenn wirklich einer ausgefallen ist.
+#
+# **Hier ist die feste Schwelle ausnahmsweise richtig** — anders als bei der
+# Zeitgeber-Wache, die bewusst `NextElapseUSecRealtime` misst, statt einen Takt
+# zu raten. Der Unterschied: Dort war der Takt unbekannt (der Versions-Monitor
+# läuft wöchentlich, ein 26-Stunden-Maß hätte beim ersten Lauf angeschlagen).
+# Hier ist er bekannt und fest. Eine Regel ist nicht deshalb schlecht, weil sie
+# eine Zahl enthält, sondern wenn die Zahl geraten ist.
+TAGESCHECK_STILL_S = 26 * 3600
+TAGESCHECK_LOG = Path(os.environ.get("TAGESCHECK_LOG")
+                      or "/home/claudebot/claude-telegram-bot/logs/daily-check.log")
+
+
+def tagescheck_pruefen() -> list[tuple[str, str]]:
+    """Schließt den blinden Fleck der Zeitgeber-Wache auf ihren eigenen Träger.
+
+    **Der Fund (Conni, 28.07.):** Die Zeitgeber-Wache kann jeden Zeitgeber
+    prüfen — außer den, der sie selbst startet. Sie lebt in `daily_check.sh`,
+    und der läuft über einen Zeitgeber. Stirbt ausgerechnet dieser, stirbt die
+    Wache mit ihm, und niemand meldet es.
+
+    Das ist kein Konstruktionsfehler, sondern die übliche Grenze jeder
+    Selbstprüfung: **Was ein Prüfer trägt, kann er nicht prüfen.** Die Lösung
+    ist deshalb auch keine bessere Selbstprüfung, sondern eine zweite,
+    unabhängige Instanz — die Stundenblumen laufen über einen eigenen
+    Zeitgeber. Danach bewachen sich beide gegenseitig: die Blumen den
+    Tagescheck über diese Zeile, der Tagescheck die Blumen über seine
+    bestehende Ketten-Prüfung. **Kreuzverschränkung statt Selbstbezug.**
+
+    Gemessen wird die Änderungszeit des Protokolls — es wird am Ende jedes
+    Laufs geschrieben, unabhängig davon, ob der Lauf Probleme fand. Gefragt ist
+    „ist er gelaufen", nicht „war er grün"; ein grüner Tag ist kein Ausfall.
+    """
+    try:
+        alter = time.time() - TAGESCHECK_LOG.stat().st_mtime
+    except FileNotFoundError:
+        # Kein Protokoll heißt: noch nie gelaufen. Das ist ein echter Befund
+        # und kein Grund zu schweigen — der Dämpfer sorgt dafür, dass er nicht
+        # stündlich wiederkommt.
+        return [("tagescheck-still",
+                 "🔴 Vom 4-Uhr-Check gibt es überhaupt kein Protokoll — er "
+                 "scheint noch nie gelaufen zu sein. Damit läuft auch die "
+                 "Zeitgeber-Wache nicht, die in ihm wohnt.")]
+    except OSError:
+        return []                          # nicht lesbar: keine Aussage, kein Raten
+    if alter < TAGESCHECK_STILL_S:
+        return []
+    stunden = int(alter // 3600)
+    return [("tagescheck-still",
+             f"🔴 Der 4-Uhr-Check hat sich seit etwa {stunden} Stunden nicht "
+             "gemeldet. Mit ihm schweigt die Zeitgeber-Wache, der "
+             "Regressionslauf und die Token-Alterung — also ausgerechnet die "
+             "Prüfungen, die sonst alles andere melden.")]
 
 
 def rollen(grenze: int | None = None, jetzt: float | None = None) -> str | None:

@@ -577,7 +577,67 @@ def _statuszeile_meldet_stillstand():
 check("Statuszeile benennt den Stillstand (Ueberblick auf Abruf)",
       _statuszeile_meldet_stillstand)
 
+
+
+# ---------- Connis Fund 28.07.: der blinde Fleck auf den eigenen Träger ------
+def _tagescheck_wird_mitbewacht():
+    """**Was ein Prüfer trägt, kann er nicht prüfen.**
+
+    Die Zeitgeber-Wache kann jeden Zeitgeber prüfen — außer den, der sie selbst
+    startet. Sie lebt in `daily_check.sh`, und der läuft über einen Zeitgeber.
+    Stirbt ausgerechnet dieser, stirbt die Wache mit ihm, und niemand meldet
+    es. Das ist kein Konstruktionsfehler, sondern die übliche Grenze jeder
+    Selbstprüfung — und deshalb ist die Lösung auch keine bessere
+    Selbstprüfung, sondern eine zweite, unabhängige Instanz.
+    """
+    log = _TMP / "daily-check.log"
+    sb.TAGESCHECK_LOG = log
+
+    # Frisch gelaufen -> Ruhe.
+    log.write_text("x", encoding="utf-8")
+    assert sb.tagescheck_pruefen() == [], "ein frischer Lauf wird gemeldet"
+
+    # Seit 30 Stunden nichts -> Befund, und zwar mit der vereinbarten Kennung.
+    alt = time.time() - 30 * 3600
+    os.utime(log, (alt, alt))
+    befunde = sb.tagescheck_pruefen()
+    assert len(befunde) == 1, f"der Ausfall wird nicht gemeldet: {befunde}"
+    assert befunde[0][0] == "tagescheck-still", \
+        f"falsche Kennung — der Dämpfer greift sonst nicht: {befunde[0][0]}"
+    assert "Zeitgeber-Wache" in befunde[0][1], \
+        "die Meldung sagt nicht, WAS mit dem Tagescheck ausfällt"
+
+    # 25 Stunden sind noch kein Ausfall — ein verspäteter Lauf (Neustart,
+    # Wartungsfenster, Zeitumstellung) darf nicht alarmieren.
+    knapp = time.time() - 25 * 3600
+    os.utime(log, (knapp, knapp))
+    assert sb.tagescheck_pruefen() == [], \
+        "ein bloß verspäteter Lauf schlägt Alarm — das schaltet den Wächter ab"
+
+    # Gar kein Protokoll ist ein echter Befund, kein Grund zu schweigen.
+    log.unlink()
+    assert sb.tagescheck_pruefen()[0][0] == "tagescheck-still"
+
+
+def _verschraenkung_greift_in_BEIDE_richtungen():
+    """Eine Kreuzverschränkung, die nur in eine Richtung wirkt, ist keine —
+    sie ist bloß ein zweiter Wächter mit demselben blinden Fleck."""
+    import re
+    daily = (Path(__file__).resolve().parent / "daily_check.sh").read_text(encoding="utf-8")
+    assert re.search(r"stundenblume\.py[\"']?\s+--pruefen", daily), \
+        "der Tagescheck prüft die Belegkette NICHT — die Verschränkung ist einseitig"
+    quelle = Path(sb.__file__).read_text(encoding="utf-8")
+    assert "def tagescheck_pruefen" in quelle and "tagescheck_pruefen()" in \
+        quelle.split("def tagescheck_pruefen")[0], \
+        "die Blumen prüfen den Tagescheck nicht — oder rufen es nicht auf"
+
+
+check("Tagescheck wird von den Blumen mitbewacht (Connis Fund)",
+      _tagescheck_wird_mitbewacht)
+check("die Verschränkung greift in BEIDE Richtungen",
+      _verschraenkung_greift_in_BEIDE_richtungen)
+
 if fails:
-    print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")
+    print(f"\n❌ {len(fails)} Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)
 print("\nAlle Stundenblumen-Tests bestanden.")

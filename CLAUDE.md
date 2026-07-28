@@ -139,6 +139,14 @@ Sitzung** mit dem ausdrücklichen Auftrag: **„Finde, was daran nicht trägt"**
 nicht „prüfe, ob es stimmt". *Wer bestätigen soll, bestätigt.* Der Befund wird
 committet. **Eine Gegenprüfung, die nie etwas findet, ist selbst der Befund.**
 
+**①a Zwei Präzisierungen `[NEU 2026-07-28, Conni]`.** *Die Selbst-Widerlegung
+beim Bauen zählt NICHT als diese Gegenprüfung* — sie ist derselbe Blickwinkel,
+nur ehrlich. Auch ein Punkt, bei dem ich beim Bauen selbst einen Fehler gefunden
+habe, bekommt die frische Sitzung mit Widerlegungs-Auftrag. Und: *Vor jedem
+**Scharfstellen** (Zeitgeber starten, Wächter aktivieren) muss die Gegenprüfung
+des betroffenen Punkts **vorher** gelaufen sein* — nicht am Blockende.
+**Gebaut-und-ruhend darf warten; gebaut-und-wachend nicht.**
+
 **② Nachlaufende Gesamtabnahme.** Nichts, was in der Abwesenheit entsteht,
 erhält den Status **VERIFIZIERT** — höchstens **„GEBAUT (Abwesenheit, Abnahme
 ausstehend)"**. Bis dahin gilt: **jeder Punkt einzeln committet, Rückweg

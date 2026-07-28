@@ -7477,6 +7477,149 @@ def _normalize_number_ranges(text: str) -> str:
     return re.sub(r"(\d+)\s*[-–]\s*(\d+)", repl, text)
 
 
+# ---------- B5: Vorlese-Regeln für Zahlen, die keine Zahlen sind ----------
+#
+# Der gemeinsame Nenner aller vier Fälle: **Eine Ziffernfolge sagt nicht, was
+# sie ist.** „2026" kann ein Jahr, eine Menge oder das Ende einer Kennnummer
+# sein; „22.06.2026" ist kein Rechenausdruck. Die Stimme muss also aus dem
+# Umfeld schließen — und wo das Umfeld nichts hergibt, wird NICHT geraten.
+# Diese Zurückhaltung ist Absicht: Eine falsch vorgelesene Zahl ist schlimmer
+# als eine nüchtern vorgelesene.
+
+_MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
+           "August", "September", "Oktober", "November", "Dezember")
+
+
+def _normalize_dates(text: str) -> str:
+    """`22.06.2026` → `22. Juni 2026`, `22.06.` → `22. Juni`.
+
+    Ohne das liest die Stimme drei durch Punkte getrennte Zahlen vor — im
+    besten Fall als Aufzählung, im schlechteren als Nachkommastellen. Der
+    ausgeschriebene Monat ist zugleich **eindeutig**: Er kann nicht mehr mit
+    einer Versionsnummer verwechselt werden, weshalb dieser Schritt VOR
+    `_normalize_versions` läuft.
+    """
+    import re
+
+    def _tag_monat(t: str, m: str) -> str | None:
+        try:
+            mi = int(m)
+        except ValueError:
+            return None
+        if not 1 <= mi <= 12:
+            return None            # kein Datum — unangetastet lassen
+        return f"{int(t)}. {_MONATE[mi - 1]}"
+
+    def _mit_jahr(m: "re.Match") -> str:
+        kopf = _tag_monat(m.group(1), m.group(2))
+        return f"{kopf} {m.group(3)}" if kopf else m.group(0)
+
+    def _ohne_jahr(m: "re.Match") -> str:
+        return _tag_monat(m.group(1), m.group(2)) or m.group(0)
+
+    text = re.sub(r"\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b", _mit_jahr, text)
+    # Nur mit abschließendem Punkt („am 22.06.") — sonst gerieten
+    # Versionsnummern wie „3.12" in diese Regel.
+    return re.sub(r"\b(\d{1,2})\.(\d{1,2})\.(?!\d)", _ohne_jahr, text)
+
+
+_EINER = ("null", "ein", "zwei", "drei", "vier", "fünf", "sechs", "sieben",
+          "acht", "neun", "zehn", "elf", "zwölf", "dreizehn", "vierzehn",
+          "fünfzehn", "sechzehn", "siebzehn", "achtzehn", "neunzehn")
+_ZEHNER = ("", "", "zwanzig", "dreißig", "vierzig", "fünfzig", "sechzig",
+           "siebzig", "achtzig", "neunzig")
+
+
+def _zahlwort(n: int) -> str:
+    """0–99 als deutsches Wort. Reicht für die Jahres-Regel."""
+    if n < 20:
+        return _EINER[n]
+    z, e = divmod(n, 10)
+    return _ZEHNER[z] if e == 0 else f"{_EINER[e]}und{_ZEHNER[z]}"
+
+
+# Wörter, die eine vierstellige Zahl als JAHR ausweisen. Ohne einen davon
+# bleibt sie unangetastet — „1985 Teilnehmer" ist eine Menge.
+_JAHR_HINWEIS = re.compile(
+    r"(?:\b(?:jahr|jahre|jahren|seit|ab|bis|von|im|anno|baujahr|jahrgang|"
+    r"geboren|gegründet|gegruendet|damals|sommer|winter|frühjahr|fruehjahr|"
+    r"herbst)\b\W{0,3})$", re.IGNORECASE)
+
+
+def _normalize_jahreszahlen(text: str) -> str:
+    """`seit 1985` → `seit neunzehnhundertfünfundachtzig`.
+
+    **Betrifft nur das 12. bis 20. Jahrhundert.** Ab 2000 ist die deutsche
+    Jahresform mit der Zahlform identisch („zweitausendsechsundzwanzig"), da
+    gibt es nichts zu richten. Davor sind es zwei verschiedene Wörter, und die
+    Zahlform („eintausendneunhundertfünfundachtzig") klingt in einem
+    Jahresbezug schlicht falsch.
+
+    **Es wird nur umgeschrieben, wenn ein Jahres-Wort davorsteht.** Eine bloße
+    Ziffernfolge ist mehrdeutig — „1985 Teilnehmer" ist eine Menge, und die
+    darf nicht zum Jahr werden.
+    """
+    import re
+
+    def _ersetze(m: "re.Match") -> str:
+        if not _JAHR_HINWEIS.search(text[max(0, m.start() - 30):m.start()]):
+            return m.group(0)
+        n = int(m.group(0))
+        hundert, rest = divmod(n, 100)
+        wort = f"{_EINER[hundert]}hundert"
+        return wort if rest == 0 else wort + _zahlwort(rest)
+
+    return re.sub(r"(?<![\d.,])1[12][0-9]{2}(?![\d.,])|(?<![\d.,])1[3-9][0-9]{2}(?![\d.,])",
+                  _ersetze, text)
+
+
+# Wörter, nach denen eine lange Ziffernfolge eine KENNUNG ist, keine Menge.
+_KENNUNG_HINWEIS = re.compile(
+    r"\b(nummer|nr|kennung|kennzahl|id|iban|konto|kontonummer|auftrag|"
+    r"auftragsnummer|beleg|belegnummer|sendung|sendungsnummer|telefon|"
+    r"rufnummer|bestellung|bestellnummer|kundennummer|rechnungsnummer|"
+    r"vorgang|referenz|ticket|aktenzeichen|postleitzahl|plz)\b[\s.:#]*$",
+    re.IGNORECASE)
+
+
+def _normalize_kennnummern(text: str) -> str:
+    """`Bestellnummer 4711829` → `Bestellnummer 4 7 1 1 8 2 9`.
+
+    Eine Kennung am Stück gelesen („vier Millionen siebenhundertelftausend…")
+    ist zum Mitschreiben unbrauchbar — genau dafür hört man sie sich aber an.
+
+    **Zwei bewusste Einschränkungen:** Es braucht (a) ein ankündigendes Wort
+    und (b) mindestens fünf Ziffern. Ohne (a) würde jede größere Zahl
+    zerhackt; ohne (b) geriete eine Jahreszahl in die Regel, denn „Rechnung
+    2026" ist weit häufiger ein Jahr als eine vierstellige Belegnummer.
+    """
+    import re
+
+    def _ersetze(m: "re.Match") -> str:
+        if not _KENNUNG_HINWEIS.search(text[max(0, m.start() - 40):m.start()]):
+            return m.group(0)
+        return " ".join(m.group(0))
+
+    return re.sub(r"(?<![\d.,])\d{5,}(?![\d.,])", _ersetze, text)
+
+
+# Zeilen, die dem Modell den Bezug erklären — sie gehören nie in die Stimme.
+_KONTEXT_ZEILE = re.compile(r"^\s*\[Kontext:.*?\]:?\s*", re.DOTALL)
+
+
+def _strip_kontext_hinweis(text: str) -> str:
+    """Entfernt den Bezugs-Vermerk, der für das MODELL gedacht ist.
+
+    **Ehrlich gesagt ein Riegel, kein Fehlerbehebung:** Ich habe beim Bauen
+    keinen Weg gefunden, auf dem dieser Vermerk heute tatsächlich in die
+    Sprachausgabe gerät — er wird Adams Text vorangestellt, gesprochen wird
+    die Antwort. Der Riegel kostet aber nichts und schließt die Möglichkeit,
+    dass ein späterer Pfad ihn doch mitnimmt. Vorgelesen wäre er reines
+    Kauderwelsch.
+    """
+    return _KONTEXT_ZEILE.sub("", text or "", count=1)
+
+
 def _normalize_versions(text: str) -> str:
     """'Python 3.12' → 'Python 3 Punkt 12' (sonst liest TTS '3 Uhr 12').
     Datum (22.06.2026), bereits getrennte Zahlen und Uhrzeit-Indikatoren
@@ -7544,8 +7687,21 @@ def _strip_markdown_for_tts(text: str) -> str:
     """Entfernt Markdown-Formatierungszeichen und Emojis für saubere TTS-Ausgabe."""
     import re
     # Vorab: Aussprache-Wörterbuch + Zahlen-Bindestrich-Regel + Versionsnummern
+    #
+    # **Die Reihenfolge trägt hier die halbe Arbeit** (B5, 28.07.):
+    #  1. Der Bezugs-Vermerk fliegt zuerst — er ist Text für das Modell, nicht
+    #     für ein Ohr, und würde sonst durch alle folgenden Regeln laufen.
+    #  2. Datum VOR Versionsnummern: `22.06.2026` wird zu `22. Juni 2026` und
+    #     ist danach unverwechselbar. Andersherum hätte die Versions-Regel es
+    #     zuerst in „22 Punkt 06" verwandelt.
+    #  3. Kennnummern VOR Jahreszahlen: Eine Kennung darf nicht unterwegs in
+    #     ihren letzten vier Ziffern zu einem Jahrhundert werden.
+    text = _strip_kontext_hinweis(text)
     text = _apply_tts_pronunciation(text)
     text = _normalize_number_ranges(text)
+    text = _normalize_dates(text)
+    text = _normalize_kennnummern(text)
+    text = _normalize_jahreszahlen(text)
     text = _normalize_versions(text)
     # Code-Blöcke werden NICHT zeichengenau vorgelesen, sondern durch eine
     # knappe Inhaltsbeschreibung ersetzt. Sprache aus dem Fence-Hinweis

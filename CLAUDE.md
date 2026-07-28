@@ -667,13 +667,26 @@ weniger heikle Begriffe okay, für das Heikelste den Button-Weg nutzen.
 - **Shell ist `zsh`:** KEINE `#`-Kommentarzeilen in Befehlsblöcken — zsh führt
   `#` interaktiv als Befehl aus („command not found: #"). Nur reine Befehle
   geben, Erklärungen außerhalb des Code-Blocks.
-- **Deutsche Anführungszeichen sprengen Python-Einzeiler** (3× passiert,
-  25.–27.07.): Ein Skript, das eine Zeile mit `„…"` per `t.replace("…„X"…")`
+- **Deutsche Anführungszeichen sprengen Python-Einzeiler** (**6× passiert**,
+  25.–28.07.): Ein Skript, das eine Zeile mit `„…"` per `t.replace("…„X"…")`
   sucht, bricht mit SyntaxError ab — das schließende `"` ist zugleich das
-  Python-Stringende. Tückisch daran: Der Fehler kommt NACH dem Commit-Teil
-  einer verketteten Befehlszeile, der Commit ist durch, die Datei-Änderung
-  fehlt still. **Regel: Dateien mit deutschen Anführungszeichen nur über
+  Python-Stringende. **Regel: Dateien mit deutschen Anführungszeichen nur über
   Edit/Write ändern, nie über Inline-Python mit doppelt gequoteten Strings.**
+
+  **`[VERSCHÄRFT 2026-07-28]` Der harmlose und der gefährliche Fall gehören
+  getrennt** — die Regel hat dreimal an einem Tag nicht gehalten, aber nur eine
+  der drei Verletzungen hat Schaden angerichtet:
+  - **Harmlos:** Der SyntaxError kommt sofort, nichts ist geschehen, ein
+    zweiter Anlauf genügt. Kostet eine Minute.
+  - **Gefährlich:** `python - <<PY … PY && git commit …` — hier läuft der
+    **Commit-Teil weiter, obwohl der Datei-Teil abgebrochen ist.** Der Commit
+    ist durch, die Änderung fehlt still, und im Repo steht eine Nachricht, die
+    etwas behauptet, das nicht darin ist. Genau so am 28.07. um 17:04.
+  - **Daraus die eigentliche Auflage: `git commit` wird NIE an einen
+    dateiändernden Heredoc gekettet.** Erst ändern, Ergebnis ansehen, dann in
+    einem eigenen Aufruf committen. Das ist die Hälfte der Regel, die sich
+    einhalten lässt, auch wenn man die andere gerade vergisst — und sie
+    verwandelt den gefährlichen Fall zurück in den harmlosen.
 
 ## Remote-/Mobil-Weiterführung von Sitzungen (WICHTIG)
 

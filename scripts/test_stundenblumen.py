@@ -524,6 +524,59 @@ def _entwarnung_nennt_den_text_nicht_die_kennung():
 check("Entwarnung nennt den Text, nicht die Kennung (Live-Fund)",
       _entwarnung_nennt_den_text_nicht_die_kennung)
 
+
+def _statuszeile_meldet_stillstand():
+    """Adams Wunsch vom 28.07.: sehen koennen, dass es laeuft — auf Abruf.
+
+    **Warum keine stuendliche Meldung:** Ein Waechter, der regelmaessig „alles
+    gut" sagt, wird nach zwei Tagen ueberlesen — und dann auch die eine
+    Meldung, die zaehlt. Der Meldungssturm desselben Tages hat vorgefuehrt,
+    wohin das fuehrt. Also Ueberblick auf Abruf, Alarm bei Anlass.
+
+    Die Zeile muss vor allem EINES koennen: den Stillstand benennen. Eine
+    Statuszeile, die bei stehender Kette „alles gut" sagt, waere schlimmer als
+    keine.
+    """
+    import os as _os
+    _os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:test")
+    _os.environ.setdefault("ALLOWED_USER_IDS", "1")
+    sys.path.insert(0, str(Path(sb.__file__).resolve().parent.parent))
+    import bot
+
+    echt = bot.Path.home
+    heim = Path(_TMP / "heim")
+    (heim / ".claude" / "stundenblumen").mkdir(parents=True, exist_ok=True)
+    bot.Path.home = staticmethod(lambda: heim)
+    kette = heim / ".claude" / "stundenblumen" / "kette.jsonl"
+    try:
+        # (1) Keine Kette → ehrlich gesagt, nicht beschoenigt.
+        assert "noch keine Glieder" in bot._blumen_zeile()
+
+        # (2) Frische Kette ohne Befund → lueckenlos, nichts zu melden.
+        kette.write_text(json.dumps(
+            {"zeit": time.time(), "befunde": []}) + "\n", encoding="utf-8")
+        z = bot._blumen_zeile()
+        assert "lückenlos" in z and "nichts zu melden" in z, z
+
+        # (3) STILLSTAND — der Fall, für den die Zeile da ist.
+        kette.write_text(json.dumps(
+            {"zeit": time.time() - 3600, "befunde": []}) + "\n", encoding="utf-8")
+        z = bot._blumen_zeile()
+        assert "steht still" in z, (
+            f"eine stehende Kette wird als in Ordnung gemeldet: {z}")
+
+        # (4) Befunde werden genannt, nicht verschwiegen.
+        kette.write_text(json.dumps(
+            {"zeit": time.time(), "befunde": ["nur noch 2.0 GiB frei"]}) + "\n",
+            encoding="utf-8")
+        assert "2.0 GiB" in bot._blumen_zeile()
+    finally:
+        bot.Path.home = echt
+
+
+check("Statuszeile benennt den Stillstand (Ueberblick auf Abruf)",
+      _statuszeile_meldet_stillstand)
+
 if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")
     sys.exit(1)

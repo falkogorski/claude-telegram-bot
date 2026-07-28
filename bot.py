@@ -2406,6 +2406,45 @@ async def cmd_reset(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(msg, reply_markup=keyboard)
 
 
+def _blumen_zeile() -> str:
+    """Der Zustand der Belegkette — **auf Abruf, nicht als Dauerfunk.**
+
+    **Adams Anliegen (28.07.):** „Ich möchte sehen können, dass es läuft, ohne
+    fragen zu müssen." Der naheliegende Weg wäre eine stündliche Meldung — und
+    genau der wäre falsch: Ein Wächter, der regelmäßig „alles gut" sagt, wird
+    nach zwei Tagen überlesen, und dann auch die eine Meldung, die zählt. Der
+    Meldungssturm desselben Tages hat vorgeführt, wohin das führt.
+
+    Deshalb die Zweistufigkeit, die dieses Projekt ohnehin trägt: **Überblick
+    sofort auf Abruf, Alarm nur bei Anlass.** Die Kette schreibt weiter
+    minütlich; hier steht nur, was sie belegt.
+
+    Kein Modell-Aufruf, kein Netz — reines Ablesen einer Datei.
+    """
+    kette = Path.home() / ".claude" / "stundenblumen" / "kette.jsonl"
+    try:
+        with kette.open("rb") as f:
+            f.seek(0, 2)
+            groesse = f.tell()
+            f.seek(max(0, groesse - 4096))
+            zeilen = [z for z in f.read().decode("utf-8", "replace").splitlines()
+                      if z.strip()]
+        letzte = _json.loads(zeilen[-1])
+        alter = int(time.time() - float(letzte.get("zeit", 0)))
+        with kette.open("rb") as f:
+            glieder = sum(1 for _ in f)
+    except Exception:
+        return "🪷 Belegkette: noch keine Glieder (läuft der Zeitgeber?)"
+
+    if alter > 300:
+        return (f"🪷 Belegkette: **steht still** — jüngstes Glied vor "
+                f"{alter // 60} Minuten. Der Zeitgeber läuft womöglich nicht.")
+    befunde = letzte.get("befunde") or []
+    stand = ("nichts zu melden" if not befunde
+             else f"{len(befunde)} Befund(e): " + "; ".join(str(b)[:60] for b in befunde))
+    return f"🪷 Belegkette: lückenlos, {glieder} Glieder — {stand}"
+
+
 async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
@@ -2429,6 +2468,7 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     lines.append(f"⚙️ Tempo: {tempo_namen.get(eff, str(eff))}")
     if user_id in _THOROUGH_PENDING:
         lines.append("🎯 Gründlich ist für die nächste Anfrage vorgemerkt")
+    lines.append(_blumen_zeile())
     lines.append("")
 
     # Läuft gerade

@@ -135,6 +135,7 @@ def main() -> int:
     reg = json.loads(REGISTER.read_text())
     updates: list[str] = []   # meldepflichtig
     manual: list[str] = []    # nur Reminder
+    blind: list[str] = []     # Befund A/D: was der Monitor NICHT prueft
     loglines: list[str] = []
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -146,12 +147,31 @@ def main() -> int:
             continue
         handler = HANDLERS.get(kind)
         if not handler:
-            loglines.append(f"? {name}: unbekannter kind {kind}")
+            # **Befund A (Vorlage 5.21-E): eine Art, die niemand prüft.**
+            #
+            # Bis hierher landete das nur im Protokoll — und ein Protokoll, das
+            # niemand liest, ist kein Prüfer. Wer eine Komponente mit einer
+            # unbekannten Art einträgt, bekam **stille Nichtprüfung**: Der
+            # Eintrag stand im Register, sah nach Abdeckung aus, und wurde nie
+            # angesehen. Genau die Signatur, die dieses Projekt am häufigsten
+            # trifft — ein Ausbleiben, das wie Ruhe aussieht.
+            #
+            # Das Register selbst nennt heute `github_release`, für das es
+            # keinen Handler gibt. Der Fall ist also nicht theoretisch.
+            blind.append(f"⚠️ {name}: Art `{kind}` kennt der Monitor nicht — "
+                         "dieser Eintrag wird seit jeher NICHT geprüft")
+            loglines.append(f"? {name}: unbekannter kind {kind} (GEMELDET)")
             continue
         cur = handler[0](comp)
         latest = handler[1](comp)
         if not cur or not latest:
-            loglines.append(f"? {name}: cur={cur or '?'} latest={latest or '?'} (Quelle n/a)")
+            # **Befund D, dieselbe Klasse:** Eine weggebrochene Quelle stand
+            # bisher stumm im Protokoll. „Es gibt nichts Neues" und „ich komme
+            # nicht mehr an die Auskunft" sehen von außen gleich aus — und nur
+            # das zweite ist ein Problem.
+            blind.append(f"⚠️ {name}: Quelle nicht erreichbar "
+                         f"(installiert={cur or '?'}, verfügbar={latest or '?'})")
+            loglines.append(f"? {name}: cur={cur or '?'} latest={latest or '?'} (Quelle n/a, GEMELDET)")
             continue
         newer, major = _cmp(cur, latest)
         if newer:
@@ -173,15 +193,27 @@ def main() -> int:
 
     # Meldung nur bei echten Updates (Manual-Reminder hängen wir an, wenn es
     # ohnehin eine Meldung gibt — sonst kein wöchentliches Rauschen).
-    if updates:
-        msg = "📦 Update-Monitor (5.21) — verfügbare Versionen:\n" + "\n".join(updates)
-        msg += "\n\nInstallation bleibt manuell (E3). 🔴 = Major-Sprung, bewusst prüfen."
+    if updates or blind:
+        teile = []
+        if updates:
+            teile.append("📦 Update-Monitor (5.21) — verfügbare Versionen:\n"
+                         + "\n".join(updates)
+                         + "\n\nInstallation bleibt manuell (E3). "
+                           "🔴 = Major-Sprung, bewusst prüfen.")
+        if blind:
+            # **Ein blinder Fleck ist meldepflichtig, auch wenn es sonst nichts
+            # gibt.** Andernfalls hätte ich denselben Fehler zweimal gebaut:
+            # Ein Befund, der nur ins Protokoll wandert, ist keiner.
+            teile.append("🕳️ Blinde Flecken im Register — hier prüft der "
+                         "Monitor NICHT:\n" + "\n".join(blind)
+                         + "\n\nDas ist kein Update-Hinweis, sondern die "
+                           "Auskunft, dass diese Einträge ungeprüft dastehen.")
         if manual:
-            msg += "\n\nManuell im Blick behalten:\n" + "\n".join(manual)
-        _send_telegram(msg)
-        print(f"{len(updates)} Update(s) gemeldet.")
+            teile.append("Manuell im Blick behalten:\n" + "\n".join(manual))
+        _send_telegram("\n\n".join(teile))
+        print(f"{len(updates)} Update(s), {len(blind)} blinde(r) Fleck(en) gemeldet.")
     else:
-        print("Keine Updates — keine Meldung.")
+        print("Keine Updates, keine blinden Flecken — keine Meldung.")
     return 0
 
 

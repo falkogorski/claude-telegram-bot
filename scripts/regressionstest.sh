@@ -110,6 +110,7 @@ run "Hora (autonomer Laeufer)"          "$PY" scripts/test_hora.py
 run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py
 run "Zustell-Waechter (erreicht uns TG?)" "$PY" scripts/test_zustellwaechter.py
 run "Pruefumgebung (Riegel 3)"          "$PY" scripts/test_pruefumgebung.py
+run "Versions-Monitor (5.21)"           "$PY" scripts/test_version_monitor.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 
 # Der Nachweis, dass die Wegwerf-Umgebung wirklich gegriffen hat. Nachmessen,

@@ -340,3 +340,12 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   **universell** — Der Modell-Abgleich sollte einen API-Schlüssel nutzen; die
   Anmelde-Prüfung meldet genau dessen Anwesenheit als Alarm. Zwei Teile des
   Systems hätten gegeneinander gearbeitet, **und beide hätten recht gehabt**.
+
+- **Ein Register, das mehr Arten kennt als sein Prüfer, erzeugt stille
+  Nichtprüfung** · B2/Befund A · **universell** — `components.json` nannte
+  `github_release`, der Monitor hatte keinen Handler dafür. Der Eintrag stand
+  da, sah nach Abdeckung aus und wurde nie angesehen. **Nebenwirkung beim
+  Bauen:** Beim Melden wäre mir fast derselbe Fehler ein zweites Mal
+  unterlaufen — die Fundliste wurde zunächst nur ausgegeben, wenn es *auch*
+  Updates gab. **Ein blinder Fleck ist meldepflichtig, gerade wenn es sonst
+  nichts gibt.**

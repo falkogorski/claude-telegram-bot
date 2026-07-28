@@ -54,9 +54,44 @@ def _load_components() -> list[dict]:
     return json.loads(REGISTER.read_text()).get("components", [])
 
 
+def blinde_flecken() -> list[str]:
+    """Was `/updates` NICHT beantworten konnte — und warum.
+
+    **Dieselbe Lücke, die der Monitor am 28.07. geschlossen bekam, stand hier
+    noch offen:** `classify` überging eine Komponente stillschweigend, sobald
+    eine ihrer beiden Auskünfte fehlte. Für Adam sah das aus wie „✅ Alles
+    aktuell" — dabei war der Eintrag gar nicht geprüft worden.
+
+    Der Fall ist nicht theoretisch: Der Bot läuft als `claudebot` und ist
+    **nicht in der Docker-Gruppe** (gemessen 28.07.). Das LobeChat-Abbild kann
+    er deshalb nie selbst ansehen. Das ist kein Defekt, sondern eine bewusste
+    Rechtegrenze — sie gehört benannt, nicht verschwiegen.
+    """
+    out = []
+    for comp in _load_components():
+        kind = comp["kind"]
+        if kind == "manual" or kind not in vm.HANDLERS:
+            continue
+        cur = vm.HANDLERS[kind][0](comp)
+        latest = vm.HANDLERS[kind][1](comp)
+        if cur and latest:
+            continue
+        if comp.get("braucht_root"):
+            out.append(f"• {comp['name']}: braucht Root-Rechte — das prüft nur "
+                       "der wöchentliche Zeitgeber-Lauf, nicht dieser Knopf")
+        else:
+            out.append(f"• {comp['name']}: Quelle nicht erreichbar "
+                       f"(installiert={cur or '?'}, verfügbar={latest or '?'})")
+    return out
+
+
 def classify() -> list[dict]:
     """Ermittelt je Komponente cur/latest und die Ampel. Rückgabe nur für
-    Komponenten mit verfügbarem Update (grün/gelb/rot); manual/aktuell fehlen."""
+    Komponenten mit verfügbarem Update (grün/gelb/rot); manual/aktuell fehlen.
+
+    Was hier NICHT ermittelt werden konnte, liefert `blinde_flecken()` —
+    getrennt, damit dieser Rückgabewert seinen Vertrag behält.
+    """
     out = []
     for comp in _load_components():
         kind = comp["kind"]
@@ -65,8 +100,13 @@ def classify() -> list[dict]:
         cur = vm.HANDLERS[kind][0](comp)
         latest = vm.HANDLERS[kind][1](comp)
         if not cur or not latest:
-            continue
-        newer, major = vm._cmp(cur, latest)
+            continue            # → blinde_flecken(), NICHT stillschweigend
+        # **Die Art MUSS mitgegeben werden.** Ohne sie liefe ein
+        # Docker-Fingerabdruck durch den Zahlenvergleich: `_vtuple` zieht die
+        # Ziffern aus der Hexadezimalfolge und vergleicht sie der Größe nach —
+        # ein Ergebnis, das von der zufälligen Ziffernlage abhängt. Mal
+        # „aktuell", mal ein erfundenes Update.
+        newer, major = vm._cmp(cur, latest, kind)
         if not newer:
             continue
         if comp.get("pinned"):

@@ -3350,11 +3350,17 @@ async def cmd_updates(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         upd = _load_updater()
         ups = await asyncio.to_thread(upd.classify)
+        # Was NICHT beantwortet werden konnte, gehoert in dieselbe Antwort.
+        # Ohne das las Adam "Alles aktuell", waehrend ein Eintrag ungeprueft
+        # dastand - ein Ausbleiben, das wie Ruhe aussieht.
+        blind = await asyncio.to_thread(upd.blinde_flecken)
     except Exception as e:
         await update.message.reply_text(f"❌ Update-Prüfung fehlgeschlagen: {e}")
         return
+    _blind_txt = ("\n\n🕳️ Nicht geprüft:\n" + "\n".join(blind)) if blind else ""
     if not ups:
-        await update.message.reply_text("✅ Alles aktuell — keine Updates verfügbar.")
+        await update.message.reply_text(
+            "✅ Alles aktuell — keine Updates verfügbar." + _blind_txt)
         return
     # A3: angezeigte Versionen merken — nur genau die werden später eingespielt.
     _SHOWN_UPDATES[update.effective_user.id] = {u["name"]: u["latest"] for u in ups}
@@ -3368,6 +3374,8 @@ async def cmd_updates(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         lines.append(f"{sym[u['ampel']]} {u['name']}: {u['cur']} → {u['latest']}{tag}{note}")
     lines.append("\nInstallation nur nach deiner Freigabe. Danach läuft der "
                  "Regressionstest; bei Fehler rolle ich automatisch zurück.")
+    if blind:
+        lines.append("\n🕳️ Nicht geprüft:\n" + "\n".join(blind))
     rows = []
     if green:
         rows.append([InlineKeyboardButton(

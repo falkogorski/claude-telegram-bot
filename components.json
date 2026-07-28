@@ -62,8 +62,9 @@
     {
       "name": "lobe-chat",
       "kind": "docker",
-      "note": "Docker-Image lobehub/lobe-chat:latest. Update = docker pull + Container neu (nur localhost pruefen!).",
-      "ref": "lobehub/lobe-chat:latest"
+      "note": "Docker-Image lobehub/lobe-chat:latest. Update = docker pull + Container neu (nur localhost pruefen!). GEMESSEN 28.07.: Der Bot laeuft als claudebot und ist NICHT in der Docker-Gruppe - /updates kann dieses Abbild deshalb nie selbst ansehen. Bewusste Rechtegrenze, kein Defekt; der woechentliche Zeitgeber-Lauf (root) prueft es. /updates benennt es als blinden Fleck, statt es stillschweigend zu ueberspringen.",
+      "ref": "lobehub/lobe-chat:latest",
+      "braucht_root": true
     },
     {
       "name": "pandoc",

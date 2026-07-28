@@ -173,6 +173,48 @@ def _manual_meldet_sich_nach_frist_von_selbst():
     assert not _lauf([eintrag]), "die Meldung wiederholt sich im naechsten Lauf"
 
 
+def _updater_uebergeht_nichts_stillschweigend():
+    """**Derselbe Fehler stand im Updater noch offen** — gefunden beim Bau des
+    Knopfes, nicht beim Suchen danach (Geschwister-Regel: ein Fix an einem Pfad
+    ist erst fertig, wenn die Schwesterpfade geprueft sind).
+
+    `/updates` uebersprang eine Komponente, sobald eine ihrer beiden Auskuenfte
+    fehlte. Fuer Adam las sich das als "Alles aktuell", waehrend der Eintrag gar
+    nicht geprueft worden war. Betrifft real das LobeChat-Abbild: Der Bot laeuft
+    als claudebot und ist nicht in der Docker-Gruppe (gemessen 28.07.).
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import updater as up
+
+    reg = _TMP / "upd-reg.json"
+    reg.write_text(json.dumps({"components": [
+        {"name": "abbild", "kind": "docker", "ref": "x/y:latest", "braucht_root": True},
+        {"name": "kaputt", "kind": "docker", "ref": "a/b:latest"},
+    ]}), encoding="utf-8")
+    up.REGISTER = reg
+    vm.HANDLERS["docker"] = (lambda c: "", lambda c: "")   # Quelle stumm
+    try:
+        assert up.classify() == [], "eine stumme Quelle gilt faelschlich als Update"
+        flecken = up.blinde_flecken()
+        assert len(flecken) == 2, f"nicht alles gemeldet: {flecken}"
+        assert any("Root" in f and "abbild" in f for f in flecken), (
+            "die Rechtegrenze wird nicht als solche benannt — 'Quelle nicht "
+            "erreichbar' klaenge nach Defekt, ist aber Absicht")
+        assert any("nicht erreichbar" in f and "kaputt" in f for f in flecken)
+    finally:
+        vm.HANDLERS["docker"] = (vm.cur_docker, vm.latest_docker)
+
+
+def _updater_vergleicht_mit_art():
+    """Ohne die Art liefe ein Fingerabdruck durch den ZAHLEN-Vergleich: `_vtuple`
+    zieht die Ziffern aus der Hexadezimalfolge und vergleicht der Groesse nach.
+    Das Ergebnis haengt dann an der zufaelligen Ziffernlage — mal "aktuell",
+    mal ein erfundenes Update."""
+    quelle = Path(Path(__file__).resolve().parent / "updater.py").read_text(encoding="utf-8")
+    assert "vm._cmp(cur, latest, kind)" in quelle, \
+        "classify() gibt die Art nicht an den Vergleich weiter"
+
+
 check("unbekannte Art wird GEMELDET, nicht übersprungen (Befund A)",
       _unbekannte_art_wird_gemeldet)
 check("weggebrochene Quelle wird gemeldet (Befund D)",
@@ -185,6 +227,10 @@ check("Fingerabdruck/apt: Vergleich auf Ungleichheit, nicht Groesse",
 check("Fingerabdruck wird in der Meldung gekuerzt", _fingerabdruck_wird_gekuerzt)
 check("manual meldet sich nach Fristablauf VON SELBST",
       _manual_meldet_sich_nach_frist_von_selbst)
+check("/updates uebergeht nichts stillschweigend (Geschwisterpfad)",
+      _updater_uebergeht_nichts_stillschweigend)
+check("/updates vergleicht MIT Art, nicht der Groesse nach",
+      _updater_vergleicht_mit_art)
 
 print()
 if fails:

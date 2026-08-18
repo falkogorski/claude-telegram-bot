@@ -62,19 +62,56 @@ gebaut-und-wachend wartet nicht).
 **Modell/Modus:** Opus, mittlere Tiefe; Mechanik (Musterliste, Timer-Dateien)
 gern an eine Sonnet-Untersitzung.
 
-## Ein Punkt, den ich vor dem Bau vorlegen werde `[Mick, 18.08. spät]`
+## Die Rueckfrage ist beantwortet — Engywuck, 18.08. spaet (Lesestand a4257c5)
 
-Der Wachposten liest **Adams Gespräche** und die Meldung **zitiert die
-beanstandete Zeile wörtlich** — über Telegram, das nicht Ende-zu-Ende
-verschlüsselt ist. Enthält eine auffällige Zeile ein rotes Datum (Klientenname,
-Finanzdetail), trüge die Meldung es genau dorthin, wo es laut Gatekeeper-Regel
-nicht hingehört.
+Wortlaut-Regel und Gatekeeper-Regel zogen gegeneinander; hier steht, wie es
+aufgeloest wird. **Beide Entscheidungen sind verbindlich.**
 
-Das ist kein Einwand gegen den Auftrag, sondern eine offene Stelle in Punkt 4:
-Die Wortlaut-Regel (zitieren statt vermuten) und die Gatekeeper-Regel (rote
-Inhalte nicht über unsichere Kanäle) ziehen hier in verschiedene Richtungen,
-und **beide haben recht**. Vorschlag zur Klärung mit Engywuck vor dem Bau: die
-Zeile zitieren, aber vorher durch die vorhandene Ampel schicken — bei Rot nur
-Quelle, Zeit und Kennung melden, mit dem Hinweis, dass der Wortlaut bewusst
-zurückgehalten wurde. Sichtbar zurückgehalten ist ehrlich; lautlos wäre es die
-nächste Stille.
+### (1) Die Ampel ist der Filter — keine Zweitliste
+
+`ampel.classify()` ist importierbar und abhaengigkeitsfrei (**nachgemessen
+19.08.**: Import mit `env -i`, nur Standardbibliothek, kein Bot-Kontext
+noetig). Eine eigene Musterliste fuer diesen Zweck waere eine zweite Wahrheit
+ueber dieselbe Frage — G1-Lehre.
+
+Drei Auflagen:
+
+- **Nur ROT wird zurueckgehalten.** Gelb und Gruen gehen im Wortlaut hinaus.
+- **Ein Einstufungs-Ausfall zaehlt als ROT.** Faellt die Ampel aus, wird
+  zurueckgehalten, nicht durchgelassen — dieselbe Bauart wie beim Riegel: Wer
+  im Zweifel oeffnet, sichert nichts.
+- **Die Meldung nennt bei Rot nur das Kategorien-Label, NIE das Muster.**
+  Konkret gemessen: `classify()` liefert `{color, rules, matches}` — `matches`
+  enthaelt die **Treffer selbst**. Es wird ausschliesslich `rules` verwendet;
+  `matches` darf die Meldung nie beruehren, sonst zitierte sie genau das rote
+  Wort, das sie zurueckhaelt.
+
+### (2) Bei Rot wird gemeldet — der Wortlaut sichtbar zurueckgehalten
+
+Gemeldet wird **Quelle + Zeitstempel als Fundstelle**, dazu der ausdrueckliche
+Hinweis, dass der Wortlaut zurueckgehalten wurde. Kein Sicherkanal in v1 —
+aber als **[spaeter pruefen]** in die Auswertung, damit aus [fuer jetzt] nicht
+stillschweigend [fuer immer] wird.
+
+- **Der Pruefer misst BEIDE Richtungen:** geseedete rote Zeile → Meldung OHNE
+  Wortlaut · auffaellige harmlose Zeile → Meldung MIT Wortlaut.
+- **Nach dem Scharfstellen einmal die Wirkungs-Regel fahren:** eine echte rote
+  Probe durchschicken und die **angekommene** Meldung ansehen. Nicht die
+  Konfiguration lesen — nachmessen, was ankam.
+- **Die Zurueckhaltung gilt fuer BEIDE Quellen**, auch `bot-errors.log`
+  (Geschwister-Regel). Ein Fix an einem Pfad ist erst fertig, wenn die
+  Schwesterpfade geprueft sind.
+
+### Nachtrag zu meinem Hinweis „halber Kontrollweg" — er war falsch
+
+Ich hatte geschrieben, es gebe keinen Weg von mir zu Engywuck und sein
+Log-Repo-Zugriff sei offen. **Beides war tradiert, nicht gemessen** — aus
+Connis Liste uebernommen. Engywuck hat es richtiggestellt und belegt: Er hat
+diese Rueckfrage vierzehn Minuten nach meinem Push im frisch geholten Repo
+gelesen, und Claudias Erstfracht am selben Abend aus dem Log-Repo.
+
+Der Weg existiert also, und ich habe ihn benutzt, waehrend ich behauptete, es
+gebe ihn nicht. Einseitig ist nur **seine** Ausgangsrichtung, und die laeuft
+mit Absicht ueber Adam: **Vier-Augen-Prinzip, kein fehlender Bau.** Das
+fehlende Viertel wollen wir nicht bauen.
+

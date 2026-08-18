@@ -26,22 +26,59 @@ vorher; was ruht, darf warten.
 from __future__ import annotations
 
 import json
+import datetime as _dt
 import os
 import re
 import time
 from pathlib import Path
 
 # ---------------------------------------------------------------- Verrohrung
-# **Der Riegel ist ein UMGEBUNGSSCHALTER, keine Konstante** — und das stand bis
-# zum 18.08.2026 an drei Stellen falsch beschrieben („SCHARF = False"). Wer das
-# las, hielt eine Repo-Datei fuer den Riegel; tatsaechlich genuegt ein
-# `Environment=`-Eintrag, ein `export` oder eine Zeile in einer Env-Datei, und
-# er ist offen, ohne dass sich hier etwas aendert.
+# ---------------------------------------------------------------- Der Riegel --
 #
-# Der Schalter BLEIBT eine Umgebungsvariable — so laesst er sich pro Lauf
-# setzen, ohne den Code anzufassen. Aber er sagt jetzt, was er ist, und
-# `uebersicht()` nennt seinen Stand, damit man ihn nicht suchen muss.
-SCHARF = os.environ.get("AUFTRAGSBUCH_SCHARF") == "ja"
+# **Eine DATEI, kein unsichtbarer Schalter** (Adams Entscheid 18.08.2026, Connis
+# Auflage 5). Bis heute war der Riegel eine Umgebungsvariable, und an drei
+# Stellen stand faelschlich "SCHARF = False": Wer das las, hielt eine Repo-Datei
+# fuer den Riegel, waehrend in Wahrheit ein `export` genuegt haette.
+#
+# Jetzt liegt er dort, wo man ihn suchen wuerde - und er traegt seine eigene
+# Frist mit sich. Riegel und Probewochen-Ende sind dasselbe Dokument; ein
+# abgelaufener Riegel schliesst sich von selbst. Das ist der Unterschied
+# zwischen einem Schalter, den jemand zuruecklegen muss, und einem, der es
+# selbst tut.
+#
+# Die Umgebungsvariable bleibt als zweiter Weg bestehen - fuer einen einzelnen
+# Lauf, ohne die Datei anzufassen.
+RIEGEL = Path(os.environ.get("AUFTRAGSBUCH_RIEGEL")
+              or (Path(__file__).resolve().parent / "auftragsbuch-riegel.md"))
+
+
+def _riegel_offen() -> tuple[bool, str]:
+    """(offen, Begruendung) — liest die Riegel-Datei und ihre Frist.
+
+    Faellt irgendetwas aus - Datei fehlt, unlesbar, Datum unverstaendlich -,
+    ist der Riegel ZU. Ein Riegel, der sich im Zweifel oeffnet, ist keiner.
+    """
+    if os.environ.get("AUFTRAGSBUCH_SCHARF") == "ja":
+        return (True, "durch Umgebungsvariable fuer diesen Lauf")
+    try:
+        text = RIEGEL.read_text(encoding="utf-8")
+    except Exception:
+        return (False, "keine Riegel-Datei")
+    if not re.search(r"^\s*SCHARF:\s*ja\s*$", text, re.MULTILINE | re.IGNORECASE):
+        return (False, "die Riegel-Datei sagt nicht SCHARF: ja")
+    m = re.search(r"^\s*GILT-BIS:\s*(\d{4}-\d{2}-\d{2})\s*$", text, re.MULTILINE)
+    if not m:
+        return (False, "die Riegel-Datei nennt kein Fristdatum (GILT-BIS)")
+    try:
+        bis = _dt.date.fromisoformat(m.group(1))
+    except ValueError:
+        return (False, f"unverstaendliches Fristdatum: {m.group(1)}")
+    if _dt.date.today() > bis:
+        return (False, f"die Frist ist am {bis.isoformat()} abgelaufen")
+    return (True, f"Riegel offen bis {bis.isoformat()}")
+
+
+SCHARF, SCHARF_GRUND = _riegel_offen()
 
 BUCH = Path(os.environ.get("AUFTRAGSBUCH_DIR")
             or (Path.home() / ".claude" / "auftragsbuch"))
@@ -68,13 +105,26 @@ ABSENDER = ("claudia", "conni", "mick", "hora", "stundenblume")
 #
 # Die Liste ist absichtlich kurz. Jede Erweiterung ist eine Entscheidung, die
 # Adam gehört.
+# **Adams Entscheid vom 18.08.2026: genau diese vier, keine fünfte.**
+# Jede Art traegt ihr Pruefdatum - sie ist an dem Tag als gruen-tauglich
+# befunden worden, nicht fuer immer. Wer eine Art aufnimmt, setzt das Datum neu.
 GRUENE_ARTEN: dict[str, str] = {
-    "fehlerbehebung": "2026-07-28",   # ein belegter Defekt wird behoben
-    "test": "2026-07-28",             # eine Prüfung wird ergänzt oder geschärft
-    "aufraeumen": "2026-07-28",       # tote Pfade, Doppelungen, Formatarbeit
-    "zeichenwechsel": "2026-07-28",   # Beschriftungen, Emojis, Wortlaut
-    "doku": "2026-07-28",             # Register, Blaupause, Drehbuch-Stand
+    # Ein belegter Defekt wird behoben - UND ein Test dafuer existiert bereits.
+    # Die Praezisierung ist Adams: Ohne vorhandenen Test ist eine
+    # "Fehlerbehebung" eine Behauptung, keine Reparatur.
+    "fehlerbehebung": "2026-08-18",
+    # Beschriftungen, Emojis, Wortlaut.
+    "zeichenwechsel": "2026-08-18",
+    # Tote Pfade, Doppelungen, Formatarbeit.
+    "aufraeumen": "2026-08-18",
+    # Eine Pruefung wird ergaenzt oder geschaerft.
+    "test": "2026-08-18",
 }
+# GESTRICHEN 18.08.2026: "doku" (Register, Blaupause, Drehbuch-Stand). Adams
+# Entscheid nennt vier Arten, und diese ist nicht darunter. Bewusst NICHT
+# stillschweigend beibehalten - bei einer geschlossenen Liste ist jede stille
+# Ergaenzung genau der Fehler, den die Liste verhindern soll. Wird sie doch
+# gewuenscht, gehoert sie ausdruecklich aufgenommen, mit frischem Pruefdatum.
 
 # Worte, bei denen die Ampel unabhängig von der Art auf Rot springt. Sie sind
 # eine ZUSÄTZLICHE Bremse, kein Ersatz für die geschlossene Liste: Eine
@@ -211,9 +261,16 @@ def uebersicht() -> str:
     for a in wartend:
         zeilen.append(f"{zeichen.get(a.get('ampel'), '🟡')} {a['titel']} "
                       f"· von {a.get('herkunft', '?')}")
+    # **Der Zustand des Riegels gehoert in jede Uebersicht** - in BEIDE
+    # Richtungen. Ein Uebergang, der leise nichts tut, sieht aus wie einer, der
+    # leise alles tut; seit dem 18.08. gilt auch das Umgekehrte.
     if not SCHARF:
-        zeilen.append("\n⏸️ Die Übergabe an Hora ist noch nicht scharfgestellt — "
-                      "die Aufträge liegen, es läuft nichts von allein an.")
+        zeilen.append(f"\n⏸️ Die Übergabe an Hora ist NICHT scharfgestellt "
+                      f"({SCHARF_GRUND}) — hier bewegt sich nichts von allein.")
+    else:
+        zeilen.append(f"\n▶️ Die Übergabe an Hora ist SCHARF ({SCHARF_GRUND}). "
+                      f"Grüne Aufträge laufen ohne weitere Rückfrage an und "
+                      f"melden sich einzeln.")
     return "\n".join(zeilen)
 
 
@@ -271,18 +328,52 @@ def uebernehmen(hora_liste: Path | None = None) -> tuple[int, str]:
     vorhanden = {a.get("titel") for a in daten if isinstance(a, dict)}
 
     uebernommen = 0
+    gemeldet: list[str] = []
     for a in wartend:
         if a["titel"] in vorhanden:
             continue                       # schon in der Liste: nicht doppeln
         satz = {k: v for k, v in a.items() if not k.startswith("_")}
         daten.append(satz)
         uebernommen += 1
-        ABGELEGT.mkdir(parents=True, exist_ok=True)
-        Path(a["_datei"]).replace(ABGELEGT / Path(a["_datei"]).name)
+        vorhanden.add(a["titel"])          # sonst rutschen Namensgleiche doppelt durch
+        gemeldet.append(
+            f"🟢 [{a['titel']}] von {a.get('absender', 'unbekannt')} — "
+            f"grün, weil Art [{a.get('art', '?')}] auf der geschlossenen Liste "
+            f"steht (geprüft {GRUENE_ARTEN.get(a.get('art', ''), '?')})")
+
+    # **Erst schreiben, dann wegräumen** (Gegenprüfungs-Befund 18.08.).
+    # Vorher verschob die Schleife jede Eingangsdatei ins Archiv, BEVOR die
+    # Zielliste geschrieben war. Brach das Schreiben ab — Rechte, Platte,
+    # Absturz —, lag der Auftrag im Archiv und stand in keiner Liste. Verloren,
+    # ohne Meldung.
     ziel.parent.mkdir(parents=True, exist_ok=True)
     tmp = ziel.with_suffix(".tmp")
     tmp.write_text(json.dumps(daten, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(ziel)
+
+    ABGELEGT.mkdir(parents=True, exist_ok=True)
+    for a in wartend:
+        quelle = Path(a["_datei"])
+        if quelle.exists():
+            quelle.replace(ABGELEGT / quelle.name)
+
+    # **Probewoche: jede Grün-Ausführung meldet sich, und zwar ungedämpft.**
+    # Connis Auflage vom 18.08. — die Sichtbarkeit IST der Zweck der Woche.
+    # Wer sie dämpft, prüft nicht die Automatik, sondern die Dämpfung.
+    if gemeldet:
+        try:
+            import botenpost
+            botenpost.legen(
+                "🟢 Grün-Automatik hat übergeben (Probewoche):\n"
+                + "\n".join(gemeldet)
+                + "\n\nHora arbeitet sie im nächsten Lauf ab und meldet je "
+                  "Auftrag den Regressionsstand.",
+                absender="auftragsbuch")
+        except Exception:
+            # Eine misslungene Meldung darf die Übergabe nicht zurücknehmen —
+            # aber sie darf auch nicht so aussehen, als hätte es sie gegeben.
+            print("WARNUNG: Übergabe erfolgt, Meldung an Adam fehlgeschlagen")
+
     return (uebernommen, f"{uebernommen} grüne Aufträge an Hora übergeben")
 
 

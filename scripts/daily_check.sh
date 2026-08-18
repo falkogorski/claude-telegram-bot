@@ -205,6 +205,29 @@ if [ -f "$(dirname "$0")/stundenblume.py" ]; then
   [ -n "$gerollt" ] && add "📜 Belegkette beiseitegelegt: $gerollt"
 fi
 
+# --- 9e. FRISTMELDER: laeuft heute eine Betriebslage ab? -------------------
+#
+# Adams "erinnere mich" als Mechanik statt als Vorsatz (Entscheid 1a, 18.08.).
+# GENERISCH gebaut: Jede Datei, die einen GILT-BIS-Stichtag traegt, meldet ihr
+# eigenes Ende - nicht nur die Probewoche. Eine Frist, an die sich jemand
+# erinnern muss, ist keine Frist.
+#
+# Gemeldet wird am Stichtag UND danach: Ein Melder, der nur am Tag X feuert,
+# schweigt fuer immer, wenn der Lauf an Tag X ausfaellt. Genau das ist am
+# 29.07. passiert.
+HEUTE_ISO="$(date +%F)"
+for frist_datei in "$BOTDIR"/*riegel*.md "$BOTDIR"/CLAUDE.md; do
+  [ -f "$frist_datei" ] || continue
+  bis="$(grep -oE '^[[:space:]]*GILT-BIS:[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}' "$frist_datei" 2>/dev/null \
+         | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"
+  [ -n "$bis" ] || continue
+  if [ "$HEUTE_ISO" \> "$bis" ] || [ "$HEUTE_ISO" = "$bis" ]; then
+    red "Frist abgelaufen: $(basename "$frist_datei") galt bis $bis — Auswertung faellig, danach Riegel bewusst neu setzen oder schliessen"
+  else
+    add "✅ Frist $(basename "$frist_datei"): laeuft bis $bis"
+  fi
+done
+
 # --- 9d. ZEITGEBER-WACHE (Befund E aus Vorlage 5.21-E) ---------------------
 #
 # DIE LUECKE: Dieser Check prueft die DIENSTE - und keinen einzigen ZEITGEBER.

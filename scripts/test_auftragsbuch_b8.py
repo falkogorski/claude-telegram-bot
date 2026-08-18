@@ -42,16 +42,26 @@ def check(name, fn):
 
 
 def _nicht_scharfgestellt():
-    """Connis Auflage: Verrohrung bauen, NICHT scharfstellen. Und der Deckel
-    für die Abwesenheit sagt dasselbe — gebaut-und-ruhend darf warten."""
-    assert ab.SCHARF is False, "das Auftragsbuch ist scharfgestellt"
-    ab.legen({"titel": "Kleinigkeit richten", "art": "fehlerbehebung"}, "claudia")
-    anzahl, meldung = ab.uebernehmen()
-    assert anzahl == 0, "es wurde übergeben, obwohl nichts scharf ist"
-    assert "nicht scharfgestellt" in meldung, (
-        "der Riegel schweigt — ein Übergang, der leise nichts tut, sieht aus "
-        "wie einer, der leise alles tut")
-    assert "1" in meldung, "die Meldung sagt nicht, wie viel wartet"
+    """**Der Riegel nennt seinen Zustand — welcher es auch sei.**
+
+    KORRIGIERT 18.08.2026: Die erste Fassung verlangte `SCHARF is False`, setzte
+    also den ruhenden Zustand voraus und fiel um, als Adam scharf stellte. Der
+    eigentliche Anspruch ist ein anderer und gilt in BEIDE Richtungen: Ein
+    Uebergang, der leise nichts tut, sieht aus wie einer, der leise alles tut.
+    Also wird gemessen, dass er es SAGT.
+    """
+    zuvor = ab.SCHARF
+    try:
+        ab.SCHARF = False
+        ab.legen({"titel": "Kleinigkeit richten", "art": "fehlerbehebung"}, "claudia")
+        anzahl, meldung = ab.uebernehmen()
+        assert anzahl == 0, "es wurde übergeben, obwohl der Riegel zu ist"
+        assert "nicht scharfgestellt" in meldung, (
+            "der Riegel schweigt — ein Übergang, der leise nichts tut, sieht aus "
+            "wie einer, der leise alles tut")
+        assert "1" in meldung, "die Meldung sagt nicht, wie viel wartet"
+    finally:
+        ab.SCHARF = zuvor
 
 
 def _gruen_nur_aus_der_geschlossenen_liste():
@@ -115,7 +125,12 @@ def _fremder_absender_wird_abgewiesen():
 def _einstufung_wird_mitgeschrieben():
     """Ändert sich die Grün-Liste später, muss nachvollziehbar bleiben, unter
     welcher Regel dieser Auftrag hereinkam."""
-    p = ab.legen({"titel": "Register nachziehen", "art": "doku"}, "claudia")
+    # **KORRIGIERT 18.08.2026:** Diese Zeile nahm die Art "doku" als Beispiel -
+    # also aus dem Bestand, den sie absichern soll. Als Adams Entscheid sie aus
+    # der Gruen-Liste strich, fiel die Pruefung um. Jetzt nimmt sie irgendeine
+    # Art, die gerade gruen ist, statt einer namentlich genannten.
+    art = next(iter(ab.GRUENE_ARTEN))
+    p = ab.legen({"titel": "Beispielauftrag", "art": art}, "claudia")
     satz = json.loads(p.read_text(encoding="utf-8"))
     assert satz["ampel"] == "gruen" and satz["ampel_grund"], "die Regel fehlt"
     assert "2026-" in satz["ampel_grund"], \
@@ -127,8 +142,14 @@ def _uebersicht_ist_eine_zeile_je_auftrag():
     wäre wieder Transport."""
     text = ab.uebersicht()
     assert "Auftragsbuch" in text and "🟢" in text and "🟡" in text
-    assert "nicht scharfgestellt" in text, \
-        "die Übersicht verschweigt, dass nichts von allein anläuft"
+    # **KORRIGIERT 18.08.2026:** Vorher verlangte die Zeile das Wort "nicht
+    # scharfgestellt" - sie setzte also den ruhenden Zustand voraus und fiel um,
+    # als der Riegel oeffnete. Geprueft wird jetzt, dass die Uebersicht den
+    # Zustand NENNT, welcher es auch sei. Das ist der eigentliche Anspruch:
+    # Ein Uebergang, der leise nichts tut, sieht aus wie einer, der leise alles
+    # tut - und andersherum genauso.
+    assert ("scharfgestellt" in text.lower() or "riegel" in text.lower()), \
+        "die Übersicht verschweigt den Zustand des Riegels"
 
 
 def _scharf_uebergibt_nur_gruen():
@@ -148,7 +169,7 @@ def _scharf_uebergibt_nur_gruen():
         ab.SCHARF = False
 
 
-check("NICHT scharfgestellt — und der Riegel sagt es", _nicht_scharfgestellt)
+check("der Riegel nennt seinen Zustand, welcher es auch sei", _nicht_scharfgestellt)
 check("Grün nur aus der geschlossenen Liste", _gruen_nur_aus_der_geschlossenen_liste)
 check("ohne Art kein Grün", _ohne_art_kein_gruen)
 check("Rot schlägt Grün (zusätzliche Bremse)", _rot_schlaegt_gruen)
@@ -235,6 +256,102 @@ check("rote Worte treffen deutsche Zusammensetzungen",
       _rote_worte_treffen_deutsche_zusammensetzungen)
 check("haeufige harmlose Traeger bremsen nicht",
       _haeufige_harmlose_traeger_bremsen_nicht)
+
+if fails:
+    print(f"\n❌ {len(fails)} B8-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
+    raise SystemExit(1)
+
+
+# ---------- E1: Grün-Liste scharf, mit Frist (Adams Entscheid 18.08.) --------
+def _riegel_ist_eine_datei_mit_frist():
+    """**Der Riegel liegt dort, wo man ihn sucht — und schliesst sich selbst.**
+
+    Bis zum 18.08. war er eine Umgebungsvariable, und an drei Stellen stand
+    faelschlich "SCHARF = False". Jetzt traegt er seine eigene Frist: Riegel und
+    Probewochen-Ende sind dasselbe Dokument.
+    """
+    import auftragsbuch as ab
+    assert ab.RIEGEL.exists(), "die Riegel-Datei fehlt"
+    text = ab.RIEGEL.read_text(encoding="utf-8")
+    assert "GILT-BIS:" in text, "der Riegel nennt kein Fristdatum"
+    assert "Stichtag:" in text, "der Riegel traegt keinen Gueltigkeits-Kopf"
+
+
+def _abgelaufene_frist_schliesst_den_riegel():
+    """**Ein Riegel, der sich im Zweifel oeffnet, ist keiner.** Vier Wege in die
+    Sperre, alle gemessen: abgelaufen, kein Datum, unlesbares Datum, keine
+    Datei."""
+    import auftragsbuch as ab
+    heim = Path(tempfile.mkdtemp(prefix="riegel-"))
+    alt_riegel, alt_env = ab.RIEGEL, os.environ.pop("AUFTRAGSBUCH_SCHARF", None)
+    try:
+        faelle = {
+            "SCHARF: ja\nGILT-BIS: 2020-01-01\n": "abgelaufen",
+            "SCHARF: ja\n": "ohne Frist",
+            "SCHARF: ja\nGILT-BIS: irgendwann\n": "unlesbares Datum",
+            "GILT-BIS: 2099-01-01\n": "ohne SCHARF",
+        }
+        for inhalt, was in faelle.items():
+            ab.RIEGEL = heim / "r.md"
+            ab.RIEGEL.write_text(inhalt, encoding="utf-8")
+            offen, grund = ab._riegel_offen()
+            assert not offen, f"der Riegel oeffnet sich bei [{was}]: {grund}"
+
+        ab.RIEGEL = heim / "fehlt.md"
+        offen, _ = ab._riegel_offen()
+        assert not offen, "eine fehlende Riegel-Datei oeffnet den Riegel"
+
+        # Und die Gegenrichtung: gueltige Frist oeffnet ihn.
+        ab.RIEGEL = heim / "gut.md"
+        ab.RIEGEL.write_text("SCHARF: ja\nGILT-BIS: 2099-12-31\n", encoding="utf-8")
+        offen, grund = ab._riegel_offen()
+        assert offen, f"ein gueltiger Riegel bleibt zu: {grund}"
+    finally:
+        ab.RIEGEL = alt_riegel
+        if alt_env is not None:
+            os.environ["AUFTRAGSBUCH_SCHARF"] = alt_env
+
+
+def _gruen_liste_traegt_adams_vier_arten():
+    """Adams Entscheid nennt vier Arten. `doku` ist NICHT darunter und wurde
+    gestrichen — bei einer geschlossenen Liste ist jede stille Ergaenzung genau
+    der Fehler, den die Liste verhindern soll."""
+    import auftragsbuch as ab
+    assert set(ab.GRUENE_ARTEN) == {"fehlerbehebung", "zeichenwechsel",
+                                    "aufraeumen", "test"}, \
+        f"die Gruen-Liste weicht von Adams Entscheid ab: {sorted(ab.GRUENE_ARTEN)}"
+    for art, datum in ab.GRUENE_ARTEN.items():
+        assert datum >= "2026-08-18", f"[{art}] traegt ein altes Pruefdatum: {datum}"
+
+
+def _uebergabe_meldet_sich_ungedaempft():
+    """**Die Sichtbarkeit IST der Zweck der Probewoche.** Wer sie daempft,
+    prueft nicht die Automatik, sondern die Daempfung."""
+    quelle = Path(__file__).resolve().parent.parent / "auftragsbuch.py"
+    block = quelle.read_text(encoding="utf-8").split("def uebernehmen")[1]
+    assert "botenpost.legen" in block, "die Uebergabe meldet sich nicht an Adam"
+    assert "warum grün" in block.lower() or "grün, weil" in block, \
+        "die Meldung nennt nicht, WARUM der Auftrag gruen war"
+
+
+def _hora_speist_sich_aus_dem_auftragsbuch():
+    """**GEFUNDEN 18.08.:** `uebernehmen()` hatte gar keinen Aufrufer. Scharf
+    stellen allein haette nichts bewirkt - die Probewoche waere eine Woche
+    gewesen, in der nichts geschieht."""
+    hora = (Path(__file__).resolve().parent / "hora.py").read_text(encoding="utf-8")
+    assert "auftragsbuch.uebernehmen()" in hora, \
+        "Hora ruft das Auftragsbuch nicht - der Riegel haette keine Wirkung"
+    block = hora.split("def _lauf")[1][:2000]
+    assert "except Exception" in block, \
+        "ein Fehlschlag des Auftragsbuchs wuerde Horas Lauf verhindern"
+
+
+check("der Riegel ist eine Datei mit Frist und Kopf", _riegel_ist_eine_datei_mit_frist)
+check("abgelaufene/kaputte Frist schliesst den Riegel (4 Wege)",
+      _abgelaufene_frist_schliesst_den_riegel)
+check("Gruen-Liste traegt Adams vier Arten", _gruen_liste_traegt_adams_vier_arten)
+check("die Uebergabe meldet sich ungedaempft", _uebergabe_meldet_sich_ungedaempft)
+check("Hora speist sich aus dem Auftragsbuch", _hora_speist_sich_aus_dem_auftragsbuch)
 
 if fails:
     print(f"\n❌ {len(fails)} B8-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")

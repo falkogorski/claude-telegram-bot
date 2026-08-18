@@ -35,7 +35,8 @@ POSTFACH = Path(os.environ.get("POSTFACH_DIR")
 
 # Erlaubte Absender. Bewusst eine feste Liste und kein freies Feld: Ein
 # Absender, den sich jeder ausdenken kann, belegt nichts.
-ABSENDER = ("hora", "blume", "waechter", "fenster", "updater", "bot", "probe")
+ABSENDER = ("hora", "blume", "waechter", "fenster", "updater", "bot",
+            "auftragsbuch", "probe")
 
 _SCHLUESSEL = re.compile(
     r"(\d{6,}:[A-Za-z0-9_\-]{20,}|sk-[A-Za-z0-9_\-]{6,}|[A-Za-z0-9_\-]{40,})")

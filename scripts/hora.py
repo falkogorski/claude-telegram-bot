@@ -77,6 +77,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import auftragsbuch  # noqa: E402
 import botenpost  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
@@ -397,6 +398,32 @@ def lauf(trocken: bool = False) -> int:
 def _lauf(trocken: bool = False) -> int:
     """Rückgabe 0 = gut, 1 = gemeldet, 2 = angehalten."""
     beginn = time.strftime("%Y-%m-%d %H:%M")
+
+    # --- Das Auftragsbuch speist die Liste, bevor sie gelesen wird ----------
+    #
+    # **GEFUNDEN 18.08.2026 beim Scharfstellen (E1):** `uebernehmen()` hatte
+    # ueberhaupt keinen Aufrufer - kein Zeitgeber, kein Skript, nur die
+    # Pruefungen. "SCHARF an" allein haette also NICHTS bewirkt, und die
+    # Probewoche waere eine Woche gewesen, in der nichts geschieht. Genau die
+    # Sorte gebaut-und-wirkungslos, gegen die dieses Projekt heute den ganzen
+    # Tag gearbeitet hat.
+    #
+    # Hier statt in einem eigenen Zeitgeber, aus drei Gruenden: Das
+    # Auftragsbuch speist ohnehin genau DIESE Liste; Hora laeuft bereits im
+    # richtigen Takt; und ein zusaetzlicher Zeitgeber waere ein weiterer
+    # Traeger, der selbst bewacht werden muesste.
+    #
+    # Ein Fehlschlag hier darf den Lauf NICHT verhindern: Die vorhandenen
+    # Auftraege sind wichtiger als die neuen.
+    if not trocken:
+        try:
+            anzahl, meldung = auftragsbuch.uebernehmen()
+            if anzahl:
+                _protokollieren({"zeit": beginn, "titel": "(Auftragsbuch)",
+                                 "ergebnis": "uebernommen", "regression": meldung})
+        except Exception as e:
+            _protokollieren({"zeit": beginn, "titel": "(Auftragsbuch)",
+                             "ergebnis": "fehler", "regression": f"{type(e).__name__}: {e}"})
 
     # Bedingung 4 zuerst: Wer schon dreimal gescheitert ist, fängt nicht wieder an.
     if _fehlserie() >= FEHLGRENZE:

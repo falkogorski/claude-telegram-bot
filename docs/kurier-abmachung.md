@@ -64,3 +64,27 @@ Ab ~13.–15.08.: **Claudia → Kontrollsitzung prüft → ich baue**, mit direk
 Lesezugriff der Kontrollsitzung auf das Log-Repo ab Sitzungsstart. Der
 Kurier-Weg bleibt dann als Transport bestehen; nur die Prüfung wandert vom
 Papier in die laufende Sitzung. Das ist Rückkehr-Entscheid Nr. 2.
+
+## Der Lesestand-Befehl — hier, nicht im Chat
+
+**`[NEU 2026-08-18]` Befehle reisen nicht im Chat, sie stehen im Repo.** Dieser
+Befehl ist beim Weiterleiten über Telegram **zweimal verschwunden** —
+Codeblöcke überleben das Kopieren nicht zuverlässig. Also steht er dort, wo
+Claudia ohnehin nachsieht; im Chat genügt der Verweis auf diese Stelle.
+
+Vor jeder Ausarbeitung den eigenen Lesestand ermitteln:
+
+    git -C ~/claude-telegram-bot log -1 --format='%h · %ad' --date=format:'%d.%m.%Y, %H:%M'
+
+Das Ergebnis gehört in den **Kopf jeder Ausarbeitung**. Der VPS-Klon wird nur
+durch einen Deploy aktualisiert und kann deshalb älter sein als das, was gilt —
+ein Bauauftrag auf altem Stand kostet beide Seiten Zeit.
+
+**Ohne Umleitung schreiben.** `git -C …` allein ist der dokumentierte Weg; ein
+angehängtes `2>/dev/null` lässt der Repo-Wächter derzeit nicht durch (Claudias
+Befund vom 18.08., mit dreizehn Befehlen nachgemessen — er wertet das
+`>`-Zeichen als Schreibversuch, sobald ein Repo-Pfad im selben Befehl steht).
+Die Regel wird geschärft; bis dahin gilt der Weg ohne Umleitung.
+
+Ein `git fetch` ist **nicht** nötig und **nicht** erlaubt — der Repo-Zugriff
+bleibt reines Lesen (8.7). Der Lesestand genügt.

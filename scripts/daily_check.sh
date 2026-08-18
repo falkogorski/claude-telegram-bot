@@ -19,8 +19,23 @@ VENVPY="$(dirname "$0")/../.venv/bin/python3"
 
 ENVFILE=/etc/claude-telegram-bot.env
 BOTDIR=/home/claudebot/claude-telegram-bot
+# Der Heimatpfad des BOT-Benutzers - ausdruecklich, nicht ueber $HOME.
+#
+# BELEGTER VORFALL (29.07.-18.08.2026, 21 Tage): Hier stand einmal $HOME. Das
+# Skript laeuft mit `set -u` als root-Systemdienst, und die Unit setzt kein
+# `User=` - systemd liefert dort KEIN HOME. Jeder Lauf starb mit
+# "HOME: unbound variable", drei Wochen lang, lautlos.
+#
+# Und der naheliegende Fix waere falsch gewesen: Mit HOME=/root suchte die
+# Zustellmarke unter /root/.claude/ - geschrieben wird sie aber vom Bot als
+# claudebot. Die Zeile haette dann dauerhaft "keine Stoerung" gemeldet und
+# haette NIE anschlagen koennen. Ein Waechter, der nicht anschlagen kann, ist
+# schlimmer als keiner.
+BOTHOME=/home/claudebot
 LOGDIR="$BOTDIR/logs"
 CHECKLOG="$LOGDIR/daily-check.log"
+# Der laufende Mitschrieb - waechst waehrend des Laufs, nicht erst am Ende.
+LAUFDATEI="$LOGDIR/.daily-check-lauf"
 TOKEN_ISSUED=/etc/claude-telegram-bot.token-issued
 
 mkdir -p "$LOGDIR"
@@ -28,8 +43,36 @@ STAMP="$(date '+%Y-%m-%d %H:%M:%S')"
 problems=()
 lines=()
 
-add() { lines+=("$1"); }
-red() { problems+=("$1"); lines+=("❌ $1"); }
+# --- Befunde werden beim ENTSTEHEN weggeschrieben, nicht erst am Ende -------
+#
+# Connis Auflage 1 nach dem 21-Tage-Ausfall. Vorher sammelte dieses Skript
+# alles in `lines`/`problems` und schrieb erst ab Zeile ~310. Der Abbruch lag
+# davor - also wurden die Befunde BERECHNET UND WEGGEWORFEN. Der
+# Regressionslauf lief jedes Mal 28 Sekunden gruen durch, und niemand hat es je
+# erfahren. Das ist schlimmer als "nicht geprueft": Es sah aus wie Ruhe.
+#
+# Jetzt haengt jede Zeile sofort am Protokoll. Ein Abbruch an beliebiger Stelle
+# verliert nichts Gemessenes mehr - man sieht sogar, WIE WEIT der Lauf kam.
+mkdir -p "$LOGDIR" 2>/dev/null || true
+: > "$LAUFDATEI" 2>/dev/null || true
+
+merken() { printf '%s\n' "$1" >> "$LAUFDATEI" 2>/dev/null || true; }
+add() { lines+=("$1"); merken "$1"; }
+red() { problems+=("$1"); lines+=("❌ $1"); merken "❌ $1"; }
+
+# Bricht das Skript unerwartet ab, sagt die letzte Zeile, wo es aufhoerte -
+# statt dass der ganze Lauf spurlos verschwindet.
+_abbruch() {
+  code=$?
+  if [ "$code" -ne 0 ]; then
+    merken "❌ ABBRUCH des Tagescheck (Code $code) - alles danach wurde NICHT geprueft."
+    {
+      echo "===== 4-Uhr-Check $STAMP (ABGEBROCHEN) ====="
+      cat "$LAUFDATEI" 2>/dev/null
+    } >> "$CHECKLOG" 2>/dev/null || true
+  fi
+}
+trap _abbruch EXIT
 
 # --- 1. Laufzeit-Dienste (ABHAENGIGKEITEN.md) --------------------------------
 for svc in claude-telegram-bot searxng ollama litellm; do
@@ -107,13 +150,13 @@ fi
 # Ohne diesen Prüfer wäre er wieder eine Bitte — der vierte Fall dieser Klasse.
 if [ -d "${TELEGRAM_API_DIR:-/var/lib/telegram-bot-api}" ]; then
   if bash "$(dirname "$0")/api_cache_pflege.sh" > /tmp/api_cache_check.log 2>&1; then
-    lines+=("✅ API-Zwischenlager: $(tail -1 /tmp/api_cache_check.log)")
+    add "✅ API-Zwischenlager: $(tail -1 /tmp/api_cache_check.log)"
   else
-    lines+=("❌ API-Zwischenlager: $(tail -2 /tmp/api_cache_check.log | tr '\n' ' ')")
+    add "❌ API-Zwischenlager: $(tail -2 /tmp/api_cache_check.log | tr '\n' ' ')"
     problems+=("Das Zwischenlager des Bot-API-Servers reisst den Deckel — auch nach dem Aufraeumen zu gross.")
   fi
 else
-  lines+=("~ API-Zwischenlager: kein eigener Bot-API-Server aktiv (5.34 nicht eingeschaltet)")
+  add "~ API-Zwischenlager: kein eigener Bot-API-Server aktiv (5.34 nicht eingeschaltet)"
 fi
 
 
@@ -123,9 +166,9 @@ fi
 # belegt die Zeit DAZWISCHEN — und ihr Stillstand ist selbst der Befund.
 if [ -f "$(dirname "$0")/stundenblume.py" ]; then
   if "$VENVPY" "$(dirname "$0")/stundenblume.py" --pruefen > /tmp/blumen_check.log 2>&1; then
-    lines+=("✅ Stundenblumen: $(tail -1 /tmp/blumen_check.log)")
+    add "✅ Stundenblumen: $(tail -1 /tmp/blumen_check.log)"
   else
-    lines+=("❌ Stundenblumen: $(tail -1 /tmp/blumen_check.log)")
+    add "❌ Stundenblumen: $(tail -1 /tmp/blumen_check.log)"
     problems+=("Die Stundenblumen-Kette steht still oder ist gebrochen: $(tail -1 /tmp/blumen_check.log)")
   fi
 fi
@@ -217,9 +260,9 @@ done < <(systemctl list-timers --all --no-pager 2>/dev/null \
            done)
 
 if [ "${#zeitgeber_still[@]}" -eq 0 ]; then
-  lines+=("✅ Zeitgeber: alle aktiv und in ihrem Takt")
+  add "✅ Zeitgeber: alle aktiv und in ihrem Takt"
 else
-  lines+=("❌ Zeitgeber: ${zeitgeber_still[*]}")
+  add "❌ Zeitgeber: ${zeitgeber_still[*]}"
   problems+=("Ein Zeitgeber steht still - was dahinter haengt, laeuft nicht mehr, und das sieht von aussen aus wie Ruhe: ${zeitgeber_still[*]}")
 fi
 
@@ -238,9 +281,9 @@ if systemctl is-enabled fail2ban >/dev/null 2>&1; then :; else
   haertung_fehlt+=("fail2ban nicht eingeschaltet")
 fi
 if [ "${#haertung_fehlt[@]}" -eq 0 ]; then
-  lines+=("✅ Haertung unveraendert (NoNewPrivileges, PrivateTmp, ProtectSystem, fail2ban)")
+  add "✅ Haertung unveraendert (NoNewPrivileges, PrivateTmp, ProtectSystem, fail2ban)"
 else
-  lines+=("❌ Haertung: ${haertung_fehlt[*]}")
+  add "❌ Haertung: ${haertung_fehlt[*]}"
   problems+=("Eine Haertung wurde zurueckgenommen: ${haertung_fehlt[*]}")
 fi
 
@@ -252,10 +295,10 @@ unerwartet=$(ss -lntH 2>/dev/null \
   | grep -vE '^(127\.0\.0\.1|\[::1\])' \
   | grep -vE ':(22|8443)$' | sort -u | tr '\n' ' ')
 if [ -n "${unerwartet// /}" ]; then
-  lines+=("❌ Unerwartet offene Anschluesse: $unerwartet")
+  add "❌ Unerwartet offene Anschluesse: $unerwartet"
   problems+=("Es lauschen Anschluesse nach aussen, die dort nicht hingehoeren: $unerwartet")
 else
-  lines+=("✅ Nach aussen lauschen nur SSH und der Webhook-Port")
+  add "✅ Nach aussen lauschen nur SSH und der Webhook-Port"
 fi
 
 # 1.9 rote Auflage C.1, dritter Teil: Der Webhook-Port soll auf Telegrams Netze
@@ -263,9 +306,9 @@ fi
 # Start selbst (er startet sonst nicht) - die Firewall-Regel tut das niemand.
 if [ "${BOT_MODE:-polling}" = "webhook" ]; then
   if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q '149.154.160.0/20'; then
-    lines+=("✅ Webhook-Port auf Telegram-Netze beschraenkt")
+    add "✅ Webhook-Port auf Telegram-Netze beschraenkt"
   else
-    lines+=("~ Webhook-Port 8443 ist fuer JEDE Adresse erreichbar. Der Geheimnis-Token weist fremde Rufe ab - die Auflage 1.9 C.1 nennt zusaetzlich die Firewall-Beschraenkung auf 149.154.160.0/20 und 91.108.4.0/22. Braucht root, siehe docs/befehlsbloecke-root.md.")
+    add "~ Webhook-Port 8443 ist fuer JEDE Adresse erreichbar. Der Geheimnis-Token weist fremde Rufe ab - die Auflage 1.9 C.1 nennt zusaetzlich die Firewall-Beschraenkung auf 149.154.160.0/20 und 91.108.4.0/22. Braucht root, siehe docs/befehlsbloecke-root.md."
   fi
 fi
 
@@ -273,13 +316,13 @@ fi
 # Der Bot fragt selbst nach (er hat den Schluessel ohnehin) und legt bei
 # Stoerung eine Marke. Hier wird nur die Marke gelesen - kein zweiter Ort fuer
 # ein Geheimnis, dieselbe Bauart wie bei der Anmeldung.
-ZUSTELLMARKE="$HOME/.claude/zustellung-gestoert"
+ZUSTELLMARKE="$BOTHOME/.claude/zustellung-gestoert"
 if [ -f "$ZUSTELLMARKE" ]; then
   grund=$("$VENVPY" -c "import json,sys;print(json.load(open(sys.argv[1])).get('grund','ohne Angabe'))" "$ZUSTELLMARKE" 2>/dev/null)
-  lines+=("❌ Zustellung gestoert: $grund")
+  add "❌ Zustellung gestoert: $grund"
   problems+=("Telegram erreicht uns nicht mehr zuverlaessig: $grund — der Bot laeuft, aber es kommt womoeglich nichts mehr an.")
 else
-  lines+=("✅ Zustellung: keine Stoerung vermerkt")
+  add "✅ Zustellung: keine Stoerung vermerkt"
 fi
 
 # --- 10. Vorraete: Speicher, Platte, Auslagerung ---------------------------
@@ -295,12 +338,12 @@ if [ -r /proc/meminfo ]; then
   swap_frei=$(awk '/^SwapFree:/{print int($2/1024)}' /proc/meminfo)
   swap_benutzt=$(( swap_ges - swap_frei ))
   platte_frei=$(df -BG --output=avail / 2>/dev/null | tail -1 | tr -dc '0-9')
-  lines+=("📊 Vorraete: ${mem_verf} von ${mem_ges} MiB Speicher verfuegbar · ${platte_frei:-?} GiB Platte frei · Auslagerung ${swap_benutzt} von ${swap_ges} MiB benutzt")
+  add "📊 Vorraete: ${mem_verf} von ${mem_ges} MiB Speicher verfuegbar · ${platte_frei:-?} GiB Platte frei · Auslagerung ${swap_benutzt} von ${swap_ges} MiB benutzt"
   if [ "${mem_verf:-9999}" -lt 400 ]; then
     problems+=("Nur noch ${mem_verf} MiB Arbeitsspeicher verfuegbar — in diesem Bereich beendet der Kernel Prozesse ohne Vorwarnung.")
   fi
   if [ "${swap_ges:-0}" -eq 0 ]; then
-    lines+=("~ Kein Auslagerungsbereich eingerichtet — bei Speichermangel gibt es kein Abfedern, nur den OOM-Killer (Befehlsblock Schritt 4a).")
+    add "~ Kein Auslagerungsbereich eingerichtet — bei Speichermangel gibt es kein Abfedern, nur den OOM-Killer (Befehlsblock Schritt 4a)."
   fi
 fi
 
@@ -315,7 +358,12 @@ if [ "${#problems[@]}" -gt 0 ]; then
   for p in "${problems[@]}"; do report="${report}"$'\n'"• ${p}"; done
   report="${report}"$'\n\n'"(Vollprotokoll: logs/daily-check.log)"
   IFS=',' read -ra uids <<< "${ALLOWED_USER_IDS:-}"
-  for uid in "${uids[@]}"; do
+  # `${uids[@]}` bricht bei LEEREM Array mit `set -u` ab - und zwar hier, in
+  # der Meldephase. Gefunden am 18.08. vom neuen Zielumgebungs-Pruefer beim
+  # allerersten Lauf. Ohne Rueckfall waere die Meldung genau dann
+  # ausgeblieben, wenn die Empfaengerliste fehlt - also im Stoerfall.
+  for uid in "${uids[@]:-}"; do
+    [ -n "$uid" ] || continue
     [ -n "$uid" ] || continue
     curl -s -m 15 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
       --data-urlencode "chat_id=${uid}" \

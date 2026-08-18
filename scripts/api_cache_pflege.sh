@@ -23,12 +23,17 @@
 #
 # Aufruf: bash scripts/api_cache_pflege.sh   (deterministisch, keine Kosten)
 # ============================================================================
-set -uo pipefail
+set -u
+# Kein $HOME hier: Dieses Skript wird VOM Tagescheck gerufen und erbt dessen
+# Umgebung - und der laeuft als root-Systemdienst ohne HOME. Mit `set -u` war
+# das ein sofortiger Abbruch, und zwar VOR der eigenen Existenz-Wache eine
+# Zeile weiter unten: Das Ergebnis war eine FALSCHE Meldung ueber ein volles
+# Zwischenlager. (Belegt 29.07.-18.08.2026.)o pipefail
 
 LAGER="${TELEGRAM_API_DIR:-/var/lib/telegram-bot-api}"
 CACHE_TAGE="${CACHE_TAGE:-7}"
 CACHE_DECKEL_GB="${CACHE_DECKEL_GB:-30}"
-BERICHT="${CACHE_BERICHT:-$HOME/.claude/api-cache.json}"
+BERICHT="${CACHE_BERICHT:-${BOTHOME:-/home/claudebot}/.claude/api-cache.json}"
 
 if [ ! -d "$LAGER" ]; then
   echo "Kein Zwischenlager unter $LAGER — der eigene Bot-API-Server läuft nicht."

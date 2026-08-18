@@ -26,7 +26,7 @@
 # ============================================================================
 set -uo pipefail
 
-ZIEL="${SCHNAPPSCHUSS_DIR:-$HOME/schnappschuesse}"
+ZIEL="${SCHNAPPSCHUSS_DIR:-${HOME:-/home/claudebot}/schnappschuesse}"
 STAENDE="${SCHNAPPSCHUSS_STAENDE:-14}"     # ein Stand je Tag der Abwesenheit
 HEUTE="$(date '+%Y%m%d')"
 ARCHIV="$ZIEL/stand-$HEUTE.tar.gz"
@@ -36,14 +36,14 @@ chmod 700 "$ZIEL"                          # wie rot behandeln: nur der Besitzer
 
 # Was hineingehört: alles, was NUR hier liegt und nicht aus git kommt.
 QUELLEN=()
-for p in "$HOME/.claude/memory" \
-         "$HOME/.claude/ampel_rules.toml" \
-         "$HOME/.claude/ampel_custom.json" \
-         "$HOME/.claude/hora" \
-         "$HOME/.claude/stundenblumen" \
-         "$HOME/postfach/freigaben" \
-         "$HOME/.config/claude-telegram-bot"; do
-  [ -e "$p" ] && QUELLEN+=("${p#$HOME/}")
+for p in "${HOME:-/home/claudebot}/.claude/memory" \
+         "${HOME:-/home/claudebot}/.claude/ampel_rules.toml" \
+         "${HOME:-/home/claudebot}/.claude/ampel_custom.json" \
+         "${HOME:-/home/claudebot}/.claude/hora" \
+         "${HOME:-/home/claudebot}/.claude/stundenblumen" \
+         "${HOME:-/home/claudebot}/postfach/freigaben" \
+         "${HOME:-/home/claudebot}/.config/claude-telegram-bot"; do
+  [ -e "$p" ] && QUELLEN+=("${p#${HOME:-/home/claudebot}/}")
 done
 
 if [ "${#QUELLEN[@]}" -eq 0 ]; then
@@ -54,7 +54,7 @@ fi
 # Ein Zwischenschritt, damit ein abgebrochener Lauf keinen halben Stand
 # hinterlässt, der beim Zurückholen wie ein vollständiger aussieht.
 TMP="$ARCHIV.unfertig"
-if tar -czf "$TMP" -C "$HOME" "${QUELLEN[@]}" 2>/dev/null; then
+if tar -czf "$TMP" -C "${HOME:-/home/claudebot}" "${QUELLEN[@]}" 2>/dev/null; then
   mv "$TMP" "$ARCHIV"
   chmod 600 "$ARCHIV"
 else

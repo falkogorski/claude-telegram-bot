@@ -6,6 +6,9 @@
 # Aufruf: bash scripts/regressionstest.sh   (im Repo-Wurzelverzeichnis,
 #         auf dem VPS als claudebot im Klon /home/claudebot/claude-telegram-bot)
 set -u
+# HOME mit Rueckfall: Der Tagescheck ruft diesen Lauf, und er laeuft als
+# root-Systemdienst ohne HOME. Ohne den Rueckfall bricht `set -u` hier mitten
+# im Lauf ab - nach den ersten Pruefungen, deren Ergebnis dann verloren ist.
 cd "$(dirname "$0")/.."
 
 PY="python3"
@@ -39,7 +42,7 @@ mkdir -p "$POSTFACH_DIR/outbox" "$FREIGABE_DIR" "$HORA_DIR" "$BLUMEN_DIR"
 trap 'rm -rf "$PRUEFHEIM"' EXIT
 
 # Stand des ECHTEN Postfachs VOR dem Lauf — der Nachweis am Ende vergleicht.
-ECHTPOST="${HOME}/postfach/outbox"
+ECHTPOST="${HOME:-/home/claudebot}/postfach/outbox"
 POST_VORHER="$(ls -A "$ECHTPOST" 2>/dev/null | wc -l | tr -d ' ')"
 
 FAILS=0
@@ -77,8 +80,8 @@ run "Syntax presend.py"                 "$PY" -m py_compile presend.py
 # WICHTIG: nur fuer DIESEN einen Aufruf setzen, nicht global exportieren —
 # die Verhaltenstests bringen eigene Fixture-Envs mit (Kollisions-Lehre 23.07.).
 MEMDIR="${CLAUDE_MEMORY_DIR:-}"
-if [ -z "$MEMDIR" ] && [ -f "$HOME/.claude/memory/MEMORY.md" ]; then
-  MEMDIR="$HOME/.claude/memory"
+if [ -z "$MEMDIR" ] && [ -f "${HOME:-/home/claudebot}/.claude/memory/MEMORY.md" ]; then
+  MEMDIR="${HOME:-/home/claudebot}/.claude/memory"
 fi
 run "Selbstcheck-Invarianten (run_self_check)" env \
   TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-000000:selfcheck-dummy}" \
@@ -111,6 +114,7 @@ run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py
 run "Zustell-Waechter (erreicht uns TG?)" "$PY" scripts/test_zustellwaechter.py
 run "Pruefumgebung (Riegel 3)"          "$PY" scripts/test_pruefumgebung.py
 run "Versions-Monitor (5.21)"           "$PY" scripts/test_version_monitor.py
+run "Zielumgebung (bash -n + env -i)"  bash scripts/test_zielumgebung.sh
 run "Sendepfad-Rauchtest (Pflicht 1)"  "$PY" scripts/test_sendepfad_rauch.py
 run "Gruendlich-Umschalter (B3)"        "$PY" scripts/test_gruendlich_b3.py
 run "Limit-Vorwarnung 5.20 (B4)"        "$PY" scripts/test_limitwarnung_b4.py

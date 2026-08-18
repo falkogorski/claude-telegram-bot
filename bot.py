@@ -176,10 +176,17 @@ def _record_usage(model: str, result: Any) -> None:
 # ---------- 5.20 / B4: Limit-Vorwarnung des Anbieters ----------
 #
 # Gemerkt wird je Kontingent-Art der zuletzt gemeldete Zustand samt
-# Reset-Zeitpunkt. Ohne dieses Gedächtnis käme die Warnung mit **jeder**
-# Antwort — der Anbieter schickt sie bei jedem Lauf mit, nicht nur beim
-# Umschlagen. Genau daran ist der Meldungssturm vom 28.07. früh gescheitert:
-# ein Wächter ohne Dämpfer meldet zweimal je Minute dasselbe.
+# Reset-Zeitpunkt.
+#
+# **KORRIGIERT 18.08.2026 (Gegenprüfung):** Die ursprüngliche Begründung hier
+# lautete, der Anbieter schicke den Zustand „bei jedem Lauf mit, nicht nur beim
+# Umschlagen" — und stand als gemessene Tatsache auch im Register. Das SDK sagt
+# wörtlich das Gegenteil: *emitted when rate limit info changes* / *whenever the
+# rate limit status transitions*. Die Behauptung war erfunden, im Gewand einer
+# Messung. Der Dämpfer bleibt trotzdem, aber aus dem ehrlichen Grund: Er ist
+# Gürtel und Hosenträger. Ein Fremdsystem, dessen Meldeverhalten sich ändern
+# kann, bekommt hier keinen Freibrief — und der Meldungssturm vom 28.07. früh
+# hat gezeigt, was ein Wächter ohne Dämpfer anrichtet.
 _LIMIT_GEMELDET: dict[str, tuple[str, float]] = {}
 
 _LIMIT_NAMEN = {
@@ -256,7 +263,7 @@ def _sparmodus_greifen(user_id: int) -> str | None:
     return "low"
 
 
-async def _limit_warnung_melden(chat_id: int, thread_id, ereignis) -> None:
+async def _limit_warnung_melden(sess, chat_id: int, thread_id, ereignis) -> None:
     """Reicht die Vorwarnung des Anbieters durch — **ohne eigene Rechnung.**
 
     Ein selbstgebauter Token-Zähler wäre eine Schätzung: Er kennt weder die
@@ -279,7 +286,8 @@ async def _limit_warnung_melden(chat_id: int, thread_id, ereignis) -> None:
         # gute Nachricht selbst das Rauschen.
         if bekannt:
             _LIMIT_GEMELDET.pop(art, None)
-            await send_chunked(chat_id, f"✅ {name}: wieder im grünen Bereich.",
+            await send_chunked(sess.bot, chat_id,
+                               f"✅ {name}: wieder im grünen Bereich.",
                                thread_id=thread_id)
         return
     if status not in ("allowed_warning", "rejected"):
@@ -309,7 +317,7 @@ async def _limit_warnung_melden(chat_id: int, thread_id, ereignis) -> None:
         text += ("\n\n💤 Sparmodus greift: Ich arbeite ab jetzt auf der Stufe "
                  "'schnell', damit das Fenster länger trägt. Zurückstellen "
                  "musst du selbst — ich springe nicht von allein wieder hoch.")
-    await send_chunked(chat_id, text, thread_id=thread_id)
+    await send_chunked(sess.bot, chat_id, text, thread_id=thread_id)
 
 
 def _usage_today() -> dict:
@@ -8486,7 +8494,7 @@ async def stream_response(
                 # und claude.ai auf dasselbe Konto buchen. Der Anbieter kennt
                 # beides. Also wird NICHTS gerechnet, nur durchgereicht.
                 try:
-                    await _limit_warnung_melden(chat_id, thread_id, msg)
+                    await _limit_warnung_melden(sess, chat_id, thread_id, msg)
                 except Exception:
                     log.exception("Limit-Warnung konnte nicht gemeldet werden")
             elif isinstance(msg, ResultMessage):

@@ -39,6 +39,13 @@ def check(name, fn):
     except AssertionError as e:
         print(f"✗ {name}: {e}")
         fails.append(name)
+    except Exception as e:
+        # **Auch eine Ausnahme ist ein Befund, kein Abbruchgrund.** Bricht der
+        # Laeufer hier ab, laufen die NACHFOLGENDEN Pruefungen nicht mehr - und
+        # ihre Befunde gehen still verloren. Dieselbe Klasse wie der Tagescheck,
+        # der am 29.07. mitten im Lauf starb und alles Gemessene mitnahm.
+        print(f"✗ {name}: {type(e).__name__}: {e}")
+        fails.append(name)
 
 
 class _Info:
@@ -54,19 +61,41 @@ class _Ereignis:
         self.rate_limit_info = info
 
 
-def _melden(info):
-    """Ruft die Meldefunktion auf und fängt ab, was an Adam gegangen wäre."""
-    gesendet = []
-    echt = bot.send_chunked
+class _AttrappenBot:
+    """Der Rand: was hinausgegangen waere. Erfindet nichts."""
 
-    async def _fang(chat_id, text, **kw):
-        gesendet.append(text)
-    bot.send_chunked = _fang
-    try:
-        asyncio.run(bot._limit_warnung_melden(1, None, _Ereignis(info)))
-    finally:
-        bot.send_chunked = echt
-    return gesendet
+    def __init__(self):
+        self.texte = []
+
+    async def send_message(self, chat_id=None, text=None, **kw):
+        self.texte.append(text)
+        return type("M", (), {"message_id": 1})()
+
+
+def _sitzung(attrappe):
+    s = object.__new__(bot.UserSession)
+    s.bot = attrappe
+    s.user_id = 1
+    return s
+
+
+def _melden(info):
+    """Ruft die Meldefunktion auf und faengt ab, was an Adam gegangen waere.
+
+    **KORRIGIERT 18.08.2026.** Die urspruengliche Fassung ersetzte
+    `bot.send_chunked` durch eine Attrappe mit der Signatur
+    `(chat_id, text, **kw)` — also mit **genau der falschen Arität, die der
+    Fehler im Code hatte**. Damit war der Fehler per Konstruktion unsichtbar:
+    Zehn gruene Zeilen ueber eine Funktion, die in Wirklichkeit vor dem ersten
+    `await` mit TypeError abbrach und nullmal meldete.
+
+    Jetzt laeuft das ECHTE `send_chunked`; die Attrappe sitzt eine Ebene
+    tiefer, am Telegram-Rand. Wer die Signatur der geprueften Funktion selbst
+    neu definiert, prueft nichts.
+    """
+    b = _AttrappenBot()
+    asyncio.run(bot._limit_warnung_melden(_sitzung(b), 1, None, _Ereignis(info)))
+    return b.texte
 
 
 def _gruener_bereich_schweigt():

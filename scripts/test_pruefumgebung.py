@@ -37,6 +37,13 @@ def check(name, fn):
     except AssertionError as e:
         print(f"✗ {name}: {e}")
         fails.append(name)
+    except Exception as e:
+        # **Auch eine Ausnahme ist ein Befund, kein Abbruchgrund.** Bricht der
+        # Laeufer hier ab, laufen die NACHFOLGENDEN Pruefungen nicht mehr - und
+        # ihre Befunde gehen still verloren. Dieselbe Klasse wie der Tagescheck,
+        # der am 29.07. mitten im Lauf starb und alles Gemessene mitnahm.
+        print(f"✗ {name}: {type(e).__name__}: {e}")
+        fails.append(name)
 
 
 def _testdateien() -> list[Path]:

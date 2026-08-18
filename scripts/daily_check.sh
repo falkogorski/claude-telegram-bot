@@ -32,6 +32,25 @@ BOTDIR=/home/claudebot/claude-telegram-bot
 # haette NIE anschlagen koennen. Ein Waechter, der nicht anschlagen kann, ist
 # schlimmer als keiner.
 BOTHOME=/home/claudebot
+
+# --- Die Umgebung des BOT-Benutzers, fuer jeden Python-Aufruf von hier ------
+#
+# GEMESSEN 18.08.2026, beim allerersten echten Lauf nach der Reparatur:
+# Der Tagescheck laeuft als root. `stundenblume.py` sucht ihre Belegkette unter
+# `Path.home()/.claude/stundenblumen` - als root also unter /root/. Ergebnis:
+# "Es gibt noch keine Kette", obwohl sie als claudebot nachweislich lueckenlos
+# lief. Ein TAEGLICHER FEHLALARM.
+#
+# Das ist dieselbe Klasse wie die $HOME-Zeile, die drei Wochen Stille
+# verursacht hat - nur in Python, wo nichts abstuerzt, sondern still woanders
+# hingezeigt wird. Und die Wirkung ist womoeglich schlimmer: Ein Waechter, der
+# jeden Tag grundlos rot meldet, wird abgeschaltet. Ein stiller wird nur
+# vergessen.
+BOTENV=(env "HOME=$BOTHOME"
+            "BLUMEN_DIR=$BOTHOME/.claude/stundenblumen"
+            "HORA_DIR=$BOTHOME/.claude/hora"
+            "POSTFACH_DIR=$BOTHOME/postfach"
+            "CLAUDE_MEMORY_DIR=$BOTHOME/.claude/memory")
 LOGDIR="$BOTDIR/logs"
 CHECKLOG="$LOGDIR/daily-check.log"
 # Der laufende Mitschrieb - waechst waehrend des Laufs, nicht erst am Ende.
@@ -165,7 +184,7 @@ fi
 # Die Zeitpunkt-Pruefungen sagen nur etwas ueber diesen Augenblick. Die Kette
 # belegt die Zeit DAZWISCHEN — und ihr Stillstand ist selbst der Befund.
 if [ -f "$(dirname "$0")/stundenblume.py" ]; then
-  if "$VENVPY" "$(dirname "$0")/stundenblume.py" --pruefen > /tmp/blumen_check.log 2>&1; then
+  if "${BOTENV[@]}" "$VENVPY" "$(dirname "$0")/stundenblume.py" --pruefen > /tmp/blumen_check.log 2>&1; then
     add "✅ Stundenblumen: $(tail -1 /tmp/blumen_check.log)"
   else
     add "❌ Stundenblumen: $(tail -1 /tmp/blumen_check.log)"
@@ -179,8 +198,11 @@ fi
 # --pruefen in 0,15 s - also Vorsorge, keine Not. Die Naht sorgt dafuer, dass
 # das erste Glied der neuen Datei auf das letzte der alten zeigt.
 if [ -f "$(dirname "$0")/stundenblume.py" ]; then
-  gerollt=$("$VENVPY" "$(dirname "$0")/stundenblume.py" --rollen 2>/dev/null)
-  [ -n "$gerollt" ] && lines+=("📜 Belegkette beiseitegelegt: $gerollt")
+  gerollt=$("${BOTENV[@]}" "$VENVPY" "$(dirname "$0")/stundenblume.py" --rollen 2>/dev/null)
+  # Ohne die Bot-Umgebung rollte root eine LEERE Kette unter /root - und
+  # haette die echte nie angefasst. Ein Aufraeumen, das am falschen Ort
+  # aufraeumt, sieht von aussen genauso aus wie eines, das funktioniert.
+  [ -n "$gerollt" ] && add "📜 Belegkette beiseitegelegt: $gerollt"
 fi
 
 # --- 9d. ZEITGEBER-WACHE (Befund E aus Vorlage 5.21-E) ---------------------

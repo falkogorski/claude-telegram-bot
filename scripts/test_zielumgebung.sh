@@ -72,6 +72,33 @@ for f in scripts/daily_check.sh scripts/api_cache_pflege.sh; do
   fi
 done
 
+# --- 3b. Python-Aufrufe des Tagescheck bekommen die Bot-Umgebung -------------
+#
+# GEMESSEN 18.08.2026 beim ersten echten Lauf: Der Tagescheck laeuft als root,
+# `stundenblume.py` sucht ihre Kette unter `Path.home()` - also unter /root -
+# und meldete "Es gibt noch keine Kette", obwohl sie lueckenlos lief. Ein
+# TAEGLICHER FEHLALARM.
+#
+# Das ist die leise Schwester des $HOME-Fehlers: Python stuerzt nicht ab, es
+# zeigt still woanders hin. Und die Wirkung ist womoeglich schlimmer - ein
+# Waechter, der jeden Tag grundlos rot meldet, wird abgeschaltet.
+if grep -q 'BOTENV=(env' scripts/daily_check.sh; then
+  fehlend=""
+  for aufruf in $(grep -oE '"\$VENVPY" "\$\(dirname "\$0"\)/[a-z_]+\.py"' scripts/daily_check.sh | sort -u); do
+    :
+  done
+  # Jede Zeile, die VENVPY mit einem unserer Python-Skripte ruft, muss BOTENV tragen.
+  fehlend="$(grep -nE '\$VENVPY" "\$\(dirname' scripts/daily_check.sh | grep -v 'BOTENV\[@\]' || true)"
+  if [ -z "$fehlend" ]; then
+    melde ok "Python-Aufrufe tragen die Bot-Umgebung"
+  else
+    melde nein "Python-Aufrufe tragen die Bot-Umgebung" \
+      "$(echo "$fehlend" | head -2 | tr '\n' ' ') — als root zeigt Path.home() auf /root"
+  fi
+else
+  melde nein "Python-Aufrufe tragen die Bot-Umgebung" "BOTENV ist nicht definiert"
+fi
+
 # --- 4. Der Tagescheck verliert bei einem Abbruch nichts Gemessenes ----------
 #
 # Connis Auflage 1. Geprueft wird die STRUKTUR, weil ein echter Abbruch hier

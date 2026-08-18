@@ -1,5 +1,8 @@
 # Konzept: Heimtunnel für YouTube-Zugriff
 
+**Stichtag:** 2026-07-25 · **überholt durch:** — · **maßgeblich ist die Status-Zeile im Drehbuch**
+
+
 **Erstellt** 25.07.2026, 20:05 Uhr · **Zuletzt geändert** 25.07.2026, 20:56 Uhr · **Für** Adam · **Status** Entwurf zur Entscheidung
 
 ---

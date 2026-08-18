@@ -1,5 +1,8 @@
 # Bauauftrag — „🎯 Gründlich" wird ein echter Umschalter mit Haken
 
+**Stichtag:** 2026-07-27 · **überholt durch:** **ÜBERHOLT** — B3 ist gebaut (Commit 3522719, korrigiert in a7233b0). Die Zeilennummern in diesem Auftrag sind seit dem 28.07. verschoben; wer danach arbeitet, greift ins Leere. · **maßgeblich ist die Status-Zeile im Drehbuch**
+
+
 **Von:** Claudia (Bot-Sitzung auf dem VPS, nur Leserecht am Bot-Repo)
 **Für:** Mick (Migrationssitzung am Mac) — dort liegt das Schreibrecht
 **Datum:** Montag, 27.07.2026

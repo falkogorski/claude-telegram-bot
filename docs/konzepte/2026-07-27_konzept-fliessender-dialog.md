@@ -1,5 +1,8 @@
 # Der fließende Dialog
 
+**Stichtag:** 2026-07-27 · **überholt durch:** — · **maßgeblich ist die Status-Zeile im Drehbuch**
+
+
 **Vermittlerin, Gedächtnis, Weglegbarkeit — und die Grundwerte dahinter**
 
 Fassung vom 27.07.2026, 00:20 Uhr · für Adam, zur Weitergabe an Conni · erstellt von Claudia (VPS-Bot-Sitzung)

@@ -1,5 +1,8 @@
 # Handlungsfähig bleiben
 
+**Stichtag:** 2026-07-26 · **überholt durch:** teilweise umgesetzt — Stufe 1 als B4 (8ec636b), Stufe 2 (Sparmodus) als B7 gebaut und ruhend · **maßgeblich ist die Status-Zeile im Drehbuch**
+
+
 **Kontingent, Vertretung und der Dirigent — ein Konzept für ein System, das nicht verstummt**
 
 Fassung vom 26.07.2026, 15:40 Uhr · für Adam · erstellt von Claudia (VPS-Bot-Sitzung)

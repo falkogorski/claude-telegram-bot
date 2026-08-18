@@ -10,6 +10,7 @@ sagen, beantwortet ein Leser, kein Programm.
 Deshalb ist er absichtlich **klein und konkret**. Ein Prüfer, der alles
 versprochen hätte, wäre selbst der nächste blinde Fleck.
 """
+import os
 import re
 import sys
 from pathlib import Path
@@ -71,17 +72,61 @@ def _jeder_waechter_meldet_seine_blinden_flecken():
 
 
 def _kein_traeger_ohne_wache():
-    """**Frage ② — wer prüft den Träger?**
+    """**Frage 2 — wer prueft den Traeger?**
 
-    Der 4-Uhr-Check trägt die Zeitgeber-Wache und läuft selbst über einen
-    Zeitgeber. Die Stundenblumen laufen über einen eigenen — nur deshalb kann
-    die Verschränkung überhaupt tragen.
+    Der 4-Uhr-Check traegt die Zeitgeber-Wache und laeuft selbst ueber einen
+    Zeitgeber. Die Stundenblumen laufen ueber einen eigenen - nur deshalb kann
+    die Verschraenkung ueberhaupt tragen.
+
+    **KORRIGIERT 18.08.2026 (Connis Auflage 3).** Der erste Entwurf suchte nur,
+    ob `def tagescheck_pruefen` im TEXT vorkommt. Eine Gegenpruefung hat den
+    AUFRUF ersatzlos entfernt und eine Kommentarzeile stehen lassen - der
+    Pruefer blieb gruen, die Wache war tot. Und genau das ist keine Theorie: Der
+    Tagescheck war zu diesem Zeitpunkt seit 21 Tagen tot, ohne dass irgendetwas
+    anschlug.
+
+    Jetzt wird die Wache AUSGEFUEHRT, gegen ein kuenstlich gealtertes Protokoll.
     """
-    sb = (ROOT / "scripts" / "stundenblume.py").read_text(encoding="utf-8")
+    import importlib.util
+    import tempfile
+    import time
+
+    spec = importlib.util.spec_from_file_location(
+        "sb_probe", ROOT / "scripts" / "stundenblume.py")
+    sb = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sb)
+
+    heim = Path(tempfile.mkdtemp(prefix="wache-"))
+    log = heim / "daily-check.log"
+    alt = getattr(sb, "TAGESCHECK_LOG", None)
+    assert alt is not None, "die Wache kennt kein Tagescheck-Protokoll"
+    try:
+        sb.TAGESCHECK_LOG = log
+
+        # (a) Frisches Protokoll -> Ruhe.
+        log.write_text("ok", encoding="utf-8")
+        assert not sb.tagescheck_pruefen(), \
+            "die Wache meldet, obwohl der Tagescheck frisch gelaufen ist"
+
+        # (b) 27 Stunden alt -> Alarm. DAS ist der reale Fall vom 29.07.
+        alt_zeit = time.time() - 27 * 3600
+        os.utime(log, (alt_zeit, alt_zeit))
+        befund = sb.tagescheck_pruefen()
+        assert befund, "ein 27 Stunden stiller Tagescheck bleibt unbemerkt"
+
+        # (c) Gar kein Protokoll -> ebenfalls Alarm. Ein fehlender Traeger ist
+        #     kein Ruhezustand.
+        log.unlink()
+        assert sb.tagescheck_pruefen(), "ein fehlendes Protokoll gilt als in Ordnung"
+    finally:
+        sb.TAGESCHECK_LOG = alt
+
+    # Die Rueckrichtung bleibt eine Textpruefung - sie liegt in einem
+    # Shell-Skript, das sich hier nicht sinnvoll ausfuehren laesst. Der
+    # Zielumgebungs-Pruefer startet es dafuer mit env -i.
     dc = (ROOT / "scripts" / "daily_check.sh").read_text(encoding="utf-8")
-    assert "def tagescheck_pruefen" in sb, "die Blumen bewachen den Tagescheck nicht"
     assert re.search(r"stundenblume\.py[\"']?\s+--pruefen", dc), \
-        "der Tagescheck bewacht die Belegkette nicht — die Verschränkung ist einseitig"
+        "der Tagescheck bewacht die Belegkette nicht - die Verschraenkung ist einseitig"
 
 
 def _kostenzahl_nie_ohne_das_wort_nennwert():

@@ -1,5 +1,8 @@
 # Die Entwicklungskette soll allein laufen
 
+**Stichtag:** 2026-07-28 · **überholt durch:** Stufe 1 als B8 gebaut und ruhend (bbeb4d6); Rundenlisten-Idee ist Rückkehr-Punkt 3 · **maßgeblich ist die Status-Zeile im Drehbuch**
+
+
 **Fassung:** 28.07.2026, vormittags · **Verfasst von:** Claudia (Bot-Sitzung, VPS)
 **Anlass:** Adams Ansage vom 28.07., 10:56 Uhr — „Das muss alleine gehen. Von alleine
 laufen, meine ich. Erstmal muss automatisiert laufen."

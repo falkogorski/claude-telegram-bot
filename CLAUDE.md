@@ -158,27 +158,37 @@ keine Kostenquelle, keine Architekturänderung. **Im Zweifel ist Liegenlassen
 richtig** — eine geparkte Idee kostet nichts, eine ungeprüft gebaute kostet
 Vertrauen.
 
-## 😴 RUHEMODUS (Conni-Entscheid 2026-07-28 abends, gilt bis ~15.08.)
+## 📋 AKTUELLE BETRIEBSLAGE
 
-**Nur Wächter. Kein Bauen, kein Deploy, keine neuen Aufträge.** Der VPS bleibt
-auf `6ed4b91`; alles vom 28.07. liegt geprüft und ruhend auf dem Mac und wartet
-auf die Gesamtabnahme.
+**Stichtag:** 18.08.2026, 16:0x · **Lage:** NORMALBETRIEB
 
-- **Der Kurier-Ordner wird gelesen, Neues wird GEPARKT, nicht gebaut.** Auch
-  wenn es klein aussieht und der Lösungsweg klar ist — die Ausnahme für
-  Wächter-Befunde aus dem Bauauftrags-Regime gilt hier **nicht** mehr.
-- **Läuft ein Wächter rot: anhalten und melden schlägt reparieren.** Eine
-  ungeprüfte Reparatur in einer Abwesenheit ist teurer als eine liegende
-  Störung — niemand kann sie gegenlesen.
-- **Zwei Entscheide, damit sie nicht erneut aufgeworfen werden:** Der
-  Abo-Token wird **nicht** erneuert (ausgestellt 14.07.2026, Gültigkeit rund
-  ein Jahr — gemessen; die C2-Sofortmeldung beim Kippen bleibt das Netz). Und
-  Horas **Wiederholungs-Merkmal wird nicht gebaut** — „nichts Neues" gilt auch
-  für uns; die Stundenblumen tragen die Dauerwache.
+Eingetragen 28.07.2026, 23:01 (Ruhemodus während Adams Abwesenheit) —
+**ausgetragen 18.08.2026** nach Rückkehr, Gegenprüfung und Reparatur.
 
-**Rückkehr-Punkt Nr. 3:** Die Rundenlisten-Idee gehört zur Entwicklungskette
-und wird dort zusammen mit den `haengt_an`-Bezügen entworfen — Adams Gedanke
-ist die Vorgabe dafür, nicht ein nachträglicher Anbau an Hora.
+**Ein Eintrag ohne Austrag ist die nächste stille Falsch-Wahrheit.** Wer eine
+Betriebslage setzt, setzt zugleich die Bedingung, unter der sie endet.
+
+### Die Lehre, die diesen Abschnitt erzwungen hat
+
+Der Ruhemodus fror nicht nur das Bauen ein, sondern auch **einen fertigen
+Wächter-Fix**: Die Kreuzverschränkung, die einen stillen Tagescheck meldet, lag
+vom 28.07. an fertig und ungedeployt auf dem Mac. Am 29.07. starb der Tagescheck
+— und blieb einundzwanzig Tage unbemerkt, weil ausgerechnet seine Wache im
+Ruhemodus lag.
+
+**Daraus die Pflicht:** Ein Ruhemodus-Eintrag **benennt, welche Wächter-Fixes
+mit ihm eingefroren werden.** Dann ist beim Setzen sichtbar, was in dieser Zeit
+*nicht* bewacht wird — und man kann bewusst entscheiden, ob dieser eine Fix
+vorher noch hinausgeht.
+
+### Vorlage für den nächsten Eintrag
+
+```
+**Stichtag:** <Datum, Uhrzeit> · **Lage:** <RUHE | NORMAL | SPRINT>
+**Gilt bis:** <Bedingung, nicht nur Datum>
+**Eingefrorene Wächter-Fixes:** <Liste — oder ausdrücklich „keine">
+**Ausgetragen:** <Datum> / <offen>
+```
 
 ## 🎚️ MODELL- UND MODUS-AUTONOMIE (Adam 2026-07-28, dauerhaft und projektweit)
 

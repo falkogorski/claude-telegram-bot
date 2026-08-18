@@ -1,5 +1,8 @@
 # Verfahren gegen blinde Flecken
 
+**Stichtag:** 2026-07-27 · **überholt durch:** **ÜBERHOLT** — die gültige Fassung ist `docs/blinde-flecken-verfahren.md`. Diese hier ist die Vorstufe. · **maßgeblich ist die Status-Zeile im Drehbuch**
+
+
 **Die Fragenliste als fester Bestandteil jedes Bauauftrags — mit Abnahmekriterium und
 Gegenlesung**
 

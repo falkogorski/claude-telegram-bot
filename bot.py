@@ -8530,7 +8530,13 @@ async def send_answer_to_user(
         return True  # nichts zu senden ist kein Zustellfehler
     use_tts = sess.tts_enabled or force_tts
     first_pending = reply_to is not None
-    kb = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
+    # `sess.user_id` ist der Besitzer der Sitzung. Der urspruengliche Eingriff
+    # (28.07.) schrieb hier ein blankes `user_id`, das in dieser Funktion nie
+    # existierte - NameError im zentralen Sendepfad, drei Wochen unbemerkt,
+    # weil kein Test diesen Pfad je AUSGEFUEHRT hat. Siehe
+    # scripts/test_sendepfad_rauch.py.
+    kb = _main_keyboard(sess.tts_enabled, sess.current_model,
+                        sess.current_effort, user_id=sess.user_id)
 
     # 5.9: Nummerierte Optionsliste → Inline-Ziffern-Knöpfe direkt an der
     # Nachricht (Telegram bietet keine Ziffern-Reaktionen; Adam-Entscheid).

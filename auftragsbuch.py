@@ -123,8 +123,13 @@ GRUENE_ARTEN: dict[str, str] = {
 # GESTRICHEN 18.08.2026: "doku" (Register, Blaupause, Drehbuch-Stand). Adams
 # Entscheid nennt vier Arten, und diese ist nicht darunter. Bewusst NICHT
 # stillschweigend beibehalten - bei einer geschlossenen Liste ist jede stille
-# Ergaenzung genau der Fehler, den die Liste verhindern soll. Wird sie doch
-# gewuenscht, gehoert sie ausdruecklich aufgenommen, mit frischem Pruefdatum.
+# Ergaenzung genau der Fehler, den die Liste verhindern soll.
+#
+# **BESTAETIGT am selben Abend (Adam mit Conni): bleibt draussen, jetzt nicht.**
+# Der natuerliche Moment fuer eine Erweiterung ist die Auswertung am 25.08. -
+# "Liste erweitern" steht dort ohnehin als eine der Optionen. Eine Woche
+# Betrieb zeigt besser als jede Vorueberlegung, ob doku-Auftraege dazugehoeren.
+# Bis dahin sind sie gelb und brauchen Adams Daumen.
 
 # Worte, bei denen die Ampel unabhängig von der Art auf Rot springt. Sie sind
 # eine ZUSÄTZLICHE Bremse, kein Ersatz für die geschlossene Liste: Eine

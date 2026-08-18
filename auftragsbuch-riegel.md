@@ -36,6 +36,10 @@ danach von Hora der Regressionsstand. **Diese Meldungen werden bewusst nicht
 gedämpft — die Sichtbarkeit ist der Zweck der Woche.** Wer sie dämpft, prüft
 nicht die Automatik, sondern die Dämpfung.
 
+**Offen für die Auswertung:** Ob die Art `doku` (Register, Blaupause,
+Drehbuch-Stand) in die Grün-Liste gehört. Adam und Conni am 18.08.: jetzt
+nicht — eine Woche Betrieb zeigt es besser als jede Vorüberlegung.
+
 Am 25.08. läuft die Frist ab. Der Tagescheck meldet das am Stichtag; zusätzlich
 steht eine Zeile in den offenen Punkten. Danach entscheidet Adam: weiter,
 leiser, Liste erweitern — oder zurück auf aus.

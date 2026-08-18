@@ -163,4 +163,80 @@ print()
 if fails:
     print(f"❌ {len(fails)} B8-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)
-print("Alle B8-Auftragsbuch-Tests bestanden.")
+
+
+# ---------- Gegenprüfungs-Befunde vom 18.08.2026 ----------------------------
+def _handgelegte_gruen_behauptung_wird_nicht_geglaubt():
+    """**Die Umgehung, die eine frische Sitzung gefunden hat.**
+
+    `uebernehmen()` las die Ampel aus der DATEI. Wer eine Datei von Hand in den
+    Eingang legte, konnte sich sein eigenes Gruen ausstellen — die Gegenpruefung
+    hat so einen Auftrag mit unbekannter Art, unbekanntem Absender und dem
+    Rot-Wort [Root-Zugang] im Titel an Hora durchgereicht.
+
+    Die Ampel im Eintrag ist ein Vorschlag, nie eine Wahrheit.
+    """
+    import json
+    import auftragsbuch as ab
+    heim = Path(tempfile.mkdtemp(prefix="umgehung-"))
+    eingang = heim / "eingang"
+    eingang.mkdir()
+    alt_dir, alt_scharf = ab.EINGANG, ab.SCHARF
+    ab.EINGANG, ab.SCHARF = eingang, True
+    try:
+        (eingang / "boese.json").write_text(json.dumps({
+            "titel": "Root-Zugang einrichten",
+            "art": "architektur",          # keine Gruen-Art
+            "absender": "niemand",         # kein bekannter Absender
+            "ampel": "gruen",              # die Behauptung
+        }), encoding="utf-8")
+        ziel = heim / "hora.json"
+        ziel.write_text("[]", encoding="utf-8")
+        anzahl, meldung = ab.uebernehmen(hora_liste=ziel)
+        liste = json.loads(ziel.read_text(encoding="utf-8"))
+        assert anzahl == 0, (
+            f"eine handgelegte Gruen-Behauptung wurde uebergeben: {meldung}")
+        assert not liste, f"der Auftrag steht in Horas Liste: {liste}"
+    finally:
+        ab.EINGANG, ab.SCHARF = alt_dir, alt_scharf
+
+
+def _rote_worte_treffen_deutsche_zusammensetzungen():
+    """**Die Regel war auf der falschen Seite geoeffnet.**
+
+    [Klient] steht in [Klientendaten] zufaellig vorn — im Deutschen steht das
+    Grundwort hinten. Mit nur hinten geoeffneter Wortgrenze blieben genau die
+    Faelle blind, fuer die die Bremse gebaut wurde. Alle hier gemessen.
+    """
+    import auftragsbuch as ab
+    for muss_rot in ("Serverpasswort erneuern", "Zugangsschluessel tauschen",
+                     "Zugriffstoken erneuern", "Systemschluessel pruefen",
+                     "Bestandskunden anschreiben", "Klientendaten sichern",
+                     "Datenbankpasswort rotieren"):
+        ampel, _ = ab.einstufen({"titel": muss_rot})
+        assert ampel == "rot", f"[{muss_rot}] wird nicht gebremst"
+
+
+def _haeufige_harmlose_traeger_bremsen_nicht():
+    """Der Preis der offenen Grenzen sind Fehlalarme. Bei einer Bremse ist das
+    die richtige Fehlerrichtung — aber nicht gratis: Rot heisst Warten auf
+    Adams Daumen, und in einer Abwesenheit heisst das gar nichts."""
+    import auftragsbuch as ab
+    for harmlos in ("siehe above im Text", "Abort bei Fehler abfangen",
+                    "kostenlose Variante pruefen", "kostenfreie Loesung",
+                    "Dokumentation aktualisieren"):
+        ampel, grund = ab.einstufen({"titel": harmlos})
+        assert ampel != "rot", f"[{harmlos}] wird faelschlich gebremst: {grund}"
+
+
+check("handgelegte Gruen-Behauptung wird nicht geglaubt (Umgehung 18.08.)",
+      _handgelegte_gruen_behauptung_wird_nicht_geglaubt)
+check("rote Worte treffen deutsche Zusammensetzungen",
+      _rote_worte_treffen_deutsche_zusammensetzungen)
+check("haeufige harmlose Traeger bremsen nicht",
+      _haeufige_harmlose_traeger_bremsen_nicht)
+
+if fails:
+    print(f"\n❌ {len(fails)} B8-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
+    raise SystemExit(1)
+print("\nAlle B8-Auftragsbuch-Tests bestanden.")

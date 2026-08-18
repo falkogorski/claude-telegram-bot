@@ -6589,12 +6589,28 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         if mb and mb.current_job is not None:
             # Läuft gerade etwas, wird es nicht abgebrochen — wie beim Modell-
             # und Tiefenwechsel auch.
+            #
+            # **KORRIGIERT 18.08.2026 (Gegenprüfung).** Hier fehlte
+            # `switch_pending`. Nur dieses Flag löst nach Job-Ende den
+            # Sitzungswechsel aus — ohne es lebte die alte Sitzung mit der alten
+            # Tiefe weiter, während die Meldung „gilt ab der nächsten Aufgabe"
+            # behauptete. Der Haken stand, gearbeitet wurde flach. Genau der
+            # stille Fall, den Kernpunkt C ausschließen sollte, nur eine Ebene
+            # höher wieder eingebaut.
+            mb.switch_pending = True
             zusatz = "\n\n(Gilt ab der nächsten Aufgabe — die laufende bleibt unberührt.)"
         else:
             # Sonst sofort wirksam machen: neue Sitzung mit der neuen Tiefe.
+            #
+            # Dieses `close_session` ist RICHTIG und gehört nicht zu Kernpunkt D:
+            # Die Tiefe ist ein Sitzungs-Startwert, ein Umschalten braucht also
+            # eine neue Sitzung. Verboten war das Schließen NACH JEDER ANFRAGE —
+            # das hätte den Gesprächsfaden dauerhaft zerschnitten. Hier reißt er
+            # einmalig, beim bewussten Umschalten, und das wird jetzt auch
+            # gesagt statt verschwiegen.
             await close_session(user_id)
             await ensure_session(user_id)
-            zusatz = ""
+            zusatz = "\n\n(Neue Sitzung gestartet — der bisherige Gesprächsfaden endet hier.)"
 
         if neu:
             text_an = (
@@ -6703,6 +6719,23 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         await close_session(user_id)
         new_sess = await ensure_session(user_id)
         keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort, user_id=user_id)
+        # **KORRIGIERT 18.08.2026 (Gegenprüfung).** Bei aktivem Gründlich
+        # erzwingt `ensure_session` die höchste Tiefe — die eben getroffene Wahl
+        # wird also verworfen. Vorher meldete der Bot trotzdem „⚡ Schnell
+        # aktiv", während die Tastatur daneben „🚀 Max ✓" zeigte. Zwei Aussagen
+        # in derselben Nachricht, die einander widersprechen; die Tastatur hatte
+        # recht.
+        #
+        # Adam konnte die Tiefe damit nicht senken, ohne den Modus zu kennen und
+        # auszuschalten — und das ist der teure Zustand, nicht der billige.
+        if _thorough_on(user_id):
+            await update.message.reply_text(
+                f"Das geht gerade nicht: 🎯 Gründlich ist an und arbeitet immer "
+                f"auf höchster Tiefe.\n\nSchalte Gründlich aus, dann greift "
+                f"{effort_label} wieder.",
+                reply_markup=keyboard,
+            )
+            return
         await update.message.reply_text(
             f"Denke nach: {effort_label} aktiv. Session neu gestartet.",
             reply_markup=keyboard,

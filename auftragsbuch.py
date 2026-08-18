@@ -32,6 +32,15 @@ import time
 from pathlib import Path
 
 # ---------------------------------------------------------------- Verrohrung
+# **Der Riegel ist ein UMGEBUNGSSCHALTER, keine Konstante** — und das stand bis
+# zum 18.08.2026 an drei Stellen falsch beschrieben („SCHARF = False"). Wer das
+# las, hielt eine Repo-Datei fuer den Riegel; tatsaechlich genuegt ein
+# `Environment=`-Eintrag, ein `export` oder eine Zeile in einer Env-Datei, und
+# er ist offen, ohne dass sich hier etwas aendert.
+#
+# Der Schalter BLEIBT eine Umgebungsvariable — so laesst er sich pro Lauf
+# setzen, ohne den Code anzufassen. Aber er sagt jetzt, was er ist, und
+# `uebersicht()` nennt seinen Stand, damit man ihn nicht suchen muss.
 SCHARF = os.environ.get("AUFTRAGSBUCH_SCHARF") == "ja"
 
 BUCH = Path(os.environ.get("AUFTRAGSBUCH_DIR")
@@ -81,10 +90,37 @@ GRUENE_ARTEN: dict[str, str] = {
 # Der Preis ist ein gelegentlicher Fehlalarm („Absender" enthält kein Muster,
 # aber „Abospur" träfe auf `abo`). Bei einer Bremse ist das die richtige
 # Richtung: **Lieber einmal zu oft rot als einmal zu wenig.**
+# **KORRIGIERT 18.08.2026 (Gegenpruefung): auf BEIDEN Seiten keine Wortgrenze.**
+#
+# Der erste Entwurf hatte `\b…\b` und verfehlte [Klientendaten]. Die Korrektur
+# strich nur die HINTERE Grenze - und verallgemeinerte damit einen Einzelfall.
+# Denn [Klient] steht in [Klientendaten] zufaellig VORN; im Deutschen steht das
+# Grundwort aber HINTEN. Gemessen mit der halben Korrektur, alle ohne Treffer:
+#
+#   Serverpasswort · Zugangsschluessel · Zugriffstoken · Systemschluessel ·
+#   Bestandskunden · Datenbankpasswort
+#
+# Das waren die Faelle, fuer die die Bremse gebaut wurde. Ohne beide Grenzen
+# treffen sie.
+#
+# Der Preis sind mehr Fehlalarme: [above] enthaelt [abo], [Abort] enthaelt
+# [abo], [kostenlos] enthaelt [kosten]. Bei einer BREMSE ist das die richtige
+# Fehlerrichtung - aber nicht gratis: Rot heisst Warten auf Adams Daumen. Die
+# haeufigsten harmlosen Traeger stehen deshalb als Ausnahmen darunter.
 ROTE_WORTE = re.compile(
-    r"\b(root|sudo|schlüssel|schluessel|token|secret|passwort|kennwort|"
+    r"(root|sudo|schlüssel|schluessel|token|secret|passwort|kennwort|"
     r"firewall|webhook|öffentlich|oeffentlich|kosten|bezahl|abo|api[_-]?key|"
     r"lösch|loesch|klient|kunde)", re.IGNORECASE)
+
+# Woerter, die ein rotes Stichwort nur ZUFAELLIG enthalten. Bewusst kurz und
+# ausdruecklich benannt: Eine lange Ausnahmeliste hoehlt die Bremse aus, und
+# jede Zeile hier ist eine Entscheidung, kein Automatismus.
+# Auch hier KEINE schliessende Wortgrenze - und das war beim ersten Anlauf
+# prompt falsch: [kostenlose] mit Beugungsendung fiel durch `\b` und wurde rot.
+# Dieselbe Lehre wie eine Ebene darueber, im selben Zug erneut gemacht.
+ROT_AUSNAHMEN = re.compile(
+    r"\b(above|abort|abonnement|abordnung|kostenlos|kostenfrei|kostenguenstig|"
+    r"kostengünstig|unentgeltlich)", re.IGNORECASE)
 
 
 def einstufen(auftrag: dict) -> tuple[str, str]:
@@ -95,7 +131,10 @@ def einstufen(auftrag: dict) -> tuple[str, str]:
     """
     text = " ".join(str(auftrag.get(f, "")) for f in
                     ("titel", "aktion", "begruendung", "befehl"))
-    treffer = ROTE_WORTE.search(text)
+    # Die Ausnahmen werden VOR der Suche entfernt, nicht danach geprueft: Sonst
+    # verdeckte ein einziges [kostenlos] einen echten Treffer im selben Satz.
+    text_ohne = ROT_AUSNAHMEN.sub(" ", text)
+    treffer = ROTE_WORTE.search(text_ohne)
     if treffer:
         return ("rot", f"enthält [{treffer.group(0)}] — Sicherheit, Geld oder "
                        "fremde Daten berührt")
@@ -190,7 +229,31 @@ def uebernehmen(hora_liste: Path | None = None) -> tuple[int, str]:
     Gelb und Rot werden **nie** hier übergeben. Sie warten auf Adams Daumen
     über die Freigabe-Leitung (9.4) — der Knopf ist ein Vorgang, kein Vortrag.
     """
-    wartend = [a for a in eingang() if a.get("ampel") == "gruen"]
+    # **KORRIGIERT 18.08.2026 (Gegenpruefung, Connis Auflage 5).**
+    #
+    # Hier stand `a.get("ampel") == "gruen"` — die Ampel wurde also aus der
+    # DATEI gelesen. `einstufen()` lief nur beim Ablegen. Wer eine Datei von
+    # Hand in den Eingang legte, konnte sich damit sein eigenes Gruen
+    # ausstellen: Die Gegenpruefung hat einen Auftrag mit unbekannter Art,
+    # unbekanntem Absender und dem Rot-Wort [Root-Zugang] im Titel als gruen an
+    # Hora durchgereicht, nur weil "ampel": "gruen" darin stand.
+    #
+    # **Die Ampel im Eintrag ist ein Vorschlag, nie eine Wahrheit.** Massgeblich
+    # ist die Einstufung gegen die geschlossene Liste im MOMENT der Uebergabe.
+    # Das faengt zugleich den zweiten Fall: Wird eine Gruen-Art spaeter
+    # entfernt, weil sie sich als gefaehrlich erwies, bleiben bereits liegende
+    # Auftraege sonst gruen.
+    wartend = []
+    for a in eingang():
+        jetzt, grund = einstufen(a)
+        if jetzt != "gruen":
+            continue
+        if a.get("ampel") != "gruen":
+            # Nur vermerken, nicht uebergeben — eine Abweichung in DIESE
+            # Richtung ist harmlos, aber sie gehoert gesehen.
+            continue
+        a["_ampel_geprueft"] = grund
+        wartend.append(a)
     if not SCHARF:
         return (0, f"nicht scharfgestellt — {len(wartend)} grüne Aufträge "
                    "warten, es wurde nichts übergeben")

@@ -98,31 +98,71 @@ def _tiefe_haengt_an_ensure_session():
         "die Tiefe wird nicht in ensure_session erzwungen"
 
 
-def _kein_close_session_mehr_im_gruendlich_zweig():
-    """**Kernpunkt D — der Abnahmepunkt.**
+def _kein_close_session_im_ANTWORT_pfad():
+    """**Kernpunkt D — praeziser gefasst als beim ersten Mal.**
 
-    Bliebe eine Zeile stehen, die nach jeder Anfrage die Sitzung schließt,
-    hätte im Dauerbetrieb jede Nachricht keinen Gesprächsfaden mehr. Wer merkt
-    es? Niemand — es sähe nach Vergesslichkeit aus.
+    Verboten war das Schliessen der Sitzung NACH JEDER ANFRAGE: Das haette im
+    Dauerbetrieb den Gespraechsfaden nach jeder Nachricht zerschnitten, und
+    niemand haette es als Fehler gemeldet - es saehe nach Vergesslichkeit aus.
+
+    **KORRIGIERT 18.08.2026.** Der erste Entwurf behauptete pauschal, es gebe
+    im Gruendlich-Zweig ueberhaupt kein `close_session` mehr - und filterte
+    dabei auf `"thorough"` KLEINgeschrieben, waehrend der Umschalt-Zweig gegen
+    die grossgeschriebenen Beschriftungskonstanten prueft. Er traf den Zweig
+    also gar nicht und war trotzdem gruen.
+
+    Beides war falsch: Der Filter, und die Behauptung. Beim UMSCHALTEN ist ein
+    `close_session` richtig und noetig, weil die Tiefe ein Sitzungs-Startwert
+    ist. Gemessen wird deshalb der Antwort-Pfad, nicht der Umschalt-Pfad.
     """
     baum = ast.parse(QUELLE)
     treffer = []
     for k in ast.walk(baum):
-        # Ein `if job.thorough … close_session(...)` in irgendeiner Form.
         if not isinstance(k, ast.If):
             continue
         bed = ast.unparse(k.test)
-        if "thorough" not in bed:
+        # Der ANTWORT-Pfad haengt am eingefrorenen Job-Feld.
+        if "job.thorough" not in bed:
             continue
-        rumpf = ast.unparse(k)
-        if "close_session" in rumpf:
+        if "close_session" in ast.unparse(k):
             treffer.append(f"Zeile {k.lineno}: {bed}")
     assert not treffer, (
-        "die Sitzung wird bei Gründlich noch geschlossen — im Dauerbetrieb "
-        f"zerschneidet das den Gesprächsfaden nach jeder Nachricht: {treffer}")
+        "die Sitzung wird im Antwort-Pfad geschlossen - im Dauerbetrieb "
+        f"zerschneidet das den Gespraechsfaden nach jeder Nachricht: {treffer}")
 
-    assert "fresh=True" not in QUELLE.split("if job.thorough")[0][-2000:], \
-        "es wird noch eine frische Sitzung je Anfrage erzwungen"
+
+def _umschalten_im_lauf_setzt_switch_pending():
+    """**Sonst ist die Meldung eine Unwahrheit.**
+
+    Laeuft gerade ein Auftrag, sagt der Bot [Gilt ab der naechsten Aufgabe].
+    Nur `switch_pending` loest den Wechsel danach aus - ohne das Flag lebt die
+    alte Sitzung mit der alten Tiefe weiter. Der Haken staende, gearbeitet
+    wuerde flach.
+    """
+    zweig = QUELLE.split("if text in (_BTN_THOROUGH, _BTN_THOROUGH_ACTIVE):")[1]
+    zweig = zweig.split("\n    if text ==")[0][:3000]
+    assert "mb.switch_pending = True" in zweig, (
+        "der Gruendlich-Zweig setzt switch_pending nicht - die Meldung "
+        "[gilt ab der naechsten Aufgabe] waere dann falsch")
+
+
+def _umschalten_verschweigt_den_faden_bruch_nicht():
+    """Im Leerlauf startet das Umschalten eine neue Sitzung — der bisherige
+    Gespraechsfaden endet dort. Der Modellwechsel sagt das [Session neu
+    gestartet], der Gruendlich-Zweig schwieg."""
+    zweig = QUELLE.split("if text in (_BTN_THOROUGH, _BTN_THOROUGH_ACTIVE):")[1][:3000]
+    assert "Gesprächsfaden endet" in zweig or "Sitzung gestartet" in zweig, \
+        "der Sitzungs-Neustart beim Umschalten wird verschwiegen"
+
+
+def _tiefen_wahl_wird_nicht_still_verworfen():
+    """Bei aktivem Gruendlich erzwingt ensure_session die hoechste Tiefe. Vorher
+    meldete der Bot trotzdem [Schnell aktiv] - und die Tastatur zeigte daneben
+    [Max haken]. Zwei Aussagen in einer Nachricht, die einander widersprechen."""
+    stelle = QUELLE.split('f"Denke nach: {effort_label} aktiv.')[0][-1200:]
+    assert "_thorough_on(user_id)" in stelle, (
+        "die Tiefen-Bestaetigung prueft nicht, ob Gruendlich sie ueberhaupt "
+        "zulaesst - sie behauptet dann etwas, das nicht eintritt")
 
 
 def _quellencheck_bleibt():
@@ -136,8 +176,13 @@ check("Zustand überlebt den Neustart, nur EINE Wahrheit", _zustand_ueberlebt_ne
 check("Haken ist sichtbar UND ehrlich (Max trägt ihn mit)", _haken_ist_sichtbar_und_ehrlich)
 check("beide Beschriftungen sind bedienbar", _beide_beschriftungen_sind_bedienbar)
 check("Tiefe wird in ensure_session erzwungen (C)", _tiefe_haengt_an_ensure_session)
-check("KEIN close_session mehr im Gründlich-Zweig (D — der stille Fall)",
-      _kein_close_session_mehr_im_gruendlich_zweig)
+check("KEIN close_session im ANTWORT-Pfad (D — der stille Fall)",
+      _kein_close_session_im_ANTWORT_pfad)
+check("Umschalten im Lauf setzt switch_pending", _umschalten_im_lauf_setzt_switch_pending)
+check("der Faden-Bruch beim Umschalten wird genannt",
+      _umschalten_verschweigt_den_faden_bruch_nicht)
+check("die Tiefen-Wahl wird nicht still verworfen",
+      _tiefen_wahl_wird_nicht_still_verworfen)
 check("Quellencheck-Zusatz bleibt unverändert", _quellencheck_bleibt)
 
 print()

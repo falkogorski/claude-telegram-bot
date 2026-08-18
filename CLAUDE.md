@@ -739,19 +739,73 @@ weniger heikle Begriffe okay, für das Heikelste den Button-Weg nutzen.
   bricht, ist zuerst zu prüfen, ob sie die richtige Ursache benennt** — nicht,
   ob man sie strenger formulieren kann.
 
-## 🔤 STICHWORT-FILTER: keine schließende Wortgrenze (Conni 2026-07-28)
+## 🔤 STICHWORT-FILTER: auf BEIDEN Seiten keine Wortgrenze
 
-**Gilt für jeden Textfilter, den wir bauen — Ampel-Regeln, Rot-Bremsen,
-Vorlese-Ausnahmen, Suchmuster.** Deutsche Zusammensetzungen hängen ihr
-Bestimmungswort **vorn** an. Ein `\bklient\b` trifft „Klient" und verfehlt
-**„Klientendaten"** — und damit genau den Fall, für den der Filter gebaut wurde.
-Belegt am 28.07. im Auftragsbuch, gefunden von der eigenen Prüfung beim ersten
-Lauf; dieselbe Falle lauert bei Kundenliste, Passwortdatei, Löschauftrag,
-Kostenstelle, Tokenpfad.
+**`[KORRIGIERT 2026-08-18]` Diese Regel war in ihrer ersten Fassung falsch —
+geschrieben von der Bau-Sitzung, abgenommen von der Kontrolle. Beide haben
+denselben Denkfehler gemacht, und erst eine frische Gegenprüfung hat ihn
+gefunden.**
 
-**Regel:** Vorn eine Wortgrenze, hinten **keine** (`\b(klient|kunde|token)`).
-Der Preis ist ein gelegentlicher Fehlalarm — **bei einer Bremse ist das die
-richtige Fehlerrichtung.** Lieber einmal zu oft rot als einmal zu wenig.
+**Gilt für jeden Textfilter, den wir bauen** — Ampel-Regeln, Rot-Bremsen,
+Vorlese-Ausnahmen, Suchmuster.
+
+Der Auslöser war „Klientendaten": `\bklient\b` traf es nicht. Die erste
+Korrektur strich nur die **hintere** Wortgrenze — und verallgemeinerte damit
+einen Einzelfall. Denn „Klient" steht in „Klientendaten" **zufällig vorn**; im
+Deutschen steht das Grundwort dagegen **hinten**. Gemessen mit der halben
+Korrektur, alle **ohne** Treffer:
+
+> Serverpasswort · Zugangsschlüssel · Zugriffstoken · Systemschlüssel ·
+> Bestandskunden · Datenbankpasswort
+
+Das waren genau die Fälle, für die die Bremse gebaut wurde.
+
+**Regel: keine Wortgrenze auf beiden Seiten** — `(klient|kunde|token)`, nicht
+`\b…` und nicht `…\b`. Dasselbe gilt für die **Ausnahmeliste**: Auch dort
+kostete ein schließendes `\b` sofort einen Treffer, weil „kostenlose" eine
+Beugungsendung trägt.
+
+**Der Preis sind Fehlalarme, und der ist nicht gratis.** „above" enthält „abo",
+„Abort" enthält „abo", „kostenlos" enthält „kosten". Bei einer **Bremse** ist
+das die richtige Fehlerrichtung — aber Rot heißt *Warten auf Adams Daumen*, und
+in einer Abwesenheit heißt das *gar nichts*. Darum: offene Grenzen **plus** eine
+kurze, ausdrücklich benannte Ausnahmeliste, die vor der Suche entfernt wird.
+Eine lange Ausnahmeliste höhlt die Bremse aus; jede Zeile darin ist eine
+Entscheidung, kein Automatismus.
+
+Der Prüfer dazu: `scripts/test_auftragsbuch_b8.py`, Zeilen „rote Worte treffen
+deutsche Zusammensetzungen" und „häufige harmlose Träger bremsen nicht" — beide
+Richtungen gemessen.
+
+## 🧪 VERHALTENS-PRÜFER: ausführen, nicht lesen (Conni 2026-08-18)
+
+**Ein Prüfer, der nur Text sucht, prüft die Schreibweise — nicht die Wirkung.**
+Kritische Pfade werden **ausgeführt**: Attrappen an den Rändern, echter Code in
+der Mitte.
+
+Belegt an einem Tag, dreifach:
+
+- Eine AST-Regel verlangte `user_id=` an jeder Aufrufstelle und maß nur, **ob
+  das Schlüsselwort dasteht**. Sie hat den schwersten Fehler des Projekts
+  **erzeugt** (`NameError` im zentralen Sendepfad) und anschließend **gedeckt**.
+- Ein Prüfer ersetzte die geprüfte Funktion durch eine Attrappe mit **genau der
+  falschen Signatur, die der Fehler hatte** — damit war er per Konstruktion
+  unsichtbar.
+- Ein Wächter-Prüfer verlangte nur, dass ein Funktionsname im Text vorkommt.
+  Entfernt man den **Aufruf** und lässt eine Kommentarzeile stehen, bleibt er
+  grün und die Wache ist tot.
+
+**Und die Zielumgebung ist die Prüfumgebung.** Der 29.07. war der Beweis: Ein
+`$HOME` in einem Skript, das als root-Dienst ohne HOME läuft, tötete einen
+täglichen Wächter einundzwanzig Tage lang. Am Mac lief alles.
+`scripts/test_zielumgebung.sh` fährt deshalb `bash -n` über jedes Skript und
+**startet** die zeitgesteuerten mit `env -i`.
+
+**Zwei Regeln für den Prüfer selbst**, beide an einem Tag zweimal gebrochen:
+Er darf **keine Formatierung verlangen** (Schreibweise offenlassen, Umfeld in
+beide Richtungen lesen), und er darf **die Beschreibung seines eigenen
+Gegenstands nicht anschlagen** — ein Prüfer, der über seinen Erklärkommentar
+stolpert, wird binnen einer Woche abgeschaltet.
 
 ## 💵 KOSTENZAHLEN NUR MIT DEM WORT „NENNWERT" (Conni 2026-07-28)
 

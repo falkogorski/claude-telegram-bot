@@ -156,22 +156,34 @@ def _daempf_schluessel(kennung: str, zeile: str) -> str:
 
 
 def _daempfen(befunde: list[tuple[str, str, str]], stand: dict
-              ) -> list[tuple[str, str, str]]:
+              ) -> tuple[list[tuple[str, str, str]], int]:
     """Dieselbe Meldung frühestens nach WIEDERVORLAGE_S erneut.
 
     **Der Dämpfer wirkt ZWISCHEN Läufen, nicht innerhalb** (W1). Was ein Lauf
     an verschiedenen Befunden findet, gehört in dieselbe Meldung — dafür gibt
     es `MAX_ZEILEN` und die „(und N weitere)"-Zeile. Vorher konnte die nie
     feuern, weil gleiche Kennungen schon vorher weggedämpft wurden.
+
+    **Zurückgegeben wird zusätzlich die Zahl der Zurückgehaltenen**
+    (Claudias Punkt 2, 19.08.). Begründung, und sie wiegt schwer: Der
+    Lesestand wandert unabhängig vom Dämpfer ans Dateiende. Was er
+    zurückhält, ist damit **endgültig** weg — kein späterer Lauf liest es
+    erneut. Die Zählzeile ist die einzige Spur, die davon bleibt.
+
+    **Nicht mitgezählt** wird die exakte Dublette innerhalb eines Laufs: Sie
+    ist keine verlorene Information, sondern dieselbe Zeile zweimal. Zählte
+    man sie mit, meldete ein Sturm gleicher Zeilen eine erfundene Menge.
     """
     jetzt = time.time()
     bekannt = stand.setdefault("_gemeldet", {})
     raus, in_diesem_lauf = [], set()
+    gedaempft = 0
     for kennung, anzeige, zeile in befunde:
         schluessel = _daempf_schluessel(kennung, zeile)
         if schluessel in in_diesem_lauf:
             continue                       # exakt dieselbe Zeile zweimal
         if jetzt - float(bekannt.get(schluessel, 0)) < WIEDERVORLAGE_S:
+            gedaempft += 1
             continue
         in_diesem_lauf.add(schluessel)
         bekannt[schluessel] = jetzt
@@ -182,7 +194,7 @@ def _daempfen(befunde: list[tuple[str, str, str]], stand: dict
                      if jetzt - float(v) > WIEDERVORLAGE_S * 4]
         for k in alt_genug:
             bekannt.pop(k, None)
-    return raus
+    return raus, gedaempft
 
 
 def _melde_zeile(anzeige: str, zeile: str, quelle: str, classify,
@@ -263,7 +275,7 @@ def lauf(trocken: bool = False) -> int:
                            "gelesen und melde das, statt still stehenzubleiben",
                            ""))
 
-    zu_melden = _daempfen(befunde, stand)
+    zu_melden, gedaempft = _daempfen(befunde, stand)
 
     # **W2 (Engywuck 19.08.): Der Befund darf nicht verbraucht sein, bevor die
     # Meldung sicher ist.** Vorher stand hier `_stand_schreiben` VOR der
@@ -287,7 +299,22 @@ def lauf(trocken: bool = False) -> int:
             + "\n".join(zeilen))
     if rest > 0:
         text += f"\n\n(und {rest} weitere — im Log vollständig)"
-    text += "\n\nEngywuck wecken?"
+    if gedaempft > 0:
+        # Getrennt von `rest`, weil es etwas anderes bedeutet: `rest` steht
+        # im Log und ist auffindbar. Was der Dämpfer zurückhält, ist nach
+        # dem Wandern des Lesestands endgültig fort — diese Zeile ist die
+        # einzige Spur davon (Claudias Punkt 2).
+        text += (f"\n\nund {gedaempft} weitere, die der Dämpfer zurückhält "
+                 f"(binnen {int(WIEDERVORLAGE_S // 60)} Minuten schon gemeldet)")
+    # ADAMS REGEL vom 20.08., 00:31: Eine Frage nur, wenn sie im Chat
+    # beantwortbar ist UND die Antwort wirkt. Hier stand „Engywuck wecken?" —
+    # beide Hälften fehlten: Der Postfach-Versand registriert keine offene
+    # Frage, also löste Adams Daumen um 00:19 nur die stille Quittung aus;
+    # und einen technischen Weckruf für die Kontrollsitzung gibt es nicht,
+    # ihr Weg läuft mit Absicht über Adam (Vier-Augen-Prinzip).
+    # Eine Frage ohne Wirkung ist schlimmer als keine, weil man sich darauf
+    # verlässt, entschieden zu haben. Bis der Knopf steht: nur der Stand.
+    text += "\n\nDer Befund liegt im Log; Engywuck findet ihn beim nächsten Start."
 
     if trocken:
         print(text)

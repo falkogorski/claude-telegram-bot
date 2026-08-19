@@ -510,6 +510,43 @@ Muster, gegen das die Regel steht. Er zählt je Woche die **Prüfrunden über
 Limit** und die **neu entstandenen Wächter**. Stehen dort mehrfach Zahlen
 größer null, ist die Regel gebrochen und das Gespräch fällig.
 
+## ❓ KEINE FRAGE OHNE WIRKUNG (Adam 2026-08-20, 00:31)
+
+**Eine Frage an Adam darf nur gestellt werden, wenn er sie im Chat beantworten
+kann UND die Antwort etwas auslöst.** Fehlt eine der beiden Hälften, wird die
+Frage **nicht gestellt** — dann sagt die Nachricht schlicht, was der Stand ist.
+
+**Der Rang ergibt sich aus der Begründung:** Eine Frage ohne Wirkung ist
+**schlimmer als gar keine**, weil Adam sich darauf verlässt, entschieden zu
+haben. Er hat geantwortet, es ist erledigt — nur ist nichts geschehen, und
+niemand merkt es.
+
+**Anlass, beide Hälften gemessen:** Jede Wachposten-Meldung endete mit
+„Engywuck wecken?". Adams Daumen darauf am 20.08. um 00:19 blieb wirkungslos —
+der Bot wertet eine Reaktion nur als Antwort, wenn zur Nachricht eine **offene
+Frage registriert** ist, und das geschieht ausschließlich im Sendepfad eines
+Modelllaufs; der Postfach-Versand registriert keine. Die Reaktion fiel damit in
+den Zweig „Quittungs-Zeichen ohne offene Frage" und löste die stille Quittung
+aus: ein Häkchen, kein Lauf, keine Handlung. Und selbst mit Weg gäbe es nichts
+zu wecken — die Kontrollsitzung hat keinen technischen Weckruf, ihre Richtung
+nach außen läuft **mit Absicht** über Adam (Vier-Augen-Prinzip).
+
+**How to apply — die Rangfolge, nicht der Kompromiss:**
+
+1. **Die Wirkung ist das Ziel.** Wo eine Entscheidung nötig ist, wird der Weg
+   gebaut, auf dem sie ankommt — Schaltfläche, Auftragsbuch-Eintrag,
+   Freigabe-Postfach. **Deterministisch, ohne Modellstart**, sonst löst jede
+   Zustellung einen Lauf aus (am 24.07. liefen so fünf Läufe in sechzehn
+   Sekunden für „Passt." und „Gut.").
+2. **Bis die Wirkung steht, verschwindet die Frage.** Die Nachricht nennt den
+   Stand und wo der Befund liegt. Sie lädt zu keiner Antwort ein, die nirgends
+   ankommt.
+
+**Der Prüfer dazu:** `scripts/test_wachposten.py`, Zeile „keine Frage ohne
+Wirkung" — er misst, dass die Meldung nicht auf ein Fragezeichen endet. Für
+jede neue Automatik, die Adam anspricht, gilt dieselbe Frage: *Kommt seine
+Antwort irgendwo an?*
+
 ## 🧪 WIRKUNGS-REGEL — nach jeder Filter-/Sync-Änderung das Ergebnis prüfen (2026-07-25)
 
 **Nach jeder Änderung an einem Filter oder einem Abgleich wird geprüft, was

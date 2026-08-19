@@ -85,7 +85,10 @@ def _rote_zeile_wird_gemeldet_mit_wortlaut():
     assert _GESENDET, "es ging nichts hinaus"
     assert "Traceback" in _GESENDET[0], \
         f"der Wortlaut fehlt in der Meldung: {_GESENDET[0][:200]}"
-    assert "Engywuck wecken" in _GESENDET[0], "die Schlusszeile fehlt"
+    # Die Schlusszeile nennt jetzt den Stand statt zu fragen (Adams Regel vom
+    # 20.08.); geprüft wird, DASS sie steht — der Wortlaut in
+    # `_keine_frage_ohne_wirkung`.
+    assert "Engywuck findet ihn" in _GESENDET[0], "die Schlusszeile fehlt"
 
 
 def _harmlose_zeilen_schweigen():
@@ -338,6 +341,56 @@ def _ampel_ausfall_wird_benannt():
         "eine ausgefallene Ampel wird als inhaltliches Rot dargestellt"
 
 
+def _gedaempfte_werden_gezaehlt_und_genannt():
+    """**Claudias Punkt 2 vom 19.08.** Der Lesestand wandert unabhängig vom
+    Dämpfer ans Dateiende — was er zurückhält, ist danach **endgültig** fort.
+    Diese Zeile ist die einzige Spur, die davon bleibt.
+
+    Gemessen wird ausführend: erst eine Zeile melden (damit sie im Merkzettel
+    steht), dann dieselbe Zeile plus eine neue anhängen. Die alte wird
+    zurückgehalten, die neue kommt durch — und die Meldung muss beide Tatsachen
+    tragen."""
+    _frisch()
+    _fehlerdatei("postfach send | TimedOut")
+    wachposten.lauf()                       # erste Meldung, Zeile ist bekannt
+    with (_TMP / "logs" / "bot-errors.log").open("a", encoding="utf-8") as fh:
+        fh.write("postfach send | TimedOut\n")      # wird gedämpft
+        fh.write("voice get_file | NetworkError\n")  # kommt durch
+    wachposten.lauf()
+    letzte = _GESENDET[-1]
+    assert "NetworkError" in letzte, f"der neue Befund fehlt ganz: {letzte}"
+    assert "1 weitere, die der Dämpfer zurückhält" in letzte, \
+        f"das Zurückgehaltene wird verschwiegen: {letzte}"
+
+
+def _ohne_daempfung_keine_zaehlzeile():
+    """**Die Gegenrichtung.** Eine Zählzeile, die immer erscheint, sagt nichts
+    — und ein Prüfer, der nur die eine Richtung misst, würde das nicht merken."""
+    _frisch()
+    _fehlerdatei("postfach send | TimedOut")
+    wachposten.lauf()
+    letzte = _GESENDET[-1]
+    assert "Dämpfer zurückhält" not in letzte, \
+        f"die Zählzeile erscheint, obwohl nichts gedämpft wurde: {letzte}"
+
+
+def _keine_frage_ohne_wirkung():
+    """**Adams Regel vom 20.08., 00:31.** Eine Frage nur, wenn sie im Chat
+    beantwortbar ist und die Antwort wirkt. „Engywuck wecken?" erfüllte
+    beides nicht: Der Postfach-Versand registriert keine offene Frage, Adams
+    Daumen löste nur die stille Quittung aus — und einen technischen Weckruf
+    gibt es gar nicht. **Eine Frage ohne Wirkung ist schlimmer als keine**,
+    weil man sich darauf verlässt, entschieden zu haben."""
+    _frisch()
+    _fehlerdatei("Traceback (most recent call last):")
+    wachposten.lauf()
+    letzte = _GESENDET[-1]
+    assert "wecken?" not in letzte, f"die wirkungslose Frage steht noch: {letzte}"
+    assert not letzte.rstrip().endswith("?"), \
+        f"die Meldung endet auf eine Frage: {letzte.rstrip()[-80:]}"
+    assert "Engywuck findet ihn" in letzte, "die Stand-Zeile fehlt"
+
+
 check("ein Fehlersturm sieht nicht aus wie ein Einzelfall (W1)",
       _ein_fehlersturm_sieht_nicht_aus_wie_ein_einzelfall)
 check("dieselbe Zeile wird zwischen Laeufen gedaempft (Gegenrichtung)",
@@ -347,6 +400,11 @@ check("der Befund wird nicht verbraucht, bevor er ankommt (W2)",
 check("die Fundstelle nennt Zeile und Zeit (W3)", _die_fundstelle_nennt_zeile_und_zeit)
 check("halbe Zeilen werden nicht zerrissen (W4)", _halbe_zeilen_werden_nicht_zerrissen)
 check("Ampel-Ausfall wird benannt (W5)", _ampel_ausfall_wird_benannt)
+check("Gedaempftes wird gezaehlt und genannt (Claudia 2)",
+      _gedaempfte_werden_gezaehlt_und_genannt)
+check("ohne Daempfung keine Zaehlzeile (Gegenrichtung)",
+      _ohne_daempfung_keine_zaehlzeile)
+check("keine Frage ohne Wirkung (Adams Regel 20.08.)", _keine_frage_ohne_wirkung)
 
 print()
 if fails:

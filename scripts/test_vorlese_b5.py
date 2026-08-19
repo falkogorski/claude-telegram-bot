@@ -206,6 +206,28 @@ check("F-1: Menge schlägt Jahres-Hinweis", _menge_schlaegt_jahreshinweis)
 check("F-1: „im“ ist kein Jahres-Hinweis", _im_ist_kein_jahreshinweis)
 check("F-1: die Eins steht allein als „eins“", _die_eins_steht_allein)
 check("F-1: das Satzende verdeckt nichts mehr", _satzende_verdeckt_nichts)
+
+
+def _die_bereichsform_wird_einheitlich_gelesen():
+    """**Der F-1-Rest, an seiner geplanten Stelle.** In „1985 bis 1990" trug
+    nur die ZWEITE Zahl einen Hinweis davor — die erste blieb Ziffernfolge, und
+    der Satz klang halb uebersetzt. Kein Fehler, aber eine Unsauberkeit, die
+    beim Hoeren auffaellt.
+
+    Geprueft wird die GANZE Kette, nicht die Einzelregel: Den Bindestrich
+    wandelt `_normalize_number_ranges` bereits vorher in ein „bis" um, und
+    genau dieses Zusammenspiel ist der Punkt."""
+    aus = bot._strip_markdown_for_tts("Saison 1985-1990 war stark")
+    assert "neunzehnhundertfünfundachtzig bis neunzehnhundertneunzig" in aus, \
+        f"die Bereichsform bleibt halb: {aus}"
+    # Gegenprobe: ein MENGEN-Bereich bleibt unangetastet, auch wenn die
+    # Einheit erst hinter der zweiten Zahl steht.
+    assert bot._normalize_jahreszahlen("1500 bis 1800 Zeichen") == \
+        "1500 bis 1800 Zeichen", "ein Mengenbereich wurde zum Jahrhundert"
+
+
+check("F-5: die Bereichsform wird einheitlich gelesen (F-1-Rest)",
+      _die_bereichsform_wird_einheitlich_gelesen)
 check("die bestehenden Regeln greifen weiter (Geschwister)",
       _bestehende_regeln_stehen_noch)
 

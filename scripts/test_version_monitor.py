@@ -382,6 +382,26 @@ check("F-4: eine Messung, beide Listen (kein Loch mehr)",
 check("F-4: der Zwischenspeicher ueberdauert keinen Register-Wechsel",
       _der_zwischenspeicher_ueberdauert_kein_register)
 
+
+def _systempaket_kann_major_werden():
+    """**Ein `systempaket` konnte NIE MAJOR werden** (F-3-Rest): Die Art liegt
+    in `_VERGLEICH_UNGLEICH`, und dort galt `major` pauschal als False. Ein
+    Debian-Sprung ueber eine Hauptversion sah damit aus wie ein
+    Wartungs-Update — also genau der Fall, den man sich ansehen sollte, im
+    Gewand des Falls, den man durchwinkt.
+
+    Die Epoche vor dem Doppelpunkt zaehlt dabei NICHT als Hauptversion."""
+    assert vm._cmp("7:5.1.6-0+deb12u1", "7:6.0.0-1", "systempaket") == (True, True)
+    assert vm._cmp("7:5.1.6-0+deb12u1", "7:5.1.7-0", "systempaket") == (True, False)
+    # Gegenprobe: Fingerabdruecke haben keine Hauptversion, dort bleibt es False.
+    assert vm._cmp("sha256:aa", "sha256:bb", "docker") == (True, False)
+    assert vm._debian_hauptversion("7:5.1.6-0+deb12u1") == 5, \
+        "die Epoche wird faelschlich als Hauptversion gelesen"
+
+
+check("F-3-Rest: systempaket kann MAJOR werden (Epoche zaehlt nicht)",
+      _systempaket_kann_major_werden)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Monitor-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")

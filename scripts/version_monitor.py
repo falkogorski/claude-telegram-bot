@@ -63,10 +63,29 @@ def _vtuple(v: str) -> tuple[int, ...]:
 _VERGLEICH_UNGLEICH = {"docker", "systempaket"}
 
 
+def _debian_hauptversion(v: str) -> int | None:
+    """Erste Zahl NACH der Epoche — `7:5.1.6-0+deb12u1` → 5. (F-3)
+
+    Ohne das konnte ein `systempaket` **nie** MAJOR werden: Die Art liegt in
+    `_VERGLEICH_UNGLEICH`, und dort galt `major` pauschal als `False`. Ein
+    Debian-Sprung über eine Hauptversion sah damit aus wie ein
+    Wartungs-Update — also genau der Fall, den man sich ansehen sollte, im
+    Gewand des Falls, den man durchwinkt.
+    """
+    kern = (v or "").split(":", 1)[-1]
+    treffer = re.match(r"\s*(\d+)", kern)
+    return int(treffer.group(1)) if treffer else None
+
+
 def _cmp(cur: str, latest: str, kind: str = "") -> tuple[bool, bool]:
     """(update_verfügbar, ist_major). Major = erste Zahlgruppe unterscheidet sich."""
     if kind in _VERGLEICH_UNGLEICH:
-        return (bool(cur) and bool(latest) and cur != latest, False)
+        anders = bool(cur) and bool(latest) and cur != latest
+        if not anders or kind != "systempaket":
+            # Fingerabdrücke haben keine Hauptversion — dort bleibt es bei False.
+            return (anders, False)
+        a, b = _debian_hauptversion(cur), _debian_hauptversion(latest)
+        return (True, bool(a is not None and b is not None and a != b))
     c, l = _vtuple(cur), _vtuple(latest)
     if not c or not l:
         return (False, False)
@@ -166,7 +185,9 @@ def latest_apt(comp: dict) -> str:
 # `:latest` — dort ändert sich der Inhalt, ohne dass sich der Name ändert. Ein
 # Namensvergleich meldete also nie etwas, während das Abbild monatelang
 # veraltet. Verglichen wird der Fingerabdruck: der, den die Registry heute für
-# `:latest` ausliefert, gegen den, aus dem der laufende Container stammt.
+# `:latest` ausliefert, gegen den des LOKAL vorhandenen Abbilds. (Nicht gegen
+# den laufenden Container — das behauptete diese Zeile bis zum 19.08., siehe
+# `cur_docker`.)
 _DOCKER_ACCEPT = ",".join([
     "application/vnd.oci.image.index.v1+json",
     "application/vnd.docker.distribution.manifest.list.v2+json",
@@ -183,7 +204,21 @@ def _docker_teile(ref: str) -> tuple[str, str]:
 
 
 def cur_docker(comp: dict) -> str:
-    """Fingerabdruck des lokal vorhandenen Abbilds."""
+    """Fingerabdruck des lokal vorhandenen **Abbilds**.
+
+    **Bekannter Rand, bewusst offen (F-3, Gegenprüfung 18.08.):** Der Kommentar
+    oben behauptete, verglichen werde der Fingerabdruck, „aus dem der laufende
+    Container stammt". Das stimmt nicht — hier wird das lokale Abbild
+    inspiziert. Ein gezogenes, aber nie gestartetes Abbild meldet damit
+    „aktuell", während der Dienst weiter auf dem alten läuft.
+
+    **Warum es trotzdem so bleibt:** Der Weg über den laufenden Container
+    braucht Docker-Zugriff, den der Bot nicht hat (`claudebot` ist nicht in der
+    Docker-Gruppe, gemessen 28.07.) — die Prüfung liefe also ungetestet in
+    einer Umgebung, die ich nicht nachstellen kann. Der einzige betroffene
+    Eintrag ist LobeChat, das nicht öffentlich läuft. Der Kommentar ist
+    richtiggestellt; die Behauptung war der eigentliche Schaden.
+    """
     out = _run(["docker", "image", "inspect", comp["ref"],
                 "--format", "{{index .RepoDigests 0}}"])
     _, _, digest = out.strip().partition("@")

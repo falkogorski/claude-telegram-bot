@@ -71,7 +71,7 @@ Stelle. Die Kürzung hatte ihn durch die Hintertür ausgehebelt.
 
 Vier neue Prüfzeilen, jede mit Gegenprobe — die zum Kopf-Befund misst
 ausdrücklich mit, dass die alte Kürzung ihn verfehlt hätte.
-### F-3 · Versions-Monitor: stille Dauerausfälle `[erledigt 19.08.2026]`
+### F-3 · Versions-Monitor: stille Dauerausfälle `[4 von 6 erledigt 19.08.2026]`
 
 Ein unlesbarer Zeitstempel legt einen manuellen Eintrag **dauerhaft** still und
 das Protokoll meldet „vor 0 Tagen gesehen" — eine aktive Falschauskunft. Eine
@@ -100,6 +100,22 @@ kommt. Jetzt scheitert höchstens der eine Eintrag, und er sagt es.
 
 Vier neue Prüfungen, davon zwei **ausführend** — der Lauf wird mit einem
 kaputten Register wirklich gefahren, nicht auf Schreibweise geprüft.
+
+**Richtigstellung, gleichentags:** Diese F-3-Zeile nannte **vier** Teilbefunde,
+der Volltext der Gegenprüfung nennt **sechs**. Ich habe den Punkt zunächst als
+erledigt markiert, ohne gegen die Quelle zu prüfen — dieselbe Klasse Fehler wie
+die zwei anderen dieses Tages: eine Zusammenfassung als Wahrheit genommen,
+statt sie zu messen. Offen bleiben:
+
+- **`systempaket` kann nie MAJOR werden.** Die Art liegt in
+  `_VERGLEICH_UNGLEICH`, und dort wird `major` grundsätzlich als `False`
+  zurückgegeben. Ein Debian-Sprung über eine Hauptversion sieht damit aus wie
+  ein Wartungs-Update.
+- **Der Docker-Handler misst das lokale Abbild, nicht den laufenden
+  Container.** Ein gezogenes, aber nie gestartetes Abbild meldet „aktuell",
+  während der Dienst weiter auf dem alten läuft.
+
+Beide gehen mit F-5 in denselben Zug.
 ### F-4 · `/updates` misst zweimal getrennt `[erledigt 19.08.2026]`
 
 `classify()` und `blinde_flecken()` befragen jede Quelle **einzeln**. Fällt eine
@@ -123,12 +139,51 @@ halbiert (nachgemessen: 2 → 1).
 nicht überdauern — sonst beantwortet er eine Frage nach den alten Komponenten
 und ist selbst wieder eine Falschauskunft. Der Schlüssel enthält deshalb Pfad
 und Änderungszeit des Registers; eine eigene Prüfung hält es fest.
-### F-5 · Kleinere Ränder `[offen]`
+### F-5 · Kleinere Ränder `[erledigt 19.08.2026]`
 
 Der Warteschlangen-Hinweis kam am 18.08. doppelt (einmal Text, einmal Stimme).
 Der Warn-Zustand der Limit-Vorwarnung liegt prozessweit ohne Nutzerbezug —
 bricht beim zweiten Nutzer. Die Entwarnung bleibt über einen Neustart hängen.
 
+
+**Der Warn-Zustand hing am Prozess, nicht am Nutzer** — ein zweiter Nutzer
+hätte die Warnung nie gesehen, weil sie als schon gemeldet galt. Heute ist Adam
+der einzige; die Freigabeliste ist aber eine Menge, keine Person, und ein
+Fehler, der erst beim zweiten Eintrag auftaucht, findet sich schwer.
+
+**Die Entwarnung überlebte keinen Neustart.** Der Zustand lag nur im Speicher:
+Nach einem Neustart wusste der Bot nicht mehr, dass gewarnt worden war, und
+schwieg, als es wieder gut war. Adam bliebe mit einer Warnung zurück, die sich
+nie auflöst — dieselbe Klasse Falschauskunft, nur andersherum: nicht ein
+falsches Wort, sondern ein fehlendes.
+
+**Beim Bauen sofort ein eigener Fund:** Die Sicherung schrieb `json.dumps`,
+während das Modul in `bot.py` `_json` heißt. Der `NameError` verschwand im
+stillen `except` — die Funktion tat lautlos nichts, und die Prüfung wäre grün
+geblieben, hätte sie nur gelesen statt **ausgeführt**. Der Fehlschlag wird
+jetzt protokolliert: verschluckt bleibt er, unsichtbar nicht.
+
+**Zwei Geschwister mitgenommen:** Der B4-Prüfer trug im Kopf noch die am 18.08.
+widerlegte Behauptung, der Anbieter schicke den Zustand mit jedem Lauf mit —
+in `bot.py` war sie korrigiert, hier stehengeblieben. Und der Prüfer griff auf
+die **echte** Marke zu; er hat jetzt seine eigene.
+
+**Aus F-3 nachgezogen:** `systempaket` kann jetzt MAJOR werden (die Epoche vor
+dem Doppelpunkt zählt dabei nicht als Hauptversion). Der Docker-Handler bleibt
+bewusst beim lokalen Abbild — der Weg über den laufenden Container bräuchte
+Docker-Rechte, die der Bot nicht hat, und liefe ungetestet; der **falsche
+Kommentar**, der etwas anderes behauptete, war der eigentliche Schaden und ist
+richtiggestellt.
+
+**Aus F-1 nachgezogen:** Die Bereichsform (`Saison 1985-1990`) wird jetzt
+einheitlich gelesen. In der Kette wandelt `_normalize_number_ranges` den
+Bindestrich vorher in ein „bis" — geprüft wird deshalb die ganze Kette.
+
+**Nicht belegt:** Der in dieser Liste zunächst genannte doppelte
+Warteschlangen-Hinweis („einmal Text, einmal Stimme") steht so **nicht** im
+Volltext der Gegenprüfung und ließ sich im Code nicht nachstellen. Ich habe ihn
+beim Zusammenfassen hinzugefügt; er wird hier gestrichen statt stillschweigend
+weitergeführt. Fällt er im Betrieb auf, kommt er als neuer Befund zurück.
 ## Erledigt
 
 - **Zeitgeber-Wache** (Befund B1/B4/B5): gelöschte Timer werden erfasst,

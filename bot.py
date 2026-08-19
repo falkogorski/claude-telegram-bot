@@ -187,7 +187,65 @@ def _record_usage(model: str, result: Any) -> None:
 # Gürtel und Hosenträger. Ein Fremdsystem, dessen Meldeverhalten sich ändern
 # kann, bekommt hier keinen Freibrief — und der Meldungssturm vom 28.07. früh
 # hat gezeigt, was ein Wächter ohne Dämpfer anrichtet.
-_LIMIT_GEMELDET: dict[str, tuple[str, float]] = {}
+#
+# **F-5, zwei Ränder, beide aus der Gegenprüfung:**
+#
+# (1) Der Zustand lag **prozessweit ohne Nutzerbezug**. Kommt ein zweiter
+#     Nutzer dazu, bekommt er die Warnung nicht — sie gilt als schon gemeldet,
+#     obwohl er sie nie gesehen hat. Heute ist Adam der einzige Nutzer; die
+#     Freigabeliste ist aber eine Menge, keine Person, und ein Fehler, der erst
+#     beim zweiten Eintrag auftaucht, ist schwer zu finden. Der Schlüssel
+#     trägt deshalb die Nutzerkennung.
+#
+# (2) **Die Entwarnung überlebte keinen Neustart.** Der Zustand lag nur im
+#     Speicher: Nach einem Neustart wusste der Bot nicht mehr, dass gewarnt
+#     worden war — und die Entwarnung kam nie. Adam bliebe mit einer Warnung
+#     zurück, die sich nie auflöst. Genau die Sorte Falschauskunft, die dieses
+#     Projekt jagt, nur andersherum: nicht ein falsches Wort, sondern ein
+#     fehlendes.
+_LIMIT_GEMELDET: dict[tuple[int, str], tuple[str, float]] = {}
+_LIMIT_MARKE = Path(os.environ.get("LIMIT_MARKE_FILE") or
+                    (Path.home() / ".claude" / "limit-gemeldet.json"))
+
+
+def _limit_stand_laden() -> None:
+    """Holt den Warn-Zustand über einen Neustart hinweg zurück (F-5)."""
+    try:
+        roh = _json.loads(_LIMIT_MARKE.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    if not isinstance(roh, dict):
+        return
+    for schluessel, wert in roh.items():
+        try:
+            uid, art = schluessel.split("|", 1)
+            _LIMIT_GEMELDET[(int(uid), art)] = (wert[0], float(wert[1]))
+        except Exception:
+            continue          # ein kaputter Eintrag kippt nicht den Rest
+
+
+def _limit_stand_sichern() -> None:
+    """**Der stille Fang hier hat mich beim Bauen selbst erwischt.**
+
+    Die erste Fassung schrieb `json.dumps` — in dieser Datei heißt das Modul
+    aber `_json`. Das ist ein `NameError`, und `except Exception: pass` hat ihn
+    verschluckt: Die Funktion tat lautlos nichts, und nur weil die Prüfung sie
+    **ausgeführt** hat statt sie zu lesen, kam es heraus. Deshalb wird der
+    Fehlschlag jetzt protokolliert — verschluckt bleibt er, aber nicht
+    unsichtbar.
+    """
+    try:
+        _LIMIT_MARKE.parent.mkdir(parents=True, exist_ok=True)
+        _LIMIT_MARKE.write_text(_json.dumps(
+            {f"{uid}|{art}": [s, r] for (uid, art), (s, r)
+             in _LIMIT_GEMELDET.items()}), encoding="utf-8")
+    except Exception:
+        # Eine Marke darf den Betrieb nie aufhalten — aber sie darf auch nicht
+        # spurlos ausfallen.
+        log.warning("Limit-Marke konnte nicht geschrieben werden", exc_info=True)
+
+
+_limit_stand_laden()
 
 _LIMIT_NAMEN = {
     "five_hour": "Fünf-Stunden-Fenster",
@@ -280,12 +338,15 @@ async def _limit_warnung_melden(sess, chat_id: int, thread_id, ereignis) -> None
     resets_at = getattr(info, "resets_at", None)
     name = _LIMIT_NAMEN.get(art, art)
 
-    bekannt = _LIMIT_GEMELDET.get(art)
+    # F-5: der Zustand hängt am Nutzer, nicht am Prozess.
+    schluessel = (int(getattr(sess, "user_id", 0) or 0), art)
+    bekannt = _LIMIT_GEMELDET.get(schluessel)
     if status == "allowed":
         # Entwarnung nur, wenn vorher wirklich gewarnt wurde. Sonst wäre die
         # gute Nachricht selbst das Rauschen.
         if bekannt:
-            _LIMIT_GEMELDET.pop(art, None)
+            _LIMIT_GEMELDET.pop(schluessel, None)
+            _limit_stand_sichern()
             await send_chunked(sess.bot, chat_id,
                                f"✅ {name}: wieder im grünen Bereich.",
                                thread_id=thread_id)
@@ -295,7 +356,8 @@ async def _limit_warnung_melden(sess, chat_id: int, thread_id, ereignis) -> None
     # Derselbe Zustand im selben Fenster wird nur EINMAL gemeldet.
     if bekannt and bekannt[0] == status and bekannt[1] == (resets_at or 0):
         return
-    _LIMIT_GEMELDET[art] = (status, resets_at or 0)
+    _LIMIT_GEMELDET[schluessel] = (status, resets_at or 0)
+    _limit_stand_sichern()
 
     wann = _limit_zeitspanne(resets_at)
     anteil = getattr(info, "utilization", None)
@@ -7862,9 +7924,17 @@ def _normalize_jahreszahlen(text: str) -> str:
     import re
 
     def _ersetze(m: "re.Match") -> str:
+        rest = text[m.end():m.end() + 30]
         if not _JAHR_HINWEIS.search(text[max(0, m.start() - 30):m.start()]):
-            return m.group(0)
-        if _MENGEN_EINHEIT.match(text[m.end():m.end() + 20]):
+            # **F-5, der Rest aus F-1: die Bereichsform.** In „1985 bis 1990"
+            # trägt nur die ZWEITE Zahl einen Hinweis davor — die erste wurde
+            # als Ziffernfolge gelesen, und der Satz klang halb übersetzt.
+            # Ein Bereich, auf den keine Maßeinheit folgt, ist ein Jahresbereich;
+            # bei „1500 bis 1800 Zeichen" greift die Einheit und beide bleiben.
+            bereich = re.match(r"\s*(?:bis|–|-)\s*1[1-9][0-9]{2}\b(.{0,20})", rest)
+            if not (bereich and not _MENGEN_EINHEIT.match(bereich.group(1))):
+                return m.group(0)
+        elif _MENGEN_EINHEIT.match(rest[:20]):
             return m.group(0)      # F-1: „bis 1500 Zeichen" ist eine Menge
         n = int(m.group(0))
         hundert, rest = divmod(n, 100)

@@ -5,10 +5,15 @@
 **Zwei Fehler wären hier leicht zu bauen gewesen, und beide sind schon einmal
 passiert.**
 
-Der erste ist der Meldungssturm: Der Anbieter schickt seinen Limit-Zustand bei
-*jedem* Lauf mit, nicht nur beim Umschlagen. Ohne Gedächtnis käme die Warnung
-mit jeder Antwort — am 28.07. früh hat genau das (an anderer Stelle) zweimal je
-Minute gemeldet, bis Adam es abstellen ließ.
+Der erste ist der Meldungssturm. **Die Begründung dafür stand hier bis zum
+19.08. falsch** — sie behauptete, der Anbieter schicke den Zustand bei *jedem*
+Lauf mit. Das SDK sagt das Gegenteil (*emitted when rate limit info changes*);
+die Behauptung war erfunden, im Gewand einer Messung. In `bot.py` wurde sie am
+18.08. richtiggestellt, hier blieb sie stehen — ein Geschwister, das der Fix
+übersehen hat. Der Dämpfer bleibt trotzdem, aus dem ehrlichen Grund: Gürtel und
+Hosenträger gegen ein Fremdsystem, dessen Meldeverhalten sich ändern kann — am
+28.07. früh hat ein Wächter ohne Dämpfer zweimal je Minute gemeldet, bis Adam es
+abstellen ließ.
 
 Der zweite ist die erfundene Zahl: Ein eigener Token-Zähler kennt weder die
 Höhe des Kontingents noch, was Adams Desktop-Sitzungen auf dasselbe Konto
@@ -25,6 +30,9 @@ _TMP = Path(tempfile.mkdtemp(prefix="b4-"))
 os.environ["TELEGRAM_BOT_TOKEN"] = "1:test"
 os.environ["ALLOWED_USER_IDS"] = "1"
 os.environ["USER_PREFS_FILE"] = str(_TMP / "prefs.json")
+# Hermetisch: NIE die echte Marke anfassen (Lehre aus der geerbten
+# ALLOWED_USER_IDS, die den 12/14-Fehlalarm gelegt hat).
+os.environ["LIMIT_MARKE_FILE"] = str(_TMP / "limit-marke.json")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import bot  # noqa: E402
 
@@ -271,6 +279,68 @@ check("eingeschaltet senkt er die Tiefe genau einmal",
       _eingeschaltet_senkt_er_die_tiefe_genau_einmal)
 check("die Umstellung wird immer genannt, nie stillschweigend",
       _die_umstellung_wird_immer_genannt)
+
+
+# ---------- F-5: die zwei Raender aus der Gegenpruefung ---------------------
+def _der_warnstand_haengt_am_nutzer():
+    """**Bricht beim zweiten Nutzer.** Der Zustand lag prozessweit ohne
+    Nutzerbezug: Warnt der Bot Adam, gilt sie fuer jeden weiteren Nutzer als
+    schon gemeldet — er bekommt sie nie zu sehen. Heute ist Adam der einzige;
+    die Freigabeliste ist aber eine MENGE, keine Person, und ein Fehler, der
+    erst beim zweiten Eintrag auftaucht, findet sich schwer."""
+    bot._LIMIT_GEMELDET.clear()
+    reset = time.time() + 7200
+    info = _Info("allowed_warning", anteil=0.9, resets_at=reset)
+
+    def fuer(uid):
+        b = _AttrappenBot()
+        s = _sitzung(b)
+        s.user_id = uid
+        asyncio.run(bot._limit_warnung_melden(s, uid, None, _Ereignis(info)))
+        return b.texte
+
+    assert fuer(1), "Nutzer 1 bekam keine Warnung"
+    assert fuer(2), "Nutzer 2 wurde uebergangen — der Zustand haengt am Prozess"
+    # Gegenprobe: derselbe Nutzer bekommt sie weiterhin nur EINMAL.
+    assert not fuer(1), "der Daempfer greift nicht mehr"
+
+
+def _die_entwarnung_ueberlebt_einen_neustart():
+    """**Die Warnung ueberlebte den Neustart nicht, die Entwarnung damit auch
+    nicht.** Der Zustand lag nur im Speicher: Nach einem Neustart wusste der
+    Bot nicht mehr, dass gewarnt worden war — und schwieg, als es wieder gut
+    war. Adam bliebe mit einer Warnung zurueck, die sich nie aufloest.
+
+    **Dieser Pruefer hat beim Bauen sofort etwas gefunden:** Die Sicherung
+    schrieb `json.dumps`, waehrend das Modul in `bot.py` `_json` heisst. Der
+    NameError verschwand im stillen `except` — die Funktion tat lautlos
+    nichts. Sichtbar wurde das nur, weil hier AUSGEFUEHRT statt gelesen wird."""
+    bot._LIMIT_GEMELDET.clear()
+    bot._LIMIT_MARKE.unlink(missing_ok=True)
+    reset = time.time() + 7200
+    assert _melden(_Info("allowed_warning", anteil=0.9, resets_at=reset)), \
+        "keine Warnung, also nichts zu sichern"
+    assert bot._LIMIT_MARKE.exists(), \
+        "die Marke wurde gar nicht geschrieben (stiller Fehlschlag?)"
+
+    # Der Neustart: Speicher weg, Datei da.
+    bot._LIMIT_GEMELDET.clear()
+    bot._limit_stand_laden()
+    assert bot._LIMIT_GEMELDET, "der Warn-Zustand hat den Neustart nicht ueberlebt"
+    assert _melden(_Info("allowed")), \
+        "nach dem Neustart bleibt die Entwarnung aus — die Warnung loest sich nie auf"
+
+    # Gegenprobe: ohne vorherige Warnung schweigt die Entwarnung weiterhin.
+    bot._LIMIT_GEMELDET.clear()
+    bot._LIMIT_MARKE.unlink(missing_ok=True)
+    assert _melden(_Info("allowed")) == [], \
+        "die gute Nachricht wurde selbst zum Rauschen"
+
+
+check("F-5: der Warnstand haengt am Nutzer, nicht am Prozess",
+      _der_warnstand_haengt_am_nutzer)
+check("F-5: die Entwarnung ueberlebt einen Neustart",
+      _die_entwarnung_ueberlebt_einen_neustart)
 
 if fails:
     print(f"\n❌ {len(fails)} B4/B7-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")

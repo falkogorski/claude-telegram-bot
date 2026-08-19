@@ -3020,6 +3020,8 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/technik — Werkzeug-Spur: Klartext ↔ technische Rohform\n"
         "/spur — Werkzeug-Spur ganz aus/an (Rückfragen bleiben)\n"
         "/updates — verfügbare Updates zeigen und einzeln/gesammelt freigeben\n"
+        "/update_ja <name> — dieses Update jetzt einspielen (statt Knopf)\n"
+        "/update_nacht <name> — fürs 04:00-Fenster vormerken\n"
         "/termine — Kalender: was in den nächsten Tagen ansteht (optional /termine 14)\n"
         "/aufgaben — offene Erinnerungen aus iCloud\n"
         "/links — abgelegte Links (ein Link allein wird abgelegt, nicht gleich verarbeitet)\n"
@@ -3653,6 +3655,82 @@ async def on_update_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
     if res.get("restart_needed"):
         msg += "\n\n🔁 Damit die neuen Versionen greifen: bitte /restart."
     await query.edit_message_text(msg)
+
+
+# ---------------------------------------------------------------- E4 --------
+# **Update-Auslösung per Text** (Adams Entscheid 4a, 18.08.).
+#
+# **Warum ein Befehl und kein Satz:** Ein Knopf lässt sich nicht aus Versehen
+# tippen, ein Satz schon — und ein Modell, das „ja mach das Update" auslegen
+# müsste, brächte Ermessen in einen Pfad, der Pakete auf dem Server austauscht.
+# Deshalb: exaktes Kommando, deterministischer Handler, **kein Fuzzy, kein
+# Modell im Ausführungspfad**. Wer sich vertippt, löst nichts aus — sein Text
+# geht als normale Nachricht an den Agenten, wie jeder andere auch.
+#
+# Die Wirkung ist 1:1 dieselbe wie bei den Knöpfen: derselbe Updater, dieselbe
+# Drift-Prüfung, dasselbe Wartungsfenster. **Keine Parallel-Logik** — eine
+# zweite Wahrheit über dieselbe Frage driftet, das war die G1-Lehre.
+async def _e4_ausloesen(update: Update, name: str, ins_fenster: bool) -> None:
+    """Der gemeinsame Rumpf beider Textbefehle."""
+    upd = _load_updater()
+    ups = await asyncio.to_thread(upd.classify)
+    treffer = [u for u in ups if u["name"] == name]
+    if not treffer:
+        await update.message.reply_text(
+            f"Für [{name}] steht gerade kein Update an.\n\n"
+            "Ruf /updates auf — dort steht, was es gibt, und die Namen sind "
+            "genau die, die ich hier erwarte.")
+        return
+    u = treffer[0]
+    # **Dieselbe Drift-Sperre wie am Knopf (A3):** Freigegeben wird genau die
+    # Fassung, die Adam gesehen hat. Ist inzwischen eine neue erschienen, wäre
+    # sein Ja ein Ja zu etwas anderem.
+    _SHOWN_UPDATES.setdefault(update.effective_user.id, {})[name] = u["latest"]
+
+    if ins_fenster:
+        wf = _load_wartungsfenster()
+        await asyncio.to_thread(wf.vormerken, name, u["latest"], u["ampel"])
+        await update.message.reply_text(
+            f"🌙 Vorgemerkt fürs Wartungsfenster (04:00): {name} → {u['latest']}\n"
+            "Zur Ausführungszeit prüfe ich, dass es genau diese Fassung ist — "
+            "sonst frage ich neu.")
+        return
+
+    await update.message.reply_text(
+        f"⏳ Prüfe zuerst das Fundament, dann spiele ich ein: {name} → "
+        f"{u['latest']} … (zwei Testläufe, das dauert einen Moment).")
+    res = await asyncio.to_thread(upd.apply_updates, [name], {name: u["latest"]})
+    icon = "✅" if res["ok"] else ("🔴" if res.get("state") == "rollback_unvollstaendig" else "⚠️")
+    msg = f"{icon} {res['msg']}"
+    if res.get("done"):
+        msg += "\nEingespielt: " + ", ".join(res["done"])
+    if res.get("restart_needed"):
+        msg += "\n\n🔁 Damit die neuen Versionen greifen: bitte /restart."
+    await update.message.reply_text(msg)
+
+
+async def cmd_update_ja(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/update_ja <name>` — jetzt einspielen. Nur Adam, nur exakt."""
+    if not authorized(update):
+        return
+    if not ctx.args or len(ctx.args) != 1:
+        await update.message.reply_text(
+            "So geht es: /update_ja <name>\n"
+            "Den Namen findest du in /updates — genau so, wie er dort steht.")
+        return
+    await _e4_ausloesen(update, ctx.args[0], ins_fenster=False)
+
+
+async def cmd_update_nacht(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/update_nacht <name>` — fürs 04:00-Fenster vormerken. Nur Adam."""
+    if not authorized(update):
+        return
+    if not ctx.args or len(ctx.args) != 1:
+        await update.message.reply_text(
+            "So geht es: /update_nacht <name>\n"
+            "Den Namen findest du in /updates — genau so, wie er dort steht.")
+        return
+    await _e4_ausloesen(update, ctx.args[0], ins_fenster=True)
 
 
 async def cmd_setkanal(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -5926,6 +6004,8 @@ async def post_init(app: Application) -> None:
             BotCommand("technik", "Werkzeug-Spur: Klartext ↔ Rohform"),
             BotCommand("spur", "Werkzeug-Spur ganz aus/an"),
             BotCommand("updates", "Verfügbare Updates zeigen/freigeben"),
+            BotCommand("update_ja", "Update jetzt einspielen: /update_ja <name>"),
+            BotCommand("update_nacht", "Update fürs 04:00-Fenster vormerken"),
             BotCommand("presend", "Pre-Send-Hook — Kennzahlen"),
             BotCommand("ampel", "Ampel — Regeln & Status"),
             BotCommand("usage", "Token-Verbrauch heute"),
@@ -8728,6 +8808,8 @@ def main() -> None:
     app.add_handler(CommandHandler("technik", cmd_technik))
     app.add_handler(CommandHandler("spur", cmd_spur))
     app.add_handler(CommandHandler("updates", cmd_updates))
+    app.add_handler(CommandHandler("update_ja", cmd_update_ja))
+    app.add_handler(CommandHandler("update_nacht", cmd_update_nacht))
     app.add_handler(CommandHandler("freigaben", cmd_freigaben))
     app.add_handler(CommandHandler("termine", cmd_termine))
     app.add_handler(CommandHandler("aufgaben", cmd_aufgaben))

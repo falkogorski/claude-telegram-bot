@@ -262,9 +262,25 @@ UNSER_PFAD="${UNSER_PFAD:-/home/claudebot}"
 zeitgeber_still=()
 while read -r t; do
   [ -n "$t" ] || continue
+  # **Bewusst Abgeschaltetes ist kein Befund** (Befund B5 der Gegenpruefung,
+  # sofort belegt): Die erweiterte Suche fand `kostenkontrolle-reminder.timer`
+  # — eine Altlast vom 14.07., die sich nach ihrer Frist selbst deaktiviert hat
+  # und seither `disabled` ist. Ohne diesen Ausweg meldete die Wache sie ab
+  # heute TAEGLICH als still, und ein Waechter, der jeden Tag grundlos rot
+  # meldet, wird abgeschaltet.
+  #
+  # Die Absicht steht in systemd selbst: Wer `disable` gesagt hat, hat es
+  # gewollt. Verdaechtig ist nur `enabled` und trotzdem nicht aktiv - dann ist
+  # etwas ausgefallen, statt abgestellt worden zu sein. Keine Pflegeliste
+  # noetig, keine zweite Wahrheit.
+  zustand=$(systemctl show "$t" -p UnitFileState --value 2>/dev/null)
   aktiv=$(systemctl is-active "$t" 2>/dev/null)
   if [ "$aktiv" != "active" ]; then
-    zeitgeber_still+=("$t ist $aktiv")
+    if [ "$zustand" = "disabled" ] || [ "$zustand" = "masked" ]; then
+      add "✅ Zeitgeber $t: bewusst abgeschaltet ($zustand)"
+    else
+      zeitgeber_still+=("$t ist $aktiv (Unit-Zustand: ${zustand:-unbekannt})")
+    fi
     continue
   fi
   # GEMESSEN WIRD DER NAECHSTE LAUF, NICHT DAS ALTER DES LETZTEN.
@@ -319,13 +335,26 @@ while read -r t; do
       zeitgeber_still+=("$t ist seit $ueberfaellig Minuten ueberfaellig")
     fi
   fi
-done < <(systemctl list-timers --all --no-pager 2>/dev/null \
-         | awk '$NF ~ /\.(service|timer)$/ {print $NF}' \
-         | sed 's/\.service$/.timer/' | sort -u \
+done < <( { systemctl list-timers --all --no-pager 2>/dev/null \
+             | awk '$NF ~ /\.(service|timer)$/ {print $NF}' \
+             | sed 's/\.service$/.timer/'
+           # **Auch die Zeitgeber von der PLATTE** (Befund B1 der Gegenpruefung,
+           # 18.08.): `list-timers` zeigt nur, was systemd GELADEN hat. Wird eine
+           # Unit-Datei geloescht oder per `disable --now` entfernt, taucht sie
+           # nach dem naechsten daemon-reload gar nicht mehr auf - und die Wache
+           # meldet "alle aktiv und in ihrem Takt". Das ist exakt die Signatur,
+           # gegen die sie gebaut wurde, nur eine Ebene hoeher.
+           ls /etc/systemd/system/*.timer 2>/dev/null | xargs -n1 basename 2>/dev/null
+         } | sort -u \
          | while read -r kandidat; do
              dienst="${kandidat%.timer}.service"
-             if systemctl show "$dienst" -p ExecStart --value 2>/dev/null \
-                  | grep -qF "$UNSER_PFAD"; then
+             # **Kein Ein-Eintrag-Pfadfilter mehr** (Engywucks Befund F): Der
+             # alte prueft nur gegen /home/claudebot. Ein eigener Zeitgeber, der
+             # aus /opt oder /usr/local startet, fiele still durch - und die
+             # Begruendung dafuer war eine Momentaufnahme ("alle sieben tragen
+             # /home/claudebot"), zitiert als Invariante.
+             ziel=$(systemctl show "$dienst" -p ExecStart --value 2>/dev/null)
+             if printf '%s' "$ziel" | grep -qE "$UNSER_PFAD|/opt/|/usr/local/"; then
                echo "$kandidat"
              fi
            done)

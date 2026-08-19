@@ -1,0 +1,97 @@
+<!-- ROLLE: wachposten-doku -->
+# Der Log-Wachposten — was er meldet und was nicht
+
+**Stichtag:** 2026-08-19 · **überholt durch:** — · **maßgeblich ist die
+Status-Zeile im Drehbuch**
+
+Ein deterministischer Posten auf dem VPS. Er liest alle fünf Minuten die neuen
+Zeilen der Protokolle, prüft sie gegen eine feste Musterliste und legt
+Auffälliges ins Boten-Postfach. **Kein Modell im Pfad, Kosten null** — das war
+die Bedingung, unter der er überhaupt gebaut wurde (Modell-Wachen ist
+AGB-Grauzone).
+
+**Er urteilt nicht, er zeigt.** Adams Fingertipp weckt dann Engywuck.
+
+## Was er liest
+
+| Quelle | Schwelle | Standard |
+|---|---|---|
+| `logs/bot-errors.log` | **jede neue Zeile** | immer an |
+| `logs/conversations/<heute>.md` | nur bei Musterfund | **aus** |
+
+**Warum die Schwelle je Quelle verschieden ist** — gemessen am 19.08. an
+echten Daten: Die reale Zeile `postfach send | TimedOut: Timed out` traf kein
+einziges Muster. Das war kein Musterfehler, sondern ein Denkfehler. **In einer
+Fehlerdatei ist jede neue Zeile bereits der Befund**; dort nach Fehlermerkmalen
+zu suchen hieße zu prüfen, ob ein Fehler auch wirklich einer ist. Im Gespräch
+ist es umgekehrt — fast alles ist harmlos, erst ein Muster macht auffällig.
+
+**Die Gesprächsprotokolle stehen auf AUS.** Sie sind das, was Adam privat
+schreibt; der Schalter (`WACHPOSTEN_GESPRAECHE=ja`) ist seine Entscheidung,
+nicht meine. Ohne ihn ist der Posten auf technische Fehler beschränkt — und die
+sind sein eigentlicher Zweck.
+
+## Was er meldet
+
+Sechs Kategorien, in `wachmuster.py` als **eine Quelle** (Vorbild
+`authmarke.py`): Absturz · Fehlerzeile · Anbieter-Störung · Kosten-Wörter ·
+Geheimnis-Wörter · offene Freigabe-Anfragen.
+
+Alle Muster haben **beidseitig offene Wortgrenzen** — deutsche
+Zusammensetzungen hängen ihr Bestimmungswort vorn an, das Grundwort steht
+hinten; `\bkosten\b` verfehlt „Zusatzkosten" ebenso wie „Kostenstelle". Der
+Preis sind Fehlalarme, und die fängt eine **kurze, ausdrücklich benannte**
+Ausnahmeliste ab („kostenlos", „Tokenizer", …). Eine lange Ausnahmeliste höhlt
+die Wache aus.
+
+## Was er ausdrücklich NICHT meldet — und warum sichtbar
+
+**Bei Ampel-ROT wird kein Wortlaut zitiert.** Nur Quelle, Zeit und das
+Kategorien-Label gehen hinaus, dazu der ausdrückliche Hinweis, dass der Text
+zurückgehalten wurde.
+
+Der Grund ist ein Zielkonflikt, den Engywuck am 18.08. entschieden hat: Die
+Wortlaut-Regel verlangt, die beanstandete Zeile zu zitieren statt eine Ursache
+zu vermuten (Lehre aus Horas Halt). Die Gatekeeper-Regel verlangt, rote Inhalte
+nicht über Telegram zu tragen, das nicht Ende-zu-Ende verschlüsselt ist.
+**Beide haben recht.**
+
+Drei Auflagen dazu:
+
+- **Nur Rot wird zurückgehalten** — Gelb und Grün gehen im Wortlaut hinaus.
+- **Ein Einstufungs-Ausfall zählt als Rot.** Wer im Zweifel öffnet, sichert
+  nichts.
+- **Nur das Kategorien-Label, nie das Muster.** `classify()` liefert
+  `{color, rules, matches}` — `matches` enthält die **Treffer selbst** und
+  berührt die Meldung nie. Sonst zitierte sie genau das Wort, das sie
+  zurückhält.
+
+**Sichtbar zurückgehalten ist ehrlich und sicher; lautlos zurückgehalten wäre
+die nächste Stille, die wie Ruhe aussieht.**
+
+Kein Sicherkanal in v1 — als **[später prüfen]** in der Auswertung vermerkt,
+damit aus „für jetzt" nicht stillschweigend „für immer" wird.
+
+## Wie er sich dämpft
+
+Dieselbe Kennung frühestens nach einer Stunde erneut, höchstens fünf Zeilen je
+Meldung. Gedämpft wird über die **Kennung**, nie über den Text: Am 28.07.
+hebelte ein Zeitstempel im Befundtext den Dämpfer aus — „seit 9 Min" gegen
+„seit 10 Min" galt als neuer Befund **und** als weggefallener, und der Dämpfer
+verdoppelte den Lärm, statt ihn zu dämpfen.
+
+Zusätzlich gilt die Postfach-Obergrenze von sechs Nachrichten je Absender und
+Stunde.
+
+## Was passiert, wenn er selbst stolpert
+
+**Ein unlesbarer Merkzettel wird gemeldet, nicht verschwiegen** — er liest dann
+von vorn und sagt das. Lehre des Versions-Monitors: Dort legte ein kaputter
+Zeitstempel einen Eintrag dauerhaft still, während das Protokoll „vor 0 Tagen
+gesehen" meldete.
+
+**Eine Ausnahme ist ein Befund, kein Abbruch.** Bricht er bei einer Quelle ab,
+bleiben die übrigen ungelesen — deshalb wird der Lesefehler selbst zum Befund.
+
+Über ihn wacht die Zeitgeber-Wache des Tagescheck; sie erfasst seinen Timer,
+weil sie nach dem Ziel sucht, nicht nach dem Namen.

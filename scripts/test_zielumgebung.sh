@@ -114,5 +114,19 @@ else
     "kein Mitschrieb oder kein Abbruch-Trap — ein Abbruch verliert wieder alles"
 fi
 
+# --- 5. Der Abgleich quittiert, was er mitnahm UND was nicht ----------------
+#
+# Die Kurier-Abmachung verspricht eine Meldung; bis zum 19.08. tat das Skript
+# es nicht. Dritter Fund der Klasse [eine Vorgabe, die nur auf dem Papier
+# steht] an einem Tag.
+if grep -q 'letzter-abgleich.txt' scripts/log_sync.sh \
+   && grep -q 'AUSGESCHLOSSEN' scripts/log_sync.sh \
+   && grep -q 'GEHEIMNIS-NAMENSFILTER' scripts/log_sync.sh; then
+  melde ok "Abgleich quittiert Mitgenommenes und Ausgeschlossenes"
+else
+  melde nein "Abgleich quittiert Mitgenommenes und Ausgeschlossenes" \
+    "keine Quittung oder kein Grund je ausgeschlossener Datei — lautlos aussortiert"
+fi
+
 echo "== Zielumgebung: $((GESAMT-FAILS))/$GESAMT bestanden =="
 exit $FAILS

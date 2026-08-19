@@ -88,3 +88,42 @@ Die Regel wird geschärft; bis dahin gilt der Weg ohne Umleitung.
 
 Ein `git fetch` ist **nicht** nötig und **nicht** erlaubt — der Repo-Zugriff
 bleibt reines Lesen (8.7). Der Lesestand genügt.
+
+## Die Quittung — was der Abgleich mitgenommen hat
+
+`[NEU 2026-08-19]` Nach jedem Lauf liegt im Ablage-Ordner
+`letzter-abgleich.txt`: Zeitstempel, **was mitkam** — und **was nicht, samt
+Grund je Datei**.
+
+**Warum es das gibt:** Diese Abmachung versprach schon vorher „der Abgleich
+meldet, was er mitgenommen hat". Das Skript tat es nicht. Dritter Fund
+derselben Klasse an einem Tag — eine Vorgabe, die nur auf dem Papier stand.
+Claudia fragte daraufhin, ob sie „morgen nachsehen" solle, ob ihre Fracht
+angekommen sei; diese Frage beantwortet die Quittung ab jetzt von selbst.
+
+**Der Geheimnis-Namensfilter bleibt hart — aber nicht lautlos.** Eine
+Ausarbeitung über „Token-Optimierung" darf ausgefiltert werden, weil ihr Name
+ein Schlüsselwort trägt; nur nie stillschweigend. **Sichtbar aussortiert ist
+sicher und ehrlich; lautlos aussortiert ist die nächste Stille, die wie Ruhe
+aussieht.**
+
+Steht in der Quittung eine Datei mit dem Grund „unklar — bitte melden", ist das
+ein Fehler auf unserer Seite: Sie hätte mitkommen sollen. Sag Bescheid.
+
+## Nachtrag zum Lesestand-Befehl `[19.08.2026]`
+
+Der Repo-Wächter ist geschärft: **Fehlerumleitungen sind erlaubt.**
+`git -C … log -1 2>/dev/null` und `2>&1` laufen jetzt ohne Freigabe-Dialog.
+
+Claudias Befund war dabei genauer als meine Erwartung — sie hat ihre eigene
+erste Diagnose widerlegt: Nicht das `cd` war der Auslöser, sondern das `>`, und
+ihr vermeintlicher Ausweg über `git -C` lief nur, weil er zufällig keine
+Umleitung enthielt.
+
+**Zwei Präzisierungen aus der Gegenprüfung:** „Abgelehnt" hieß nie *blockiert*,
+sondern *fällt in den Freigabe-Dialog* — ein Unterschied, der in der Diagnose
+fehlte. Und der Fix musste an **zwei** Stellen greifen: Die Lockerung im
+Lese-Zweig half zunächst gar nichts, weil er die Schreibprüfung als doppelten
+Boden befragt und deren Muster das `>` ebenfalls sah.
+
+Was weiterhin in den Dialog fällt, sagt jetzt **welches Zeichen** es war.

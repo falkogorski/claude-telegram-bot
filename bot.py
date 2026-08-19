@@ -1939,6 +1939,33 @@ def _is_sensitive_ref(raw: str) -> bool:
 # Lesen (cat, grep, git log/status/diff) bleibt frei. Bewusst konservativ:
 # ein Misch-Befehl (Repo-Pfad + Schreibmuster woanders) wird ebenfalls
 # abgelehnt — der Agent kann ihn aufteilen.
+# **Eine FEHLERumleitung ist kein Repo-Schreiben** (Claudias Befund vom 18.08.,
+# mit dreizehn Beobachtungen belegt — und sie hat dabei ihre eigene erste
+# Diagnose widerlegt: Nicht das `cd` war der Auslöser, sondern das `>`).
+#
+# Der alte Filter warf jedes `>` weg, auch `2>/dev/null` und `2>&1`. Beides
+# schreibt nichts ins Repo; es unterdrückt nur Rauschen. Wer das ablehnt,
+# zwingt jede lesende Sitzung, ihre Befehle unnatürlich zu formulieren — und
+# eine Regel, die man umgehen muss, um zu arbeiten, wird umgangen.
+#
+# **Die Grenze bleibt eng:** Nur die Fehlerkanäle, nur nach /dev/null, /tmp
+# oder in den anderen Kanal. Eine stdout-Umleitung (`> datei`) bleibt draußen —
+# die schreibt tatsächlich, und `git log > /etc/passwd` wäre genau der Fall,
+# gegen den der Filter steht.
+_HARMLOSE_UMLEITUNG = re.compile(
+    r"\s*2>\s*(?:&1|/dev/null|/tmp/[\w.\-/]+)")
+
+
+def _ohne_harmlose_umleitung(cmd: str) -> str:
+    """Entfernt Fehlerumleitungen VOR der Metazeichen-Prüfung.
+
+    Vor der Suche entfernen statt danach ausnehmen — dieselbe Bauart wie die
+    Ausnahmeliste der roten Worte: Sonst verdeckte ein harmloses `2>&1` ein
+    echtes Metazeichen im selben Befehl.
+    """
+    return _HARMLOSE_UMLEITUNG.sub(" ", cmd or "")
+
+
 _REPO_WRITE_RE = re.compile(
     # git mit beliebigen Optionen (z. B. -C <pfad>) vor dem schreibenden Subcommand
     r"\bgit\b[^|;&]*\b(?:commit|push|merge|rebase|reset|checkout|restore|clean|add|rm|mv|stash|am|apply|cherry-pick)\b"
@@ -1947,7 +1974,20 @@ _REPO_WRITE_RE = re.compile(
 
 
 def _is_repo_write_cmd(cmd: str) -> bool:
-    c = cmd or ""
+    """Schreibt dieser Befehl ins Repo?
+
+    **Die Fehlerumleitung wird vorher entfernt** (Claudias Befund, 18.08.).
+    `_REPO_WRITE_RE` sucht unter anderem nach `>` — richtig für eine
+    stdout-Umleitung, falsch für `2>/dev/null`, das nur Rauschen unterdrückt.
+    Ohne diese Bereinigung hilft die Lockerung eine Ebene höher gar nichts:
+    Der Lese-Zweig fragt DIESE Funktion als doppelten Boden, und sie hätte
+    weiter „Schreibmuster" gesagt.
+
+    **Geschwister-Regel in Reinform** — ein Fix an einem Pfad ist erst fertig,
+    wenn geprüft ist, welche Geschwister denselben Fehler tragen. Hier waren es
+    zwei Stellen für eine Ursache.
+    """
+    c = _ohne_harmlose_umleitung(cmd or "")
     return "claude-telegram-bot" in c and bool(_REPO_WRITE_RE.search(c))
 
 
@@ -1958,18 +1998,45 @@ def _is_repo_write_cmd(cmd: str) -> bool:
 # (|;&<>`$()) → keine Tarnung eines Schreib-/Fremdbefehls; kein Schreibmuster;
 # kein Geheimnis-Pfad. Der Schreib-Weg (oben) und der Geheimnis-Schutz bleiben zu.
 _SHELL_META_RE = re.compile(r"[|;&<>`]|\$\(")
+
+
 _REPO_READ_VERBS = re.compile(
     r"^\s*(?:ls|cat|head|tail|wc|find|stat|file|less|more|tree|nl|column|column|"
     r"sed\s+-n|grep|rg|git\s+(?:-C\s+\S+\s+)?(?:log|status|diff|show|branch|blame|ls-files|rev-parse|describe))\b"
 )
 
 
+def _repo_read_grund(cmd: str) -> str:
+    """Warum ist dieser Lese-Befehl NICHT auto-freigegeben? (leer = er ist es)
+
+    **Claudias Zusatz vom 18.08.:** Der Text nennt das beanstandete Zeichen.
+    Ohne das rät der Empfänger, was er falsch gemacht hat — sie selbst hat
+    daraufhin eine falsche Ursache diagnostiziert und einen Ausweg für richtig
+    gehalten, der nur zufällig funktionierte.
+    """
+    c = cmd or ""
+    if "claude-telegram-bot" not in c:
+        return "kein Repo-Pfad im Befehl"
+    treffer = _SHELL_META_RE.search(_ohne_harmlose_umleitung(c))
+    if treffer:
+        return (f"das Zeichen [{treffer.group(0)}] — Verkettung und Umleitung "
+                "fallen in den Dialog. Fehlerumleitungen (2>/dev/null, 2>&1) "
+                "sind erlaubt; alles andere bitte in einzelne Befehle teilen")
+    if _is_repo_write_cmd(c):
+        return "ein Schreibmuster"
+    if _is_sensitive_ref(c):
+        return "ein Geheimnis-Pfad — der bleibt auch fürs Lesen zu"
+    if not _REPO_READ_VERBS.match(c):
+        return "kein bekanntes Lese-Verb am Anfang"
+    return ""
+
+
 def _is_repo_read_cmd(cmd: str) -> bool:
     c = cmd or ""
     if "claude-telegram-bot" not in c:
         return False
-    if _SHELL_META_RE.search(c):
-        return False               # keine Verkettung/Umleitung
+    if _SHELL_META_RE.search(_ohne_harmlose_umleitung(c)):
+        return False               # keine Verkettung/echte Umleitung
     if _is_repo_write_cmd(c):
         return False               # doppelter Boden gegen Schreiben
     if _is_sensitive_ref(c):

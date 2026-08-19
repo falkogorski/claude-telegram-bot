@@ -188,4 +188,66 @@ print()
 if fails:
     print(f"❌ {len(fails)} E4-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)
-print("Alle E4-Tests bestanden.")
+
+
+# ---------- Nachlese ①: der Repo-Wächter (Claudias Befund) ------------------
+def _fehlerumleitung_ist_kein_repo_schreiben():
+    """**Claudias Befund vom 18.08., dreizehn Beobachtungen — gegengeprüft.**
+
+    Sie hat dabei ihre EIGENE erste Diagnose widerlegt: Nicht das `cd` war der
+    Auslöser, sondern das `>`. Ihr vermeintlicher Ausweg über `git -C` lief nur
+    deshalb, weil er zufällig keine Umleitung enthielt.
+
+    Eine Fehlerumleitung schreibt nichts ins Repo — sie unterdrückt Rauschen.
+    """
+    for frei in ("git -C ~/claude-telegram-bot log -1 2>&1",
+                 "git -C ~/claude-telegram-bot log -1 2>/dev/null",
+                 "cat ~/claude-telegram-bot/README.md 2>/dev/null"):
+        assert bot._is_repo_read_cmd(frei), \
+            f"eine Fehlerumleitung faellt in den Dialog: {frei}"
+
+
+def _die_riegel_halten_trotzdem():
+    """**Die wichtigere Haelfte.** Eine Lockerung ist erst geprueft, wenn
+    belegt ist, dass sie nicht zu weit geht."""
+    for zu in ("git -C ~/claude-telegram-bot log > /tmp/x",   # echte Umleitung
+               "cat ~/claude-telegram-bot/x && rm -rf /",      # Verkettung
+               "cat ~/claude-telegram-bot/x | sh",             # Rohr
+               "cat ~/claude-telegram-bot/.env",               # Geheimnis
+               "git -C ~/claude-telegram-bot commit -m x",     # Schreiben
+               "sed -i s/a/b/ ~/claude-telegram-bot/bot.py"):
+        assert not bot._is_repo_read_cmd(zu), f"Lese-Freigabe zu weit: {zu}"
+
+
+def _beide_stellen_tragen_die_lockerung():
+    """**Geschwister-Regel in Reinform.** Die Lockerung im Lese-Zweig half
+    zunaechst GAR NICHT: Er fragt `_is_repo_write_cmd` als doppelten Boden, und
+    dessen Muster sucht `>` — also hielt es `2>&1` weiter fuer ein
+    Schreibmuster. Zwei Stellen fuer eine Ursache."""
+    assert not bot._is_repo_write_cmd("git -C ~/claude-telegram-bot log 2>&1"), \
+        "die Schreibpruefung haelt eine Fehlerumleitung fuer Schreiben"
+    assert bot._is_repo_write_cmd("git -C ~/claude-telegram-bot log > /tmp/x"), \
+        "eine echte stdout-Umleitung gilt nicht mehr als Schreiben"
+
+
+def _der_grund_nennt_das_zeichen():
+    """**Claudias Zusatz:** Der Meldungstext nennt das beanstandete Zeichen.
+    Ohne das raet der Empfaenger — sie selbst hat daraufhin eine falsche
+    Ursache diagnostiziert und einen Zufallstreffer fuer den Ausweg gehalten."""
+    grund = bot._repo_read_grund("cat ~/claude-telegram-bot/x | sh")
+    assert "|" in grund, f"das beanstandete Zeichen wird nicht genannt: {grund}"
+    assert bot._repo_read_grund("git -C ~/claude-telegram-bot log -1") == "", \
+        "ein freigegebener Befehl bekommt trotzdem einen Ablehnungsgrund"
+
+
+check("Fehlerumleitung ist kein Repo-Schreiben (Claudias Befund)",
+      _fehlerumleitung_ist_kein_repo_schreiben)
+check("die Riegel halten trotzdem", _die_riegel_halten_trotzdem)
+check("beide Stellen tragen die Lockerung (Geschwister)",
+      _beide_stellen_tragen_die_lockerung)
+check("der Grund nennt das beanstandete Zeichen", _der_grund_nennt_das_zeichen)
+
+if fails:
+    print(f"\n❌ {len(fails)} E4-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
+    sys.exit(1)
+print("\nAlle E4-Tests bestanden.")

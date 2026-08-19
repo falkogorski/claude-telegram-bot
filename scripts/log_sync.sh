@@ -84,6 +84,47 @@ if [ -d "$WORK" ]; then
     "$WORK/" ausarbeitungen/ 2>/dev/null || true
   # Nachweis statt Vertrauen: Was hier trotzdem liegt, wird entfernt.
   rm -f ausarbeitungen/CLAUDE.md ausarbeitungen/MEMORY.md 2>/dev/null || true
+
+  # --- Die Quittung (Nachlese ② und ③, Engywuck 18.08.) --------------------
+  #
+  # **Die Abmachung versprach „der Abgleich meldet, was er mitgenommen hat" —
+  # und das Skript tat es nicht.** Dritter Fund derselben Klasse an einem Tag:
+  # eine Vorgabe, die nur auf dem Papier stand. Claudia fragte daraufhin, ob
+  # sie „morgen nachsehen" solle, ob ihre Fracht angekommen sei. Diese Frage
+  # beantwortet die Quittung ab jetzt von selbst.
+  #
+  # **Und sie nennt auch, was NICHT mitkam.** Der Geheimnis-Namensfilter bleibt
+  # hart — aber nicht lautlos: Eine Ausarbeitung über „Token-Optimierung" darf
+  # ausgefiltert werden, nur nie stillschweigend. Sichtbar aussortiert ist
+  # sicher und ehrlich; lautlos aussortiert ist die nächste Stille, die wie
+  # Ruhe aussieht.
+  {
+    echo "Letzter Abgleich: $(date '+%d.%m.%Y, %H:%M')"
+    echo
+    echo "MITGENOMMEN:"
+    find ausarbeitungen -type f 2>/dev/null | sed 's|^ausarbeitungen/|  |' | sort
+    echo
+    echo "AUSGESCHLOSSEN (lag im Ablage-Ordner, kam nicht mit):"
+    # Der Grund je Datei, nicht nur die Tatsache — sonst raet der Absender.
+    find "$WORK" -type f 2>/dev/null | while read -r f; do
+      name="$(basename "$f")"
+      rel="${f#$WORK/}"
+      [ -f "ausarbeitungen/$rel" ] && continue
+      case "$name" in
+        .*)            grund="Punkt-Datei (Arbeits-Zwischenstand)" ;;
+        *.tmp)         grund="Zwischendatei" ;;
+        CLAUDE.md|MEMORY.md) grund="Kontext-/Gedaechtnisdatei, gehoert nicht ins Log-Repo" ;;
+        *secret*|*token*|*credential*|*passwor*|*key*|*.env)
+                       grund="GEHEIMNIS-NAMENSFILTER - der Name enthaelt ein Schluesselwort" ;;
+        *.md|*.pdf|*.txt|*.csv|*.html) grund="unklar - bitte melden, das sollte mitkommen" ;;
+        *)             grund="keine Dokument-Endung" ;;
+      esac
+      echo "  $rel — $grund"
+    done
+    echo
+    echo "Fehlt hier etwas, das mitkommen sollte? Dann sag Bescheid —"
+    echo "der Filter ist bewusst hart, aber er soll nichts Richtiges schlucken."
+  } > "$WORK/letzter-abgleich.txt" 2>/dev/null || true
 fi
 
 

@@ -75,6 +75,25 @@ def _cmp(cur: str, latest: str, kind: str = "") -> tuple[bool, bool]:
     return (newer, major)
 
 
+def _rueckwaerts(cur: str, latest: str, kind: str = "") -> bool:
+    """Ist das INSTALLIERTE neuer als das angebotene? (F-3)
+
+    **Beide bisherigen Wege waren falsch, jeder auf seine Art.** Bei den
+    vergleichbaren Arten fiel dieser Fall stumm in den `else`-Zweig und wurde
+    als „aktuell" protokolliert — obwohl er bedeutet, dass die Quelle etwas
+    Älteres anbietet als das, was läuft (eine zurückgezogene Fassung, ein
+    gewechselter Kanal, ein bevorstehendes Downgrade). Bei den Ungleich-Arten
+    wurde er als **Update** gemeldet, mit Pfeil: `1.5 → 1.2`.
+
+    Er ist keins von beidem, sondern eine eigene Auskunft — und eine, die
+    jemand sehen sollte.
+    """
+    if kind in _VERGLEICH_UNGLEICH:
+        return False           # Fingerabdrücke haben keine Reihenfolge
+    c, l = _vtuple(cur), _vtuple(latest)
+    return bool(c and l and c > l)
+
+
 # --- Versions-Ermittlung je Kind --------------------------------------------
 def cur_pip(comp: dict) -> str:
     pip = Path(comp["venv"]) / "bin" / "pip"
@@ -253,11 +272,27 @@ def _kurz(v: str) -> str:
     return v[:19] + "…" if v.startswith("sha256:") else v
 
 
-def _gesehen_laden() -> dict:
+def _gesehen_laden() -> tuple[dict, str | None]:
+    """(Sichtungen, Befund-Text oder None).
+
+    **F-3: Fehlt die Datei, ist das der Normalfall — ist sie kaputt, nicht.**
+    Vorher fielen beide Fälle in dasselbe stille `{}`, und damit setzte eine
+    beschädigte Datei **alle Fristen zurück**, ohne dass es jemand erfuhr. Der
+    nächste Lauf begann bei null und meldete monatelang nichts. Genau die
+    Signatur, die dieses Projekt am häufigsten trifft: ein Ausbleiben, das wie
+    Ruhe aussieht.
+    """
+    if not SEENFILE.exists():
+        return ({}, None)                  # erster Lauf, kein Befund
     try:
-        return json.loads(SEENFILE.read_text())
-    except Exception:
-        return {}
+        daten = json.loads(SEENFILE.read_text())
+        if not isinstance(daten, dict):
+            raise ValueError("kein Objekt")
+        return (daten, None)
+    except Exception as e:
+        return ({}, f"⚠️ Sichtungs-Gedächtnis unlesbar ({type(e).__name__}) — "
+                    "alle Fälligkeiten beginnen neu. Die Datei wird beim "
+                    "nächsten Schreiben ersetzt.")
 
 
 def _faellig(name: str, comp: dict, gesehen: dict) -> tuple[bool, int]:
@@ -269,6 +304,13 @@ def _faellig(name: str, comp: dict, gesehen: dict) -> tuple[bool, int]:
     und ab da gezaehlt. (Derselbe Grund, aus dem die Zeitgeber-Wache nicht das
     Alter des letzten Laufs misst: Ein Pruefer, der beim ersten Mal anschlaegt,
     erzieht dazu, ihn zu ueberlesen.)
+
+    **F-3: Ein unlesbarer Zeitstempel galt als „gerade eben gesehen".** Er
+    fiel in denselben Rückgabewert wie der erste Lauf — der Eintrag war damit
+    **dauerhaft** nicht fällig, und das Protokoll meldete „vor 0 Tagen
+    gesehen". Das war keine Lücke, sondern eine aktive Falschauskunft: Sie
+    behauptete eine Prüfung, die nie stattgefunden hatte. Jetzt ist er fällig
+    und wird als solcher benannt (`seit == -1`).
     """
     tage_soll = int(comp.get("intervall_tage") or INTERVALL_STD_TAGE)
     eintrag = gesehen.get(name)
@@ -277,7 +319,7 @@ def _faellig(name: str, comp: dict, gesehen: dict) -> tuple[bool, int]:
     try:
         seit = (datetime.now() - datetime.fromisoformat(eintrag)).days
     except Exception:
-        return (False, 0)
+        return (True, -1)      # unlesbar → fällig, und der Grund wird genannt
     return (seit >= tage_soll, max(seit, 0))
 
 
@@ -287,12 +329,27 @@ def main() -> int:
     manual: list[str] = []    # nur Reminder
     blind: list[str] = []     # Befund A/D: was der Monitor NICHT prueft
     loglines: list[str] = []
-    gesehen = _gesehen_laden()
+    gesehen, gedaechtnis_befund = _gesehen_laden()
+    if gedaechtnis_befund:
+        blind.append(gedaechtnis_befund)
+        loglines.append("? Sichtungs-Gedaechtnis unlesbar (GEMELDET)")
     faellig_neu: list[str] = []
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    for comp in reg.get("components", []):
-        name, kind = comp["name"], comp["kind"]
+    for nr, comp in enumerate(reg.get("components", []), start=1):
+        # **F-3: Ein unvollständiger Eintrag tötete den ganzen Lauf.** Fehlte
+        # `name` oder `kind`, brach `main()` mit einem KeyError ab — VOR
+        # Protokoll und VOR Versand. Ein einziger Tippfehler im Register legte
+        # damit den gesamten Monitor still, und zwar lautlos: Wer ihn per
+        # Zeitgeber laufen lässt, sieht nur, dass keine Meldung kommt.
+        # Jetzt scheitert höchstens der eine Eintrag, und er sagt es.
+        name, kind = comp.get("name"), comp.get("kind")
+        if not name or not kind:
+            blind.append(f"⚠️ Register-Eintrag Nr. {nr} ist unvollständig "
+                         f"(name={name or '?'}, kind={kind or '?'}) — er wird "
+                         "übersprungen und NICHT geprüft")
+            loglines.append(f"? Eintrag {nr}: unvollstaendig (GEMELDET)")
+            continue
         if kind == "manual":
             # **Der stille Teil des Registers — und der Grund für diesen Umbau.**
             #
@@ -310,9 +367,15 @@ def main() -> int:
             # FÄLLIGKEIT: Nach `intervall_tage` melden sie sich von selbst.
             faellig, seit = _faellig(name, comp, gesehen)
             if faellig:
-                updates.append(f"🔎 {name}: seit {seit} Tagen nicht geprüft — "
-                               f"{comp.get('note', '')}")
-                loglines.append(f"FAELLIG {name}: {seit} Tage")
+                # `seit == -1` heißt: der Zeitstempel war unlesbar. Das als
+                # „seit -1 Tagen nicht geprüft" zu melden wäre die nächste
+                # Falschauskunft — also wird gesagt, was tatsächlich vorliegt.
+                wann = ("mit unlesbarem Datum hinterlegt — wann zuletzt "
+                        "geprüft wurde, ist unbekannt" if seit < 0
+                        else f"seit {seit} Tagen nicht geprüft")
+                updates.append(f"🔎 {name}: {wann} — {comp.get('note', '')}")
+                loglines.append(f"FAELLIG {name}: "
+                                + ("Datum unlesbar" if seit < 0 else f"{seit} Tage"))
                 faellig_neu.append(name)
             else:
                 manual.append(f"• {name}: manuell prüfen — {comp.get('note', '')}")
@@ -347,10 +410,21 @@ def main() -> int:
             loglines.append(f"? {name}: cur={cur or '?'} latest={latest or '?'} (Quelle n/a, GEMELDET)")
             continue
         newer, major = _cmp(cur, latest, kind)
-        if newer:
+        if _rueckwaerts(cur, latest, kind):
+            # F-3: Weder Update noch „aktuell" — eine eigene Auskunft.
+            blind.append(f"⚠️ {name}: installiert ist **neuer** als angeboten "
+                         f"({_kurz(cur)} vs. {_kurz(latest)}) — die Quelle "
+                         "führt etwas Älteres, das ist einen Blick wert")
+            loglines.append(f"RUECKWAERTS {name}: {cur} > {latest} (GEMELDET)")
+        elif newer:
             tag = "🔴 MAJOR" if major else "🟡"
             pin = " (gepinnt — bewusst, Wartungsfenster)" if comp.get("pinned") else ""
-            updates.append(f"{tag} {name}: {_kurz(cur)} → {_kurz(latest)}{pin}")
+            # Bei den Ungleich-Arten ist der Pfeil eine Behauptung über
+            # Reihenfolge, die es dort nicht gibt (F-3) — also „weicht ab".
+            wie = (f"{_kurz(cur)} weicht ab von {_kurz(latest)}"
+                   if kind in _VERGLEICH_UNGLEICH
+                   else f"{_kurz(cur)} → {_kurz(latest)}")
+            updates.append(f"{tag} {name}: {wie}{pin}")
             loglines.append(f"UPDATE {name}: {cur} -> {latest}{' MAJOR' if major else ''}")
         else:
             loglines.append(f"ok {name}: {cur} (aktuell)")
@@ -370,7 +444,10 @@ def main() -> int:
     # kosten hier erfahrungsgemäß mehr, als sie einbringen.
     jetzt_iso = datetime.now().isoformat(timespec="seconds")
     for comp in reg.get("components", []):
-        if comp["kind"] != "manual":
+        # F-3: dieselbe Falle wie oben — die zweite Schleife läuft NACH dem
+        # Sammeln, aber VOR Protokoll und Versand. Ein KeyError hier hätte
+        # dieselbe Wirkung gehabt: kein Protokoll, keine Meldung.
+        if comp.get("kind") != "manual" or not comp.get("name"):
             continue
         if comp["name"] not in gesehen or comp["name"] in faellig_neu:
             gesehen[comp["name"]] = jetzt_iso

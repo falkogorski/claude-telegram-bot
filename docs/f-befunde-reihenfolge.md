@@ -71,7 +71,7 @@ Stelle. Die Kürzung hatte ihn durch die Hintertür ausgehebelt.
 
 Vier neue Prüfzeilen, jede mit Gegenprobe — die zum Kopf-Befund misst
 ausdrücklich mit, dass die alte Kürzung ihn verfehlt hätte.
-### F-3 · Versions-Monitor: stille Dauerausfälle `[offen]`
+### F-3 · Versions-Monitor: stille Dauerausfälle `[erledigt 19.08.2026]`
 
 Ein unlesbarer Zeitstempel legt einen manuellen Eintrag **dauerhaft** still und
 das Protokoll meldet „vor 0 Tagen gesehen" — eine aktive Falschauskunft. Eine
@@ -79,6 +79,27 @@ kaputte Sichtungsdatei setzt alle Fristen zurück. Ein Downgrade wird als Update
 gemeldet. Ein unvollständiger Register-Eintrag tötet den Lauf **vor** Protokoll
 und Versand.
 
+
+Vier Teilbefunde, alle gemessen und behoben. **Der schwerste war der vierte:**
+Ein unvollständiger Register-Eintrag — ein fehlendes `name` oder `kind` —
+tötete `main()` mit einem `KeyError`, und zwar **vor Protokoll und vor
+Versand**. Ein Tippfehler im Register hätte den gesamten Monitor stillgelegt,
+lautlos: Wer ihn per Zeitgeber laufen lässt, sieht nur, dass keine Meldung
+kommt. Jetzt scheitert höchstens der eine Eintrag, und er sagt es.
+
+- **Unlesbarer Zeitstempel** ist jetzt **fällig** statt „gerade eben gesehen",
+  und die Meldung nennt den Grund statt „seit -1 Tagen nicht geprüft".
+- **Fehlende und kaputte Sichtungsdatei** sind getrennt: Fehlen ist der erste
+  Lauf, Kaputtsein ein Befund. Vorher setzte eine beschädigte Datei alle
+  Fristen zurück, ohne dass es jemand erfuhr.
+- **Rückwärts** ist eine eigene Auskunft: Bei den vergleichbaren Arten fiel der
+  Fall stumm in „aktuell", bei den Ungleich-Arten wurde er als Update mit Pfeil
+  gemeldet (`1.5 → 1.2`). Er ist keins von beidem. Bei Fingerabdrücken wird
+  jetzt „weicht ab" gesagt statt eine Reihenfolge zu behaupten, die es dort
+  nicht gibt.
+
+Vier neue Prüfungen, davon zwei **ausführend** — der Lauf wird mit einem
+kaputten Register wirklich gefahren, nicht auf Schreibweise geprüft.
 ### F-4 · `/updates` misst zweimal getrennt `[offen]`
 
 `classify()` und `blinde_flecken()` befragen jede Quelle **einzeln**. Fällt eine

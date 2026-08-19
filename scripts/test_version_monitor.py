@@ -239,6 +239,88 @@ check("/updates uebergeht nichts stillschweigend (Geschwisterpfad)",
 check("/updates vergleicht MIT Art, nicht der Groesse nach",
       _updater_vergleicht_mit_art)
 
+
+# ---------- F-3: stille Dauerausfaelle --------------------------------------
+def _unvollstaendiger_eintrag_toetet_den_lauf_nicht():
+    """**Der schwerste der vier — er nahm ALLES mit.** Fehlte `name` oder
+    `kind`, brach `main()` mit einem KeyError ab, und zwar VOR Protokoll und
+    VOR Versand. Ein Tippfehler im Register legte damit den ganzen Monitor
+    still, lautlos: Wer ihn per Zeitgeber laufen laesst, sieht nur, dass keine
+    Meldung kommt.
+
+    Hier wird der Lauf AUSGEFUEHRT, nicht die Schreibweise geprueft."""
+    vm.HANDLERS["probe"] = (lambda c: "1.0.0", lambda c: "2.0.0")
+    try:
+        msg = _lauf([{"kind": "probe"},                       # ohne name
+                     {"name": "ohne-art"},                    # ohne kind
+                     {"name": "gesund", "kind": "probe"}])
+    finally:
+        vm.HANDLERS.pop("probe", None)
+    assert "gesund" in msg, \
+        "ein unvollstaendiger Eintrag hat den ganzen Lauf mitgenommen"
+    assert "unvollständig" in msg, "der kaputte Eintrag wird verschwiegen"
+
+
+def _unlesbares_datum_ist_faellig_und_sagt_es():
+    """Vorher galt ein unlesbarer Zeitstempel als „gerade eben gesehen" — der
+    Eintrag war DAUERHAFT nicht faellig, und das Protokoll meldete „vor 0 Tagen
+    gesehen". Das war keine Luecke, sondern eine aktive Falschauskunft."""
+    faellig, seit = vm._faellig("x", {"intervall_tage": 30}, {"x": "kaputt"})
+    assert faellig and seit < 0, f"unlesbares Datum bleibt still: {faellig}/{seit}"
+    # Gegenprobe beide Richtungen: lesbar und frisch bleibt still, lesbar und
+    # alt wird faellig.
+    from datetime import datetime, timedelta
+    frisch = (datetime.now() - timedelta(days=2)).isoformat(timespec="seconds")
+    alt = (datetime.now() - timedelta(days=99)).isoformat(timespec="seconds")
+    assert vm._faellig("x", {"intervall_tage": 30}, {"x": frisch}) == (False, 2)
+    assert vm._faellig("x", {"intervall_tage": 30}, {"x": alt})[0]
+
+
+def _kaputtes_gedaechtnis_wird_gemeldet():
+    """Fehlt die Datei, ist das der Normalfall — ist sie kaputt, nicht. Vorher
+    fielen beide in dasselbe stille `{}`, und eine beschaedigte Datei setzte
+    ALLE Fristen zurueck, ohne dass es jemand erfuhr."""
+    merk = vm.SEENFILE
+    try:
+        vm.SEENFILE = _TMP / "gibtsnicht.json"
+        assert vm._gesehen_laden() == ({}, None), "der erste Lauf meldet faelschlich"
+        kaputt = _TMP / "kaputt.json"
+        kaputt.write_text("{das ist kein JSON", encoding="utf-8")
+        vm.SEENFILE = kaputt
+        daten, befund = vm._gesehen_laden()
+        assert daten == {} and befund and "unlesbar" in befund, \
+            f"eine kaputte Datei bleibt still: {befund}"
+    finally:
+        vm.SEENFILE = merk
+
+
+def _rueckwaerts_ist_weder_update_noch_aktuell():
+    """Beide bisherigen Wege waren falsch: Bei den vergleichbaren Arten fiel
+    der Fall stumm in „aktuell", bei den Ungleich-Arten wurde er als Update
+    mit Pfeil gemeldet (`1.5 → 1.2`)."""
+    assert vm._rueckwaerts("1.5.0", "1.2.0", "pip"), "Rueckwaerts faellt nicht auf"
+    assert not vm._rueckwaerts("1.2.0", "1.5.0", "pip"), "normales Update als rueckwaerts"
+    assert not vm._rueckwaerts("sha256:a", "sha256:b", "docker"), \
+        "Fingerabdruecke haben keine Reihenfolge — hier darf nichts behauptet werden"
+    # Und der Lauf sagt es auch: ausgefuehrt, nicht gelesen.
+    vm.HANDLERS["probe"] = (lambda c: "2.0.0", lambda c: "1.0.0")
+    try:
+        msg = _lauf([{"name": "zurueck", "kind": "probe"}])
+    finally:
+        vm.HANDLERS.pop("probe", None)
+    assert "zurueck" in msg and "neuer" in msg, \
+        f"der Rueckwaerts-Fall wird nicht als solcher gemeldet: {msg[:120]}"
+
+
+check("F-3: unvollstaendiger Eintrag toetet den Lauf nicht",
+      _unvollstaendiger_eintrag_toetet_den_lauf_nicht)
+check("F-3: unlesbares Datum ist faellig und sagt warum",
+      _unlesbares_datum_ist_faellig_und_sagt_es)
+check("F-3: kaputtes Sichtungs-Gedaechtnis wird gemeldet",
+      _kaputtes_gedaechtnis_wird_gemeldet)
+check("F-3: rueckwaerts ist weder Update noch aktuell",
+      _rueckwaerts_ist_weder_update_noch_aktuell)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Monitor-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")

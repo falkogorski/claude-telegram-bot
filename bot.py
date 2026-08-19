@@ -7745,6 +7745,14 @@ def _normalize_number_ranges(text: str) -> str:
 _MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
            "August", "September", "Oktober", "November", "Dezember")
 
+# F-1: Wörter, nach denen eine Zahlengruppe eine GLIEDERUNG ist, kein Datum.
+# Der Anlass war `Punkt 9.4.` → `9. April` — eine Falschauskunft über den
+# eigenen Projektstand, gesprochen mit voller Bestimmtheit.
+_GLIEDERUNG_HINWEIS = re.compile(
+    r"\b(punkt|phase|abschnitt|kapitel|schritt|ziffer|absatz|nummer|nr|"
+    r"version|regel|anhang|artikel|paragraph|kriterium|these|stufe|"
+    r"aufgabe|befund|siehe|vgl)\b[\s.:#]*$", re.IGNORECASE)
+
 
 def _normalize_dates(text: str) -> str:
     """`22.06.2026` → `22. Juni 2026`, `22.06.` → `22. Juni`.
@@ -7759,18 +7767,26 @@ def _normalize_dates(text: str) -> str:
 
     def _tag_monat(t: str, m: str) -> str | None:
         try:
-            mi = int(m)
+            ti, mi = int(t), int(m)
         except ValueError:
             return None
         if not 1 <= mi <= 12:
             return None            # kein Datum — unangetastet lassen
-        return f"{int(t)}. {_MONATE[mi - 1]}"
+        if not 1 <= ti <= 31:
+            return None            # F-1: es gibt keinen 40. Mai
+        return f"{ti}. {_MONATE[mi - 1]}"
 
     def _mit_jahr(m: "re.Match") -> str:
         kopf = _tag_monat(m.group(1), m.group(2))
         return f"{kopf} {m.group(3)}" if kopf else m.group(0)
 
     def _ohne_jahr(m: "re.Match") -> str:
+        # F-1: `Punkt 9.4.` ist keine Datumsangabe, sondern eine Gliederung —
+        # und `MIGRATION.md` besteht aus solchen Nummern. Der Dokument-
+        # Vorlesepfad schickt Dokumentinhalt durch dieselbe Kette, also war
+        # das keine Randerscheinung, sondern der Normalfall.
+        if _GLIEDERUNG_HINWEIS.search(text[max(0, m.start() - 30):m.start()]):
+            return m.group(0)
         return _tag_monat(m.group(1), m.group(2)) or m.group(0)
 
     text = re.sub(r"\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b", _mit_jahr, text)
@@ -7786,20 +7802,44 @@ _ZEHNER = ("", "", "zwanzig", "dreißig", "vierzig", "fünfzig", "sechzig",
            "siebzig", "achtzig", "neunzig")
 
 
-def _zahlwort(n: int) -> str:
-    """0–99 als deutsches Wort. Reicht für die Jahres-Regel."""
+def _zahlwort(n: int, allein: bool = False) -> str:
+    """0–99 als deutsches Wort. Reicht für die Jahres-Regel.
+
+    **`allein` unterscheidet „ein" von „eins".** Die Eins ist das einzige
+    deutsche Zahlwort mit zwei Formen: gebunden „einundzwanzig", freistehend
+    „eins". Ohne diese Unterscheidung wurde aus `seit 1901` ein
+    „neunzehnhundertein" — ein Wort, das es nicht gibt (F-1).
+    """
     if n < 20:
-        return _EINER[n]
+        return "eins" if (n == 1 and allein) else _EINER[n]
     z, e = divmod(n, 10)
     return _ZEHNER[z] if e == 0 else f"{_EINER[e]}und{_ZEHNER[z]}"
 
 
 # Wörter, die eine vierstellige Zahl als JAHR ausweisen. Ohne einen davon
 # bleibt sie unangetastet — „1985 Teilnehmer" ist eine Menge.
+#
+# **F-1: `im` ist ersatzlos gestrichen.** Es trug nie allein einen Jahresbezug
+# — „im Jahr 1985" wird schon von `jahr` erfasst, „im 1985" sagt niemand. Was
+# es tatsächlich erfasste, waren Mengen: „im 1500-Zeichen-Fenster".
+# `von`, `bis` und `ab` bleiben, weil sie in „von 1985 bis 1990" tragen — aber
+# nur noch zusammen mit der Einheiten-Gegenprobe unten.
 _JAHR_HINWEIS = re.compile(
-    r"(?:\b(?:jahr|jahre|jahren|seit|ab|bis|von|im|anno|baujahr|jahrgang|"
+    r"(?:\b(?:jahr|jahre|jahren|seit|ab|bis|von|anno|baujahr|jahrgang|"
     r"geboren|gegründet|gegruendet|damals|sommer|winter|frühjahr|fruehjahr|"
     r"herbst)\b\W{0,3})$", re.IGNORECASE)
+
+# **Die Gegenprobe nach hinten (F-1).** Folgt der Zahl eine Maßeinheit, ist sie
+# eine Menge — und zwar auch dann, wenn davor ein Jahres-Wort steht:
+# „bis 1500 Zeichen" trägt beides. Bei Widerspruch gewinnt die Einheit, weil
+# sie die spezifischere Aussage ist.
+_MENGEN_EINHEIT = re.compile(
+    r"^\W{0,3}(zeichen|wörter|woerter|worte|zeilen|seiten|stück|stueck|"
+    r"euro|dollar|cent|meter|kilometer|km|kg|gramm|tonnen|liter|"
+    r"mb|gb|kb|tb|mib|gib|kib|byte|bytes|bit|pixel|punkte|"
+    r"teilnehmer|personen|leute|kunden|nutzer|mitglieder|besucher|"
+    r"sekunden|minuten|stunden|tage|wochen|monate|kalorien|grad|prozent)\b",
+    re.IGNORECASE)
 
 
 def _normalize_jahreszahlen(text: str) -> str:
@@ -7820,13 +7860,17 @@ def _normalize_jahreszahlen(text: str) -> str:
     def _ersetze(m: "re.Match") -> str:
         if not _JAHR_HINWEIS.search(text[max(0, m.start() - 30):m.start()]):
             return m.group(0)
+        if _MENGEN_EINHEIT.match(text[m.end():m.end() + 20]):
+            return m.group(0)      # F-1: „bis 1500 Zeichen" ist eine Menge
         n = int(m.group(0))
         hundert, rest = divmod(n, 100)
         wort = f"{_EINER[hundert]}hundert"
-        return wort if rest == 0 else wort + _zahlwort(rest)
+        return wort if rest == 0 else wort + _zahlwort(rest, allein=True)
 
-    return re.sub(r"(?<![\d.,])1[12][0-9]{2}(?![\d.,])|(?<![\d.,])1[3-9][0-9]{2}(?![\d.,])",
-                  _ersetze, text)
+    # F-1: Ein Satzpunkt darf die Jahreszahl nicht verdecken — `gegründet
+    # 1901.` ist die häufigste Stellung überhaupt. Punkt und Komma blocken
+    # nur noch, wenn eine ZIFFER folgt (dann ist es eine Dezimalzahl).
+    return re.sub(r"(?<![\d.,])1[1-9][0-9]{2}(?![\d,])(?!\.\d)", _ersetze, text)
 
 
 # Wörter, nach denen eine lange Ziffernfolge eine KENNUNG ist, keine Menge.
@@ -7856,7 +7900,9 @@ def _normalize_kennnummern(text: str) -> str:
             return m.group(0)
         return " ".join(m.group(0))
 
-    return re.sub(r"(?<![\d.,])\d{5,}(?![\d.,])", _ersetze, text)
+    # F-1: derselbe Satzpunkt-Fehler wie bei den Jahreszahlen — „Bestellnummer
+    # 4711829." blieb am Stück, obwohl das Satzende die häufigste Stellung ist.
+    return re.sub(r"(?<![\d.,])\d{5,}(?![\d,])(?!\.\d)", _ersetze, text)
 
 
 # Zeilen, die dem Modell den Bezug erklären — sie gehören nie in die Stimme.

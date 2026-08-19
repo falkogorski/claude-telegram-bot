@@ -22,20 +22,28 @@ Engywucks Befund ③ verlangt genau das — hier ist es.
 Keiner dieser Befunde ist deploy-blockierend; sie sind nach **Schaden bei
 Nichtstun** sortiert, nicht nach Aufwand.
 
-### F-1 · Vorlese-Kette — falsche Auskünfte im Betrieb `[offen]`
+### F-1 · Vorlese-Kette — falsche Auskünfte im Betrieb `[erledigt 19.08.2026]`
 
-Die höchste Priorität, weil sie **falsche Aussagen erzeugt** statt bloß etwas
-zu unterlassen.
+Alle vier Teilbefunde nachgemessen, behoben und mit ausführenden Prüfungen in
+beide Richtungen belegt (`scripts/test_vorlese_b5.py`, sechs neue Zeilen).
+**Ein Befund war schärfer als notiert:** Der Tag wurde nicht nur unvollständig
+geprüft, sondern gar nicht — `Punkt 40.5.` ergab `40. Mai`.
 
-- Die Datums-Regel prüft nur den **Monat**, nie den Tag: `Punkt 9.4.` wird zu
-  `9. April`. `MIGRATION.md` besteht aus solchen Gliederungsnummern, und der
-  Dokument-Vorlesepfad schickt Dokumentinhalt durch dieselbe Kette.
-- Die Jahresregel führt `von`, `bis`, `ab`, `im` als Jahres-Hinweise — im
-  Deutschen überwiegend **Mengen**-Präpositionen: `bis 1500 Zeichen` wird zu
-  `bis fünfzehnhundert Zeichen`.
-- `_zahlwort(1)` liefert „ein" statt „eins": `seit 1901` →
-  `seit neunzehnhundertein`.
-- Kennnummern am **Satzende** greifen gar nicht — die häufigste Stellung.
+- **Gliederungsnummern** sind gesperrt: Steht ein Wort wie `Punkt`, `Phase`,
+  `Abschnitt`, `Regel` davor, ist es keine Datumsangabe. Dazu die fehlende
+  Tages-Plausibilität (1–31).
+- **`im` ist als Jahres-Hinweis ersatzlos gestrichen** — es trug nie allein
+  einen Jahresbezug. Dazu eine **Gegenprobe nach hinten**: Folgt der Zahl eine
+  Maßeinheit, gewinnt sie gegen jedes Jahres-Wort davor.
+- **`_zahlwort` kennt jetzt „eins" neben „ein"** — die Eins ist das einzige
+  deutsche Zahlwort mit zwei Formen.
+- **Der Satzpunkt verdeckt nichts mehr**: Punkt und Komma blocken nur noch,
+  wenn eine Ziffer folgt. Dezimalzahlen bleiben heil.
+
+**Bewusst nicht behoben** (Konvergenz-Bremse, geht nach F-5): `1985 bis 1990`
+wird uneinheitlich gelesen, weil nur die zweite Zahl einen Hinweis davor hat.
+Das ist Stil, keine Falschaussage — und die Bereichs-Erkennung samt
+Einheiten-Prüfung über den ganzen Bereich wäre teurer als der Gewinn.
 
 ### F-2 · Hora: die Kürzung sitzt vor der Suche `[offen]`
 

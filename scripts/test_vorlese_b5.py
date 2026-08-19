@@ -69,7 +69,7 @@ def _datum_laeuft_vor_der_versionsregel():
 
 def _jahreszahl_nur_mit_jahresbezug():
     assert "neunzehnhundertfünfundachtzig" in bot._normalize_jahreszahlen("seit 1985")
-    assert "neunzehnhundert" == bot._normalize_jahreszahlen("im 1900").split()[-1]
+    assert "neunzehnhundert" == bot._normalize_jahreszahlen("anno 1900").split()[-1]
     # Ohne Bezug bleibt es eine Menge — „1985 Teilnehmer" ist kein Jahr.
     assert bot._normalize_jahreszahlen("1985 Teilnehmer") == "1985 Teilnehmer", \
         "eine bloße Menge wurde zum Jahrhundert erklärt"
@@ -119,6 +119,68 @@ def _kontext_hinweis_wird_nicht_gesprochen():
         f"der Bezugs-Vermerk landet in der Stimme: {aus}"
 
 
+def _gliederungsnummer_ist_kein_datum():
+    """**F-1, der Befund mit dem größten Schaden.** `Punkt 9.4.` wurde zu
+    `9. April` — eine Falschauskunft über den eigenen Projektstand, gesprochen
+    mit voller Bestimmtheit. `MIGRATION.md` besteht aus solchen Nummern, und
+    der Dokument-Vorlesepfad schickt Dokumentinhalt durch dieselbe Kette."""
+    for gliederung in ("Punkt 9.4. ist offen", "siehe Phase 5.21.",
+                       "Abschnitt 3.12.", "Regel 2.1.", "Schritt 1.3."):
+        assert bot._normalize_dates(gliederung) == gliederung, \
+            f"eine Gliederungsnummer wurde zum Datum: {gliederung}"
+    # Gegenprobe: ein echtes Datum muss weiterhin durchkommen.
+    assert bot._normalize_dates("am 22.06. kommt er") == "am 22. Juni kommt er"
+
+
+def _tag_muss_es_geben():
+    """Geprüft wurde bisher nur der Monat — `Punkt 40.5.` ergab `40. Mai`.
+    Das war schärfer als der notierte Befund."""
+    for unmoeglich in ("40.5.", "0.7.", "99.12."):
+        assert bot._normalize_dates(unmoeglich) == unmoeglich, \
+            f"ein Tag außerhalb des Kalenders wurde zum Datum: {unmoeglich}"
+    assert bot._normalize_dates("31.12.") == "31. Dezember"
+
+
+def _menge_schlaegt_jahreshinweis():
+    """`von`, `bis` und `ab` sind im Deutschen überwiegend MENGEN-Wörter. Steht
+    hinter der Zahl eine Einheit, gewinnt sie — sie ist die spezifischere
+    Aussage."""
+    for menge in ("bis 1500 Zeichen", "von 1200 Wörter", "ab 1800 Euro",
+                  "seit 1500 Zeilen"):
+        assert bot._normalize_jahreszahlen(menge) == menge, \
+            f"eine Menge wurde zum Jahrhundert: {menge}"
+    # Gegenprobe in beide Richtungen: ohne Einheit bleibt es ein Jahr.
+    assert "neunzehnhundert" in bot._normalize_jahreszahlen("von 1985 bis 1990")
+
+
+def _im_ist_kein_jahreshinweis():
+    """`im` trug nie allein einen Jahresbezug — „im Jahr 1985" wird schon von
+    `jahr` erfasst, „im 1985" sagt niemand. Was es erfasste, waren Mengen."""
+    assert bot._normalize_jahreszahlen("im 1500-Zeichen-Fenster") == \
+        "im 1500-Zeichen-Fenster"
+    assert "neunzehnhundert" in bot._normalize_jahreszahlen("im Jahr 1985")
+
+
+def _die_eins_steht_allein():
+    """Die Eins ist das einzige deutsche Zahlwort mit zwei Formen: gebunden
+    „einundzwanzig", freistehend „eins". `seit 1901` ergab
+    „neunzehnhundertein" — ein Wort, das es nicht gibt."""
+    assert "neunzehnhunderteins" in bot._normalize_jahreszahlen("seit 1901")
+    # Gegenprobe: gebunden bleibt die Eins „ein".
+    assert "neunzehnhunderteinundzwanzig" in bot._normalize_jahreszahlen("seit 1921")
+
+
+def _satzende_verdeckt_nichts():
+    """Die häufigste Stellung überhaupt — und die einzige, die gar nicht
+    griff. Punkt und Komma dürfen nur blocken, wenn eine ZIFFER folgt."""
+    assert "4 7 1 1 8 2 9." in bot._normalize_kennnummern("Bestellnummer 4711829.")
+    assert "neunzehnhunderteins" in bot._normalize_jahreszahlen("gegründet 1901.")
+    # Gegenprobe: eine Dezimalzahl bleibt heil, sonst wäre der Fix ein Rückschritt.
+    assert bot._normalize_kennnummern("Kundennummer 12345,67") == \
+        "Kundennummer 12345,67"
+    assert bot._normalize_kennnummern("Beleg 12345.67") == "Beleg 12345.67"
+
+
 def _bestehende_regeln_stehen_noch():
     """Die Geschwister-Regel: Ein Eingriff in die Kette ist erst fertig, wenn
     geprüft ist, dass die vorhandenen Glieder noch greifen."""
@@ -138,6 +200,12 @@ check("Kennnummer braucht ein ankündigendes Wort",
 check("Kennnummer erst ab fünf Ziffern", _kennnummer_erst_ab_fuenf_ziffern)
 check("Kennnummer läuft vor der Jahresregel", _kennnummer_laeuft_vor_der_jahresregel)
 check("Kontext-Hinweis wird nicht gesprochen", _kontext_hinweis_wird_nicht_gesprochen)
+check("F-1: Gliederungsnummer ist kein Datum", _gliederungsnummer_ist_kein_datum)
+check("F-1: den Tag muss es im Kalender geben", _tag_muss_es_geben)
+check("F-1: Menge schlägt Jahres-Hinweis", _menge_schlaegt_jahreshinweis)
+check("F-1: „im“ ist kein Jahres-Hinweis", _im_ist_kein_jahreshinweis)
+check("F-1: die Eins steht allein als „eins“", _die_eins_steht_allein)
+check("F-1: das Satzende verdeckt nichts mehr", _satzende_verdeckt_nichts)
 check("die bestehenden Regeln greifen weiter (Geschwister)",
       _bestehende_regeln_stehen_noch)
 

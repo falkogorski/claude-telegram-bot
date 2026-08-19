@@ -464,6 +464,52 @@ Kern (Reichweite, Vertrauen, passendes Produkt); das ethisch Heikle ist meist
 Beiwerk, das der Wiederkaufrate ohnehin schadet. **Kennzeichnung ist Gesetz,
 nicht Feinschliff.**
 
+## 🧭 KURS-REGEL — Tiefe braucht ein Ende, Arbeit einen Erlösbezug (Adam & Engywuck 2026-08-19)
+
+**Gemessen, nicht vermutet: 13 Commits in 48 Stunden, jeder einzelne
+Innenarbeit** — Wächter, Prüfer, Prüfer für Prüfer. Jedes Glied war für sich
+gerechtfertigt, weil jedes aus einem echten Vorfall entstand. **Genau darin
+liegt die Falle:** Lokal ist jeder Schritt richtig, global kippt das Verhältnis
+zwischen „das System bewacht sich selbst" und „das System dient Adam".
+
+Die W-Regel (Erlösbezug) sagt das seit dem 25.07. Sie hatte nur — wie jede
+Regel, die je versagt hat — **keinen Prüfer und keinen Rhythmus.** Diese drei
+Teile geben ihr beides.
+
+### ① Der wöchentliche Kurs-Blick — der Prüfer der W-Regel
+
+Die Kontrollrolle legt Adam **wöchentlich eine Seite** im festen Statusformat
+vor: Was hat auf die drei Ziele eingezahlt — **stabiler Selbstläufer · Adams
+Alltag · Einkommen** — und was war Innenarbeit, mit gewichtetem Anteil. Dazu
+die eine unbequeme Zeile: **„Was haben wir diese Woche für Einkommen getan?"**
+
+Erster Termin: **25.08.2026**, zusammen mit der Auswertung der Probewoche.
+
+### ② Konvergenz-Bremse für Prüfschleifen
+
+Eine Kette **Fix → Gegenprüfung → Nachprüfung endet nach der Nachprüfung.** Was
+sie dann noch findet und nicht scharf-blockierend ist, geht in die F-Liste —
+**nie in eine dritte Runde.**
+
+**„Fertig" heißt grün + gegengeprüft + einsortiert, nicht befundfrei.** Ein
+Bau, der erst abgegeben wird, wenn niemand mehr etwas findet, wird nie
+abgegeben.
+
+**Keine Wächter dritter Ordnung.** Ein neuer Wächter braucht einen **echten
+Vorfall** und den **Nachweis, dass kein bestehender erweiterbar ist**.
+
+### ③ Jeder Bauauftrag trägt eine „Gut genug wenn:"-Zeile
+
+Neben Modell und Modus. **Der Schluss wird definiert, bevor die Tiefe lockt** —
+danach ist es zu spät, weil dann jede weitere Runde begründbar aussieht.
+
+### Der Prüfer dieser Regel
+
+**Der Kurs-Blick selbst** — bewusst kein neuer Wächter, das wäre genau das
+Muster, gegen das die Regel steht. Er zählt je Woche die **Prüfrunden über
+Limit** und die **neu entstandenen Wächter**. Stehen dort mehrfach Zahlen
+größer null, ist die Regel gebrochen und das Gespräch fällig.
+
 ## 🧪 WIRKUNGS-REGEL — nach jeder Filter-/Sync-Änderung das Ergebnis prüfen (2026-07-25)
 
 **Nach jeder Änderung an einem Filter oder einem Abgleich wird geprüft, was

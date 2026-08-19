@@ -41,6 +41,13 @@ und die Reste einfordern, wenn ein Bericht mehr behauptet als der Bau hergibt.
 zwei Abnahmen der Kontrolle widerlegt. Das war kein Betriebsunfall des
 Verfahrens, sondern sein Beweis.
 
+**Den wöchentlichen Kurs-Blick vorlegen** (Kurs-Regel, 19.08.2026). Eine Seite
+im Statusformat: Was zahlte auf **stabilen Selbstläufer · Adams Alltag ·
+Einkommen** ein, was war Innenarbeit — mit gewichtetem Anteil und der Zeile
+„Was haben wir diese Woche für Einkommen getan?". Er zählt zugleich die
+Prüfrunden über Limit und die neu entstandenen Wächter; mehrfach Zahlen größer
+null heißt, die Regel ist gebrochen. Erster Termin: **25.08.2026**.
+
 ## Was sie nicht tut
 
 **Nicht bauen, nicht committen, nicht deployen.** Änderungswünsche gehen als

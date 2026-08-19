@@ -177,12 +177,62 @@ def _leerlauf_entwarnen() -> None:
     LEERLAUF_MARKE.unlink(missing_ok=True)
 
 
+# **Die Ausnahmen kommen vor der Suche** — dieselbe Bauart wie beim
+# Stichwort-Filter: Grenzen offen, dafür eine kurze, ausdrücklich benannte
+# Ausnahmeliste. Ohne sie meldete „✓ fehlerfrei durchgelaufen" einen Fehler.
+_ROT_AUSNAHMEN = re.compile(
+    r"(fehlerfrei|fehlerlos|keine\s+fehler|ohne\s+fehler|null\s+fehler|"
+    r"0\s+fehler|fehler:\s*0|fehlgeschlagen:\s*0|0\s+error|no\s+error)",
+    re.IGNORECASE)
+
 # Woran eine auffällige Zeile erkennbar ist. Bewusst breit: Unsere Prüfskripte
 # benutzen ✗ und ❌, Python meldet Traceback und Error, bash meldet „command not
 # found". Ein zu enges Muster fände genau die Ausgabe nicht, die neu ist.
+#
+# **F-2: Es war trotzdem zu eng — und zwar auf Deutsch.** Gemessen waren sechs
+# von acht typischen Fehlerzeilen blind, darunter `Fehler:`, `ERROR:` (das
+# Muster lief ohne IGNORECASE) und `failed`. In einem durchweg
+# deutschsprachigen Projekt fand die Fehlersuche das deutsche Wort für Fehler
+# nicht. Die Grenzen bleiben nach der Stichwort-Regel **beidseitig offen** —
+# „Startfehler" trägt das Grundwort hinten.
 _ROT_ZEILE = re.compile(
-    r"(✗|❌|FEHLGESCHLAGEN|fehlgeschlagen|Traceback|Error|error:|"
-    r"not found|No such file|Permission denied|refused)")
+    r"(✗|❌|fehlgeschlagen|fehler|traceback|error|failed|failure|"
+    r"abgebrochen|abbruch|not found|nicht gefunden|no such file|"
+    r"permission denied|verweigert|refused|timeout|zeitüberschreitung)",
+    re.IGNORECASE)
+
+
+def _ist_rot(zeile: str) -> bool:
+    """Auffällig — nach Abzug der Ausnahmen."""
+    return bool(_ROT_ZEILE.search(_ROT_AUSNAHMEN.sub(" ", zeile or "")))
+
+
+# Wie viel Ausgabe wir überhaupt festhalten. Der Wert ist großzügig, weil die
+# MELDUNG ohnehin auf drei Zeilen à 160 Zeichen gedeckelt ist — hier geht es
+# nur darum, dass die Suche etwas zu suchen hat.
+_AUSGABE_GRENZE = 200_000
+
+
+def _verdichten(text: str) -> str:
+    """Begrenzt die Ausgabe, **ohne den Anfang wegzuwerfen** (F-2).
+
+    Vorher wurde auf die letzten 1200 Zeichen gekürzt, **bevor** `_fehlgrund`
+    darin suchte. Gemessen: Eine rote Zeile im Kopf, 200 Zeilen Geschwätz
+    danach — gemeldet wurde „der Befehl meldete: ok, alles gut". Korrekt und
+    vollkommen nutzlos, also genau der Halt vom 28.07., den der Kommentar in
+    `_fehlgrund` beschreibt. Die Kürzung hatte die Positionsannahme, die dort
+    beseitigt wurde, durch die Hintertür wieder eingeführt.
+
+    Deshalb bleiben **beide Enden** stehen: Der Anfang trägt meist die
+    Ursache, das Ende die Wirkung.
+    """
+    if len(text) <= _AUSGABE_GRENZE:
+        return text
+    haelfte = _AUSGABE_GRENZE // 2
+    fehlt = len(text) - 2 * haelfte
+    return (text[:haelfte]
+            + f"\n[… {fehlt} Zeichen ausgelassen …]\n"
+            + text[-haelfte:])
 
 
 def _fehlgrund(erfolg: bool, nachher_ok: bool, ausgabe: str,
@@ -210,7 +260,7 @@ def _fehlgrund(erfolg: bool, nachher_ok: bool, ausgabe: str,
         # aufzulösen; jede Diagnose hätte eine Hand gebraucht, die nicht da ist.
         # Also werden die AUFFÄLLIGEN Zeilen gesucht, nicht die letzte.
         auffaellig = [z.strip() for z in text.splitlines()
-                      if _ROT_ZEILE.search(z)]
+                      if _ist_rot(z)]
         if auffaellig:
             # Höchstens drei — eine Meldung, die dreißig rote Zeilen mitschleppt,
             # wird nicht gelesen, und die ersten sagen ohnehin das Meiste.
@@ -615,7 +665,7 @@ def _lauf(trocken: bool = False) -> int:
         try:
             p = subprocess.run(["bash", "-lc", befehl], cwd=str(REPO),
                                capture_output=True, text=True, timeout=7200)
-            ausgabe = ((p.stdout or "") + (p.stderr or ""))[-1200:]
+            ausgabe = _verdichten((p.stdout or "") + (p.stderr or ""))
             erfolg = p.returncode == 0
         except Exception as e:
             ausgabe, erfolg = str(e), False

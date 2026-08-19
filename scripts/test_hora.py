@@ -590,6 +590,72 @@ check("Abhaken vertagt statt zu beenden - und verweigert sichtbar",
 check("ein roter Wiederkehrer rennt nicht ewig (d)",
       _roter_wiederkehrer_rennt_nicht_ewig)
 
+
+# ---------- F-2: die Kuerzung sass vor der Suche ----------------------------
+def _der_kopf_der_ausgabe_ueberlebt():
+    """**Der Befund, der schon einmal zugeschlagen hat — nur anders herum.**
+    Die Ausgabe wurde auf die letzten 1200 Zeichen gekuerzt, BEVOR
+    `_fehlgrund` darin suchte. Gemessen: rote Zeile im Kopf, 200 Zeilen
+    Geschwaetz danach, gemeldet wurde „der Befehl meldete: ok, alles gut".
+
+    Das ist exakt der Halt vom 28.07. — eine Positionsannahme statt eines
+    Inhaltsmerkmals. Die Kuerzung hatte sie durch die Hintertuer wieder
+    eingefuehrt, obwohl der Kommentar direkt darueber davor warnt."""
+    lang = "❌ Selbstcheck: Zustellmarke fehlt\n" + ("ok, alles gut\n" * 200)
+    grund = hora._fehlgrund(False, True, hora._verdichten(lang), "n/a")
+    assert "Zustellmarke" in grund, f"der Kopf ging verloren: {grund}"
+    # Gegenprobe: die alte Kuerzung haette genau das verfehlt.
+    alt = hora._fehlgrund(False, True, lang[-1200:], "n/a")
+    assert "Zustellmarke" not in alt, \
+        "die Gegenprobe misst nichts mehr - der Befund war anders gelagert"
+
+
+def _sehr_lange_ausgabe_behaelt_beide_enden():
+    """Eine Grenze braucht es weiterhin — aber sie darf nicht EIN Ende
+    bevorzugen. Der Anfang traegt meist die Ursache, das Ende die Wirkung."""
+    riesig = "❌ Kopf-Befund\n" + ("x" * 300000) + "\n❌ Schwanz-Befund"
+    v = hora._verdichten(riesig)
+    assert "Kopf-Befund" in v and "Schwanz-Befund" in v, \
+        "ein Ende wurde bevorzugt"
+    assert len(v) < len(riesig), "die Grenze greift gar nicht mehr"
+    assert "ausgelassen" in v, "die Luecke wird verschwiegen"
+    # Gegenprobe: was unter der Grenze liegt, bleibt unangetastet.
+    assert hora._verdichten("kurz und gut") == "kurz und gut"
+
+
+def _die_fehlersuche_kann_deutsch():
+    """**In einem durchweg deutschsprachigen Projekt fand die Fehlersuche das
+    deutsche Wort fuer Fehler nicht.** Gemessen waren sechs von acht typischen
+    Fehlerzeilen blind — darunter `Fehler:`, `ERROR:` (das Muster lief ohne
+    IGNORECASE) und `failed`. Grenzen beidseitig offen nach der
+    Stichwort-Regel: „Startfehler" traegt das Grundwort hinten."""
+    for zeile in ("Fehler: Datei fehlt", "ERROR: connection lost",
+                  "3 tests failed", "Startfehler beim Laden",
+                  "Vorgang abgebrochen", "Zugriff verweigert",
+                  "Traceback (most recent call last)", "Zeitüberschreitung"):
+        assert hora._ist_rot(zeile), f"blind fuer: {zeile}"
+
+
+def _fehlerfrei_ist_kein_fehler():
+    """**Die Gegenrichtung, und sie ist der Preis der offenen Grenzen.** Ohne
+    die kurze Ausnahmeliste meldete „✓ fehlerfrei durchgelaufen" einen Fehler.
+    Die Liste bleibt kurz und ausdruecklich benannt — eine lange hoehlt die
+    Suche aus."""
+    for ruhig in ("✓ fehlerfrei durchgelaufen", "0 Fehler, alles gruen",
+                  "Selbstcheck: keine Fehler", "ok, alles gut",
+                  "43/43 bestanden"):
+        assert not hora._ist_rot(ruhig), f"Fehlalarm bei: {ruhig}"
+
+
+check("F-2: der Kopf der Ausgabe ueberlebt die Kuerzung",
+      _der_kopf_der_ausgabe_ueberlebt)
+check("F-2: sehr lange Ausgabe behaelt beide Enden",
+      _sehr_lange_ausgabe_behaelt_beide_enden)
+check("F-2: die Fehlersuche kann Deutsch", _die_fehlersuche_kann_deutsch)
+check("F-2: „fehlerfrei“ ist kein Fehler (Gegenrichtung)",
+      _fehlerfrei_ist_kein_fehler)
+
+
 if fails:
     print(f"\n❌ {len(fails)} Hora-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     raise SystemExit(1)

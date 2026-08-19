@@ -45,13 +45,32 @@ wird uneinheitlich gelesen, weil nur die zweite Zahl einen Hinweis davor hat.
 Das ist Stil, keine Falschaussage — und die Bereichs-Erkennung samt
 Einheiten-Prüfung über den ganzen Bereich wäre teurer als der Gewinn.
 
-### F-2 · Hora: die Kürzung sitzt vor der Suche `[offen]`
+### F-2 · Hora: die Kürzung sitzt vor der Suche `[erledigt 19.08.2026]`
 
 Die Ausgabe wird auf die letzten 1200 Zeichen gekürzt, **bevor** `_fehlgrund`
 darin sucht. Bei geschwätziger stderr fällt der Kopf weg — und die rote Zeile
 mit ihm. Dazu trifft `_ROT_ZEILE` weder `Fehler:` noch `ERROR` noch `failed`,
 in einem durchweg deutschsprachigen Projekt.
 
+
+Beide Teile gemessen, beide bestätigt. **Der erste ist ein Rückfall in einen
+bereits behobenen Fehler:** Die rote Zeile stand im Kopf, 200 Zeilen Geschwätz
+folgten, gemeldet wurde `der Befehl meldete: ok, alles gut`. Das ist wörtlich
+der Halt vom 28.07. — eine Positionsannahme statt eines Inhaltsmerkmals —, und
+der Kommentar, der genau davor warnt, stand die ganze Zeit direkt über der
+Stelle. Die Kürzung hatte ihn durch die Hintertür ausgehebelt.
+
+- **`_verdichten()` behält beide Enden** und benennt die Lücke. Der Anfang
+  trägt meist die Ursache, das Ende die Wirkung; eine Grenze, die nur ein Ende
+  bevorzugt, ist wieder eine Positionsannahme.
+- **`_ROT_ZEILE` kann jetzt Deutsch.** Gemessen waren sechs von acht typischen
+  Fehlerzeilen blind — `Fehler:`, `ERROR:` (das Muster lief ohne `IGNORECASE`),
+  `failed`, `abgebrochen`, `verweigert`. Grenzen beidseitig offen nach der
+  Stichwort-Regel, dazu eine kurze, ausdrücklich benannte Ausnahmeliste, damit
+  „✓ fehlerfrei durchgelaufen" keinen Fehler meldet.
+
+Vier neue Prüfzeilen, jede mit Gegenprobe — die zum Kopf-Befund misst
+ausdrücklich mit, dass die alte Kürzung ihn verfehlt hätte.
 ### F-3 · Versions-Monitor: stille Dauerausfälle `[offen]`
 
 Ein unlesbarer Zeitstempel legt einen manuellen Eintrag **dauerhaft** still und

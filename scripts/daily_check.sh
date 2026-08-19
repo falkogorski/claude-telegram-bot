@@ -278,8 +278,34 @@ while read -r t; do
   # Ein Zeitgeber ist genau dann auffaellig, wenn sein naechster Lauf
   # UEBERFAELLIG ist - das gilt fuer minuetlich, taeglich und woechentlich
   # gleichermassen, ohne eine einzige Zahl im Code.
+  # **Ein Zeitgeber, dessen Dienst GERADE LAEUFT, ist nicht still.**
+  #
+  # GEMESSEN 19.08.2026 im ersten automatischen Lauf nach der Reparatur: Der
+  # Tagescheck klagte seinen EIGENEN Zeitgeber an - "aktiv, hat aber KEINEN
+  # naechsten Lauf geplant". Die Ursache ist Selbstbezug: systemd fuehrt einen
+  # Timer, dessen Dienst laeuft, im SubState `running`, und dort gibt es kein
+  # NextElapse. Der Tagescheck prueft sich aber genau waehrend seines eigenen
+  # Laufs - er ist der einzige Timer, der sich in diesem Zustand selbst sieht.
+  # Alle anderen stehen dann auf `waiting`.
+  #
+  # Ein taeglicher Fehlalarm, ausgerechnet auf den Waechter, der alle anderen
+  # prueft. Und Fehlalarme schalten Waechter zuverlaessiger ab als Defekte.
+  substate=$(systemctl show "$t" -p SubState --value 2>/dev/null)
+  if [ "$substate" = "running" ]; then
+    add "✅ Zeitgeber $t: laeuft gerade"
+    continue
+  fi
   naechste=$(systemctl show "$t" -p NextElapseUSecRealtime --value 2>/dev/null)
   if [ -z "$naechste" ] || [ "$naechste" = "n/a" ] || [ "$naechste" = "0" ]; then
+    # **Monotone Zeitgeber tragen ihren naechsten Lauf woanders** (Befund B4 der
+    # Gegenpruefung): Bei OnBootSec/OnUnitActiveSec ist die Realzeit-Angabe
+    # leer, nur die monotone traegt. Ohne diesen Zweig wuerde ein voellig
+    # gesunder Zeitgeber taeglich angeklagt.
+    mono=$(systemctl show "$t" -p NextElapseUSecMonotonic --value 2>/dev/null)
+    if [ -n "$mono" ] && [ "$mono" != "0" ] && [ "$mono" != "n/a" ]; then
+      add "✅ Zeitgeber $t: naechster Lauf monoton geplant"
+      continue
+    fi
     zeitgeber_still+=("$t ist aktiv, hat aber KEINEN naechsten Lauf geplant")
     continue
   fi

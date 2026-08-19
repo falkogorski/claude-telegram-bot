@@ -244,4 +244,50 @@ print()
 if fails:
     print(f"❌ {len(fails)} B6-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)
-print("Alle B6-Blinde-Flecken-Tests bestanden.")
+
+
+def _zeitgeber_wache_klagt_keinen_laufenden_an():
+    """**Der Fehlalarm vom 19.08. — Selbstbezug, gemessen im Echtbetrieb.**
+
+    Der erste automatische Tagescheck nach der Reparatur klagte seinen EIGENEN
+    Zeitgeber an: „aktiv, hat aber KEINEN naechsten Lauf geplant". systemd
+    fuehrt einen Timer, dessen Dienst laeuft, im SubState `running` — und dort
+    gibt es kein NextElapse. Der Tagescheck prueft sich aber genau waehrend
+    seines eigenen Laufs; er ist der einzige Timer, der sich in diesem Zustand
+    selbst sieht.
+
+    Ein taeglicher Fehlalarm auf den Waechter, der alle anderen prueft. Und
+    Fehlalarme schalten Waechter zuverlaessiger ab als Defekte.
+    """
+    dc = (ROOT / "scripts" / "daily_check.sh").read_text(encoding="utf-8")
+    # **Keine willkuerliche Zeichenzahl.** Der erste Entwurf nahm die ersten
+    # 4000 Zeichen ab der Ueberschrift und verfehlte die gesuchte Stelle um gut
+    # siebzig Zeilen - die Kommentare in diesem Projekt sind lang. Geschnitten
+    # wird bis zum naechsten Abschnitt, also an einer echten Grenze.
+    block = dc.split("ZEITGEBER-WACHE")[1].split("# --- 9b.")[0]
+    # **Kommentarzeilen zaehlen NICHT — und das war beim ersten Anlauf prompt
+    # der Fehler.** Die Gegenprobe entfernte den Code und liess den
+    # Erklaerkommentar stehen; der Pruefer blieb gruen, weil dort dieselben
+    # Woerter stehen. Dritter Fall dieser Klasse an zwei Tagen: Ein Pruefer, der
+    # die Beschreibung seines Gegenstands trifft, prueft die Beschreibung.
+    code = "\n".join(z for z in block.splitlines()
+                     if not z.lstrip().startswith("#"))
+    assert "SubState" in code and 'substate' in code, (
+        "die Wache prueft nicht AUSFUEHRBAR, ob der Dienst gerade laeuft — "
+        "sie klagt dann ihren eigenen Traeger an")
+    assert '"running"' in code or "'running'" in code, (
+        "der laufende Zustand wird nirgends im Code abgefragt")
+    # Befund B4 der Gegenpruefung, im selben Zug: monotone Zeitgeber tragen
+    # ihren naechsten Lauf in einem anderen Feld.
+    assert "NextElapseUSecMonotonic" in code, (
+        "monotone Zeitgeber (OnBootSec/OnUnitActiveSec) werden angeklagt, "
+        "obwohl sie gesund sind — ihre Realzeit-Angabe ist immer leer")
+
+
+check("Zeitgeber-Wache klagt keinen laufenden an (Fehlalarm 19.08.)",
+      _zeitgeber_wache_klagt_keinen_laufenden_an)
+
+if fails:
+    print(f"\n❌ {len(fails)} B6-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
+    raise SystemExit(1)
+print("\nAlle B6-Blinde-Flecken-Tests bestanden.")

@@ -268,6 +268,88 @@ def _urteil_einholen(auftrag: dict) -> tuple[str, str]:
     return "wartet", "neu vorgelegt"
 
 
+# ------------------------------------------------- E3: Wiederkehrende Läufe --
+#
+# **Adams Entscheid vom 18.08., vier Festlegungen — hier alle im Code.**
+#
+# Ein wiederkehrender Auftrag wird beim Abhaken nicht beendet, sondern auf seine
+# nächste Fälligkeit gesetzt. Vor der Fälligkeit wird er übersprungen, **ohne zu
+# melden** — sonst wäre die Liste ein Dauerfunk.
+#
+# **Die geschlossene Liste ist der ganze Riegel.** Nur lesende Prüf-Arten dürfen
+# wiederkehren; alles Verändernde bleibt einmalig, ohne Ausnahme. Der Grund ist
+# nicht Vorsicht, sondern Arithmetik: Ein verändernder Auftrag, der alle drei
+# Tage von selbst wieder anläuft, ist keine Aufgabe mehr, sondern ein Prozess —
+# und den hat niemand beschlossen.
+WIEDERKEHR_ARTEN: dict[str, str] = {
+    "kette-bewerten": "2026-08-18",    # liest die Belegkette und urteilt
+    "register-pruefen": "2026-08-18",  # liest Register und Prüfbefehle
+    "vorraete": "2026-08-18",          # liest Speicher, Platte, Auslagerung
+    "pruefen": "2026-08-18",           # allgemeiner Prüflauf, rein lesend
+}
+
+
+def wiederkehr_erlaubt(auftrag: dict) -> tuple[bool, str]:
+    """(erlaubt, Begründung) — **geprüft am ÜBERGANG, nicht am Eintrag.**
+
+    Dieselbe Bauart wie der Riegel im Auftragsbuch, und aus demselben Grund:
+    Dort las `uebernehmen()` die Ampel aus der Datei, und eine handgelegte
+    Grün-Behauptung rutschte durch. **Die Angabe im Auftrag ist ein Vorschlag,
+    nie eine Wahrheit** — maßgeblich ist die Einstufung in dem Moment, in dem
+    sie wirkt. Das fängt zugleich den zweiten Fall: Wird eine Art später aus
+    dieser Liste entfernt, weil sie sich als verändernd erwies, hören auch
+    bereits liegende Aufträge auf zu wiederkehren.
+    """
+    tage = auftrag.get("wiederkehrend")
+    if not tage:
+        return (False, "kein Wiederkehr-Feld")
+    art = str(auftrag.get("art") or "")
+    if art not in WIEDERKEHR_ARTEN:
+        return (False, f"Art [{art or 'ohne'}] steht nicht auf der "
+                       "geschlossenen Liste lesender Prüf-Arten")
+    try:
+        n = int(tage)
+    except (TypeError, ValueError):
+        return (False, f"unverständlicher Wiederkehr-Wert [{tage}]")
+    if n < 1:
+        return (False, f"Wiederkehr-Wert [{n}] ergibt keinen Takt")
+    return (True, f"Art [{art}] ist lesend, Takt {n} Tage")
+
+
+def _faellig(auftrag: dict, jetzt: float | None = None) -> bool:
+    """Ist ein wiederkehrender Auftrag wieder an der Reihe?
+
+    Ohne `naechste_faelligkeit` ist er es (erster Lauf). Ein unverständlicher
+    Zeitstempel gilt ebenfalls als fällig — **stillstehen ist die schlechteste
+    Antwort**, das war die Lehre des Versions-Monitors, wo ein kaputtes Datum
+    einen Eintrag dauerhaft stumm legte.
+    """
+    marke = auftrag.get("naechste_faelligkeit")
+    if not marke:
+        return True
+    try:
+        return (jetzt or time.time()) >= time.mktime(
+            time.strptime(str(marke), "%Y-%m-%d %H:%M"))
+    except Exception:
+        return True
+
+
+# **Adams Festlegung (d), präzisiert — und die Präzisierung ist nötig.**
+#
+# Sein Wortlaut: „Ein dauerhaft roter Wiederkehrer zählt in die Fehlserie, damit
+# er nicht ewig gegen dieselbe Wand rennt." Die Absicht ist eindeutig. Die
+# GLOBALE Fehlserie erfüllt sie aber **nicht**: Sie wird bei jedem Erfolg
+# genullt (`_fehlserie(True)`). Steht neben dem roten Wiederkehrer auch nur ein
+# grüner Auftrag, erreicht der Zähler die Grenze nie — und der Wiederkehrer
+# liefe unbegrenzt weiter, alle drei Tage, gegen dieselbe Wand.
+#
+# Deshalb ein **eigener Zähler je Auftrag**, im Auftrag selbst. Er erfüllt
+# Adams Zweck, ohne die globale Bremse zu verändern: Nach drei eigenen
+# Fehlläufen wird die Wiederkehr **ausgesetzt und gemeldet** — der Auftrag ist
+# dann ein normaler, erledigter Eintrag mit Begründung, kein stiller Dauerläufer.
+WIEDERKEHR_FEHLGRENZE = 3
+
+
 def _blockiert(auftrag: dict, ausgefallen: set[str]) -> str | None:
     """Hängt der Auftrag an etwas, das geparkt oder gescheitert ist?
 
@@ -288,8 +370,12 @@ def auftraege() -> list[dict]:
         daten = json.loads(LISTE.read_text(encoding="utf-8"))
     except Exception:
         return []
-    return [a for a in daten if isinstance(a, dict) and a.get("titel")
-            and not a.get("erledigt")]
+    offen = [a for a in daten if isinstance(a, dict) and a.get("titel")
+             and not a.get("erledigt")]
+    # **Noch nicht fällig = übersprungen, OHNE Meldung** (Adams Festlegung).
+    # Ein wiederkehrender Auftrag, der zwölfmal am Tag meldet, dass er noch
+    # nicht dran ist, macht die Liste unlesbar.
+    return [a for a in offen if _faellig(a)]
 
 
 def _liste_schreiben(daten: list[dict]) -> None:
@@ -307,9 +393,23 @@ def abhaken(titel: str, ergebnis: str) -> None:
         return
     for a in daten:
         if a.get("titel") == titel:
-            a["erledigt"] = True
             a["ergebnis"] = ergebnis[:400]
             a["erledigt_am"] = time.strftime("%Y-%m-%d %H:%M")
+            erlaubt, grund = wiederkehr_erlaubt(a)
+            if erlaubt:
+                # **Nicht beenden, sondern vertagen.** Der Auftrag bleibt in der
+                # Liste und ruht bis zur nächsten Fälligkeit.
+                a["erledigt"] = False
+                a["naechste_faelligkeit"] = time.strftime(
+                    "%Y-%m-%d %H:%M",
+                    time.localtime(time.time() + int(a["wiederkehrend"]) * 86400))
+            else:
+                a["erledigt"] = True
+                if a.get("wiederkehrend"):
+                    # **Verweigert, aber nicht verschwiegen.** Wer eine
+                    # Wiederkehr beantragt und keine bekommt, muss erfahren
+                    # warum — sonst wundert er sich still.
+                    a["wiederkehr_verweigert"] = grund
     _liste_schreiben(daten)
 
 
@@ -531,6 +631,11 @@ def _lauf(trocken: bool = False) -> int:
         nachher_ok, letzte_lage = regression()
         if erfolg and nachher_ok:
             _fehlserie(True)
+            if auftrag.get("wiederkehr_fehler"):
+                # Ein gelungener Lauf setzt den eigenen Zähler zurück - sonst
+                # summierte er über Wochen und setzte die Wiederkehr irgendwann
+                # aus, obwohl sie längst wieder trägt.
+                _vermerken(titel, wiederkehr_fehler=0)
             abhaken(titel, f"erledigt · {letzte_lage}")
             erledigt.append(titel)
             _protokollieren({"zeit": beginn, "titel": titel,
@@ -539,6 +644,21 @@ def _lauf(trocken: bool = False) -> int:
 
         n = _fehlserie(False)
         ausgefallen.add(titel)
+        # Adams Festlegung (d): Ein Wiederkehrer, der immer wieder scheitert,
+        # darf nicht ewig wiederkommen. Sein eigener Zähler ist der Riegel —
+        # der globale wird von jedem grünen Auftrag daneben genullt.
+        if wiederkehr_erlaubt(auftrag)[0]:
+            eigen = int(auftrag.get("wiederkehr_fehler") or 0) + 1
+            if eigen >= WIEDERKEHR_FEHLGRENZE:
+                _vermerken(titel, wiederkehr_fehler=eigen, erledigt=True,
+                           wiederkehr_verweigert=(
+                               f"nach {eigen} eigenen Fehllaeufen ausgesetzt - "
+                               "ein Wiederkehrer, der immer wieder scheitert, "
+                               "rennt sonst ewig gegen dieselbe Wand"))
+                gescheitert.append(
+                    f"{titel} — Wiederkehr nach {eigen} Fehllaeufen ausgesetzt")
+            else:
+                _vermerken(titel, wiederkehr_fehler=eigen)
         # **Fund aus dem Echtlauf (26.07.):** Hier stand `letzte_lage`, also das
         # Ergebnis des Regressionslaufs. Die Meldung las sich dadurch als
         # „gescheitert (30/30 bestanden)" — die Zahl war richtig und die Aussage

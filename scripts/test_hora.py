@@ -484,4 +484,113 @@ check("Regressionsstand bleibt dem anderen Fall vorbehalten (26.07.)",
 if fails:
     print(f"\n❌ {len(fails)} Hora-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     raise SystemExit(1)
+
+
+# ---------- E3: Wiederkehrende Auftraege (Adams Entscheid 18.08.) ------------
+def _nur_lesende_arten_duerfen_wiederkehren():
+    """**Adams Festlegung (a): Alles Veraendernde bleibt einmalig, keine
+    Ausnahme.** Ein veraendernder Auftrag, der alle drei Tage von selbst wieder
+    anlaeuft, ist keine Aufgabe mehr, sondern ein Prozess - und den hat niemand
+    beschlossen."""
+    erlaubt, grund = hora.wiederkehr_erlaubt(
+        {"titel": "x", "art": "kette-bewerten", "wiederkehrend": 3})
+    assert erlaubt, f"eine lesende Pruef-Art darf nicht wiederkehren: {grund}"
+    for art in ("fehlerbehebung", "aufraeumen", "deploy", "", None):
+        erlaubt, grund = hora.wiederkehr_erlaubt(
+            {"titel": "x", "art": art, "wiederkehrend": 3})
+        assert not erlaubt, f"Art [{art}] darf wiederkehren - sie ist nicht lesend"
+
+
+def _die_angabe_im_auftrag_ist_nur_ein_vorschlag():
+    """**Festlegung (b): geprueft am UEBERGANG, nicht am Eintrag.** Dieselbe
+    Bauart wie der Riegel im Auftragsbuch, wo eine handgelegte
+    Gruen-Behauptung durchrutschte, weil die Ampel aus der DATEI gelesen
+    wurde."""
+    # Unverstaendliche und unsinnige Werte werden am Uebergang abgefangen -
+    # egal, was im Auftrag steht.
+    for wert in ("bald", 0, -5, None, ""):
+        erlaubt, _ = hora.wiederkehr_erlaubt(
+            {"titel": "x", "art": "pruefen", "wiederkehrend": wert})
+        assert not erlaubt, f"Wiederkehr-Wert [{wert}] wurde akzeptiert"
+
+
+def _faelligkeit_beide_richtungen():
+    """Mit gestellter Zeit, wie der Auftrag es verlangt."""
+    jetzt = time.time()
+    kuenftig = time.strftime("%Y-%m-%d %H:%M", time.localtime(jetzt + 86400))
+    vergangen = time.strftime("%Y-%m-%d %H:%M", time.localtime(jetzt - 86400))
+    assert not hora._faellig({"naechste_faelligkeit": kuenftig}, jetzt), \
+        "ein noch nicht faelliger Auftrag gilt als faellig"
+    assert hora._faellig({"naechste_faelligkeit": vergangen}, jetzt), \
+        "ein faelliger Auftrag wird uebersprungen"
+    assert hora._faellig({}, jetzt), "der ERSTE Lauf gilt nicht als faellig"
+    # Ein kaputter Zeitstempel gilt als faellig - stillstehen ist die
+    # schlechteste Antwort (Lehre Versions-Monitor).
+    assert hora._faellig({"naechste_faelligkeit": "irgendwann"}, jetzt), \
+        "ein unverstaendliches Datum legt den Auftrag dauerhaft still"
+
+
+def _abhaken_vertagt_statt_zu_beenden():
+    """Der Kern: Abhaken setzt die naechste Faelligkeit statt des Endes."""
+    import json
+    import tempfile
+    heim = Path(tempfile.mkdtemp(prefix="wk-"))
+    liste = heim / "auftragsliste.json"
+    liste.write_text(json.dumps([
+        {"titel": "Kette bewerten", "art": "kette-bewerten", "wiederkehrend": 3,
+         "befehl": "true"},
+        {"titel": "Einmal etwas richten", "art": "fehlerbehebung",
+         "wiederkehrend": 3, "befehl": "true"},
+    ]), encoding="utf-8")
+    alt = hora.LISTE
+    hora.LISTE = liste
+    try:
+        hora.abhaken("Kette bewerten", "erledigt · 43/43")
+        hora.abhaken("Einmal etwas richten", "erledigt · 43/43")
+        daten = {a["titel"]: a for a in json.loads(liste.read_text(encoding="utf-8"))}
+
+        wk = daten["Kette bewerten"]
+        assert wk.get("erledigt") is False, "der Wiederkehrer wurde beendet"
+        assert wk.get("naechste_faelligkeit"), "keine naechste Faelligkeit gesetzt"
+
+        einmal = daten["Einmal etwas richten"]
+        assert einmal.get("erledigt") is True, \
+            "ein veraendernder Auftrag kehrt wieder - das darf nicht sein"
+        assert einmal.get("wiederkehr_verweigert"), \
+            "die Verweigerung wird verschwiegen - wer eine Wiederkehr beantragt "\
+            "und keine bekommt, muss erfahren warum"
+    finally:
+        hora.LISTE = alt
+
+
+def _roter_wiederkehrer_rennt_nicht_ewig():
+    """**Adams Festlegung (d), praezisiert.** Sein Wortlaut nennt die
+    Fehlserie - die aber wird bei JEDEM Erfolg genullt. Steht neben dem roten
+    Wiederkehrer ein gruener Auftrag, erreichte der globale Zaehler die Grenze
+    nie. Deshalb ein eigener Zaehler je Auftrag; die Absicht bleibt seine."""
+    quelle = (Path(__file__).resolve().parent / "hora.py").read_text(encoding="utf-8")
+    code = "\n".join(z for z in quelle.splitlines() if not z.lstrip().startswith("#"))
+    assert "wiederkehr_fehler" in code, "es gibt keinen eigenen Zaehler"
+    assert "WIEDERKEHR_FEHLGRENZE" in code, "es gibt keine Grenze"
+    # Der Zaehler muss bei Erfolg zurueckgesetzt werden, sonst summiert er
+    # ueber Wochen und setzt eine laengst tragende Wiederkehr aus.
+    erfolg = code.split("_fehlserie(True)")[1][:400]
+    assert "wiederkehr_fehler=0" in erfolg, \
+        "der eigene Zaehler wird bei Erfolg nicht zurueckgesetzt"
+
+
+check("nur lesende Arten duerfen wiederkehren (a)",
+      _nur_lesende_arten_duerfen_wiederkehren)
+check("die Angabe im Auftrag ist nur ein Vorschlag (b)",
+      _die_angabe_im_auftrag_ist_nur_ein_vorschlag)
+check("Faelligkeit in beide Richtungen, mit gestellter Zeit",
+      _faelligkeit_beide_richtungen)
+check("Abhaken vertagt statt zu beenden - und verweigert sichtbar",
+      _abhaken_vertagt_statt_zu_beenden)
+check("ein roter Wiederkehrer rennt nicht ewig (d)",
+      _roter_wiederkehrer_rennt_nicht_ewig)
+
+if fails:
+    print(f"\n❌ {len(fails)} Hora-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
+    raise SystemExit(1)
 print("\nAlle Hora-Tests bestanden.")

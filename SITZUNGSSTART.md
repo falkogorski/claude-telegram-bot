@@ -85,6 +85,9 @@ Namen sind hier kein Schmuck: Wer weiß, **wessen** Bericht er liest, weiß auch
 |---|---|---|
 | **Claudia** | der Telegram-Bot — Alltag, Ampel, Freigaben, Warteschlange, Sprachausgabe | gewachsen; bleibt vorerst |
 | **Engywuck** | die Kontroll-/Planungssitzung — liest jede Zeile Code, gegenliest Berichte | der Gnom, der das Südliche Orakel jahrzehntelang **vermisst und katalogisiert**, ohne je drinnen gewesen zu sein. Das ist genau diese Rolle: alles gelesen, die Maschine nie berührt |
+| **Mick** | die Bau-/Migrations-Sitzung am Mac — schreibt Code, Drehbuch und Register, führt Deploys aus. Die einzige Instanz mit Schreibrecht im Repo | Adams Name für diese Sitzung, seit dem Stabwechsel im Sprachgebrauch aller Beteiligten |
+| **Conni** | Kontrolle bis 18.08.2026, seither **Reserve** für schwere Fable-Gegenchecks | die vorige Kontrollsitzung; ihr Schlusssatz steht in der Blaupause: *eine Prüfung, die die Prüfende verschont, ist keine* |
+| **Hora** | der autonome Läufer auf dem VPS — arbeitet eine vorab freigegebene Liste ab, parkt Fragen, berichtet und endet | die Stundenblume aus *Momo*; er misst die Zeit, ohne sie zu besitzen |
 | **Fuchur** | vorgemerkt — „der Träger" | für später, wenn eine tragende Rolle einen Namen braucht |
 
 **Verworfen: Morla.** Ihr Kern ist Gleichgültigkeit („uns ist alles einerlei") —

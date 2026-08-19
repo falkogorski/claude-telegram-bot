@@ -376,3 +376,57 @@ Deckel-Prüfung im 4-Uhr-Check, Geheimnis-Marker gesetzt). Er braucht zusätzlic
 Adams `api_id`/`api_hash` von `my.telegram.org` — die gehören in eine
 root-geschützte Datei und **nicht in den Chat**; den Weg dafür sage ich, wenn es
 dran ist.
+
+---
+
+## Wachposten-Zeitgeber (19.08.2026) — NOCH NICHT EINSPIELEN
+
+> ⚠️ **Engywucks Auflage:** erst nach W1–W3 und seiner Nachprüfung. Die Befunde
+> sind gebaut (Stand siehe Drehbuch), die Nachprüfung steht aus.
+>
+> **Warum dieser Block hier steht und nicht im Chat:** Befehle reisen nicht im
+> Chat, sie stehen im Repo — dieselbe Lehre wie beim Lesestand-Befehl
+> (`015d61b`), den ich am Vortag genau deshalb hierher gelegt hatte und tags
+> darauf trotzdem wieder nur weiterreichte.
+
+Als root (`ssh claudevps`):
+
+```
+cat > /etc/systemd/system/wachposten.service <<'EOF'
+[Unit]
+Description=Log-Wachposten (deterministisch, meldet Auffaelliges)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=claudebot
+WorkingDirectory=/home/claudebot/claude-telegram-bot
+Environment=HOME=/home/claudebot
+ExecStart=/home/claudebot/claude-telegram-bot/.venv/bin/python3 /home/claudebot/claude-telegram-bot/scripts/wachposten.py
+EOF
+cat > /etc/systemd/system/wachposten.timer <<'EOF'
+[Unit]
+Description=Log-Wachposten alle fuenf Minuten
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+systemctl daemon-reload && systemctl enable --now wachposten.timer && systemctl list-timers wachposten.timer --no-pager
+```
+
+**Prüfzeile:** Der Timer erscheint mit einem nächsten Lauf innerhalb von fünf
+Minuten. `User=claudebot` ist gesetzt — die Lehre aus B1 (ein Dienst ohne
+`User=` läuft als root und bekommt kein `HOME`).
+
+## Log-Abgleich stündlich (18.08.2026) — BEREITS EINGESPIELT
+
+Adams Entscheid, damit der Kurier-Weg nicht bis zu einem Tag braucht. Am
+18.08. gegen 17:58 gesetzt, seither aktiv.
+
+```
+sed -i 's|^OnCalendar=.*|OnCalendar=hourly|' /etc/systemd/system/claude-log-sync.timer && systemctl daemon-reload && systemctl restart claude-log-sync.timer && systemctl list-timers claude-log-sync.timer --no-pager
+```

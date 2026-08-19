@@ -228,4 +228,128 @@ print()
 if fails:
     print(f"❌ {len(fails)} Wachposten-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)
+
+
+# ---------- Engywucks Widerlegungs-Befunde W1-W5 (19.08.) --------------------
+def _ein_fehlersturm_sieht_nicht_aus_wie_ein_einzelfall():
+    """**W1 — von Engywuck gemessen, hier nachgestellt.**
+
+    In einer Fehlerdatei tragen ALLE Zeilen dieselbe Kennung (`fehlerdatei`).
+    Der erste Entwurf daempfte allein darueber: Drei verschiedene neue Fehler
+    ergaben genau EINE Meldung. Und weil die Offsets trotzdem fortgeschrieben
+    wurden, verschwand fuer die naechste Stunde jeder weitere endgueltig.
+
+    Das widersprach dem eigenen Satz [in einer Fehlerdatei ist jede neue Zeile
+    bereits der Befund] - und die (und N weitere)-Zeile konnte fuer gleiche
+    Kennungen nie feuern.
+    """
+    _frisch()
+    _fehlerdatei("22:00:01 | TimedOut: Timed out",
+                 "22:00:02 | ValueError: kaputt",
+                 "22:00:03 | ConnectionError: weg")
+    n = wachposten.lauf()
+    assert n == 3, f"von drei neuen Fehlerzeilen kamen {n} durch"
+    text = _GESENDET[0]
+    for muss in ("TimedOut", "ValueError", "ConnectionError"):
+        assert muss in text, f"[{muss}] fehlt in der Meldung — verschluckt"
+
+
+def _dieselbe_zeile_wird_zwischen_laeufen_gedaempft():
+    """Die Gegenrichtung: Der Daempfer soll ja weiter wirken - nur zwischen
+    Laeufen, nicht innerhalb. Sonst waere W1 gegen einen Dauerfunk getauscht."""
+    _frisch()
+    _fehlerdatei("22:00:01 | immer derselbe Fehler")
+    assert wachposten.lauf() == 1
+    with (_TMP / "logs" / "bot-errors.log").open("a", encoding="utf-8") as fh:
+        fh.write("22:00:01 | immer derselbe Fehler\n")
+    vorher = len(_GESENDET)
+    wachposten.lauf()
+    assert len(_GESENDET) == vorher, \
+        "dieselbe Zeile wurde innerhalb der Sperrfrist erneut gemeldet"
+
+
+def _der_befund_wird_nicht_verbraucht_bevor_er_ankommt():
+    """**W2.** Vorher wurde der Stand VOR der Zustellung geschrieben: Schlug
+    das Legen fehl, waren Offset und Daempfer fort und die Warnung stand als
+    print im Journal - die A2-Klasse, eine Zeile im Log, die niemand liest."""
+    _frisch()
+    import botenpost
+    echt = botenpost.legen
+
+    def _kaputt(*a, **kw):
+        raise RuntimeError("Postfach weg")
+    botenpost.legen = _kaputt
+    try:
+        _fehlerdatei("22:00:01 | ein wichtiger Fehler")
+        wachposten.lauf()
+        stand = wachposten._stand_laden()
+        assert not stand.get("bot-errors.log"), \
+            "der Lesestand wurde fortgeschrieben, obwohl die Meldung scheiterte"
+    finally:
+        botenpost.legen = echt
+    # Der naechste Lauf MUSS die Zeile wiederfinden.
+    _GESENDET.clear()
+    assert wachposten.lauf() == 1, "die Zeile ging trotz Fehlschlag verloren"
+    assert "ein wichtiger Fehler" in _GESENDET[0]
+
+
+def _die_fundstelle_nennt_zeile_und_zeit():
+    """**W3.** Bei zurueckgehaltenem Wortlaut ist die Fundstelle das Einzige,
+    was Adam hat. Die Doku versprach Quelle, Zeit und Label - die Meldung
+    nannte nur den Dateinamen. Eine Beschreibung, die mehr verspricht als der
+    Bau: genau die Klasse, die dieser Posten aufdecken soll."""
+    _frisch()
+    _fehlerdatei("22:00:01 | irgendein Fehler")
+    wachposten.lauf()
+    text = _GESENDET[0]
+    assert "Zeile 1" in text, f"die Zeilennummer fehlt: {text[:200]}"
+    assert "gesehen" in text, f"die Zeit fehlt: {text[:200]}"
+
+
+def _halbe_zeilen_werden_nicht_zerrissen():
+    """**W4.** Wird eine Zeile gerade geschrieben, laese der Posten sie halb -
+    und ein zerrissener Fehler trifft womoeglich kein Muster."""
+    _frisch()
+    p = _TMP / "logs" / "bot-errors.log"
+    p.write_text("22:00:01 | vollstaendig\n22:00:02 | halb geschrie", encoding="utf-8")
+    n = wachposten.lauf()
+    assert n == 1, f"die halbe Zeile wurde mitgelesen ({n} Befunde)"
+    # Wird sie fertiggeschrieben, kommt sie im naechsten Lauf vollstaendig.
+    p.write_text("22:00:01 | vollstaendig\n22:00:02 | halb geschrieben ende\n",
+                 encoding="utf-8")
+    _GESENDET.clear()
+    wachposten.lauf()
+    assert _GESENDET and "halb geschrieben ende" in _GESENDET[0], \
+        "die fertige Zeile kam nicht nach"
+
+
+def _ampel_ausfall_wird_benannt():
+    """**W5.** Der Ausfall zaehlt als Rot - richtig. Aber ohne Benennung saehe
+    Adam lauter rote Meldungen ohne Grund und hielte den Inhalt fuer heikel,
+    wo in Wahrheit nur die Ampel fehlt."""
+    zeile = wachposten._melde_zeile("Testbefund", "harmloser Text", "q.log", None)
+    assert "Ampel nicht ladbar" in zeile, \
+        f"der Ampel-Ausfall wird nicht benannt: {zeile}"
+
+    def _kaputt(_):
+        raise RuntimeError("weg")
+    zeile2 = wachposten._melde_zeile("Testbefund", "harmloser Text", "q.log", _kaputt)
+    assert "Ampel nicht ladbar" in zeile2, \
+        "eine ausgefallene Ampel wird als inhaltliches Rot dargestellt"
+
+
+check("ein Fehlersturm sieht nicht aus wie ein Einzelfall (W1)",
+      _ein_fehlersturm_sieht_nicht_aus_wie_ein_einzelfall)
+check("dieselbe Zeile wird zwischen Laeufen gedaempft (Gegenrichtung)",
+      _dieselbe_zeile_wird_zwischen_laeufen_gedaempft)
+check("der Befund wird nicht verbraucht, bevor er ankommt (W2)",
+      _der_befund_wird_nicht_verbraucht_bevor_er_ankommt)
+check("die Fundstelle nennt Zeile und Zeit (W3)", _die_fundstelle_nennt_zeile_und_zeit)
+check("halbe Zeilen werden nicht zerrissen (W4)", _halbe_zeilen_werden_nicht_zerrissen)
+check("Ampel-Ausfall wird benannt (W5)", _ampel_ausfall_wird_benannt)
+
+print()
+if fails:
+    print(f"❌ {len(fails)} Wachposten-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
+    sys.exit(1)
 print("Alle Wachposten-Tests bestanden.")

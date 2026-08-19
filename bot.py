@@ -3777,7 +3777,15 @@ async def _e4_ausloesen(update: Update, name: str, ins_fenster: bool) -> None:
 
 
 async def cmd_update_ja(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """`/update_ja <name>` — jetzt einspielen. Nur Adam, nur exakt."""
+    """`/update_ja <name>` — jetzt einspielen. Nur **berechtigt**, nur exakt.
+
+    **R4 (Engywuck 19.08.), eine Präzisierung:** Gebaut ist `authorized()`, also
+    die Prüfung gegen `ALLOWED_USER_IDS`. Heute ist das deckungsgleich mit
+    „nur Adam" — aber die Liste ist eine Menge, und die Behauptung war enger
+    als der Bau. Kommt je eine zweite Kennung hinzu, dürfte auch sie Updates
+    einspielen; wer das nicht will, muss hier ausdrücklich auf eine einzelne
+    Kennung prüfen. Der Unterschied gehört benannt, bevor er eintritt.
+    """
     if not authorized(update):
         return
     if not ctx.args or len(ctx.args) != 1:
@@ -3789,7 +3797,10 @@ async def cmd_update_ja(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_update_nacht(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """`/update_nacht <name>` — fürs 04:00-Fenster vormerken. Nur Adam."""
+    """`/update_nacht <name>` — fürs 04:00-Fenster vormerken.
+
+    Wie `cmd_update_ja`: **berechtigt**, nicht namentlich Adam (R4).
+    """
     if not authorized(update):
         return
     if not ctx.args or len(ctx.args) != 1:

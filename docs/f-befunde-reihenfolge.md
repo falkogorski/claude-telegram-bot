@@ -100,13 +100,29 @@ kommt. Jetzt scheitert höchstens der eine Eintrag, und er sagt es.
 
 Vier neue Prüfungen, davon zwei **ausführend** — der Lauf wird mit einem
 kaputten Register wirklich gefahren, nicht auf Schreibweise geprüft.
-### F-4 · `/updates` misst zweimal getrennt `[offen]`
+### F-4 · `/updates` misst zweimal getrennt `[erledigt 19.08.2026]`
 
 `classify()` und `blinde_flecken()` befragen jede Quelle **einzeln**. Fällt eine
 im ersten Durchlauf aus und antwortet im zweiten, erscheint sie in **keiner**
 Liste — das Loch, das der Fix vom 28.07. schließen wollte, ist zeitabhängig
 wieder da. Nebenbei: doppelte Netzzugriffe vor Adams Augen.
 
+
+Gemessen und bestätigt: Eine Komponente, deren Quelle im ersten Durchlauf
+ausfällt und im zweiten antwortet, fiel aus **beiden** Listen. Für Adam sah
+das aus wie „alles aktuell" — dabei war sie gar nicht beurteilt worden. Das
+Loch, das der Fix vom 28.07. schließen wollte, war damit zeitabhängig wieder
+da: nicht immer, sondern dann, wenn eine Quelle wackelt. Also genau dann, wenn
+es darauf ankommt.
+
+**`messen()` fragt jede Quelle einmal**, `classify()` und `blinde_flecken()`
+nehmen das Ergebnis entgegen. Die Netzzugriffe je `/updates` haben sich damit
+halbiert (nachgemessen: 2 → 1).
+
+**Ein Fallstrick beim Bauen:** Der Zwischenspeicher darf einen Register-Wechsel
+nicht überdauern — sonst beantwortet er eine Frage nach den alten Komponenten
+und ist selbst wieder eine Falschauskunft. Der Schlüssel enthält deshalb Pfad
+und Änderungszeit des Registers; eine eigene Prüfung hält es fest.
 ### F-5 · Kleinere Ränder `[offen]`
 
 Der Warteschlangen-Hinweis kam am 18.08. doppelt (einmal Text, einmal Stimme).

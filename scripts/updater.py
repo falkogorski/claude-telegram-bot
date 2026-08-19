@@ -54,7 +54,65 @@ def _load_components() -> list[dict]:
     return json.loads(REGISTER.read_text()).get("components", [])
 
 
-def blinde_flecken() -> list[str]:
+# ---------- F-4: EINE Messung, aus der beide Listen entstehen ---------------
+# **Der Fehler war, dass es zwei waren.** `classify()` und `blinde_flecken()`
+# haben jede Quelle **einzeln** befragt. Fiel eine im ersten Durchlauf aus und
+# antwortete im zweiten, erschien sie in **keiner** Liste — gemessen und
+# bestätigt. Für Adam sah das aus wie „alles aktuell", obwohl die Komponente
+# gar nicht beurteilt worden war. Damit war das Loch, das der Fix vom 28.07.
+# schließen wollte, zeitabhängig wieder da: nicht mehr immer, sondern dann,
+# wenn eine Quelle gerade wackelt — also genau dann, wenn es darauf ankommt.
+#
+# Nebenbei kostete es **doppelte Netzzugriffe** vor Adams Augen.
+#
+# Der Zwischenspeicher ist kurz und absichtlich unaufwendig: Er muss nur die
+# beiden Aufrufe **desselben** `/updates` zusammenhalten. Der Zeitgeber-Lauf
+# startet ohnehin einen frischen Prozess und misst neu.
+#
+# **Der Schlüssel enthält das Register.** Ein Zwischenspeicher, der über einen
+# Register-Wechsel hinweg gilt, wäre selbst wieder eine Falschauskunft — er
+# beantwortete eine Frage nach den alten Komponenten. Fällt beim Prüfen sofort
+# auf, im Betrieb erst, wenn jemand einen Eintrag ergänzt und ihn nicht sieht.
+_MESS_GELTUNG_S = 60
+_mess_speicher: tuple[float, tuple, list[dict]] | None = None
+
+
+def _mess_schluessel() -> tuple:
+    try:
+        return (str(REGISTER), REGISTER.stat().st_mtime_ns)
+    except Exception:
+        return (str(REGISTER), 0)
+
+
+def messen(frisch: bool = False) -> list[dict]:
+    """Fragt jede prüfbare Komponente **einmal** und gibt cur/latest zurück."""
+    global _mess_speicher
+    schluessel = _mess_schluessel()
+    if not frisch and _mess_speicher:
+        wann, alter_schluessel, daten = _mess_speicher
+        if (alter_schluessel == schluessel
+                and time.time() - wann < _MESS_GELTUNG_S):
+            return daten
+    daten = []
+    for comp in _load_components():
+        kind = comp.get("kind")
+        name = comp.get("name")
+        # Dieselbe Härtung wie im Monitor (F-3): Ein unvollständiger Eintrag
+        # darf nicht den ganzen Knopf töten.
+        if not name or not kind or kind == "manual" or kind not in vm.HANDLERS:
+            continue
+        try:
+            cur = vm.HANDLERS[kind][0](comp)
+            latest = vm.HANDLERS[kind][1](comp)
+        except Exception as e:
+            cur, latest = "", f"[{type(e).__name__}]"
+        daten.append({"comp": comp, "kind": kind, "name": name,
+                      "cur": cur, "latest": latest})
+    _mess_speicher = (time.time(), schluessel, daten)
+    return daten
+
+
+def blinde_flecken(mess: list[dict] | None = None) -> list[str]:
     """Was `/updates` NICHT beantworten konnte — und warum.
 
     **Dieselbe Lücke, die der Monitor am 28.07. geschlossen bekam, stand hier
@@ -68,12 +126,8 @@ def blinde_flecken() -> list[str]:
     Rechtegrenze — sie gehört benannt, nicht verschwiegen.
     """
     out = []
-    for comp in _load_components():
-        kind = comp["kind"]
-        if kind == "manual" or kind not in vm.HANDLERS:
-            continue
-        cur = vm.HANDLERS[kind][0](comp)
-        latest = vm.HANDLERS[kind][1](comp)
+    for eintrag in (mess if mess is not None else messen()):
+        comp, cur, latest = eintrag["comp"], eintrag["cur"], eintrag["latest"]
         if cur and latest:
             continue
         if comp.get("braucht_root"):
@@ -85,7 +139,7 @@ def blinde_flecken() -> list[str]:
     return out
 
 
-def classify() -> list[dict]:
+def classify(mess: list[dict] | None = None) -> list[dict]:
     """Ermittelt je Komponente cur/latest und die Ampel. Rückgabe nur für
     Komponenten mit verfügbarem Update (grün/gelb/rot); manual/aktuell fehlen.
 
@@ -93,12 +147,9 @@ def classify() -> list[dict]:
     getrennt, damit dieser Rückgabewert seinen Vertrag behält.
     """
     out = []
-    for comp in _load_components():
-        kind = comp["kind"]
-        if kind == "manual" or kind not in vm.HANDLERS:
-            continue
-        cur = vm.HANDLERS[kind][0](comp)
-        latest = vm.HANDLERS[kind][1](comp)
+    for eintrag in (mess if mess is not None else messen()):
+        comp, kind = eintrag["comp"], eintrag["kind"]
+        cur, latest = eintrag["cur"], eintrag["latest"]
         if not cur or not latest:
             continue            # → blinde_flecken(), NICHT stillschweigend
         # **Die Art MUSS mitgegeben werden.** Ohne sie liefe ein

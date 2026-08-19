@@ -3607,11 +3607,15 @@ async def cmd_updates(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("🔎 Prüfe verfügbare Updates … (einen Moment)")
     try:
         upd = _load_updater()
-        ups = await asyncio.to_thread(upd.classify)
-        # Was NICHT beantwortet werden konnte, gehoert in dieselbe Antwort.
-        # Ohne das las Adam "Alles aktuell", waehrend ein Eintrag ungeprueft
-        # dastand - ein Ausbleiben, das wie Ruhe aussieht.
-        blind = await asyncio.to_thread(upd.blinde_flecken)
+        # **F-4: EINE Messung, beide Listen daraus.** Vorher befragten
+        # `classify` und `blinde_flecken` jede Quelle getrennt — fiel eine im
+        # ersten Durchlauf aus und antwortete im zweiten, erschien sie in
+        # KEINER Liste. Das Loch, das der Fix vom 28.07. schließen wollte, war
+        # damit zeitabhängig wieder da: nicht immer, sondern dann, wenn eine
+        # Quelle wackelt. Also genau dann, wenn es darauf ankommt.
+        mess = await asyncio.to_thread(upd.messen, True)
+        ups = await asyncio.to_thread(upd.classify, mess)
+        blind = await asyncio.to_thread(upd.blinde_flecken, mess)
     except Exception as e:
         await update.message.reply_text(f"❌ Update-Prüfung fehlgeschlagen: {e}")
         return

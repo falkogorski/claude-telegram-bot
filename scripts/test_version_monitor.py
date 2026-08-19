@@ -321,6 +321,67 @@ check("F-3: kaputtes Sichtungs-Gedaechtnis wird gemeldet",
 check("F-3: rueckwaerts ist weder Update noch aktuell",
       _rueckwaerts_ist_weder_update_noch_aktuell)
 
+
+# ---------- F-4: /updates mass zweimal getrennt -----------------------------
+def _eine_messung_beide_listen():
+    """**Gemessen und bestaetigt:** `classify()` und `blinde_flecken()` haben
+    jede Quelle EINZELN befragt. Fiel eine im ersten Durchlauf aus und
+    antwortete im zweiten, erschien sie in KEINER Liste — fuer Adam sah das
+    aus wie „alles aktuell", obwohl die Komponente gar nicht beurteilt worden
+    war. Das Loch, das der Fix vom 28.07. schliessen wollte, war damit
+    zeitabhaengig wieder da: dann, wenn eine Quelle wackelt. Also genau dann,
+    wenn es darauf ankommt."""
+    import updater as up
+    reg = _TMP / "f4-reg.json"
+    reg.write_text(json.dumps({"components": [
+        {"name": "wackelt", "kind": "probe"}]}), encoding="utf-8")
+    merk = up.REGISTER
+    up.REGISTER = reg
+    rufe = {"n": 0}
+
+    def latest(_c):
+        rufe["n"] += 1
+        return "" if rufe["n"] <= 1 else "2.0.0"   # erster Griff geht ins Leere
+
+    vm.HANDLERS["probe"] = (lambda c: "1.0.0", latest)
+    try:
+        mess = up.messen(frisch=True)
+        c, b = up.classify(mess), up.blinde_flecken(mess)
+        assert c or b, "die Komponente faellt aus BEIDEN Listen — genau F-4"
+        assert rufe["n"] == 1, \
+            f"die Quelle wurde {rufe['n']}-mal befragt, nicht einmal"
+    finally:
+        vm.HANDLERS.pop("probe", None)
+        up.REGISTER = merk
+
+
+def _der_zwischenspeicher_ueberdauert_kein_register():
+    """Ein Speicher, der einen Register-Wechsel ueberlebt, ist selbst eine
+    Falschauskunft — er beantwortet eine Frage nach den alten Komponenten."""
+    import updater as up
+    merk = up.REGISTER
+    a, b = _TMP / "f4-a.json", _TMP / "f4-b.json"
+    a.write_text(json.dumps({"components": [{"name": "alt", "kind": "probe"}]}),
+                 encoding="utf-8")
+    b.write_text(json.dumps({"components": [{"name": "neu", "kind": "probe"}]}),
+                 encoding="utf-8")
+    vm.HANDLERS["probe"] = (lambda c: "1.0.0", lambda c: "1.0.0")
+    try:
+        up.REGISTER = a
+        assert [e["name"] for e in up.messen(frisch=True)] == ["alt"]
+        up.REGISTER = b
+        assert [e["name"] for e in up.messen()] == ["neu"], \
+            "der Zwischenspeicher hat den Register-Wechsel ueberdauert"
+    finally:
+        vm.HANDLERS.pop("probe", None)
+        up.REGISTER = merk
+
+
+check("F-4: eine Messung, beide Listen (kein Loch mehr)",
+      _eine_messung_beide_listen)
+check("F-4: der Zwischenspeicher ueberdauert keinen Register-Wechsel",
+      _der_zwischenspeicher_ueberdauert_kein_register)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Monitor-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")

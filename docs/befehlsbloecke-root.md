@@ -20,7 +20,7 @@
 
 ---
 
-## Schritt 1 — Log-Abgleich stündlich statt täglich
+## Schritt 1 — Log-Abgleich stündlich statt täglich · ÜBERHOLT 19.08.2026
 
 Die **Tages-Einteilung der Log-Dateien bleibt unangetastet** — eine Datei je
 Tag, nur häufiger hochgeschoben.
@@ -379,6 +379,35 @@ dran ist.
 
 ---
 
+## Log-Abgleich alle fünf Minuten (19.08.2026) — EINZUSPIELEN
+
+**Adams ①-Entscheid vom 18.08. spät ersetzt den Stundentakt**, der am selben
+Tag um 17:58 gesetzt wurde. Grund ist derselbe wie damals, nur konsequenter:
+Der Kurier-Weg zwischen Engywuck und mir läuft über das Log-Repo, und eine
+Stunde Wartezeit auf eine abgelegte Ausarbeitung ist bei einer laufenden
+Bauphase zu lang.
+
+**Die Tages-Einteilung der Dateien bleibt unangetastet** — eine Datei je Tag,
+nur häufiger hochgeschoben. Der Abgleich ist deterministisch und ruft kein
+Modell; die AGB-Grenze für zeitgesteuerte Routinen ist also nicht berührt.
+
+```bash
+sudo sed -i 's|^OnCalendar=.*|OnCalendar=*:0/5|' /etc/systemd/system/claude-log-sync.timer
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl restart claude-log-sync.timer && systemctl list-timers claude-log-sync.timer --no-pager
+```
+
+**Prüfzeile:** Die Ausgabe zeigt einen nächsten Lauf **innerhalb der nächsten
+fünf Minuten**. · **Rückweg:** dasselbe `sed` mit `hourly` statt `*:0/5`.
+
+**Nach dem Einspielen die Wirkungs-Regel fahren:** eine Datei im Kurier-Ordner
+ablegen und nachsehen, ob sie binnen fünf Minuten drüben ist — die
+Konfiguration zu lesen genügt nicht.
+
+---
+
 ## Wachposten-Zeitgeber (19.08.2026) — NOCH NICHT EINSPIELEN
 
 > ⚠️ **Engywucks Auflage:** erst nach W1–W3 und seiner Nachprüfung. Die Befunde
@@ -422,7 +451,7 @@ systemctl daemon-reload && systemctl enable --now wachposten.timer && systemctl 
 Minuten. `User=claudebot` ist gesetzt — die Lehre aus B1 (ein Dienst ohne
 `User=` läuft als root und bekommt kein `HOME`).
 
-## Log-Abgleich stündlich (18.08.2026) — BEREITS EINGESPIELT
+## Log-Abgleich stündlich (18.08.2026) — EINGESPIELT, seit 19.08. überholt
 
 Adams Entscheid, damit der Kurier-Weg nicht bis zu einem Tag braucht. Am
 18.08. gegen 17:58 gesetzt, seither aktiv.

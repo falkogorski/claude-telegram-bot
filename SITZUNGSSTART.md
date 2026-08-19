@@ -90,6 +90,13 @@ Namen sind hier kein Schmuck: Wer weiß, **wessen** Bericht er liest, weiß auch
 | **Hora** | der autonome Läufer auf dem VPS — arbeitet eine vorab freigegebene Liste ab, parkt Fragen, berichtet und endet | die Stundenblume aus *Momo*; er misst die Zeit, ohne sie zu besitzen |
 | **Fuchur** | vorgemerkt — „der Träger" | für später, wenn eine tragende Rolle einen Namen braucht |
 
+**Wer einen Namen vergibt oder umwidmet, trägt ihn im selben Zug hier ein.**
+Diese Tabelle stand vom 25.07. bis zum 19.08. unverändert, während im
+Sprachgebrauch längst zwei neue Namen liefen und einer die Rolle gewechselt
+hatte — gefunden hat es erst eine Gegenprüfung. Eine Namensliste, die
+hinterherhinkt, ist schlimmer als keine: Sie sieht aus wie die Quelle, gegen
+die man prüft, und genau so ist „Morla" entstanden.
+
 **Verworfen: Morla.** Ihr Kern ist Gleichgültigkeit („uns ist alles einerlei") —
 die falsche Vorlage für eine Instanz, deren ganze Aufgabe genaues Hinsehen ist.
 

@@ -2985,8 +2985,14 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         if sess is not None:
             silent = int(time.monotonic() - max(mb.current_started, sess.last_activity))
             if silent > STALL_LIMIT_S // 2:
-                lines.append(f"   ⏱️ letzte Regung vor {silent}s "
-                             f"(Wächter greift ab {STALL_LIMIT_S}s)")
+                # Nebenbefund aus der Statusmessung vom 20.08.: Hier standen
+                # nackte Sekundenzahlen im Dialog, gegen die eigene
+                # Zeitform-Regel. `_vor_wie_lange` erwartet einen Zeitpunkt,
+                # `silent` ist eine Dauer — die Rückrechnung ist der billigste
+                # Weg zur **einen** Zeitform-Stelle statt einer zweiten.
+                lines.append(
+                    f"   ⏱️ letzte Regung {_vor_wie_lange(time.time() - silent)} "
+                    f"(Wächter greift nach {STALL_LIMIT_S // 60} Minuten)")
     else:
         lines.append("▶️ Läuft: nichts")
 
@@ -4805,6 +4811,33 @@ _PERSONAL_NOTES_FILE = Path.home() / "notes" / "telegram-notes.md"
 _PERSONAL_PREFIX = "ich:"
 
 
+def _pin_bezug(update: Update, pinned) -> str:
+    """Der Rückweg zur angepinnten Nachricht — **5.13s fehlendes Stück.**
+
+    Der Handler legte bisher Zeitstempel und Text ab, aber keinen Verweis auf
+    das Original. Das Akzeptanzkriterium verlangt ausdrücklich einen
+    Zitat-Bezug, und der Grund ist praktisch: Ein Merker ohne Rückweg lässt
+    sich später nicht mehr im Verlauf verorten — man liest den Satz und weiß
+    nicht mehr, worauf er sich bezog.
+
+    **Zwei Fälle, ehrlich getrennt.** In Gruppen und Kanälen (Kennung mit
+    ``-100``) gibt es eine adressierbare Nachricht, also einen anklickbaren
+    Link. Im **privaten Chat mit dem Bot gibt es keinen** — Telegram vergibt
+    dafür keine öffentliche Adresse. Dort steht die Nachrichtennummer allein,
+    und das ist keine Notlösung, sondern die vollständige Wahrheit: Mehr als
+    die Nummer existiert nicht. Einen Link zu erfinden, der ins Leere führt,
+    wäre schlechter als keiner.
+    """
+    mid = getattr(pinned, "message_id", None)
+    if not mid:
+        return ""
+    chat = getattr(update, "effective_chat", None)
+    cid = getattr(chat, "id", None)
+    if cid is not None and str(cid).startswith("-100"):
+        return f" [↩︎ Original]({_channel_post_url(int(cid), int(mid))})"
+    return f" (↩︎ Nachricht {mid})"
+
+
 async def on_pinned_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Gepinnte Nachrichten in Memory (für Claude) oder persönliche Notizen speichern.
 
@@ -4831,7 +4864,10 @@ async def on_pinned_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
         try:
             _PERSONAL_NOTES_FILE.parent.mkdir(parents=True, exist_ok=True)
             with _PERSONAL_NOTES_FILE.open("a", encoding="utf-8") as f:
-                f.write(f"\n- [{ts}] {note_text}\n")
+                # Geschwister-Regel: derselbe Rückweg wie im Memory-Zweig —
+                # ein Fix an einem Pfad ist erst fertig, wenn die Geschwister
+                # geprüft sind.
+                f.write(f"\n- [{ts}] {note_text}{_pin_bezug(update, pinned)}\n")
             await update.message.reply_text(
                 f"📝 Persönliche Notiz gespeichert:\n\n{note_text}\n\n(Nur für dich, nicht in meiner Memory.)"
             )
@@ -4842,9 +4878,10 @@ async def on_pinned_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
         # Claude-Memory — wird in jeder Session geladen
         try:
             mem_file = _MEMORY_DIR / "telegram-pinned.md"
-            new_entry = f"\n- [{ts}] {text}\n"
+            new_entry = f"\n- [{ts}] {text}{_pin_bezug(update, pinned)}\n"
             if mem_file.exists():
-                mem_file.open("a", encoding="utf-8").write(new_entry)
+                with mem_file.open("a", encoding="utf-8") as f:
+                    f.write(new_entry)
             else:
                 mem_file.write_text(
                     "---\nname: telegram-pinned\n"

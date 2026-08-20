@@ -601,6 +601,24 @@ danach ist es zu spät, weil dann jede weitere Runde begründbar aussieht.
 
 ### Der Prüfer dieser Regel
 
+**`[VORGEMERKT 2026-08-20, Engywuck]` Zwei Zeilen fuer den ersten Kurs-Blick am 25.08.:**
+
+**① Eine stehende Stichprobe gegen die Ablage.** Je Woche **zehn zufaellige
+Ablage-Behauptungen gegen den Code** gehalten, **Falschquote berichtet**. Der
+Anlass: Am 20.08. wurden an einem Tag **vier Falschaussagen** in der eigenen
+Ablage gefunden — zwei davon am selben Tag geschrieben. Die Prueferegel
+*Status ist ein Befund* trug als Prinzip; ihr fehlte der **Rhythmus**, wie
+jeder Regel, die je versagt hat. Der volle Messdurchgang wiederholt sich
+**je Phasen-Audit**, nicht woechentlich — kein neuer Waechter, nur Takt.
+
+**② Adams Stutzen als eigene Zeile.** Zum **fuenften Mal** hat sein Nachhaken
+einen Befund gekippt, den eine Sitzung fuer abgeschlossen hielt — zuletzt
+A2, das nach vier verschlossenen Tueren als *nicht baubar* abgelegt war und
+nach seiner Frage in einer Stunde stand. **Das ist kein Lob, sondern eine
+Messgroesse:** Wenn der Mensch am Ende die Fehler findet, ist die
+Selbstpruefung an dieser Stelle zu schwach. Die Frage fuer Montag lautet,
+woran seine Treffer sich erkennen lassen, **bevor** er sie ausspricht.
+
 **Der Kurs-Blick selbst** — bewusst kein neuer Wächter, das wäre genau das
 Muster, gegen das die Regel steht. Er zählt je Woche die **Prüfrunden über
 Limit** und die **neu entstandenen Wächter**. Stehen dort mehrfach Zahlen

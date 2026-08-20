@@ -93,6 +93,8 @@ zu Recht auf OFFEN.
 
 ## Die siebzehn, die zu Recht offen stehen
 
+**`[PRAEZISIERT 20.08., Engywucks Stichprobe]` Zwei der siebzehn haben einen benennbaren Nachbarbau** — „ohne jede Spur“ war fuer sie zu grob: **5.24** — das **reaktive** Auto-Verwerfen bei Kontext-Ueberlauf gibt es seit dem 15.07.; unberuehrt bleibt das Kriterium selbst, das eine **proaktive** Rotation bei etwa 80 Prozent verlangt. **5.11** — die Memory-Lade-Basis existiert, die **Suche** nicht; die Changelog-Spur vom 24.07. ist Doku, nicht Bau. Beide Einstufungen ueberleben die scharfe Aufruf-Frage, an der 6.2 gescheitert waere — aber die Begruendung traegt jetzt, statt bloss zu behaupten.
+
 **Ohne jede Code-Spur:** 5.1 (Multi-Session), 5.3 (mehrere PDFs), 5.11
 (Gesamtmemory-Suche), 5.16 (``/woist``), 5.24 (Session-Rotation), 5.26
 (Transkriptions-Sichtbarkeit), 6.3 (Original-Datei im Kanal), 9.1 (Azure-TTS),

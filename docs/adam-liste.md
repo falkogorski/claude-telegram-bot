@@ -50,6 +50,21 @@ demselben.
       egal was im Laufplan steht. Der vorbereitete Block ist meine Aufgabe,
       der Anstoß deine.
 
+- [ ] **iCloud-Zugang für den Kalender (7.3)** · ~10 Min · schaltet frei:
+      `/termine` und `/aufgaben` am lebenden Bot — **der Bau steht seit dem
+      25.07. vollständig**, es fehlt nur dieser Zugang.
+      Weg: Im Apple-Konto ein **anwendungsspezifisches Kennwort** erzeugen
+      (das normale Apple-Kennwort funktioniert bei CalDAV nicht). **Nicht in
+      den Chat schicken** — ich bereite den Befehlsblock für die geschützte
+      Umgebung auf dem VPS vor, du fügst den Wert dort ein. Sag Bescheid, dann
+      lege ich ihn an.
+
+- [ ] **Erinnerungskanal anlegen (7.1)** · ~5 Min · schaltet frei: **7.2**, den
+      Erinnerungs-Läufer — ohne Kanal hat er kein Ziel.
+      Weg: Telegram-Kanal anlegen, Bot als Administrator mit Schreibrecht
+      hinzufügen, mir die Kennung nennen. Kann zusammen mit den vier
+      Live-Gruppen für Phase 6 erledigt werden — derselbe Handgriff.
+
 - [ ] **E-Mail-Konten / 5.28-Zugang einrichten** · ~20 Min · schaltet frei:
       Punkt 9.5 (E-Mail-Kanal) kann in Betrieb gehen; der Bot kann Nachrichten
       senden und empfangen, statt es nur zu können.

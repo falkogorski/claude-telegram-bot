@@ -93,6 +93,16 @@ demselben.
       Weg: Drei beliebige Links in den Bot-Chat — gern gemischt (Artikel,
       Video, Beitrag), damit die Erkennung auf verschiedenen Arten läuft.
 
+- [ ] **Kanal-Link am iPhone antippen (6.2)** — ~2 Min — schaltet frei: 6.2 und 6.4
+      koennen abgenommen werden.
+      Weg: Tipp `/setkanal` (ohne Argument) in den Bot — er antwortet mit dem
+      Kanalnamen als Link. **Tippe den Link an und sag mir zwei Dinge:** Kam
+      ein Zwischendialog („Link oeffnen?“)? Und landest du direkt in der
+      Telegram-App oder erst im Browser? **Warum ich das nicht selbst messen
+      kann:** Es haengt am Verhalten deiner Telegram-App. Der Deep-Link spart
+      den Browser-Umweg, kostet aber womoeglich einen zusaetzlichen Tipp —
+      welcher Weg besser ist, weisst nur du. Deine Antwort aendert eine Zeile.
+
 - [ ] **RAM-Entscheid N2** · ~5 Min Entscheidung · schaltet frei: Klarheit, ob
       der VPS aufgestockt wird oder es beim Gemessenen bleibt.
       Weg: Gemessen wurde 3017 MiB im Betrieb, im Ruhezustand null — **der

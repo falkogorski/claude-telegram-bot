@@ -65,6 +65,10 @@ demselben.
       Weg: Telegram-Kanal anlegen, Bot als Administrator mit Schreibrecht
       hinzufügen, mir die Kennung nennen. Kann zusammen mit den vier
       Live-Gruppen für Phase 6 erledigt werden — derselbe Handgriff.
+      **Danach gleich mit erledigen (6.2, ~1 Min):** Tipp `/setkanal` ohne
+      Argument, tippe den Kanal-Link in der Antwort an und sag mir, ob kurz
+      der Browser aufblitzt. Ohne Kanal gibt es keinen Link zum Antippen —
+      deshalb hängt der Test hier und ist kein eigener Posten.
 
 - [ ] **Erinnerungs-Timer einspielen (7.2)** · ~3 Min · schaltet frei: Termine
       und Erinnerungen kommen von selbst, statt dass du `/termine` tippst.
@@ -93,15 +97,13 @@ demselben.
       Weg: Drei beliebige Links in den Bot-Chat — gern gemischt (Artikel,
       Video, Beitrag), damit die Erkennung auf verschiedenen Arten läuft.
 
-- [ ] **Kanal-Link am iPhone antippen (6.2)** — ~2 Min — schaltet frei: 6.2 und 6.4
-      koennen abgenommen werden.
-      Weg: Tipp `/setkanal` (ohne Argument) in den Bot — er antwortet mit dem
-      Kanalnamen als Link. **Tippe den Link an und sag mir zwei Dinge:** Kam
-      ein Zwischendialog („Link oeffnen?“)? Und landest du direkt in der
-      Telegram-App oder erst im Browser? **Warum ich das nicht selbst messen
-      kann:** Es haengt am Verhalten deiner Telegram-App. Der Deep-Link spart
-      den Browser-Umweg, kostet aber womoeglich einen zusaetzlichen Tipp —
-      welcher Weg besser ist, weisst nur du. Deine Antwort aendert eine Zeile.
+- [ ] **Eine Nachricht anpinnen (5.13)** — ~1 Min — schaltet frei: 5.13 kann
+      abgenommen werden.
+      Weg: Irgendeine Nachricht im Bot-Chat anpinnen. Erwartet: Der Bot legt
+      sie als Merker ab und **haengt seit heute den Rueckweg zum Original an**.
+      Im Privatchat steht dort die Nachrichtennummer, kein Link — Telegram
+      vergibt privaten Nachrichten keine Adresse. Sag mir, ob der Eintrag so
+      aussieht, wie du ihn spaeter wiederfinden wuerdest.
 
 - [ ] **RAM-Entscheid N2** · ~5 Min Entscheidung · schaltet frei: Klarheit, ob
       der VPS aufgestockt wird oder es beim Gemessenen bleibt.

@@ -50,7 +50,14 @@ den dritten Teil der Diagnose:
 2. **Ein lokaler Zähler im Bot.** Von Adam am 20.08. um 09:57 abgelehnt, und
    die Begründung trägt: Er sieht nicht, was am Desktop oder im Browser
    verbraucht wird.
-3. **Die bestehende Anbieter-Warnung.** Bleibt unangetastet und ist damit
+3. **Ein CLI-Unterbefehl** — `[GEPRÜFT 2026-08-20 abends, ebenfalls zu]`
+   Naheliegend, weil die Claude-CLI den Stand in der Sitzung selbst anzeigt.
+   `claude --help` kennt aber **keinen** Kontingent-Befehl: `agents`, `auth`,
+   `auto-mode`, `doctor`, `gateway`, `install`, `mcp`, `plugin`, `project`,
+   `setup-token` — mehr nicht. `/usage` existiert nur **innerhalb** einer
+   laufenden Sitzung und ist damit nicht skriptbar.
+
+4. **Die bestehende Anbieter-Warnung.** Bleibt unangetastet und ist damit
    weiterhin die einzige Quelle — mit ihrer bekannten Schwäche: **ein**
    Warnzustand, dessen Zeitpunkt der Anbieter bestimmt.
 

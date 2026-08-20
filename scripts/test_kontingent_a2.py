@@ -147,7 +147,9 @@ def _die_anzeige_nennt_den_zustand_wenn_die_zahl_fehlt():
     assert "gr\u00fcnen Bereich" in text, \
         f"der Zustand wird nicht genannt: {text}"
     assert "%" not in text, f"eine Prozentzahl wurde erfunden: {text}"
-    assert "Zur\u00fcckgesetzt" in text, "der Ruecksetzzeitpunkt fehlt"
+    assert "wieder frei" in text, "der Ruecksetzzeitpunkt fehlt"
+    assert "\u2014 in" not in text and "Zur\u00fcckgesetzt \u2014" not in text, \
+        f"die Ruecksetzzeile ist doppelt gemoppelt: {text}"
 
 
 def _das_erfolgsflag_haengt_am_ergebnis():

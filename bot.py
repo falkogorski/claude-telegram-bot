@@ -3330,7 +3330,12 @@ def _kontingent_text(frisch: bool = False) -> str:
                                                        "Zustand unbekannt")
             zeilen.append(f"\n{name}: {zustand}")
         if wann:
-            zeilen.append(f"Zurückgesetzt{wann}.")
+            # `_limit_zeitspanne` liefert einen fertigen Halbsatz („— in etwa
+            # zwei Stunden wieder frei"), der für die Warnmeldung gebaut ist.
+            # Als eigene Zeile braucht er weder Gedankenstrich noch ein
+            # vorangestelltes „Zurückgesetzt" — das sagte dasselbe zweimal.
+            rein = wann.lstrip(" —–")
+            zeilen.append(rein[0].upper() + rein[1:] + ".")
         zeilen.append(f"Stand {alter} gesehen.")
     if ohne_zahl:
         zeilen.append("\nEine Prozentzahl schickt der Anbieter erst mit, wenn "

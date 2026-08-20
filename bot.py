@@ -4730,9 +4730,44 @@ def _postfach_knopf(knopf: dict | None):
         return None
 
 
+# ── A1: Wiederaufgriff gescheiterter Zustellungen (Claudia 20.08.) ──────────
+#
+# **Der Befund, am Code bestätigt:** `failed/` war ein Endlager ohne jeden
+# zweiten Versuch — und dort lagen zwei grundverschiedene Klassen im selben
+# Ordner. Ein `parse`-Fehler wird nie besser; eine Zeitüberschreitung fast
+# immer. **Der Beleg lag auf der Platte:** fünf Stundenblumen-Meldungen vom
+# 16.08., sämtlich Zeitüberschreitung oder nicht initialisierter HTTP-Client,
+# seit vier Tagen unangetastet. **Ein einziger zweiter Versuch hätte gereicht.**
+#
+# Wachsende Abstände statt fester: Ein Netzfehler, der nach zwei Minuten noch
+# steht, steht meist auch nach drei — aber selten noch nach dreißig.
+WIEDERVERSUCH_ABSTAENDE_S = (120, 300, 900, 1800)
+WIEDERVERSUCH_MAX = 5
+
+# Woran ein vorübergehender Fehler zu erkennen ist. **Geschlossene Liste, und
+# die Richtung ist Absicht:** Was hier nicht steht, gilt als dauerhaft und
+# wandert sofort ins Endlager. Andersherum — alles Unbekannte wiederholen —
+# hieße, einen dauerhaften Fehler fünfmal zu wiederholen und Adam fünfmal
+# warten zu lassen.
+_VORUEBERGEHEND = (
+    "timedout", "timed out", "timeout",
+    "networkerror", "readerror", "connecterror", "connectionerror",
+    "remoteprotocolerror", "not initialized",
+    "bad gateway", "service unavailable", "internal server error",
+    "502", "503", "504",
+)
+
+
+def _ist_voruebergehend(fehler: str) -> bool:
+    """Lohnt ein zweiter Versuch? Gemessen am Fehlertext, klein geschrieben."""
+    t = (fehler or "").lower()
+    return any(m in t for m in _VORUEBERGEHEND)
+
+
 async def _postfach_send_one(app: Application, claimed: Path,
                              sent_dir: Path, failed_dir: Path) -> None:
     orig = claimed.name[:-len(".processing")] if claimed.name.endswith(".processing") else claimed.name
+    outbox = claimed.parent
 
     def _move(dest_dir: Path, note: str = "") -> None:
         try:
@@ -4741,6 +4776,30 @@ async def _postfach_send_one(app: Application, claimed: Path,
             claimed.rename(dest_dir / orig)
         except Exception:
             log.warning("postfach move failed", exc_info=True)
+
+    def _zurueckstellen(daten: dict, grund: str, wartezeit: float) -> None:
+        """Zurück in die outbox mit Wiedervorlage — statt ins Endlager.
+
+        **`nicht_vor` steht im Auftrag selbst, nicht in einer Nebenliste.**
+        Ein Neustart des Bots darf die Wiedervorlage nicht vergessen; alles,
+        was den Auftrag überleben muss, gehört in den Auftrag.
+        """
+        daten["versuche"] = int(daten.get("versuche", 0)) + 1
+        daten["nicht_vor"] = time.time() + wartezeit
+        daten["letzter_grund"] = grund[:300]
+        try:
+            tmp = outbox / ("." + orig + ".tmp")
+            tmp.write_text(_json.dumps(daten, ensure_ascii=False),
+                           encoding="utf-8")
+            tmp.rename(outbox / orig)
+            claimed.unlink(missing_ok=True)
+            log.info("Postfach: %s zurückgestellt (Versuch %d, %.0f s) — %s",
+                     orig, daten["versuche"], wartezeit, grund[:120])
+        except Exception:
+            # Wenn selbst das Zurückstellen scheitert, ist das Endlager
+            # immer noch besser als ein verlorener Auftrag.
+            log.warning("postfach requeue failed", exc_info=True)
+            _move(failed_dir, f"Zurückstellen fehlgeschlagen nach: {grund}")
 
     try:
         data = _json.loads(claimed.read_text(encoding="utf-8"))
@@ -4768,14 +4827,27 @@ async def _postfach_send_one(app: Application, claimed: Path,
     log.info("Postfach zugestellt: %s → %s (Absender: %s)",
              orig, chat_id, herkunft)
 
-    # Obergrenze je Absender. Zurückgehaltenes wandert nach `sent`, nicht nach
-    # `failed` — es ist kein Fehler, sondern eine bewusste Entscheidung, und im
-    # Protokoll steht, was drinstand.
+    # Obergrenze je Absender.
+    #
+    # **`[GEÄNDERT 2026-08-20, Claudias Befund]` Gedrosseltes wandert zurück in
+    # die outbox, nicht nach `sent/`.** Der alte Weg hatte drei Mängel, und der
+    # erste wiegt am schwersten: **Der Ordner log.** Was zurückgehalten wurde,
+    # lag in `sent/` und sah von außen aus wie zugestellt — nur die Notiz
+    # daneben verriet es. Am 20.08. um 10:55 hat Adam eine angeforderte Datei
+    # vermisst; sie lag genau dort.
+    #
+    # Der zweite: Drosselung ist ein **vorübergehender** Zustand, in einer
+    # Stunde ist wieder Platz — trotzdem wurde der Auftrag verworfen statt
+    # zurückgestellt. Es ist derselbe Fall wie eine Zeitüberschreitung, nur mit
+    # bekanntem Ende. Der dritte: Die Sammelmeldung hängt an der **nächsten
+    # durchgelassenen** Nachricht desselben Absenders — kommt keine mehr durch,
+    # erfährt Adam nichts.
     if _postfach_drosseln(herkunft):
         log.warning("Postfach gedrosselt (%s): %s", herkunft,
                     str(data.get("text", ""))[:200])
-        _move(sent_dir, f"zurückgehalten (mehr als {POSTFACH_GRENZE}/h von "
-                        f"{herkunft})")
+        _zurueckstellen(data,
+                        f"gedrosselt (mehr als {POSTFACH_GRENZE}/h von {herkunft})",
+                        _postfach_fenster_rest(herkunft))
         return
     sammel = _postfach_sammelmeldung(herkunft)
 
@@ -4805,16 +4877,37 @@ async def _postfach_send_one(app: Application, claimed: Path,
             # Die Sammelmeldung hängt an der NÄCHSTEN durchgelassenen Nachricht
             # — so erfährt Adam vom Zurückgehaltenen, ohne dass die Meldung
             # darüber selbst eine zusätzliche Nachricht wird.
+            # A1, Claudias Randbemerkung: Ein wiederholter Auftrag kommt
+            # später an als ein frisch gelegter. Das ist hinzunehmen — aber
+            # nicht unsichtbar, sonst wirkt die Reihenfolge im Chat willkürlich.
+            versuche_bisher = int(data.get("versuche", 0))
+            vorspann = ""
+            if versuche_bisher:
+                gelegt = str(data.get("gelegt") or "").strip()
+                vorspann = ("↩️ Nachgereicht" + (f", ursprünglich {gelegt}"
+                                                 if gelegt else "") + "\n\n")
             await app.bot.send_message(
                 chat_id=chat_id,
-                text=(text + "\n\n" + sammel) if sammel else text,
+                text=vorspann + ((text + "\n\n" + sammel) if sammel else text),
                 message_thread_id=thread_id,
                 reply_markup=_postfach_knopf(data.get("knopf")))
         _move(sent_dir)
         log.info("postfach: Auftrag %s an %s zugestellt.", orig, chat_id)
     except Exception as e:
         _log_bot_error("postfach send", e)
+        versuche = int(data.get("versuche", 0))
+        if _ist_voruebergehend(f"{type(e).__name__}: {e}") \
+                and versuche < WIEDERVERSUCH_MAX - 1:
+            warte = WIEDERVERSUCH_ABSTAENDE_S[
+                min(versuche, len(WIEDERVERSUCH_ABSTAENDE_S) - 1)]
+            _zurueckstellen(data, f"{type(e).__name__}: {e}", warte)
+            return
+        # Endlager — aber NICHT stillschweigend. Ein Auftrag, der endgültig
+        # scheitert, ist genau die Sorte Stille, gegen die A1 gebaut wurde.
         _move(failed_dir, f"Sende-Fehler: {e}")
+        if versuche:
+            await _postfach_aufgabe_melden(app, chat_id, orig, herkunft,
+                                           versuche + 1, e)
 
 
 # ── Obergrenze je Absender: ein Wächter darf nicht zur Störquelle werden ─────
@@ -4856,6 +4949,45 @@ def _postfach_drosseln(herkunft: str, jetzt: float | None = None) -> bool:
     return False
 
 
+def _postfach_fenster_rest(herkunft: str, jetzt: float | None = None) -> float:
+    """Wie lange, bis wieder Platz ist — statt eines geratenen Abstands.
+
+    Die Drosselung hat als einziger vorübergehender Zustand ein **bekanntes
+    Ende**: Sobald die älteste Nachricht aus dem gleitenden Fenster fällt, ist
+    ein Platz frei. Zehn Sekunden Zugabe, damit der Auftrag nicht genau auf der
+    Kante wieder anklopft.
+    """
+    now = jetzt or time.time()
+    fenster = _postfach_zaehler.get(herkunft) or []
+    if not fenster:
+        return 60.0
+    return max(10.0, (min(fenster) + POSTFACH_FENSTER_S) - now + 10.0)
+
+
+async def _postfach_aufgabe_melden(app: Application, chat_id: int, orig: str,
+                                   herkunft: str, versuche: int,
+                                   fehler: Exception) -> None:
+    """Ein endgültig gescheiterter Auftrag wird GEMELDET, nicht abgelegt.
+
+    **Claudias Auflage:** „Nach dem fünften erfolglosen Versuch ins Endlager —
+    mit Meldung an Adam, nicht stillschweigend." Der Sinn von A1 wäre verfehlt,
+    wenn der Verlust am Ende doch lautlos einträte; er wäre nur seltener.
+
+    Die Meldung geht **direkt**, nicht über die Botenpost: Die klemmt in
+    diesem Moment nachweislich.
+    """
+    try:
+        await app.bot.send_message(
+            chat_id=chat_id,
+            text=(f"📮 Eine Nachricht von {herkunft} konnte ich nach "
+                  f"{versuche} Versuchen nicht zustellen und habe sie "
+                  f"abgelegt.\n\nGrund: {type(fehler).__name__}\n"
+                  f"Datei: {orig}"))
+    except Exception:
+        log.warning("Postfach: Aufgabe-Meldung selbst fehlgeschlagen",
+                    exc_info=True)
+
+
 def _postfach_sammelmeldung(herkunft: str) -> str | None:
     """Was zurückgehalten wurde, wird genannt — nicht verschwiegen."""
     n = _postfach_zurueckgehalten.pop(herkunft, 0)
@@ -4866,6 +4998,22 @@ def _postfach_sammelmeldung(herkunft: str) -> str | None:
             "Sie sind nicht verloren; sie stehen im Protokoll des Servers. "
             "Wenn dieser Absender so viel zu sagen hat, stimmt bei ihm etwas "
             "nicht.")
+
+
+def _postfach_wartet_noch(job: Path, jetzt: float | None = None) -> bool:
+    """Liegt die Wiedervorlage dieses Auftrags noch in der Zukunft?
+
+    **Ein unlesbarer Auftrag wartet NICHT** — er läuft in den normalen Weg und
+    landet dort mit einem `parse`-Fehler im Endlager. Andernfalls bliebe eine
+    beschädigte Datei für immer in der outbox liegen und niemand erführe davon;
+    das ist die Fehlerklasse des Versions-Monitors vom 18.08., wo ein kaputter
+    Zeitstempel einen Eintrag dauerhaft stillgelegt hat.
+    """
+    try:
+        daten = _json.loads(job.read_text(encoding="utf-8"))
+        return float(daten.get("nicht_vor", 0)) > (jetzt or time.time())
+    except Exception:
+        return False
 
 
 async def postfach_worker(app: Application) -> None:
@@ -4879,6 +5027,11 @@ async def postfach_worker(app: Application) -> None:
     while True:
         try:
             for job in sorted(outbox.glob("*.json")):
+                # A1: Wiedervorlage respektieren. Der Auftrag bleibt liegen,
+                # bis seine Zeit gekommen ist — ohne ihn anzufassen, damit ein
+                # Neustart nichts an der Wartezeit ändert.
+                if _postfach_wartet_noch(job):
+                    continue
                 claimed = job.with_name(job.name + ".processing")
                 try:
                     job.rename(claimed)  # atomarer Claim

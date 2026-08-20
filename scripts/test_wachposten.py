@@ -18,6 +18,10 @@ _TMP = Path(tempfile.mkdtemp(prefix="wp-"))
 os.environ["WACHPOSTEN_LOGDIR"] = str(_TMP / "logs")
 os.environ["WACHPOSTEN_DIR"] = str(_TMP / "zustand")
 os.environ["POSTFACH_DIR"] = str(_TMP / "postfach")
+# Fuer die A5-Grenzpruefungen wird `bot` geladen — es braucht diese beiden.
+os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:test")
+os.environ.setdefault("ALLOWED_USER_IDS", "1")
+os.environ.setdefault("USER_PREFS_FILE", str(_TMP / "prefs.json"))
 (_TMP / "logs" / "conversations").mkdir(parents=True)
 (_TMP / "postfach" / "outbox").mkdir(parents=True)
 sys.path.insert(0, str(ROOT))
@@ -484,6 +488,43 @@ def _botenpost_weist_erfundene_knopfarten_ab():
         botenpost.legen = echt
 
 
+def _ohne_angeforderten_knopf_gibt_es_keinen():
+    """**Claudias Leitplanke vom 24.07., als Grenze gemessen.** Bekaeme der
+    Postfach-Weg PAUSCHAL die Moeglichkeit, Fragen zu registrieren, koennte
+    jede zugestellte Nachricht einen Modelllauf ausloesen — an jenem Tag liefen
+    so fuenf Laeufe in sechzehn Sekunden, deren ganzes Ergebnis „Passt." und
+    „Gut." war.
+
+    Deshalb ist der Knopf **angefordert, nicht Standard**: Ohne das Feld im
+    Auftrag entsteht keiner."""
+    import bot
+    assert bot._postfach_knopf(None) is None, "ohne Anforderung entsteht ein Knopf"
+    assert bot._postfach_knopf({}) is None, "ein leeres Feld erzeugt einen Knopf"
+    # Und die Gegenrichtung: mit Anforderung entsteht er sehr wohl.
+    echt = bot._postfach_knopf({"art": "wachposten_hinterlegen",
+                                "kennung": "abc123456789"})
+    assert echt is not None, "der angeforderte Knopf entsteht nicht"
+
+
+def _der_knopf_startet_kein_modell():
+    """**Die zweite Haelfte derselben Leitplanke.** Der Knopf darf wirken,
+    aber nicht starten — sonst waere die stille Quittung von hinten wieder
+    ausgehebelt. Gemessen am Quelltext der Behandlung: keine Sitzung, keine
+    Warteschlange, kein Agent."""
+    import inspect, bot
+    quelle = inspect.getsource(bot.on_postfach_knopf) + \
+        inspect.getsource(bot._wachposten_hinterlegen)
+    # Nur ausfuehrbare Zeilen — ein Pruefer, der ueber seinen eigenen
+    # Erklaerkommentar stolpert, wird binnen einer Woche abgeschaltet.
+    code = "\n".join(z for z in quelle.splitlines()
+                     if z.strip() and not z.strip().startswith("#")
+                     and '"""' not in z)
+    for verboten in ("query_claude", "ClaudeSDKClient", "enqueue",
+                     "process_user_text", "stream_response"):
+        assert verboten not in code, \
+            f"der Knopf startet einen Modelllauf ueber {verboten}"
+
+
 check("ein Fehlersturm sieht nicht aus wie ein Einzelfall (W1)",
       _ein_fehlersturm_sieht_nicht_aus_wie_ein_einzelfall)
 check("dieselbe Zeile wird zwischen Laeufen gedaempft (Gegenrichtung)",
@@ -499,6 +540,9 @@ check("die Kennung haengt am Befund, nicht an der Zeit",
       _die_kennung_haengt_am_befund_nicht_an_der_zeit)
 check("erfundene Knopfarten werden abgewiesen",
       _botenpost_weist_erfundene_knopfarten_ab)
+check("ohne angeforderten Knopf gibt es keinen (Claudia 24.07.)",
+      _ohne_angeforderten_knopf_gibt_es_keinen)
+check("der Knopf startet kein Modell", _der_knopf_startet_kein_modell)
 check("Gedaempftes wird gezaehlt und genannt (Claudia 2)",
       _gedaempfte_werden_gezaehlt_und_genannt)
 check("ohne Daempfung keine Zaehlzeile (Gegenrichtung)",

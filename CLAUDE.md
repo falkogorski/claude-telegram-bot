@@ -335,6 +335,20 @@ ohne Bezug zur Wirklichkeit.
 - **Der echte Nachtblock beginnt, wenn Adam schlafen geht**, nicht wenn eine
   Liste „Nachtblock" heißt. Er ist der einzige, der ohne Rückfrage lang laufen
   darf, weil dann niemand sonst auf das Kontingent wartet.
+
+**Und wie das Blockende mit der Durchlauf-Wache zusammengeht** (Engywucks
+Befund ①, Entscheid 20.08.): Der Stop-Hook kennt den Unterschied zwischen
+„mittendrin aufhören" und „Block zu Ende" nicht — und **er braucht ihn auch
+nicht zu kennen.** Das vorhandene `WARTET: ja` trägt den Fall bereits: Ein
+Blockende **ist** ein legitimer Wartegrund, nämlich das Warten auf Adams
+Entscheidung, ob verlängert wird.
+
+Also **kein neues Feld und keine neue Konvention** — beim Blockabschluss wird
+`WARTET: ja` gesetzt und als Grund „Blockende, Adam gefragt" notiert. Ein
+zweites Signal für denselben Zustand wäre genau der Wächter dritter Ordnung,
+den die Kurs-Regel verbietet; und eine Konvention „der Laufplan enthält nur den
+aktuellen Block" hätte den Backlog aus dem einzigen Gedächtnis entfernt, das
+zwischen zwei Blöcken trägt.
 ## 🧠 SELBSTLERNENDE ASSISTENZ (Adam-Grundprinzip 2026-07-24)
 
 Der Assistent lernt mit der Zeit Adams Vorlieben (Kategorisierung, Reihenfolge,

@@ -278,8 +278,8 @@ def _ohne_stand_wird_nichts_erfunden():
     letzte = gesendet[-1]
     assert "%" not in letzte, \
         f"ohne Ergebnis wird eine Prozentzahl ausgegeben: {letzte[:120]}"
-    assert "gekostet" in letzte, \
-        "der bereits gelaufene Verbrauch wird verschwiegen"
+    assert "nichts geliefert" in letzte or "nichts" in letzte, \
+        f"der Fehlschlag wird nicht benannt: {letzte[:120]}"
 
 
 def _der_abruf_steht_im_menue():
@@ -408,13 +408,21 @@ def _die_beschreibung_wandert_mit():
     _frisch()
     bot._limit_letzten_merken(Info(anteil=0.4))
     frisch = bot._kontingent_text(frisch=True)
-    assert "verbraucht selbst nichts" not in frisch, \
-        "nach einer Frischmessung steht da noch, der Abruf verbrauche nichts"
-    assert "Kontingent gekostet" in frisch, \
-        f"der Verbrauch wird nicht genannt: {frisch[-120:]}"
+    assert "frisch abgefragt" in frisch, \
+        f"die frische Abfrage wird nicht benannt: {frisch[-140:]}"
+    assert "kostet kein Kontingent" in frisch, \
+        f"dass die Abfrage nichts kostet, steht nicht da: {frisch[-140:]}"
     ruhig = bot._kontingent_text(frisch=False)
-    assert "verbraucht selbst nichts" in ruhig, \
-        "ohne Messung fehlt der Hinweis, dass der Abruf nichts kostet"
+    assert "frisch abgefragt" not in ruhig, \
+        "ohne Abfrage wird eine behauptet"
+    # **Diese Zeile ist zweimal an einem Abend gewandert** — erst kostete die
+    # Messung Kontingent, dann nicht mehr (der Weg ging von einem Modell-Lauf
+    # auf eine lokale Sitzungsabfrage ueber). Beide Male musste der Text mit.
+    # Ein Text, der Kosten nennt, die es nicht gibt, ist so falsch wie einer,
+    # der bestehende verschweigt.
+    for text in (frisch, ruhig):
+        assert "Kontingent gekostet" not in text, \
+            "es werden Kosten genannt, die es nicht mehr gibt"
 
 
 def _kein_anderer_pfad_ruft_die_messung():

@@ -68,6 +68,7 @@ import ampel
 import channels
 import freigaben as freigabepost
 import kalender
+import kontingent_sitzung
 import linkinbox
 import authmarke
 import email_kanal
@@ -3242,8 +3243,77 @@ async def cmd_presend(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("\n".join(L))
 
 
+def _kontingent_cli_pfad() -> str | None:
+    """Wo die gebündelte Oberfläche liegt.
+
+    Das SDK bringt sie mit; der Pfad wird **aus dem Paket abgeleitet**, nicht
+    fest verdrahtet — ein Versionswechsel des SDK verschiebt ihn sonst
+    lautlos, und der Abruf fiele ohne erkennbaren Grund aus.
+    """
+    try:
+        import claude_agent_sdk as _sdk
+        p = Path(_sdk.__file__).parent / "_bundled" / "claude"
+        if p.exists():
+            return str(p)
+    except Exception:
+        pass
+    import shutil
+    return shutil.which("claude")
+
+
 async def _kontingent_frisch_messen() -> bool:
-    """Holt den Kontingentstand **jetzt** — auf Kosten des Kontingents.
+    """Liest den Stand aus einer echten Sitzung — **kostenfrei.**
+
+    **Der Weg dorthin war lang und die Zwischenstände waren falsch**, deshalb
+    stehen sie hier: Der Kontostand-Endpunkt weist das Abo-Token ab (403), das
+    SDK-Ereignis trägt keine Prozentzahl, die rohe Oberfläche im Stapelbetrieb
+    auch nicht, die Statusline greift nur interaktiv. Adams Screenshot zeigte
+    die Zahlen trotzdem — sie liegen in einem Speicher, den allein die
+    **Oberfläche** herausgibt.
+
+    Also fragt der Bot eine echte Sitzung, so wie Adam es von Anfang an
+    vermutet hatte. **Und ``/usage`` ist ein lokaler Befehl**: Die Sitzung
+    meldet danach ``Total cost: $0.0000`` und ``Total duration (API): 0s``.
+    Kein Modell-Aufruf, kein Kontingentverbrauch, keine AGB-Frage. Was es
+    kostet, ist etwa eine Minute Zeit.
+
+    Der frühere Weg über einen eigenen Modell-Lauf ist damit **hinfällig** —
+    er kostete Kontingent und lieferte die Zahl nicht einmal.
+    """
+    cli = _kontingent_cli_pfad()
+    if not cli:
+        log.warning("Kontingent: die Oberfläche ist nicht auffindbar")
+        return False
+    try:
+        stand = await asyncio.to_thread(kontingent_sitzung.auslesen, cli)
+    except Exception:
+        log.exception("Kontingent-Sitzung fehlgeschlagen")
+        return False
+    if not stand:
+        return False
+    jetzt = time.time()
+    for art, wert in stand.items():
+        # Vorhandenes NICHT wegwerfen: Zustand und Unix-Rücksetzzeit stammen
+        # aus dem SDK-Ereignis und sind hier nicht zu haben. Zusammenführen
+        # statt ersetzen — sonst kostet der genauere Wert die gröbere Auskunft.
+        eintrag = dict(_LIMIT_LETZTER.get(art) or {})
+        eintrag["anteil"] = wert.get("anteil")
+        if wert.get("resets_text"):
+            eintrag["resets_text"] = wert["resets_text"]
+        eintrag["gesehen"] = jetzt
+        eintrag.setdefault("status", "")
+        _LIMIT_LETZTER[art] = eintrag
+    _limit_letzten_sichern()
+    return True
+
+
+async def _kontingent_frisch_messen_alt() -> bool:
+    """**HINFÄLLIG seit 20.08.** — der Modell-Lauf, der die Zahl nie brachte.
+
+    Bleibt als Beleg des Wegs stehen und wird beim Abschluss-Audit (Phase 10)
+    entfernt; Aufräumen ist die gefährlichere Art von Arbeit und gehört
+    gebündelt. Er kostete Kontingent und lieferte nur Zustand und
+    Rücksetzzeit — genau das, was das Ereignis ohnehin kostenlos mitbringt.
 
     **Warum das eine Ausnahme ist und eng bleiben muss:** Der Abruf war
     ausdrücklich so gebaut, dass er nichts verbraucht. Diese Funktion bricht
@@ -3329,6 +3399,16 @@ def _kontingent_text(frisch: bool = False) -> str:
                        "rejected": "aufgebraucht"}.get(wert.get("status"),
                                                        "Zustand unbekannt")
             zeilen.append(f"\n{name}: {zustand}")
+        if not wann and wert.get("resets_text"):
+            # Aus der Sitzung kommt der Rücksetzzeitpunkt als **Text** der
+            # Oberfläche („11pm", „Aug25,4am"), nicht als Zeitstempel. Er wird
+            # nur behutsam geglättet und nicht umgerechnet: Eine erfundene
+            # Umrechnung wäre schlimmer als eine fremdsprachige Angabe.
+            roh = wert["resets_text"]
+            roh = re.sub(r"(\d+)\s*pm", lambda m: f"{(int(m.group(1)) % 12) + 12} Uhr", roh)
+            roh = re.sub(r"(\d+)\s*am", lambda m: f"{int(m.group(1)) % 12} Uhr", roh)
+            roh = re.sub(r"(?<=[a-zA-Z])(?=\d)|(?<=\d)(?=[A-Z])", " ", roh)
+            zeilen.append(f"Zurückgesetzt um {roh.strip()}.")
         if wann:
             # `_limit_zeitspanne` liefert einen fertigen Halbsatz („— in etwa
             # zwei Stunden wieder frei"), der für die Warnmeldung gebaut ist.
@@ -3340,16 +3420,18 @@ def _kontingent_text(frisch: bool = False) -> str:
     if ohne_zahl:
         zeilen.append("\nEine Prozentzahl schickt der Anbieter erst mit, wenn "
                       "es eng wird — solange keine dasteht, ist reichlich da.")
-    # **Die Beschreibung wandert mit dem Bau** (Engywucks erste Auflage): Nach
-    # einer Frischmessung darf hier NICHT stehen, der Abruf verbrauche nichts.
-    # Sonst behauptet der Text das Gegenteil dessen, was gerade geschah — die
-    # umgekehrte Falsch-Wahrheit: der Bau tut mehr, als die Beschreibung sagt.
+    # **Die Beschreibung wandert mit dem Bau** (Engywucks erste Auflage) —
+    # und sie ist an einem Abend zweimal gewandert: erst, als die Messung
+    # Kontingent kostete, und wieder, als der Weg über eine echte Sitzung
+    # ging, der **nichts** kostet (`/usage` ist lokal, kein Modell-Aufruf).
+    # Ein Text, der noch Kosten nennt, die es nicht mehr gibt, ist genauso
+    # falsch wie einer, der bestehende verschweigt.
     if frisch:
-        zeilen.append("\n🔄 Frisch gemessen — das hat selbst ein wenig "
-                      "Kontingent gekostet (Abo, kein Geld).")
+        zeilen.append("\n🔄 Gerade frisch abgefragt — das kostet kein "
+                      "Kontingent, nur etwa eine Minute.")
     else:
-        zeilen.append("\nDie Zahl fließt mit den Antworten mit; dieser Abruf "
-                      "verbraucht selbst nichts.")
+        zeilen.append("\nZustand und Rücksetzzeit fließen mit den Antworten "
+                      "mit; die Prozentwerte hole ich auf Knopfdruck.")
     return "\n".join(zeilen)
 
 
@@ -3363,13 +3445,14 @@ async def on_kontingent_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> N
     if not authorized(update):
         await query.answer("Nicht berechtigt.", show_alert=True)
         return
-    await query.answer("Messe…")
+    await query.answer("Frage nach, dauert etwa eine Minute…")
     gesehen = await _kontingent_frisch_messen()
     if not gesehen:
         await query.edit_message_text(
-            "📉 Der Anbieter hat diesmal keinen Stand mitgeschickt.\n\n"
-            "Das kommt vor — die Kopfzeilen sind laut Anbieter optional. "
-            "Der Lauf hat trotzdem ein wenig Kontingent gekostet.")
+            "📉 Die Abfrage hat diesmal nichts geliefert.\n\n"
+            "Ich lese die Werte aus einer echten Sitzung; klappt der Start "
+            "nicht oder hat sich die Oberfläche geändert, kommt nichts an. "
+            "Gekostet hat es nichts — nur etwas Zeit.")
         return
     await query.edit_message_text(_kontingent_text(frisch=True),
                                   reply_markup=_kontingent_knopf())
@@ -3394,15 +3477,16 @@ async def cmd_kontingent(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     # bei jedem Blick von allein läuft.
     if not _LIMIT_LETZTER:
         hinweis = await update.message.reply_text(
-            "📉 Noch kein Stand da — ich messe einmal frisch, Moment…")
+            "📉 Noch kein Stand da — ich frage einmal nach. Das dauert "
+            "etwa eine Minute und kostet kein Kontingent.")
         gesehen = await _kontingent_frisch_messen()
         if not gesehen:
             await hinweis.edit_text(
-                "📉 Der Anbieter hat keinen Stand mitgeschickt.\n\n"
-                "Die Kopfzeilen sind laut Anbieter optional und kommen nur "
-                "für Abo-Konten. Der Versuch hat ein wenig Kontingent "
-                "gekostet; beim nächsten normalen Austausch versuche ich es "
-                "wieder mit.")
+                "📉 Die Abfrage hat nichts geliefert.\n\n"
+                "Ich lese die Werte aus einer echten Sitzung; startet die "
+                "nicht oder hat sich ihre Oberfläche geändert, kommt nichts "
+                "an. Gekostet hat es nichts. Zustand und Rücksetzzeit "
+                "erscheinen hier, sobald wieder etwas über den Bot läuft.")
             return
         await hinweis.edit_text(_kontingent_text(frisch=True),
                                 reply_markup=_kontingent_knopf())
@@ -3476,11 +3560,12 @@ _BEFEHLE: tuple[tuple[str, str | None, str], ...] = (
     ("freigaben", "Dauerhafte Werkzeug-Freigaben",
      "Dauerfreigaben zeigen: Werkzeuge + vertraute Domains (reset zum Löschen)"),
     ("hilfe", "Alle Befehle anzeigen", "Diese Befehlsübersicht"),
-    # Die Beschreibung wandert mit dem Bau: Seit A2.2 misst der Abruf bei
-    # leerem Stand frisch, und das kostet. „Verbraucht selbst nichts" wäre
-    # jetzt falsch — dieselbe Auflage, die auch den Anzeigetext betrifft.
+    # Die Beschreibung wandert mit dem Bau — hier zweimal an einem Abend, weil
+    # sich der Weg geändert hat: erst kostete die Messung Kontingent, dann
+    # nicht mehr. Ein Text, der Kosten nennt, die es nicht gibt, ist so falsch
+    # wie einer, der bestehende verschweigt.
     ("kontingent", "Abo-Kontingent: Stand zeigen",
-     "Abo-Kontingent: wie viel vom Fenster aufgebraucht ist (liegt kein Stand vor, wird einmal frisch gemessen)"),
+     "Abo-Kontingent: wie viel vom Fenster aufgebraucht ist (kostet nichts, Abfrage dauert etwa eine Minute)"),
     ("links", "Abgelegte Links zeigen",
      "abgelegte Links (ein Link allein wird abgelegt, nicht gleich verarbeitet)"),
     ("mail", "E-Mail-Konten zeigen (9.5)",

@@ -315,7 +315,7 @@ def _limit_letzten_sichern() -> None:
                     exc_info=True)
 
 
-def _limit_letzten_merken(info) -> None:
+def _limit_letzten_merken(info) -> bool:
     """Schreibt mit, was der Anbieter vorbeischickt — **jeden Stand, auch den
     grünen.**
 
@@ -326,17 +326,38 @@ def _limit_letzten_merken(info) -> None:
     """
     art = getattr(info, "rate_limit_type", None)
     anteil = getattr(info, "utilization", None)
-    if not art or not isinstance(anteil, (int, float)):
+    # **In der echten Umgebung gemessen (20.08., 21:2x), und die Messung hat
+    # den Bau umgeworfen:** Der Anbieter schickt `utilization` NICHT mit,
+    # solange der Zustand `allowed` ist — gemessen kam
+    # `{status: allowed, resetsAt: …, rateLimitType: five_hour}`, ohne Zahl.
+    # Die erste Fassung verlangte die Zahl und verwarf deshalb **alles**,
+    # obwohl Zustand und Rücksetzzeitpunkt danebenlagen. Ein Eintrag ohne
+    # Prozentwert ist kein wertloser Eintrag; er sagt „grün, und das Fenster
+    # setzt um X zurück" — genau das, was Adam wissen will, solange nichts
+    # brennt. **Wertlos ist nur, was keinen Fensternamen trägt.**
+    if not art:
         # Ohne Fenstername oder ohne Zahl ist der Eintrag wertlos — und ein
         # wertloser Eintrag, der einen guten überschreibt, ist schädlich.
-        return
+        #
+        # **Aber verworfen heißt nicht unsichtbar** (Adams Test vom 20.08.,
+        # 20:23): Der Abruf meldete „frisch gemessen" und zeigte keine Zahl,
+        # weil hier still verworfen wurde und der Aufrufer trotzdem Erfolg
+        # annahm. Zwei Fehler übereinander — der stille Verwurf und das
+        # Erfolgsflag, das nicht am Ergebnis hing. Deshalb protokolliert der
+        # Verwurf jetzt, **was** ankam; die Rohdaten sind Kontingentzahlen,
+        # keine Geheimnisse.
+        log.info("Kontingent-Ereignis ohne verwertbare Felder verworfen: "
+                 "art=%r anteil=%r roh=%r",
+                 art, anteil, getattr(info, "raw", None))
+        return False
     _LIMIT_LETZTER[str(art)] = {
-        "anteil": float(anteil),
+        "anteil": float(anteil) if isinstance(anteil, (int, float)) else None,
         "status": getattr(info, "status", "") or "",
         "resets_at": getattr(info, "resets_at", None),
         "gesehen": time.time(),
     }
     _limit_letzten_sichern()
+    return True
 
 
 _limit_letzten_laden()
@@ -3260,8 +3281,12 @@ async def _kontingent_frisch_messen() -> bool:
             if _RateLimitEvent is not None and isinstance(msg, _RateLimitEvent):
                 info = getattr(msg, "rate_limit_info", None)
                 if info is not None:
-                    _limit_letzten_merken(info)
-                    gesehen = True
+                    # **Erfolg hängt am Ergebnis, nicht am Ereignis.** Die
+                    # erste Fassung setzte das Flag, sobald ein Ereignis kam —
+                    # und meldete „frisch gemessen" über einer leeren Anzeige,
+                    # weil der Merker es verworfen hatte. Ein Erfolgsflag, das
+                    # nicht am Ergebnis hängt, ist eine Behauptung.
+                    gesehen = _limit_letzten_merken(info) or gesehen
             elif isinstance(msg, ResultMessage):
                 break
     finally:
@@ -3280,21 +3305,36 @@ def _kontingent_knopf() -> InlineKeyboardMarkup:
 def _kontingent_text(frisch: bool = False) -> str:
     """Der Anzeigetext — **eine** Stelle für Befehl und Schaltfläche."""
     zeilen = ["📉 Kontingent — zuletzt gesehener Stand:"]
+    ohne_zahl = False
     for art, wert in sorted(_LIMIT_LETZTER.items()):
         name = _LIMIT_NAMEN.get(art, art)
         anteil = wert.get("anteil")
-        if not isinstance(anteil, (int, float)):
-            continue
-        prozent = round(anteil * 100)
-        voll = max(0, min(10, round(anteil * 10)))
-        balken = "█" * voll + "░" * (10 - voll)
         wann = _limit_zeitspanne(wert.get("resets_at"))
         alter = _vor_wie_lange(wert.get("gesehen"))
-        zeilen.append(f"\n{name}: {prozent} % aufgebraucht")
-        zeilen.append(f"{balken}")
+        if isinstance(anteil, (int, float)):
+            prozent = round(anteil * 100)
+            voll = max(0, min(10, round(anteil * 10)))
+            balken = "█" * voll + "░" * (10 - voll)
+            zeilen.append(f"\n{name}: {prozent} % aufgebraucht")
+            zeilen.append(balken)
+        else:
+            # **Gemessen am 20.08.: Der Anbieter schickt die Prozentzahl nur
+            # mit, wenn es eng wird.** Im grünen Bereich kommt der Zustand
+            # ohne Zahl. Das ist keine Störung, sondern die Auskunft selbst —
+            # und sie zu verschweigen, nur weil eine Zahl fehlt, hieße die
+            # nützliche Hälfte wegzuwerfen.
+            ohne_zahl = True
+            zustand = {"allowed": "im grünen Bereich",
+                       "allowed_warning": "neigt sich",
+                       "rejected": "aufgebraucht"}.get(wert.get("status"),
+                                                       "Zustand unbekannt")
+            zeilen.append(f"\n{name}: {zustand}")
         if wann:
             zeilen.append(f"Zurückgesetzt{wann}.")
         zeilen.append(f"Stand {alter} gesehen.")
+    if ohne_zahl:
+        zeilen.append("\nEine Prozentzahl schickt der Anbieter erst mit, wenn "
+                      "es eng wird — solange keine dasteht, ist reichlich da.")
     # **Die Beschreibung wandert mit dem Bau** (Engywucks erste Auflage): Nach
     # einer Frischmessung darf hier NICHT stehen, der Abruf verbrauche nichts.
     # Sonst behauptet der Text das Gegenteil dessen, was gerade geschah — die

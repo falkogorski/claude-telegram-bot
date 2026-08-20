@@ -103,13 +103,65 @@ def _die_reihenfolge_in_der_meldung_stimmt():
          "wieder unter dem Statusfilter")
 
 
-def _wertloser_eintrag_ueberschreibt_keinen_guten():
-    """Ohne Zahl ist ein Eintrag wertlos; wertlos darf gut nicht verdrängen."""
+def _eintrag_ohne_zahl_wird_trotzdem_angenommen():
+    """**Diese Pruefung stand vorher auf dem Kopf — die Messung hat sie gedreht.**
+
+    Sie verlangte frueher, dass ein Ereignis **ohne** ``utilization`` verworfen
+    wird — unter der Annahme, ohne Zahl sei der Eintrag wertlos. Am 20.08. in
+    der echten Bot-Umgebung gemessen: Der Anbieter schickt die Zahl gar nicht
+    mit, solange der Zustand ``allowed`` ist. Es kam
+    ``{status: allowed, resetsAt: …, rateLimitType: five_hour}``.
+
+    Die alte Annahme haette also **jeden gruenen Stand** verworfen — und genau
+    das tat sie: Adams Abruf meldete "frisch gemessen" ueber einer leeren
+    Anzeige. **Wertlos ist nur, was keinen Fensternamen traegt.**
+    """
     _frisch()
-    bot._limit_letzten_merken(Info(anteil=0.77))
-    bot._limit_letzten_merken(Info(anteil=None))
-    assert abs(bot._LIMIT_LETZTER["five_hour"]["anteil"] - 0.77) < 1e-9, \
-        "ein Ereignis ohne Zahl hat den guten Stand überschrieben"
+    bot._limit_letzten_merken(Info(anteil=None, resets_at=time.time() + 1800))
+    assert "five_hour" in bot._LIMIT_LETZTER, \
+        "ein gruener Stand ohne Prozentzahl wurde verworfen"
+    assert bot._LIMIT_LETZTER["five_hour"]["anteil"] is None, \
+        "eine Zahl wurde erfunden, wo der Anbieter keine schickte"
+    assert bot._LIMIT_LETZTER["five_hour"]["resets_at"], \
+        "der Ruecksetzzeitpunkt ging verloren — er ist die halbe Auskunft"
+
+
+def _ohne_fenstername_wird_verworfen():
+    """Die Gegenrichtung: ganz ohne Fenstername ist der Eintrag wirklich leer."""
+    _frisch()
+    assert bot._limit_letzten_merken(Info(art=None, anteil=0.5)) is False, \
+        "ein Eintrag ohne Fensternamen wurde angenommen"
+    assert not bot._LIMIT_LETZTER, "der leere Eintrag liegt im Merker"
+
+
+def _die_anzeige_nennt_den_zustand_wenn_die_zahl_fehlt():
+    """**Kein Schweigen, nur weil eine Zahl fehlt.**
+
+    Die Anzeige muss sagen, was da ist — Zustand und Ruecksetzzeitpunkt —
+    und darf keine Prozentzahl erfinden.
+    """
+    _frisch()
+    bot._limit_letzten_merken(Info(status="allowed", anteil=None,
+                                   resets_at=time.time() + 1800))
+    text = bot._kontingent_text()
+    assert "gr\u00fcnen Bereich" in text, \
+        f"der Zustand wird nicht genannt: {text}"
+    assert "%" not in text, f"eine Prozentzahl wurde erfunden: {text}"
+    assert "Zur\u00fcckgesetzt" in text, "der Ruecksetzzeitpunkt fehlt"
+
+
+def _das_erfolgsflag_haengt_am_ergebnis():
+    """**Adams Testbefund vom 20.08., 20:23.**
+
+    Der Abruf meldete "frisch gemessen" ueber einer leeren Anzeige, weil das
+    Erfolgsflag am **Ereignis** hing statt am **Ergebnis**. Ein Merken, das
+    nichts annimmt, darf keinen Erfolg melden.
+    """
+    _frisch()
+    assert bot._limit_letzten_merken(Info(art=None, anteil=None)) is False, \
+        "ein verworfenes Ereignis meldet Erfolg"
+    assert bot._limit_letzten_merken(Info(anteil=0.3)) is True, \
+        "ein angenommenes Ereignis meldet keinen Erfolg"
 
 
 def _mehrere_fenster_nebeneinander():
@@ -238,7 +290,10 @@ def _der_abruf_steht_im_menue():
 
 check("der grüne Stand wird gemerkt", _gruener_stand_wird_gemerkt)
 check("gemerkt wird VOR der Bewertung", _die_reihenfolge_in_der_meldung_stimmt)
-check("wertlos verdrängt gut nicht", _wertloser_eintrag_ueberschreibt_keinen_guten)
+check("Eintrag ohne Zahl wird angenommen", _eintrag_ohne_zahl_wird_trotzdem_angenommen)
+check("ohne Fenstername wird verworfen", _ohne_fenstername_wird_verworfen)
+check("Anzeige nennt den Zustand ohne Zahl", _die_anzeige_nennt_den_zustand_wenn_die_zahl_fehlt)
+check("das Erfolgsflag haengt am Ergebnis", _das_erfolgsflag_haengt_am_ergebnis)
 check("mehrere Fenster nebeneinander", _mehrere_fenster_nebeneinander)
 check("der Stand überlebt den Neustart", _stand_ueberlebt_neustart)
 check("das Alter kommt in Marken", _alter_wird_in_marken_genannt)

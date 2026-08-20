@@ -379,10 +379,17 @@ dran ist.
 
 ---
 
-## Erinnerungs-Läufer 7.2 — NOCH NICHT EINSPIELEN
+## Erinnerungs-Läufer 7.2 — FREIGEGEBEN, sinnvoll erst nach 7.3
 
-> ⚠️ **Zwei Dinge fehlen, beide bei Adam** — bis dahin bleibt der Läufer
-> ruhend:
+> ✅ **Die Widerlegungs-Gegenprüfung nach Regel ①a ist erfolgt** (Engywuck,
+> 20.08. nachmittags). Der Läufer **darf scharf**, sobald du den Block
+> einspielst.
+>
+> ⚠️ **Sinnvoll wird das erst nach 7.3** (iCloud-Zugang). Vorher läuft er
+> zwar, meldet aber pflichtgemäß seine Blindheit — was richtig ist, aber
+> stündlich niemandem nützt. **Empfehlung: erst der Zugang, dann der Timer.**
+>
+> **Zwei Dinge fehlen weiterhin, beide bei dir:**
 >
 > 1. **Der iCloud-Zugang** (7.3). Ohne ihn liest er nichts; er sagt das dann
 >    auch, statt einen leeren Kalender vorzutäuschen.

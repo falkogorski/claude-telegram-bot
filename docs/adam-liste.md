@@ -66,6 +66,13 @@ demselben.
       hinzufügen, mir die Kennung nennen. Kann zusammen mit den vier
       Live-Gruppen für Phase 6 erledigt werden — derselbe Handgriff.
 
+- [ ] **Erinnerungs-Timer einspielen (7.2)** · ~3 Min · schaltet frei: Termine
+      und Erinnerungen kommen von selbst, statt dass du `/termine` tippst.
+      Weg: Der Block steht in `docs/befehlsbloecke-root.md`, **freigegeben** —
+      Engywucks Gegenprüfung ist am 20.08. erfolgt. **Mach das aber erst nach
+      dem iCloud-Zugang**: Vorher läuft der Läufer zwar und meldet ehrlich,
+      dass er nichts sieht — nur nützt das stündlich niemandem.
+
 - [ ] **E-Mail-Konten / 5.28-Zugang einrichten** · ~20 Min · schaltet frei:
       Punkt 9.5 (E-Mail-Kanal) kann in Betrieb gehen; der Bot kann Nachrichten
       senden und empfangen, statt es nur zu können.

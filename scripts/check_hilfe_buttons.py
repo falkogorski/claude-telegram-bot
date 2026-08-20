@@ -45,10 +45,21 @@ def ok(msg: str) -> None:
 
 
 src = Path(bot.__file__).read_text(encoding="utf-8")
-menu_cmds = set(re.findall(r'BotCommand\("(\w+)"', src))
 handler_cmds = set(re.findall(r'CommandHandler\("(\w+)"', src))
-hilfe_src = inspect.getsource(bot.cmd_hilfe)
-hilfe_cmds = set(re.findall(r'"/(\w+)', hilfe_src))
+
+# `[GEAENDERT 2026-08-20]` Menue und Hilfetext kommen jetzt aus EINER Quelle
+# (`bot._BEFEHLE`) und werden zur Laufzeit sortiert. Damit lassen sie sich
+# nicht mehr aus dem Quelltext lesen — was ein Gewinn ist: Der Pruefer misst
+# seither, was tatsaechlich herauskommt, statt wie es dasteht.
+#
+# **Das war kein freiwilliger Umbau.** Nach der Umstellung meldete er 27
+# Handler ohne /hilfe-Eintrag, obwohl alle 27 darin stehen — ein Text-Pruefer,
+# dem man den Text wegnimmt, wird blind und nicht rot. Genau die Klasse vom
+# 18.08.
+hilfe_src = inspect.getsource(bot.cmd_hilfe)   # fuer die Tastatur-Pruefungen
+befehle = bot._befehle_sortiert()
+menu_cmds = {name for name, kurz, _lang in befehle if kurz}
+hilfe_cmds = {name for name, _kurz, _lang in befehle}
 
 # (1) Menü ⊆ Handler
 fehlend = menu_cmds - handler_cmds
@@ -56,6 +67,24 @@ if fehlend:
     fail(f"Befehle im „/“-Menü ohne Handler: {sorted(fehlend)}")
 else:
     ok(f"Befehlsmenü vollständig verdrahtet ({len(menu_cmds)} Einträge)")
+
+# (1b) Die Sortierung — Claudias fehlender Pruefer, ausfuehrend gemessen.
+# **Der erwartete Wert steht HIER, nicht in bot.py** — sonst prueft der
+# Pruefer die Vorgabe gegen sich selbst und kann nie rot werden. Genau daran
+# ist die erste Gegenprobe gescheitert: Wird `_BEFEHL_ZUERST` in bot.py
+# geaendert, aendert sich die Erwartung mit, und der Bruch bleibt unsichtbar.
+# (Dieselbe Klasse wie die pgrep-Nachstellung vom 20.08. frueh, die dasselbe
+# Messartefakt erzeugte, das sie nachweisen sollte.)
+ZUERST_ERWARTET = "stopp"   # Adams Ausnahme, 20.08. — bewusst hier verankert
+namen = [n for n, _k, _l in befehle]
+if namen[0] != ZUERST_ERWARTET:
+    fail(f"/{ZUERST_ERWARTET} steht nicht vorn, sondern /{namen[0]}")
+elif namen[1:] != sorted(namen[1:]):
+    ersteAbweichung = next(
+        (a for a, b in zip(namen[1:], sorted(namen[1:])) if a != b), "?")
+    fail(f"das Befehlsmenue ist nicht alphabetisch (bei /{ersteAbweichung})")
+else:
+    ok(f"Menue sortiert, /{ZUERST_ERWARTET} vorangestellt ({len(namen)} Befehle)")
 
 # (2) Handler ↔ /hilfe (beide Richtungen)
 nicht_dokumentiert = handler_cmds - hilfe_cmds

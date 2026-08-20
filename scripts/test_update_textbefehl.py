@@ -166,10 +166,22 @@ def _kein_modell_im_ausfuehrungspfad():
 
 
 def _doku_spiegel_ist_nachgezogen():
-    """Doku-Spiegel-Regel: nutzerseitige Texte im SELBEN Commit."""
-    assert "/update_ja <name>" in QUELLE, "der Befehl fehlt in /hilfe"
-    assert 'BotCommand("update_ja"' in QUELLE, "der Befehl fehlt in setMyCommands"
-    assert 'BotCommand("update_nacht"' in QUELLE, "der Nacht-Befehl fehlt im Menue"
+    """Doku-Spiegel-Regel: nutzerseitige Texte im SELBEN Commit.
+
+    `[GEAENDERT 2026-08-20]` **Gemessen wird jetzt die Liste, nicht der
+    Quelltext.** Seit Menue und Hilfetext aus einer Quelle kommen und zur
+    Laufzeit sortiert werden, steht kein `BotCommand("update_ja"` mehr in der
+    Datei — diese Pruefung wurde beim Umbau prompt rot, und zwar zu Recht:
+    Sie suchte eine Schreibweise, nicht die Sache. Jetzt sucht sie die Sache.
+    """
+    namen = {n for n, _kurz, _lang in bot._BEFEHLE}
+    im_menue = {n for n, kurz, _lang in bot._BEFEHLE if kurz}
+    for befehl in ("update_ja", "update_nacht"):
+        assert befehl in namen, f"/{befehl} fehlt in der Befehlsliste"
+        assert befehl in im_menue, f"/{befehl} fehlt im Telegram-Menue"
+    lang = dict((n, l) for n, _k, l in bot._BEFEHLE)
+    assert "<name>" in lang["update_ja"], \
+        "die /hilfe-Zeile nennt das Argument nicht"
 
 
 check("exaktes Kommando von Adam loest aus (mit Drift-Sperre)",

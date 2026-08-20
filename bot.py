@@ -3125,39 +3125,94 @@ async def cmd_usage(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("\n".join(lines))
 
 
+# ── Die Befehle: EINE Quelle für Menü und Hilfetext ─────────────────────────
+#
+# **Adams Auftrag (20.08., 11:22):** Bei 24 Befehlen findet er den gesuchten
+# nicht mehr — „dann doch manchmal schwierig, den richtigen sofort zu finden".
+# Sortiert wird nach dem **Befehlsnamen**, nicht nach der Beschreibung.
+#
+# **Die eine Ausnahme, von ihm bestätigt:** `/stopp` bleibt ganz oben. Es ist
+# der Befehl, den er im Zweifel schnell braucht, während etwas läuft;
+# alphabetisch läge er auf Platz 15.
+#
+# **Zur Laufzeit sortiert, nicht von Hand.** Eine handsortierte Liste hält
+# genau bis zum nächsten neuen Befehl; der landet unten, und die Ordnung
+# zerfällt still. (Claudias Auflage, und sie ist der eigentliche Inhalt des
+# Auftrags.)
+#
+# **EINE Quelle für beide Ausgaben** `[NEU 2026-08-20]`: Vorher gab es das
+# Telegram-Menü und den `/hilfe`-Text getrennt — mit **drei** verschiedenen
+# Reihenfolgen und drei Befehlen, die nur in einem von beiden standen. Genau
+# die Drift, gegen die der Doku-Spiegel gebaut wurde. Wer einen Befehl
+# hinzufügt, trägt ihn jetzt **hier** ein, und beide Listen ziehen mit.
+#
+# Feld 2 ist die Menü-Beschreibung (kurz, Telegram zeigt wenig) oder `None`
+# für Befehle, die bewusst nicht ins Menü gehören. Feld 3 ist die Zeile im
+# Hilfetext.
+_BEFEHLE: tuple[tuple[str, str | None, str], ...] = (
+    ("ampel", "Ampel — Regeln & Status", "Datenschutz-Ampel: Regeln & Status"),
+    ("aufgaben", "Offene Erinnerungen", "offene Erinnerungen aus iCloud"),
+    ("freigaben", "Dauerhafte Werkzeug-Freigaben",
+     "Dauerfreigaben zeigen: Werkzeuge + vertraute Domains (reset zum Löschen)"),
+    ("hilfe", "Alle Befehle anzeigen", "Diese Befehlsübersicht"),
+    ("links", "Abgelegte Links zeigen",
+     "abgelegte Links (ein Link allein wird abgelegt, nicht gleich verarbeitet)"),
+    ("mail", "E-Mail-Konten zeigen (9.5)",
+     "eingerichtete E-Mail-Konten; Versand nur über den Freigabe-Knopf"),
+    ("presend", "Pre-Send-Hook — Kennzahlen", "Pre-Send-Hook: Kennzahlen"),
+    ("quiet", "Ruhiger Modus (Tipp-Indikator aus)",
+     "Tipp-Indikator aus (🔧-Spur bleibt sichtbar)"),
+    ("reset", "Session zurücksetzen", "Session zurücksetzen"),
+    ("restart", "Bot neu starten", "Bot neu starten"),
+    ("selfcheck", "Selbsttest der Kernfunktionen", "Selbsttest ausführen"),
+    ("setkanal", "Ausgabekanal setzen", "Ausgabekanal setzen"),
+    ("spur", "Werkzeug-Spur ganz aus/an",
+     "Werkzeug-Spur ganz aus/an (Rückfragen bleiben)"),
+    ("start", None, "Begrüßung & Keyboard einblenden"),
+    ("status", "Queue & Session-Übersicht", "Aktuelle Queue & Session-Übersicht"),
+    ("stopp", "✋ Laufende Aufgabe abbrechen", "✋ Laufende Aufgabe abbrechen"),
+    ("technik", "Werkzeug-Spur: Klartext ↔ Rohform",
+     "Werkzeug-Spur: Klartext ↔ technische Rohform"),
+    ("termine", "Kalender: die nächsten Tage",
+     "Kalender: was in den nächsten Tagen ansteht (optional /termine 14)"),
+    ("tts", "Sprachausgabe an/aus", "TTS an/aus umschalten"),
+    ("ttsdemo", None, "TTS-Testausgabe"),
+    ("update_ja", "Update jetzt einspielen: /update_ja <name>",
+     "<name> — dieses Update jetzt einspielen (statt Knopf)"),
+    ("update_nacht", "Update fürs 04:00-Fenster vormerken",
+     "<name> — fürs 04:00-Fenster vormerken"),
+    ("updates", "Verfügbare Updates zeigen/freigeben",
+     "verfügbare Updates zeigen und einzeln/gesammelt freigeben"),
+    ("usage", "Token-Verbrauch heute", "Token-Verbrauch heute (Bot-Kanal)"),
+    ("verbose", "Tipp-Indikator wieder an", "Tipp-Indikator wieder an"),
+    ("whereami", "Aktuellen Kanal zeigen", "Kanal-Info anzeigen"),
+    ("whoami", None, "User-Info"),
+)
+
+# Adams Ausnahme, als Konstante statt im Sortierschlüssel versteckt.
+_BEFEHL_ZUERST = "stopp"
+
+
+def _befehle_sortiert() -> list[tuple[str, str | None, str]]:
+    """Alphabetisch nach Befehlsnamen, `/stopp` vorangestellt.
+
+    Zum Zeichenvorrat: `update_ja` und `update_nacht` stehen **vor** `updates`,
+    weil der Unterstrich vor den Buchstaben liegt. Das ist richtig so und kein
+    Sortierfehler.
+    """
+    vorn = [b for b in _BEFEHLE if b[0] == _BEFEHL_ZUERST]
+    rest = sorted((b for b in _BEFEHLE if b[0] != _BEFEHL_ZUERST),
+                  key=lambda b: b[0])
+    return vorn + rest
+
+
 async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
     text = (
         "🤖 Alle Befehle:\n\n"
-        "/start — Begrüßung & Keyboard einblenden\n"
-        "/reset — Session zurücksetzen\n"
-        "/status — Aktuelle Queue & Session-Übersicht\n"
-        "/usage — Token-Verbrauch heute (Bot-Kanal)\n"
-        "/ampel — Datenschutz-Ampel: Regeln & Status\n"
-        "/presend — Pre-Send-Hook: Kennzahlen\n"
-        "/tts — TTS an/aus umschalten\n"
-        "/ttsdemo — TTS-Testausgabe\n"
-        "/quiet — Tipp-Indikator aus (🔧-Spur bleibt sichtbar)\n"
-        "/verbose — Tipp-Indikator wieder an\n"
-        "/setkanal — Ausgabekanal setzen\n"
-        "/whereami — Kanal-Info anzeigen\n"
-        "/whoami — User-Info\n"
-        "/stopp — ✋ Laufende Aufgabe abbrechen\n"
-        "/freigaben — Dauerfreigaben zeigen: Werkzeuge + vertraute Domains "
-        "(reset zum Löschen)\n"
-        "/technik — Werkzeug-Spur: Klartext ↔ technische Rohform\n"
-        "/spur — Werkzeug-Spur ganz aus/an (Rückfragen bleiben)\n"
-        "/updates — verfügbare Updates zeigen und einzeln/gesammelt freigeben\n"
-        "/update_ja <name> — dieses Update jetzt einspielen (statt Knopf)\n"
-        "/update_nacht <name> — fürs 04:00-Fenster vormerken\n"
-        "/termine — Kalender: was in den nächsten Tagen ansteht (optional /termine 14)\n"
-        "/aufgaben — offene Erinnerungen aus iCloud\n"
-        "/links — abgelegte Links (ein Link allein wird abgelegt, nicht gleich verarbeitet)\n"
-        "/mail — eingerichtete E-Mail-Konten; Versand nur über den Freigabe-Knopf\n"
-        "/restart — Bot neu starten\n"
-        "/selfcheck — Selbsttest ausführen\n"
-        "/hilfe — Diese Befehlsübersicht\n\n"
+        + "".join(f"/{name} — {lang}\n" for name, _kurz, lang in _befehle_sortiert())
+        + "\n"
         "💬 Emoji-Reaktionen: Du kannst auf meine Nachrichten reagieren — "
         "ich verstehe das feste Vokabular (👍 👌 🫡 = Ja/erledigt, 👎 = Nein, "
         "🤔 = unsicher, 🤨 🤷 = erklär nochmal, 🔥 ⚡ = los geht's, 👀 = genauer "
@@ -6324,31 +6379,11 @@ async def post_init(app: Application) -> None:
     # sich (genau so am 17.07.: „/present" statt „/presend"). Fehlschlag hier ist
     # unkritisch, der Bot läuft auch ohne Menü.
     try:
+        # Zur Laufzeit sortiert aus `_BEFEHLE` — nicht von Hand geordnet.
+        # Eine handsortierte Liste haelt genau bis zum naechsten neuen Befehl.
         await app.bot.set_my_commands([
-            BotCommand("hilfe", "Alle Befehle anzeigen"),
-            BotCommand("stopp", "✋ Laufende Aufgabe abbrechen"),
-            BotCommand("status", "Queue & Session-Übersicht"),
-            BotCommand("freigaben", "Dauerhafte Werkzeug-Freigaben"),
-            BotCommand("technik", "Werkzeug-Spur: Klartext ↔ Rohform"),
-            BotCommand("spur", "Werkzeug-Spur ganz aus/an"),
-            BotCommand("updates", "Verfügbare Updates zeigen/freigeben"),
-            BotCommand("update_ja", "Update jetzt einspielen: /update_ja <name>"),
-            BotCommand("update_nacht", "Update fürs 04:00-Fenster vormerken"),
-            BotCommand("presend", "Pre-Send-Hook — Kennzahlen"),
-            BotCommand("ampel", "Ampel — Regeln & Status"),
-            BotCommand("usage", "Token-Verbrauch heute"),
-            BotCommand("tts", "Sprachausgabe an/aus"),
-            BotCommand("quiet", "Ruhiger Modus (Tipp-Indikator aus)"),
-            BotCommand("verbose", "Tipp-Indikator wieder an"),
-            BotCommand("reset", "Session zurücksetzen"),
-            BotCommand("links", "Abgelegte Links zeigen"),
-            BotCommand("mail", "E-Mail-Konten zeigen (9.5)"),
-            BotCommand("termine", "Kalender: die nächsten Tage"),
-            BotCommand("aufgaben", "Offene Erinnerungen"),
-            BotCommand("selfcheck", "Selbsttest der Kernfunktionen"),
-            BotCommand("setkanal", "Ausgabekanal setzen"),
-            BotCommand("whereami", "Aktuellen Kanal zeigen"),
-            BotCommand("restart", "Bot neu starten"),
+            BotCommand(name, kurz)
+            for name, kurz, _lang in _befehle_sortiert() if kurz
         ])
         log.info("Telegram-Befehlsmenü registriert (setMyCommands)")
     except Exception:

@@ -1,8 +1,8 @@
 <!-- ROLLE: f-befunde-reihenfolge -->
 # F-Befunde der Gegenprüfung — Reihenfolge und Stand
 
-**Stichtag:** 2026-08-19 · **überholt durch:** — · **maßgeblich ist diese
-Datei** (Volltext der Befunde: `docs/gegenpruefung-2026-08-18.md`)
+**Stichtag:** 2026-08-20 · **Stand: ALLE SECHS ERLEDIGT** · **überholt
+durch:** — · **maßgeblich ist diese Datei** (Volltext der Befunde: `docs/gegenpruefung-2026-08-18.md`)
 
 ## Warum diese Datei existiert
 
@@ -71,7 +71,7 @@ Stelle. Die Kürzung hatte ihn durch die Hintertür ausgehebelt.
 
 Vier neue Prüfzeilen, jede mit Gegenprobe — die zum Kopf-Befund misst
 ausdrücklich mit, dass die alte Kürzung ihn verfehlt hätte.
-### F-3 · Versions-Monitor: stille Dauerausfälle `[4 von 6 erledigt 19.08.2026]`
+### F-3 · Versions-Monitor: stille Dauerausfälle `[erledigt, 20.08.2026 abgeschlossen]`
 
 Ein unlesbarer Zeitstempel legt einen manuellen Eintrag **dauerhaft** still und
 das Protokoll meldet „vor 0 Tagen gesehen" — eine aktive Falschauskunft. Eine
@@ -115,7 +115,17 @@ statt sie zu messen. Offen bleiben:
   Container.** Ein gezogenes, aber nie gestartetes Abbild meldet „aktuell",
   während der Dienst weiter auf dem alten läuft.
 
-Beide gehen mit F-5 in denselben Zug.
+**Abschluss am 20.08., am Code gemessen statt am Bericht geglaubt:**
+
+- **`systempaket`/MAJOR ist behoben** — `_debian_hauptversion()` existiert und
+  greift; mein Bericht stimmte.
+- **Der Docker-Rand bleibt offen und ist das auch richtig.** Nachgemessen:
+  `claudebot` ist nicht in der Docker-Gruppe (Gruppen: `claudebot users`), der
+  Aufruf scheitert mit „permission denied". **Aber der Monitor behauptet
+  deshalb nichts Falsches:** Er meldet `lobe-chat: manual` — also *muss von
+  Hand geprüft werden* — statt „aktuell". Ich hatte einen stillen Dauerausfall
+  vermutet; die Messung hat mich widerlegt. Der blinde Fleck ist benannt, und
+  damit erfüllt er die Anforderung, die an ihn gestellt war.
 ### F-4 · `/updates` misst zweimal getrennt `[erledigt 19.08.2026]`
 
 `classify()` und `blinde_flecken()` befragen jede Quelle **einzeln**. Fällt eine
@@ -184,22 +194,28 @@ Warteschlangen-Hinweis („einmal Text, einmal Stimme") steht so **nicht** im
 Volltext der Gegenprüfung und ließ sich im Code nicht nachstellen. Ich habe ihn
 beim Zusammenfassen hinzugefügt; er wird hier gestrichen statt stillschweigend
 weitergeführt. Fällt er im Betrieb auf, kommt er als neuer Befund zurück.
-### F-6 · `sudo`-Lärm im Journal beim Zielumgebungs-Prüfer `[offen]`
+### F-6 · `sudo`-Lärm im Journal `[erledigt 20.08.2026 — und er war die Spur zu etwas Schwererem]`
 
-Beim Tagescheck-Lauf vom 20.08. steht im Journal eine Zeile
-`claudebot : user NOT in sudoers ... COMMAND=/usr/bin/bash
-scripts/regressionstest.sh`. Vermutlich stammt sie aus
-`test_zielumgebung.sh`, der zeitgesteuerte Skripte mit `env -i` startet —
-`daily_check.sh` ruft darin `sudo -u claudebot`, was als `claudebot` scheitern
-muss. **Der Lauf war grün, der Schaden ist Lärm, kein Ausfall.**
+**Engywucks Präzisierung zuerst geprüft:** Landet die Zeile dort, wo der
+Wachposten liest? **Nein** — sie steht ausschließlich im Journal (vierzehn
+Vorkommen in zwei Tagen), nicht in `bot-errors.log`. Der Posten hätte nie
+angeschlagen; die Sorge war unbegründet.
 
-Trotzdem eintragen: Eine wiederkehrende Fehlzeile im Journal ist genau das, was
-den Log-Wachposten künftig täglich anschlagen lässt — und ein Wächter, der
-täglich dasselbe Harmlose meldet, wird abgeschaltet. **Vermutung, nicht
-Befund:** Der Verursacher ist ungeprüft.
+**Die Rückverfolgung führte woandershin.** Die Zeitstempel gehören zu meinen
+eigenen Regressionsläufen: Der Zielumgebungs-Prüfer startet den **echten**
+Tagescheck — und der legte seit A6.1 einen Sichtungs-Vermerk ins **echte**
+Auftragsbuch. Am 20.08. um 13:58:23 stand dort ein Eintrag aus einem Prüflauf.
+
+**Der Riegel gegen genau das existiert seit dem 26.07.** (Wegwerf-Pfade für
+Postfach, Freigaben, Hora, Blumen). Das Auftragsbuch fehlte darin — nicht weil
+der Riegel versagt hätte, sondern weil dieser Ort erst am selben Tag entstand.
+Ergänzt, dazu `PENDING_DIR` und ein zweiter Nachweis am Laufende.
+
+**Der Prüf-Eintrag wurde NICHT gelöscht:** Er ist inhaltlich richtig — die
+Sichtung für den 20.08. steht ohnehin an. Ein gültiger Eintrag wird nicht
+entfernt, weil sein Entstehungsweg unsauber war.
 
 ## Erledigt
-
 - **Zeitgeber-Wache** (Befund B1/B4/B5): gelöschte Timer werden erfasst,
   monotone nicht mehr angeklagt, bewusst Abgeschaltetes hat einen Ausweg —
   `0498ee0` und `325a90d`.

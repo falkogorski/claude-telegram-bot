@@ -182,29 +182,50 @@ def _die_anzeige_nennt_das_alter():
 
 
 def _ohne_stand_wird_nichts_erfunden():
-    """Kein Wert heißt: das sagen, nicht schätzen."""
+    """**Durch A2.2 umgebaut — und der Umbau ist der Punkt.**
+
+    Frueher galt: kein Stand, keine Zahl. Seit A2.2 wird bei leerem Merker
+    frisch gemessen — die Regel wandert also mit auf den Fall, dass die
+    Messung **nichts liefert**. Der Anbieter schickt die Kopfzeilen laut
+    eigener Angabe nur optional; dann darf trotzdem keine Zahl erscheinen,
+    und der bereits gelaufene Verbrauch muss genannt werden.
+    """
     _frisch()
     gesendet = []
+    echt_messen = bot._kontingent_frisch_messen
+    echt_auth = bot.authorized
+
+    async def _messung_ohne_ergebnis():
+        return False
 
     class Msg:
         async def reply_text(self, text, *a, **k):
             gesendet.append(text)
+            return self
+
+        async def edit_text(self, text, *a, **k):
+            gesendet.append(text)
+            return self
 
     class Upd:
         message = Msg()
         effective_user = type("U", (), {"id": 4711})()
         effective_chat = type("C", (), {"id": 4711, "type": "private"})()
 
-    echt = bot.authorized
+    bot._kontingent_frisch_messen = _messung_ohne_ergebnis
     bot.authorized = lambda *a, **k: True
     try:
         asyncio.run(bot.cmd_kontingent(Upd(), None))
     finally:
-        bot.authorized = echt
+        bot._kontingent_frisch_messen = echt_messen
+        bot.authorized = echt_auth
 
     assert gesendet, "der Abruf hat nichts gesendet"
-    assert "%" not in gesendet[0], \
-        "ohne bekannten Stand wird eine Prozentzahl ausgegeben"
+    letzte = gesendet[-1]
+    assert "%" not in letzte, \
+        f"ohne Ergebnis wird eine Prozentzahl ausgegeben: {letzte[:120]}"
+    assert "gekostet" in letzte, \
+        "der bereits gelaufene Verbrauch wird verschwiegen"
 
 
 def _der_abruf_steht_im_menue():
@@ -224,6 +245,148 @@ check("das Alter kommt in Marken", _alter_wird_in_marken_genannt)
 check("die Anzeige nennt das Alter", _die_anzeige_nennt_das_alter)
 check("ohne Stand wird nichts erfunden", _ohne_stand_wird_nichts_erfunden)
 check("der Abruf steht im Menü", _der_abruf_steht_im_menue)
+
+
+# ---------------------------------------------------------------------------
+# A2.2 — die Frischmessung auf Wunsch (Adam 20.08., Engywucks drei Auflagen)
+#
+# Die Erweiterung bricht bewusst die Invariante „der Abruf verbraucht
+# nichts“. Zulaessig ist das, weil der Lauf mensch-initiiert ist: ein Tipp,
+# ein Lauf. **Genau deshalb muss geprueft werden, dass die Ausnahme eng
+# bleibt** — eine Ausnahme ohne Pruefer ist eine Absichtserklaerung.
+
+
+def _bei_altem_stand_wird_NICHT_gemessen():
+    """**Engywucks zweite Auflage, ausgefuehrt.**
+
+    Ein alter Stand darf sich nicht von selbst nachmessen — sonst kostet
+    jeder Blick auf den Stand Kontingent. Geprueft wird, indem die Messung
+    durch eine Attrappe ersetzt wird, die mitzaehlt: Bei vorhandenem Stand
+    darf sie **nie** gerufen werden.
+    """
+    _frisch()
+    bot._limit_letzten_merken(Info(anteil=0.5))
+    # kuenstlich alt machen — aelter als jede Wiedervorlage
+    bot._LIMIT_LETZTER["five_hour"]["gesehen"] = time.time() - 86400
+    gerufen = []
+    echt_messen = bot._kontingent_frisch_messen
+    echt_auth = bot.authorized
+
+    async def _attrappe():
+        gerufen.append(1)
+        return True
+
+    gesendet = []
+
+    class Msg:
+        async def reply_text(self, text, *a, **k):
+            gesendet.append(text)
+            return self
+
+        async def edit_text(self, text, *a, **k):
+            gesendet.append(text)
+            return self
+
+    class Upd:
+        message = Msg()
+        effective_user = type("U", (), {"id": 4711})()
+        effective_chat = type("C", (), {"id": 4711, "type": "private"})()
+
+    bot._kontingent_frisch_messen = _attrappe
+    bot.authorized = lambda *a, **k: True
+    try:
+        asyncio.run(bot.cmd_kontingent(Upd(), None))
+    finally:
+        bot._kontingent_frisch_messen = echt_messen
+        bot.authorized = echt_auth
+
+    assert not gerufen, \
+        "ein ALTER Stand hat eine Frischmessung ausgeloest — jeder Blick kostet dann"
+    assert gesendet and "50 %" in gesendet[0], \
+        f"der alte Stand wurde nicht angezeigt: {gesendet[:1]}"
+
+
+def _bei_leerem_stand_wird_gemessen():
+    """Die Gegenrichtung — sonst prueft die Zeile oben nur Untaetigkeit."""
+    _frisch()
+    gerufen = []
+    echt_messen = bot._kontingent_frisch_messen
+    echt_auth = bot.authorized
+
+    async def _attrappe():
+        gerufen.append(1)
+        bot._limit_letzten_merken(Info(anteil=0.11))
+        return True
+
+    class Msg:
+        async def reply_text(self, text, *a, **k):
+            return self
+
+        async def edit_text(self, text, *a, **k):
+            return self
+
+    class Upd:
+        message = Msg()
+        effective_user = type("U", (), {"id": 4711})()
+        effective_chat = type("C", (), {"id": 4711, "type": "private"})()
+
+    bot._kontingent_frisch_messen = _attrappe
+    bot.authorized = lambda *a, **k: True
+    try:
+        asyncio.run(bot.cmd_kontingent(Upd(), None))
+    finally:
+        bot._kontingent_frisch_messen = echt_messen
+        bot.authorized = echt_auth
+
+    assert gerufen, "bei leerem Stand wurde nicht gemessen — der Befehl bliebe nutzlos"
+
+
+def _die_beschreibung_wandert_mit():
+    """**Engywucks erste Auflage.**
+
+    Nach einer Frischmessung darf der Text NICHT behaupten, der Abruf
+    verbrauche nichts — das waere die umgekehrte Falsch-Wahrheit: Der Bau
+    tut mehr, als die Beschreibung sagt.
+    """
+    _frisch()
+    bot._limit_letzten_merken(Info(anteil=0.4))
+    frisch = bot._kontingent_text(frisch=True)
+    assert "verbraucht selbst nichts" not in frisch, \
+        "nach einer Frischmessung steht da noch, der Abruf verbrauche nichts"
+    assert "Kontingent gekostet" in frisch, \
+        f"der Verbrauch wird nicht genannt: {frisch[-120:]}"
+    ruhig = bot._kontingent_text(frisch=False)
+    assert "verbraucht selbst nichts" in ruhig, \
+        "ohne Messung fehlt der Hinweis, dass der Abruf nichts kostet"
+
+
+def _kein_anderer_pfad_ruft_die_messung():
+    """**Engywucks dritte Auflage.** Keine Automatik, kein Zeitgeber.
+
+    Text-Pruefung mit Ansage: Gezaehlt werden die Aufrufstellen im Quelltext.
+    Erlaubt sind genau zwei — der Befehl und die Schaltflaeche, beide von
+    Adams Tipp ausgeloest. Kommt eine dritte dazu, ist zu begruenden, wer sie
+    ausloest; ein Zeitgeber waere ein AGB-Bruch.
+    """
+    quelle = (Path(__file__).resolve().parent.parent / "bot.py").read_text(encoding="utf-8")
+    # **Der Beobachter im Bild — beim ersten Lauf sofort aufgetreten.**
+    # Die Definitionszeile `async def _kontingent_frisch_messen()` enthaelt den
+    # gesuchten Text und zaehlte sich selbst als dritter Aufruf. Dasselbe
+    # Muster wie die Prozess-Zaehlung, die sich mitzaehlte: Wer misst, muss
+    # sich aus der Messung herausrechnen.
+    zeilen = [z for z in quelle.splitlines()
+              if "_kontingent_frisch_messen()" in z
+              and not z.lstrip().startswith(("async def", "def"))]
+    aufrufe = len(zeilen)
+    assert aufrufe == 2, (
+        f"{aufrufe} Aufrufstellen der Frischmessung statt zwei — erlaubt sind "
+        "nur Befehl und Schaltflaeche, beide mensch-initiiert")
+
+
+check("bei ALTEM Stand wird NICHT gemessen", _bei_altem_stand_wird_NICHT_gemessen)
+check("bei leerem Stand wird gemessen", _bei_leerem_stand_wird_gemessen)
+check("die Beschreibung wandert mit", _die_beschreibung_wandert_mit)
+check("kein anderer Pfad ruft die Messung", _kein_anderer_pfad_ruft_die_messung)
 
 print()
 if fails:

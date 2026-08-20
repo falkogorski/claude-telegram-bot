@@ -3221,6 +3221,115 @@ async def cmd_presend(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("\n".join(L))
 
 
+async def _kontingent_frisch_messen() -> bool:
+    """Holt den Kontingentstand **jetzt** — auf Kosten des Kontingents.
+
+    **Warum das eine Ausnahme ist und eng bleiben muss:** Der Abruf war
+    ausdrücklich so gebaut, dass er nichts verbraucht. Diese Funktion bricht
+    das. Zulässig ist sie allein, weil sie **mensch-initiiert** läuft: Adam
+    tippt den Befehl oder die Schaltfläche, ein Tipp ergibt einen Lauf. Kein
+    Zeitgeber, keine Automatik, kein anderer Pfad ruft sie — das ist keine
+    Absichtserklärung, sondern durch `scripts/test_kontingent_a2.py` in beide
+    Richtungen geprüft.
+
+    **Kleinstes Modell, kürzeste Frage.** Die Zahl steht in den Kopfzeilen der
+    Antwort; *welche* Antwort das ist, spielt keine Rolle. Also nimmt die
+    Messung das billigste Modell und eine Frage, die mit einem Zeichen
+    beantwortet ist — sie soll so wenig wie möglich von dem verbrauchen, was
+    sie misst. 💰 Der Verbrauch läuft über das Abo, es wird kein Geld gebucht.
+
+    Rückgabe: ob ein Stand angekommen ist. **Falsch heißt falsch** — die
+    Kopfzeilen kommen laut Anbieter nur für Abo-Konten und erst nach der
+    ersten Antwort; wer hier `True` zurückgäbe, weil der Lauf glückte, würde
+    einen Stand behaupten, den niemand gesehen hat.
+    """
+    options = ClaudeAgentOptions(
+        cwd=str(WORKDIR),
+        permission_mode="bypassPermissions",
+        allowed_tools=[],
+        model=_MODEL_ALIASES.get("haiku", "haiku"),
+        system_prompt="Antworte ausschließlich mit dem Zeichen: .",
+        max_buffer_size=SDK_MAX_BUFFER,
+    )
+    gesehen = False
+    client = ClaudeSDKClient(options=options)
+    await client.connect()
+    try:
+        await client.query(".")
+        async for msg in client.receive_response():
+            if _RateLimitEvent is not None and isinstance(msg, _RateLimitEvent):
+                info = getattr(msg, "rate_limit_info", None)
+                if info is not None:
+                    _limit_letzten_merken(info)
+                    gesehen = True
+            elif isinstance(msg, ResultMessage):
+                break
+    finally:
+        try:
+            await client.disconnect()
+        except Exception:
+            log.exception("disconnect of kontingent client failed")
+    return gesehen
+
+
+def _kontingent_knopf() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🔄 Frisch messen", callback_data="kfm:1")]])
+
+
+def _kontingent_text(frisch: bool = False) -> str:
+    """Der Anzeigetext — **eine** Stelle für Befehl und Schaltfläche."""
+    zeilen = ["📉 Kontingent — zuletzt gesehener Stand:"]
+    for art, wert in sorted(_LIMIT_LETZTER.items()):
+        name = _LIMIT_NAMEN.get(art, art)
+        anteil = wert.get("anteil")
+        if not isinstance(anteil, (int, float)):
+            continue
+        prozent = round(anteil * 100)
+        voll = max(0, min(10, round(anteil * 10)))
+        balken = "█" * voll + "░" * (10 - voll)
+        wann = _limit_zeitspanne(wert.get("resets_at"))
+        alter = _vor_wie_lange(wert.get("gesehen"))
+        zeilen.append(f"\n{name}: {prozent} % aufgebraucht")
+        zeilen.append(f"{balken}")
+        if wann:
+            zeilen.append(f"Zurückgesetzt{wann}.")
+        zeilen.append(f"Stand {alter} gesehen.")
+    # **Die Beschreibung wandert mit dem Bau** (Engywucks erste Auflage): Nach
+    # einer Frischmessung darf hier NICHT stehen, der Abruf verbrauche nichts.
+    # Sonst behauptet der Text das Gegenteil dessen, was gerade geschah — die
+    # umgekehrte Falsch-Wahrheit: der Bau tut mehr, als die Beschreibung sagt.
+    if frisch:
+        zeilen.append("\n🔄 Frisch gemessen — das hat selbst ein wenig "
+                      "Kontingent gekostet (Abo, kein Geld).")
+    else:
+        zeilen.append("\nDie Zahl fließt mit den Antworten mit; dieser Abruf "
+                      "verbraucht selbst nichts.")
+    return "\n".join(zeilen)
+
+
+async def on_kontingent_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Die Schaltfläche unter dem Stand. **Adams Tipp, Adams Kosten.**
+
+    Die Messung bleibt seine Entscheidung, auch wenn ein Stand schon dasteht
+    und alt ist — ein alter Stand misst sich **nicht** von selbst nach.
+    """
+    query = update.callback_query
+    if not authorized(update):
+        await query.answer("Nicht berechtigt.", show_alert=True)
+        return
+    await query.answer("Messe…")
+    gesehen = await _kontingent_frisch_messen()
+    if not gesehen:
+        await query.edit_message_text(
+            "📉 Der Anbieter hat diesmal keinen Stand mitgeschickt.\n\n"
+            "Das kommt vor — die Kopfzeilen sind laut Anbieter optional. "
+            "Der Lauf hat trotzdem ein wenig Kontingent gekostet.")
+        return
+    await query.edit_message_text(_kontingent_text(frisch=True),
+                                  reply_markup=_kontingent_knopf())
+
+
 async def cmd_kontingent(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Was vom Abo-Fenster noch übrig ist — **ohne dafür etwas zu verbrauchen.**
 
@@ -3232,34 +3341,29 @@ async def cmd_kontingent(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """
     if not authorized(update):
         return
+    # **A2.2, die enge Ausnahme (Engywucks zweite Auflage):** Frisch gemessen
+    # wird NUR bei komplett leerem Merker — dann ist der Befehl sonst nutzlos,
+    # und Adam hat ihn ja gerade deshalb gerufen. Ein bloß **alter** Stand
+    # misst sich nicht von selbst nach: Er zeigt sein Alter und bietet die
+    # Schaltfläche an, damit die Messung Adams Entscheidung bleibt und nicht
+    # bei jedem Blick von allein läuft.
     if not _LIMIT_LETZTER:
-        await update.message.reply_text(
-            "📉 Noch kein Kontingent-Stand gesehen.\n\n"
-            "Die Zahl kommt mit den Antworten des Anbieters mit — nach der "
-            "nächsten Anfrage steht hier etwas. Ich frage sie nicht eigens ab, "
-            "das würde vom Kontingent nehmen, dessen Stand ich melde.")
+        hinweis = await update.message.reply_text(
+            "📉 Noch kein Stand da — ich messe einmal frisch, Moment…")
+        gesehen = await _kontingent_frisch_messen()
+        if not gesehen:
+            await hinweis.edit_text(
+                "📉 Der Anbieter hat keinen Stand mitgeschickt.\n\n"
+                "Die Kopfzeilen sind laut Anbieter optional und kommen nur "
+                "für Abo-Konten. Der Versuch hat ein wenig Kontingent "
+                "gekostet; beim nächsten normalen Austausch versuche ich es "
+                "wieder mit.")
+            return
+        await hinweis.edit_text(_kontingent_text(frisch=True),
+                                reply_markup=_kontingent_knopf())
         return
-    zeilen = ["📉 Kontingent — zuletzt gesehener Stand:"]
-    for art, wert in sorted(_LIMIT_LETZTER.items()):
-        name = _LIMIT_NAMEN.get(art, art)
-        anteil = wert.get("anteil")
-        if not isinstance(anteil, (int, float)):
-            continue
-        prozent = round(anteil * 100)
-        # Ein Balken sagt auf einen Blick, was eine Zahl erst nach dem Lesen
-        # sagt — und wird vom Vorlese-Filter ohnehin entfernt.
-        voll = max(0, min(10, round(anteil * 10)))
-        balken = "█" * voll + "░" * (10 - voll)
-        wann = _limit_zeitspanne(wert.get("resets_at"))
-        alter = _vor_wie_lange(wert.get("gesehen"))
-        zeilen.append(f"\n{name}: {prozent} % aufgebraucht")
-        zeilen.append(f"{balken}")
-        if wann:
-            zeilen.append(f"Zurückgesetzt{wann}.")
-        zeilen.append(f"Stand {alter} gesehen.")
-    zeilen.append("\nDie Zahl fließt mit den Antworten mit; dieser Abruf "
-                  "verbraucht selbst nichts.")
-    await update.message.reply_text("\n".join(zeilen))
+    await update.message.reply_text(_kontingent_text(),
+                                    reply_markup=_kontingent_knopf())
 
 
 async def cmd_usage(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3327,8 +3431,11 @@ _BEFEHLE: tuple[tuple[str, str | None, str], ...] = (
     ("freigaben", "Dauerhafte Werkzeug-Freigaben",
      "Dauerfreigaben zeigen: Werkzeuge + vertraute Domains (reset zum Löschen)"),
     ("hilfe", "Alle Befehle anzeigen", "Diese Befehlsübersicht"),
-    ("kontingent", "Abo-Kontingent: zuletzt gesehener Stand",
-     "Abo-Kontingent: wie viel vom Fenster aufgebraucht ist (verbraucht selbst nichts)"),
+    # Die Beschreibung wandert mit dem Bau: Seit A2.2 misst der Abruf bei
+    # leerem Stand frisch, und das kostet. „Verbraucht selbst nichts" wäre
+    # jetzt falsch — dieselbe Auflage, die auch den Anzeigetext betrifft.
+    ("kontingent", "Abo-Kontingent: Stand zeigen",
+     "Abo-Kontingent: wie viel vom Fenster aufgebraucht ist (liegt kein Stand vor, wird einmal frisch gemessen)"),
     ("links", "Abgelegte Links zeigen",
      "abgelegte Links (ein Link allein wird abgelegt, nicht gleich verarbeitet)"),
     ("mail", "E-Mail-Konten zeigen (9.5)",
@@ -9532,6 +9639,7 @@ def main() -> None:
     app.add_handler(CommandHandler("presend", cmd_presend))
     app.add_handler(CommandHandler("usage", cmd_usage))
     app.add_handler(CommandHandler("kontingent", cmd_kontingent))
+    app.add_handler(CallbackQueryHandler(on_kontingent_knopf, pattern=r"^kfm:"))
     app.add_handler(CommandHandler("hilfe", cmd_hilfe))
     app.add_handler(CommandHandler("restart", cmd_restart))
     app.add_handler(CommandHandler("setkanal", cmd_setkanal))

@@ -280,6 +280,39 @@ eine Aufgabe hoch (analog zur Park-Regel für Entscheidungsfragen).
 Abweichungen vom Standard nur, wenn Adam sie **vor** einem Lauf ausdrücklich
 festlegt. Gilt für alle künftigen Nacht-/Autonomie-Läufe.
 
+
+### Blocktakt: zwei Stunden, zwei bis drei am Tag `[PRÄZISIERT 2026-08-20, Adam]`
+
+Adam mittags am 20.08., nachdem ein Vormittagsblock schon um zwölf fertig war:
+**Ein Block dauert etwa zwei Stunden.** Davon passen **zwei bis drei am Tag** —
+einer vormittags, einer nachmittags, dazu der **Nachtblock, der länger laufen
+darf**. Nicht ein einziger langer Durchmarsch.
+
+**Der Grund ist nicht Schonung, sondern Aufteilung:** Das
+Fünf-Stunden-Kontingent ist ein **gemeinsamer Topf aller Sitzungen**. Wer ihn
+in einem Zug leert, nimmt ihn den Einkommensprojekten weg, die seit dem
+Geteilt-Entscheid Adams Hauptstrang sind — und einer parallelen Bot-Sitzung
+gleich mit. Adams Wort: *„nicht durchballern"* und *„Raum lassen für andere
+Prozesse"*.
+
+**Was daraus folgt:**
+
+- **Nach einem Block ist Schluss, auch wenn noch Zeit wäre.** Der nächste Block
+  beginnt später am Tag. Das ist kein Halt im Sinne der Durchlauf-Regel — die
+  gilt **innerhalb** eines Blocks; hier endet der Block.
+- **Der Blockzuschnitt gehört an den Anfang**, zusammen mit Modell, Modus und
+  der „Gut genug wenn:"-Zeile: *Was passt in zwei Stunden?* Passt es nicht,
+  wird geteilt, nicht gestreckt.
+- **Vor einem Block den Kontingentstand deterministisch prüfen**, wenn ein Weg
+  dazu existiert — und bei knappem Stand den Block kleiner schneiden statt ihn
+  abzubrechen. Ein abgebrochener Block hinterlässt Halbfertiges; ein kleiner
+  Block hinterlässt nichts.
+- **Der Nachtblock bleibt die Ausnahme** und darf länger laufen: Adam ist nicht
+  verfügbar, das Kontingent trägt niemanden sonst.
+
+**Warum das hier steht und nicht nur im Laufplan:** Ein Takt, der nur mündlich
+verabredet ist, hält bis zum ersten Tag, an dem die Arbeit gut läuft. Genau
+dann ist er am wichtigsten.
 ## 🧠 SELBSTLERNENDE ASSISTENZ (Adam-Grundprinzip 2026-07-24)
 
 Der Assistent lernt mit der Zeit Adams Vorlieben (Kategorisierung, Reihenfolge,

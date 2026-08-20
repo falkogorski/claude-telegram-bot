@@ -379,7 +379,7 @@ dran ist.
 
 ---
 
-## Log-Abgleich alle fünf Minuten (19.08.2026) — EINZUSPIELEN
+## Log-Abgleich alle fünf Minuten (19.08.2026) — EINGESPIELT 19.08., 23:15 (gemessen)
 
 **Adams ①-Entscheid vom 18.08. spät ersetzt den Stundentakt**, der am selben
 Tag um 17:58 gesetzt wurde. Grund ist derselbe wie damals, nur konsequenter:
@@ -408,10 +408,16 @@ Konfiguration zu lesen genügt nicht.
 
 ---
 
-## Wachposten-Zeitgeber (19.08.2026) — NOCH NICHT EINSPIELEN
+## Wachposten-Zeitgeber (19.08.2026) — EINGESPIELT 19./20.08.
 
-> ⚠️ **Engywucks Auflage:** erst nach W1–W3 und seiner Nachprüfung. Die Befunde
-> sind gebaut (Stand siehe Drehbuch), die Nachprüfung steht aus.
+> ✅ **Erledigt.** Engywucks Auflage war erfüllt (W1–W5 gebaut, Nachprüfung
+> bestanden, Freigabe erteilt); Adam hat den Zeitgeber am 19.08.
+> um 23:16 eingespielt, er läuft seither im Fünf-Minuten-Takt. **Gemessene Wirkung:**
+> Der Lauf um 01:15 am 20.08. fand sieben Befunde und legte sieben
+> Dämpf-Schlüssel an — vor dem W1-Fix wäre es genau einer gewesen.
+>
+> Der Block bleibt als **Rückweg und Vorlage** stehen, nicht als offene
+> Aufgabe.
 >
 > **Warum dieser Block hier steht und nicht im Chat:** Befehle reisen nicht im
 > Chat, sie stehen im Repo — dieselbe Lehre wie beim Lesestand-Befehl

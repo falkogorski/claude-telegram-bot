@@ -1,7 +1,7 @@
 <!-- ROLLE: adam-arbeitsliste -->
 # Adams Arbeitsliste
 
-**Stichtag:** 2026-08-19 · **überholt durch:** — · **maßgeblich ist diese
+**Stichtag:** 2026-08-20 · **überholt durch:** — · **maßgeblich ist diese
 Datei** · **Pflege:** jede Sitzung, die einen Adam-Schritt hinterlässt
 
 ## Wofür es diese Liste gibt
@@ -40,6 +40,15 @@ demselben.
 ---
 
 ## Offen
+
+- [ ] **Abends den Nachtblock anstoßen** (wiederkehrend) · ~1 Min · schaltet
+      frei: **jede Nachtarbeit überhaupt.**
+      Weg: Eine kurze Nachricht genügt — „mach den Nachtblock". Der Grund,
+      warum dieser Punkt hier steht: **Diese Sitzung hat keinen eigenen
+      Zeitgeber** (gemessen am 19.08.), und die Durchlauf-Wache greift nur
+      innerhalb eines laufenden Zuges. Ohne deinen Anstoß läuft nachts nichts,
+      egal was im Laufplan steht. Der vorbereitete Block ist meine Aufgabe,
+      der Anstoß deine.
 
 - [ ] **E-Mail-Konten / 5.28-Zugang einrichten** · ~20 Min · schaltet frei:
       Punkt 9.5 (E-Mail-Kanal) kann in Betrieb gehen; der Bot kann Nachrichten
@@ -86,6 +95,12 @@ demselben.
 
 ## Erledigt
 
-- [x] **Wachposten-Zeitgeber einspielen** — 19.08.2026, 23:15. Timer lief an.
-- [x] **Log-Abgleich auf fünf Minuten stellen** — 19.08.2026, 23:20. Timer lief
+- [x] **Wachposten-Zeitgeber einspielen** — 19.08.2026, 23:16. Timer lief an.
+- [x] **Log-Abgleich auf fünf Minuten stellen** — 19.08.2026, 23:15. Timer lief
       an. (Ersetzt den Stundentakt vom 18.08.)
+- [x] **Wachposten-Merkzettel zurücksetzen** — 20.08.2026, 01:15 durch mich.
+      Die sieben verschluckten Zeilen sind nachgeholt; sieben Dämpf-Schlüssel
+      statt einem belegen, dass der Fix greift.
+- [x] **Ja-Knopf an der Wachposten-Meldung** — 20.08.2026 gebaut. Ein Tipp
+      hinterlegt den Befund im Auftragsbuch, deterministisch und ohne
+      Modellstart. Deine Frage von 00:31 hat damit eine Wirkung.

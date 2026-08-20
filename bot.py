@@ -3408,7 +3408,15 @@ def _kontingent_text(frisch: bool = False) -> str:
             roh = re.sub(r"(\d+)\s*pm", lambda m: f"{(int(m.group(1)) % 12) + 12} Uhr", roh)
             roh = re.sub(r"(\d+)\s*am", lambda m: f"{int(m.group(1)) % 12} Uhr", roh)
             roh = re.sub(r"(?<=[a-zA-Z])(?=\d)|(?<=\d)(?=[A-Z])", " ", roh)
-            zeilen.append(f"Zurückgesetzt um {roh.strip()}.")
+            roh = re.sub(r",(?=\S)", ", ", roh)
+            for kurz, lang in (("Jan", "Januar"), ("Feb", "Februar"),
+                               ("Mar", "März"), ("Apr", "April"),
+                               ("May", "Mai"), ("Jun", "Juni"),
+                               ("Jul", "Juli"), ("Aug", "August"),
+                               ("Sep", "September"), ("Oct", "Oktober"),
+                               ("Nov", "November"), ("Dec", "Dezember")):
+                roh = re.sub(rf"\b{kurz}\w*", lang, roh)
+            zeilen.append(f"Zurückgesetzt am {roh.strip()}.")
         if wann:
             # `_limit_zeitspanne` liefert einen fertigen Halbsatz („— in etwa
             # zwei Stunden wieder frei"), der für die Warnmeldung gebaut ist.

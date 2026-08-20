@@ -42,6 +42,18 @@ CHECKLOG="${LOG_SYNC_CHECKLOG:-$(dirname "$SRC")/daily-check.log}"
 if [ -f "$CHECKLOG" ]; then
   cp "$CHECKLOG" daily-check.log
 fi
+# A4 (20.08.): Das ausführliche Wachposten-Archiv mitsyncen.
+#
+# **Ohne diese Zeile wäre A4 halb gebaut gewesen.** Die Trennung schickt Adam
+# einen kurzen deutschen Satz und legt die Einzelheiten „ins Archiv, auf das
+# Engywuck ohnehin zugreift" — nur griff er darauf gar nicht zu, weil der
+# Kurier die Datei nicht kannte. Die Details wären auf dem Server verblieben
+# und niemand hätte es bemerkt: eine Stille, die wie Ordnung aussieht.
+# (Gefunden beim Nachmessen des Kuriers, nicht beim Bauen der Trennung.)
+WPLOG="${LOG_SYNC_WPLOG:-$(dirname "$SRC")/wachposten-archiv.log}"
+if [ -f "$WPLOG" ]; then
+  cp "$WPLOG" wachposten-archiv.log
+fi
 # 5.21: Versions-Monitor-Protokoll mitsyncen.
 VLOG="${LOG_SYNC_VLOG:-$(dirname "$SRC")/version-monitor.log}"
 if [ -f "$VLOG" ]; then

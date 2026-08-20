@@ -72,6 +72,34 @@ die nächste Stille, die wie Ruhe aussieht.**
 Kein Sicherkanal in v1 — als **[später prüfen]** in der Auswertung vermerkt,
 damit aus „für jetzt" nicht stillschweigend „für immer" wird.
 
+## Zwei Fassungen: ein Satz für Adam, die Einzelheiten fürs Archiv
+
+`[NEU 2026-08-20, A4]` **Der Posten wurde für Engywuck und Mick gebaut,
+schreibt aber an Adam.** Dessen Urteil vom 20.08., 01:18: „böhmische Dörfer" —
+und er hat recht. Zeilenzitate, Dateipfade und englische Fehlertexte sagen ihm
+nichts.
+
+**Was Adam bekommt:** einen deutschen Satz. Wie viele Einträge, aus welcher
+Quelle in Alltagssprache, **ob es heikel ist**, und dass die Einzelheiten
+festgehalten wurden. Beispiel: *„Mir ist etwas aufgefallen: 2 neue Einträge in
+der Fehlerdatei. Nichts davon ist als heikel eingestuft. Die Einzelheiten habe
+ich für Engywuck festgehalten."*
+
+**Was ins Archiv geht** (`logs/wachposten-archiv.log`): die vollständige
+Fassung mit Fundstelle, Zeilennummer und Wortlaut — genau wie bisher. Der
+Kurier trägt die Datei mit; **ohne diese Ergänzung wäre A4 halb gebaut
+gewesen**, denn das Archiv erreichte niemanden.
+
+**Zwei Dinge stehen in BEIDEN Fassungen**, und beide aus einem Grund:
+- Die **Ampel-Einstufung in einem Wort** — ohne sie kann Adam nicht ableiten,
+  ob es dringend ist, und eine Kurzfassung, aus der das nicht hervorgeht, hat
+  ihren Zweck verfehlt.
+- Die **Zählzeile des Dämpfers** — was er zurückhält, ist nach dem Wandern des
+  Lesestands endgültig fort; sie ist die einzige Spur davon.
+
+**Die Kurzfassung zitiert nichts** und ist damit bei roten Inhalten automatisch
+auf der sicheren Seite.
+
 ## Die Schaltfläche an der Meldung
 
 Jede Meldung trägt eine Schaltfläche **📌 Befund hinterlegen**. Ein Tipp legt

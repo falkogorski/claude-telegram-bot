@@ -68,6 +68,13 @@ def _postfach_stellen():
     return echt
 
 
+def _archiv() -> str:
+    """Die ausfuehrliche Fassung — seit A4 (20.08.) NICHT mehr das, was Adam
+    bekommt. Der Wortlaut gehoert hierher, die Kurzfassung in seinen Chat."""
+    p = _TMP / "logs" / "wachposten-archiv.log"
+    return p.read_text(encoding="utf-8") if p.exists() else ""
+
+
 def _fehlerdatei(*zeilen):
     p = _TMP / "logs" / "bot-errors.log"
     p.write_text("\n".join(zeilen) + "\n", encoding="utf-8")
@@ -80,6 +87,7 @@ def _frisch():
     for f in (_TMP / "zustand").glob("*"):
         f.unlink()
     (_TMP / "logs" / "bot-errors.log").unlink(missing_ok=True)
+    (_TMP / "logs" / "wachposten-archiv.log").unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -92,12 +100,17 @@ def _rote_zeile_wird_gemeldet_mit_wortlaut():
     n = wachposten.lauf()
     assert n >= 1, "die Fehlerzeile wurde nicht gefunden"
     assert _GESENDET, "es ging nichts hinaus"
-    assert "Traceback" in _GESENDET[0], \
-        f"der Wortlaut fehlt in der Meldung: {_GESENDET[0][:200]}"
+    # A4: Der Wortlaut steht in der AUSFUEHRLICHEN Fassung im Archiv — Adams
+    # Chat bekommt einen deutschen Satz. Beides wird geprueft.
+    assert "Traceback" in _archiv(), \
+        f"der Wortlaut fehlt im Archiv: {_archiv()[:200]}"
+    assert "Traceback" not in _GESENDET[0], \
+        f"der englische Fehlertext steht in Adams Meldung: {_GESENDET[0][:200]}"
     # Die Schlusszeile nennt jetzt den Stand statt zu fragen (Adams Regel vom
     # 20.08.); geprüft wird, DASS sie steht — der Wortlaut in
     # `_keine_frage_ohne_wirkung`.
-    assert "Engywuck findet ihn" in _GESENDET[0], "die Schlusszeile fehlt"
+    assert "Engywuck" in _GESENDET[0], \
+        "Adam erfaehrt nicht, wo der Befund liegt"
 
 
 def _harmlose_zeilen_schweigen():
@@ -157,8 +170,9 @@ def _beschaedigter_stand_wird_gemeldet_nicht_verschwiegen():
     (_TMP / "zustand" / "stand.json").write_text("{kaputt", encoding="utf-8")
     _fehlerdatei("irgendwas Harmloses")
     wachposten.lauf()
-    assert _GESENDET and "Merkzettel" in _GESENDET[0], \
-        f"der beschädigte Stand wird verschwiegen: {_GESENDET[:1]}"
+    assert _GESENDET, "es ging gar nichts hinaus"
+    assert "Merkzettel" in _archiv(), \
+        f"der beschädigte Stand wird verschwiegen: {_archiv()[:300]}"
 
 
 def _bei_ampel_rot_kein_wortlaut():
@@ -263,9 +277,13 @@ def _ein_fehlersturm_sieht_nicht_aus_wie_ein_einzelfall():
                  "22:00:03 | ConnectionError: weg")
     n = wachposten.lauf()
     assert n == 3, f"von drei neuen Fehlerzeilen kamen {n} durch"
-    text = _GESENDET[0]
+    # A4: Die Wortlaute stehen in der ausfuehrlichen Fassung; Adams
+    # Kurzfassung nennt nur die Zahl. Beides wird gemessen.
+    text = _archiv()
     for muss in ("TimedOut", "ValueError", "ConnectionError"):
-        assert muss in text, f"[{muss}] fehlt in der Meldung — verschluckt"
+        assert muss in text, f"[{muss}] fehlt im Archiv — verschluckt"
+    assert "3 neue" in _GESENDET[0], \
+        f"Adams Kurzfassung nennt die Zahl nicht: {_GESENDET[0][:120]}"
 
 
 def _dieselbe_zeile_wird_zwischen_laeufen_gedaempft():
@@ -304,7 +322,8 @@ def _der_befund_wird_nicht_verbraucht_bevor_er_ankommt():
     # Der naechste Lauf MUSS die Zeile wiederfinden.
     _GESENDET.clear()
     assert wachposten.lauf() == 1, "die Zeile ging trotz Fehlschlag verloren"
-    assert "ein wichtiger Fehler" in _GESENDET[0]
+    assert "ein wichtiger Fehler" in _archiv(), \
+        "die wiedergefundene Zeile steht nicht im Archiv"
 
 
 def _die_fundstelle_nennt_zeile_und_zeit():
@@ -315,7 +334,9 @@ def _die_fundstelle_nennt_zeile_und_zeit():
     _frisch()
     _fehlerdatei("22:00:01 | irgendein Fehler")
     wachposten.lauf()
-    text = _GESENDET[0]
+    # A4: Die Fundstelle gehoert in die ausfuehrliche Fassung — Adams
+    # Kurzfassung nennt bewusst weder Zeilennummer noch Dateiname.
+    text = _archiv()
     assert "Zeile 1" in text, f"die Zeilennummer fehlt: {text[:200]}"
     assert "gesehen" in text, f"die Zeit fehlt: {text[:200]}"
 
@@ -333,8 +354,8 @@ def _halbe_zeilen_werden_nicht_zerrissen():
                  encoding="utf-8")
     _GESENDET.clear()
     wachposten.lauf()
-    assert _GESENDET and "halb geschrieben ende" in _GESENDET[0], \
-        "die fertige Zeile kam nicht nach"
+    assert _GESENDET, "es ging nichts hinaus"
+    assert "halb geschrieben ende" in _archiv(), "die fertige Zeile kam nicht nach"
 
 
 def _ampel_ausfall_wird_benannt():
@@ -369,9 +390,12 @@ def _gedaempfte_werden_gezaehlt_und_genannt():
         fh.write("voice get_file | NetworkError\n")  # kommt durch
     wachposten.lauf()
     letzte = _GESENDET[-1]
-    assert "NetworkError" in letzte, f"der neue Befund fehlt ganz: {letzte}"
-    assert "1 weitere, die der Dämpfer zurückhält" in letzte, \
-        f"das Zurückgehaltene wird verschwiegen: {letzte}"
+    assert "NetworkError" in _archiv(), "der neue Befund fehlt ganz im Archiv"
+    # Claudias Auflage: Die Zaehlzeile gehoert in BEIDE Fassungen — sie ist die
+    # einzige Spur eines endgueltigen Verlusts.
+    for wo, fassung in (("Adams Meldung", letzte), ("dem Archiv", _archiv())):
+        assert "1 weitere, die der Dämpfer zurückhält" in fassung, \
+            f"das Zurückgehaltene wird in {wo} verschwiegen"
 
 
 def _ohne_daempfung_keine_zaehlzeile():
@@ -399,7 +423,7 @@ def _keine_frage_ohne_wirkung():
     assert "wecken?" not in letzte, f"die wirkungslose Frage steht noch: {letzte}"
     assert not letzte.rstrip().endswith("?"), \
         f"die Meldung endet auf eine Frage: {letzte.rstrip()[-80:]}"
-    assert "Engywuck findet ihn" in letzte, "die Stand-Zeile fehlt"
+    assert "Engywuck" in letzte, "Adam erfaehrt nicht, wo der Befund liegt"
 
 
 def _meldung_traegt_einen_knopf():

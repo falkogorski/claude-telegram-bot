@@ -8,7 +8,10 @@ AGB-Grauzone — deshalb ein **deterministischer** Posten: Er liest neue
 Log-Zeilen, prüft sie gegen `wachmuster.py` und legt Auffälliges ins
 Boten-Postfach. **Kein Anthropic-Aufruf im Pfad, Kosten null.**
 
-Adams Fingertipp weckt dann Engywuck. Der Posten urteilt nicht — er zeigt.
+**Adam bekommt einen kurzen deutschen Satz** (A4, 20.08.), die
+Einzelheiten wandern ins Archiv `logs/wachposten-archiv.log`, das der
+Kurier zu Engywuck trägt. Eine Schaltfläche legt den Befund auf Tipp ins
+Auftragsbuch. Der Posten urteilt nicht — er zeigt.
 
 ## Zwei Dinge, die er bewusst NICHT tut
 
@@ -130,6 +133,84 @@ def _neue_zeilen(datei: Path, stand: dict) -> tuple[list[str], int]:
     vollstaendig = text[:schnitt + 1]
     neu = alt + len(vollstaendig.encode("utf-8"))
     return ([z for z in vollstaendig.splitlines() if z.strip()], neu)
+
+
+# Quellen-Namen, wie ein Mensch sie nennt. Der Dateiname ist für Engywuck
+# richtig und für Adam „böhmische Dörfer" — sein Wort vom 20.08., 01:18.
+_QUELLE_DEUTSCH = {
+    "bot-errors.log": "der Fehlerdatei",
+    "daily-check.log": "dem Tagescheck",
+}
+
+
+def _quelle_lesbar(namen: list[str]) -> str:
+    """Aus Dateinamen wird eine Ortsangabe, die man vorlesen kann."""
+    einzig = sorted(set(namen) - {"—"})
+    if not einzig:
+        return "den Protokollen"
+    if len(einzig) == 1:
+        return _QUELLE_DEUTSCH.get(einzig[0], f"der Datei {einzig[0]}")
+    return "mehreren Protokollen"
+
+
+def _kurzfassung(zu_melden: list, quellen_namen: dict, classify,
+                 rest: int, gedaempft: int) -> str:
+    """Ein Satz auf Deutsch — A4, Adams Entscheidung vom 20.08., 10:02.
+
+    **Der Posten wurde für Engywuck und Mick gebaut, schreibt aber an Adam.**
+    Die Einzelheiten (Zeilenzitate, Pfade, englische Fehlertexte) wandern ins
+    Archiv, auf das Engywuck ohnehin zugreift.
+
+    **Zwei Dinge müssen trotzdem mit,** sonst verfehlt die Kurzfassung ihren
+    Zweck: die **Ampel-Einstufung in einem Wort** — sonst kann Adam nicht
+    ableiten, ob es dringend ist — und die **Zählzeile des Dämpfers**, denn
+    was er zurückhält, ist endgültig fort; sie ist die einzige Spur davon.
+
+    **Zitiert wird nichts.** Damit ist die Kurzfassung bei roten Inhalten
+    automatisch auf der sicheren Seite.
+    """
+    n = len(zu_melden)
+    ort = _quelle_lesbar([quellen_namen.get(z, "—") for _, _, z in zu_melden])
+    # Die Einstufung: Rot gewinnt, ein Ausfall zählt als Rot (wie überall).
+    farben = set()
+    for _, _, zeile in zu_melden:
+        if classify is None:
+            farben.add("rot")
+            continue
+        try:
+            farben.add(str(classify(zeile).get("color", "gelb")))
+        except Exception:
+            farben.add("rot")
+    dringend = "rot" in farben
+    wort = ("Es ist als heikel eingestuft" if dringend
+            else "Nichts davon ist als heikel eingestuft")
+
+    eintrag = "ein neuer Eintrag" if n == 1 else f"{n} neue Einträge"
+    satz = (f"👁️ Mir ist etwas aufgefallen: {eintrag} in {ort}. "
+            f"{wort}. Die Einzelheiten habe ich für Engywuck festgehalten.")
+    if rest > 0:
+        satz += f"\n\n(Davon stehen {rest} nur im Protokoll.)"
+    if gedaempft > 0:
+        satz += (f"\n\nUnd {gedaempft} weitere, die der Dämpfer zurückhält "
+                 f"(binnen {int(WIEDERVORLAGE_S // 60)} Minuten schon gemeldet).")
+    return satz
+
+
+def _ins_archiv(text: str) -> None:
+    """Die ausführliche Fassung dorthin, wo der Kurier sie ohnehin mitnimmt.
+
+    Ein Fehlschlag hier darf die Meldung an Adam **nicht** aufhalten — das
+    Archiv ist die Bequemlichkeit, die Meldung ist die Pflicht.
+    """
+    try:
+        ziel = LOGDIR / "wachposten-archiv.log"
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        with ziel.open("a", encoding="utf-8") as fh:
+            fh.write(f"===== {time.strftime('%Y-%m-%d %H:%M:%S')} =====\n"
+                     f"{text}\n\n")
+    except Exception as e:
+        print(f"WARNUNG: Archiv-Eintrag fehlgeschlagen ({type(e).__name__}) — "
+              f"die Meldung an Adam geht trotzdem hinaus")
 
 
 def _daempf_schluessel(kennung: str, zeile: str) -> str:
@@ -330,11 +411,17 @@ def lauf(trocken: bool = False) -> int:
     knopf = {"art": "wachposten_hinterlegen", "kennung": kennung,
              "beschriftung": "📌 Befund hinterlegen"}
 
+    # A4: zwei getrennte Fassungen — die ausführliche fürs Archiv, die kurze
+    # für Adam. Erst danach steht fest, was hinausgeht.
+    kurz = _kurzfassung(zu_melden, quellen_namen, classify, rest, gedaempft)
+    _ins_archiv(text)
+
     if trocken:
-        print(text)
+        print(kurz)
+        print("\n--- ausführlich (Archiv) ---\n" + text)
         return len(zu_melden)
     try:
-        botenpost.legen(text, absender="wachposten", knopf=knopf)
+        botenpost.legen(kurz, absender="wachposten", knopf=knopf)
     except Exception as e:
         # NICHT den Stand schreiben: Der nächste Lauf soll dieselben Zeilen
         # wiederfinden und es erneut versuchen.

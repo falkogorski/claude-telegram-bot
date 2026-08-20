@@ -123,7 +123,8 @@ else:
 # Jeder Knopf muss über einen Marker in /hilfe auffindbar sein. Für Zustands-
 # Varianten (✓/Pfeile) genügt der Kern-Marker.
 marker = {"🟣 Haiku", "🟡 Sonnet", "🔵 Opus", "🟠 Fable",
-          "⚡ Schnell", "⚖️ Normal", "🚀 Max", "🎙️", "🎯 Gründlich"}
+          "⚡ Schnell", "⚖️ Normal", "🚀 Max", "🎙️", "🎯 Gründlich",
+          "📉 Kontingent"}
 fehlende_marker = [mk for mk in marker if mk not in hilfe_src]
 if fehlende_marker:
     fail(f"Tastatur-Marker fehlen in /hilfe: {fehlende_marker}")

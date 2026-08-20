@@ -147,7 +147,9 @@ def _die_anzeige_nennt_den_zustand_wenn_die_zahl_fehlt():
     assert "gr\u00fcnen Bereich" in text, \
         f"der Zustand wird nicht genannt: {text}"
     assert "%" not in text, f"eine Prozentzahl wurde erfunden: {text}"
-    assert "wieder frei" in text, "der Ruecksetzzeitpunkt fehlt"
+    # Schreibweise offenlassen: Der Pruefer misst, DASS der Zeitpunkt
+    # dasteht, nicht wie er gross geschrieben ist.
+    assert "wieder frei" in text.lower(), "der Ruecksetzzeitpunkt fehlt"
     assert "\u2014 in" not in text and "Zur\u00fcckgesetzt \u2014" not in text, \
         f"die Ruecksetzzeile ist doppelt gemoppelt: {text}"
 
@@ -452,6 +454,61 @@ check("bei ALTEM Stand wird NICHT gemessen", _bei_altem_stand_wird_NICHT_gemesse
 check("bei leerem Stand wird gemessen", _bei_leerem_stand_wird_gemessen)
 check("die Beschreibung wandert mit", _die_beschreibung_wandert_mit)
 check("kein anderer Pfad ruft die Messung", _kein_anderer_pfad_ruft_die_messung)
+
+
+def _die_ampelschwellen_sind_adams():
+    """**Adams Zahlen vom 20.08., nicht die des Anbieters.**
+
+    Dessen Warnung kommt erst kurz vor Schluss — genau das war der Anlass
+    fuer A2. Die Grenzen an den Raendern werden mitgeprueft, weil sich dort
+    das Verschieben um eins versteckt: gruen BIS 50 einschliesslich, gelb ab
+    51, orange ab 71, rot ab 86.
+    """
+    erwartet = {0: "\U0001F7E2", 50: "\U0001F7E2", 51: "\U0001F7E1",
+                70: "\U0001F7E1", 71: "\U0001F7E0", 85: "\U0001F7E0",
+                86: "\U0001F534", 100: "\U0001F534"}
+    for wert, farbe in erwartet.items():
+        ist = bot._kontingent_ampel(wert)
+        assert ist == farbe, f"{wert} % ergab {ist}, erwartet {farbe}"
+
+
+def _der_ruecksetzzeitpunkt_ist_exakt():
+    """**Hier gilt die Grob-Regel fuer Zeitangaben ausdruecklich NICHT.**
+
+    Adam hat am 20.08. das Gegenteil verlangt, weil er planen will. Geprueft
+    wird, dass Spanne UND Uhrzeit dastehen — eine gerundete Angabe waere
+    hier kein Dienst, sondern eine Auslassung.
+    """
+    text = bot._kontingent_frei_ab(time.time() + 6420)   # 1 Std 47 Min
+    assert "1 Std." in text and "Min." in text, f"die Spanne fehlt: {text}"
+    assert "Uhr" in text, f"die Uhrzeit fehlt: {text}"
+
+
+def _der_wochentag_wird_berechnet():
+    """Aus dem Text der Oberflaeche — und der Tag muss stimmen.
+
+    Das Muster fraß in der ersten Fassung die Zahl mit (``\\w`` schliesst
+    Ziffern ein): Aus "Aug25,4am" wurde der **5.** August statt der 25.
+    """
+    text = bot._kontingent_frei_ab_text("Aug25,4am")
+    assert "25. August" in text, f"das Datum stimmt nicht: {text}"
+    assert any(tag in text for tag in bot._WOCHENTAGE), \
+        f"der Wochentag fehlt: {text}"
+
+
+def _der_knopf_traegt_zwei_beschriftungen():
+    """Ein Weg, zwei Anlaesse — aber nie zwei Pfade."""
+    a = bot._kontingent_knopf().inline_keyboard[0][0]
+    b = bot._kontingent_knopf("\U0001F4C9 Kontingent anzeigen").inline_keyboard[0][0]
+    assert a.callback_data == b.callback_data, \
+        "die beiden Knoepfe fuehren auf verschiedene Wege"
+    assert a.text != b.text, "die Beschriftung passt sich dem Anlass nicht an"
+
+
+check("die Ampelschwellen sind Adams", _die_ampelschwellen_sind_adams)
+check("der Ruecksetzzeitpunkt ist exakt", _der_ruecksetzzeitpunkt_ist_exakt)
+check("der Wochentag wird berechnet", _der_wochentag_wird_berechnet)
+check("ein Knopf, zwei Beschriftungen", _der_knopf_traegt_zwei_beschriftungen)
 
 print()
 if fails:

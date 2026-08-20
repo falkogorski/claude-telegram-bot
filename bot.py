@@ -526,7 +526,12 @@ async def _limit_warnung_melden(sess, chat_id: int, thread_id, ereignis) -> None
         text += ("\n\n💤 Sparmodus greift: Ich arbeite ab jetzt auf der Stufe "
                  "'schnell', damit das Fenster länger trägt. Zurückstellen "
                  "musst du selbst — ich springe nicht von allein wieder hoch.")
-    await send_chunked(sess.bot, chat_id, text, thread_id=thread_id)
+    # **Der Knopf gehoert an die Warnung** (Adam 20.08.): Wer gewarnt wird,
+    # will als Naechstes die Zahlen sehen — und zwar hier, nicht nach dem
+    # Tippen eines Befehls. Der Knopf holt sie frisch; das kostet kein
+    # Kontingent, weil die Abfrage lokal laeuft.
+    await send_chunked(sess.bot, chat_id, text, thread_id=thread_id,
+                       reply_markup=_kontingent_knopf("📉 Kontingent anzeigen"))
 
 
 def _usage_today() -> dict:
@@ -720,6 +725,7 @@ _BTN_THOROUGH = "🎯 Gründlich"
 # Genau das ist am 23.07. mit dem Transkriptions-Knopf schon einmal live
 # passiert.
 _BTN_THOROUGH_ACTIVE = "🎯 Gründlich ✓"
+_BTN_KONTINGENT = "📉 Kontingent"
 
 
 def _thorough_on(user_id: int | None) -> bool:
@@ -791,7 +797,8 @@ _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_FABLE,
                       _BTN_STT_TO_FAST, _BTN_STT_TO_ACCURATE,
                       _BTN_STT_ACCURATE, _BTN_STT_FAST,
                       _BTN_STT_ACCURATE_ACTIVE, _BTN_STT_FAST_ACTIVE,
-                      _BTN_THOROUGH, _BTN_THOROUGH_ACTIVE}
+                      _BTN_THOROUGH, _BTN_THOROUGH_ACTIVE,
+                      _BTN_KONTINGENT}
 # Aliase statt fester Versionen → Bot nutzt automatisch das jeweils
 # höchstwertige aktuelle Modell, Label muss bei neuen Versionen nicht angepasst werden.
 _MODEL_IDS = {
@@ -1019,9 +1026,9 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None,
     if "small" in _STT_MODELS and "medium" in _STT_MODELS:
         stt_toggle = (_BTN_STT_FAST_TO_ACC if _ACTIVE_STT == "small"
                       else _BTN_STT_ACC_TO_FAST)
-        rows.append([stt_toggle, _gruendlich_btn])
+        rows.append([stt_toggle, _gruendlich_btn, _BTN_KONTINGENT])
     else:
-        rows.append([_gruendlich_btn])
+        rows.append([_gruendlich_btn, _BTN_KONTINGENT])
     return ReplyKeyboardMarkup(
         rows,
         resize_keyboard=True,
@@ -3367,9 +3374,108 @@ async def _kontingent_frisch_messen_alt() -> bool:
     return gesehen
 
 
-def _kontingent_knopf() -> InlineKeyboardMarkup:
+# Adams Schwellen vom 20.08. Bewusst **seine** Zahlen, nicht die des
+# Anbieters: Dessen Warnung kommt erst kurz vor Schluss, und genau das war der
+# Anlass für A2. Wer die Grenzen setzt, entscheidet, wann er beunruhigt sein
+# will — das gehört Adam.
+_AMPEL_STUFEN = ((50, "🟢"), (70, "🟡"), (85, "🟠"), (101, "🔴"))
+
+
+def _kontingent_ampel(prozent: int) -> str:
+    """Farbe zu einem Prozentwert. Obergrenze **einschließlich**.
+
+    Also grün bis 50, gelb ab 51 bis 70, orange ab 71 bis 85, darüber rot —
+    so gelesen, wie Adam es gesagt hat („grün bis 50, gelb über 50 bis 70").
+    """
+    for grenze, farbe in _AMPEL_STUFEN:
+        if prozent <= grenze:
+            return farbe
+    return "🔴"
+
+
+_WOCHENTAGE = ("Montag", "Dienstag", "Mittwoch", "Donnerstag",
+               "Freitag", "Samstag", "Sonntag")
+
+
+def _kontingent_frei_ab(resets_at: float | None) -> str:
+    """Wann das Fenster wieder frei ist — **exakt, mit Uhrzeit.**
+
+    Hier gilt die sonst übliche Grob-Regel für Zeitangaben ausdrücklich
+    **nicht**: Adam hat am 20.08. genau das Gegenteil verlangt, weil er
+    planen will („damit ich genau weiß, wann es wieder frei ist, gerne sogar
+    die Uhrzeit dazu"). Eine gerundete Angabe wäre hier kein Dienst, sondern
+    eine Auslassung.
+    """
+    if not resets_at:
+        return ""
+    rest = int(float(resets_at) - time.time())
+    ziel = time.localtime(float(resets_at))
+    uhr = time.strftime("%H:%M", ziel)
+    tag = _WOCHENTAGE[ziel.tm_wday]
+    if rest <= 0:
+        return "Sollte bereits zurückgesetzt sein."
+    stunden, minuten = divmod(max(0, rest) // 60, 60)
+    if stunden and minuten:
+        spanne = f"{stunden} Std. {minuten} Min."
+    elif stunden:
+        spanne = f"{stunden} Std."
+    else:
+        spanne = f"{minuten} Min."
+    heute = time.localtime()
+    gleicher_tag = (ziel.tm_year, ziel.tm_yday) == (heute.tm_year, heute.tm_yday)
+    wann = f"um {uhr} Uhr" if gleicher_tag else f"{tag}, {ziel.tm_mday}.{ziel.tm_mon}., {uhr} Uhr"
+    return f"Wieder frei in {spanne} — {wann}."
+
+
+def _kontingent_frei_ab_text(roh: str) -> str:
+    """Dasselbe aus dem Text der Oberfläche („Aug25,4am").
+
+    Der Wochentag wird **berechnet**, nicht geraten: Aus Monat und Tag plus
+    dem laufenden Jahr ergibt er sich eindeutig. Liegt das Datum bereits
+    hinter uns, ist das nächste Jahr gemeint.
+    """
+    monate = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+              "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+    # `\w` schliesst ZIFFERN ein — mit `\w*` frass das Muster aus "Aug25,4am"
+    # die Zahl mit und machte daraus den 5. statt den 25. Nur Buchstaben.
+    m = re.search(r"([A-Za-z]{3})[a-z]*\s*(\d{1,2})\D+(\d{1,2})\s*(am|pm)?", roh or "",
+                  re.IGNORECASE)
+    if not m:
+        return ""
+    monat = monate.get(m.group(1).lower())
+    if not monat:
+        return ""
+    tagzahl, stunde = int(m.group(2)), int(m.group(3))
+    if (m.group(4) or "").lower() == "pm" and stunde < 12:
+        stunde += 12
+    elif (m.group(4) or "").lower() == "am" and stunde == 12:
+        stunde = 0
+    import datetime as _dt
+    heute = _dt.date.today()
+    jahr = heute.year
+    try:
+        ziel = _dt.date(jahr, monat, tagzahl)
+        if (ziel - heute).days < -30:
+            ziel = _dt.date(jahr + 1, monat, tagzahl)
+    except ValueError:
+        return ""
+    tag = _WOCHENTAGE[ziel.weekday()]
+    return (f"Wieder frei am {tag}, {ziel.day}. "
+            f"{('Januar Februar März April Mai Juni Juli August September '
+                'Oktober November Dezember').split()[monat - 1]}, "
+            f"{stunde}:00 Uhr.")
+
+
+def _kontingent_knopf(beschriftung: str = "🔄 Frisch abfragen") -> InlineKeyboardMarkup:
+    """Ein Knopf, zwei Anlaesse — aber **dieselbe** Wirkung.
+
+    Unter der Anzeige heisst er "Frisch abfragen", unter einer Warnung
+    "Kontingent anzeigen". Die Beschriftung nennt jeweils, was Adam in dem
+    Moment will; dahinter liegt derselbe Weg, damit es nicht zwei Pfade gibt,
+    von denen einer irgendwann abweicht.
+    """
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🔄 Frisch messen", callback_data="kfm:1")]])
+        [[InlineKeyboardButton(beschriftung, callback_data="kfm:1")]])
 
 
 def _kontingent_text(frisch: bool = False) -> str:
@@ -3379,55 +3485,33 @@ def _kontingent_text(frisch: bool = False) -> str:
     for art, wert in sorted(_LIMIT_LETZTER.items()):
         name = _LIMIT_NAMEN.get(art, art)
         anteil = wert.get("anteil")
-        wann = _limit_zeitspanne(wert.get("resets_at"))
         alter = _vor_wie_lange(wert.get("gesehen"))
         if isinstance(anteil, (int, float)):
             prozent = round(anteil * 100)
             voll = max(0, min(10, round(anteil * 10)))
-            balken = "█" * voll + "░" * (10 - voll)
-            zeilen.append(f"\n{name}: {prozent} % aufgebraucht")
+            balken = "\u2588" * voll + "\u2591" * (10 - voll)
+            zeilen.append(f"\n{_kontingent_ampel(prozent)} {name}: {prozent} % aufgebraucht")
             zeilen.append(balken)
         else:
-            # **Gemessen am 20.08.: Der Anbieter schickt die Prozentzahl nur
-            # mit, wenn es eng wird.** Im grünen Bereich kommt der Zustand
-            # ohne Zahl. Das ist keine Störung, sondern die Auskunft selbst —
-            # und sie zu verschweigen, nur weil eine Zahl fehlt, hieße die
-            # nützliche Hälfte wegzuwerfen.
             ohne_zahl = True
-            zustand = {"allowed": "im grünen Bereich",
+            zustand = {"allowed": "im gr\u00fcnen Bereich",
                        "allowed_warning": "neigt sich",
                        "rejected": "aufgebraucht"}.get(wert.get("status"),
                                                        "Zustand unbekannt")
             zeilen.append(f"\n{name}: {zustand}")
-        if not wann and wert.get("resets_text"):
-            # Aus der Sitzung kommt der Rücksetzzeitpunkt als **Text** der
-            # Oberfläche („11pm", „Aug25,4am"), nicht als Zeitstempel. Er wird
-            # nur behutsam geglättet und nicht umgerechnet: Eine erfundene
-            # Umrechnung wäre schlimmer als eine fremdsprachige Angabe.
-            roh = wert["resets_text"]
-            roh = re.sub(r"(\d+)\s*pm", lambda m: f"{(int(m.group(1)) % 12) + 12} Uhr", roh)
-            roh = re.sub(r"(\d+)\s*am", lambda m: f"{int(m.group(1)) % 12} Uhr", roh)
-            roh = re.sub(r"(?<=[a-zA-Z])(?=\d)|(?<=\d)(?=[A-Z])", " ", roh)
-            roh = re.sub(r",(?=\S)", ", ", roh)
-            for kurz, lang in (("Jan", "Januar"), ("Feb", "Februar"),
-                               ("Mar", "März"), ("Apr", "April"),
-                               ("May", "Mai"), ("Jun", "Juni"),
-                               ("Jul", "Juli"), ("Aug", "August"),
-                               ("Sep", "September"), ("Oct", "Oktober"),
-                               ("Nov", "November"), ("Dec", "Dezember")):
-                roh = re.sub(rf"\b{kurz}\w*", lang, roh)
-            zeilen.append(f"Zurückgesetzt am {roh.strip()}.")
-        if wann:
-            # `_limit_zeitspanne` liefert einen fertigen Halbsatz („— in etwa
-            # zwei Stunden wieder frei"), der für die Warnmeldung gebaut ist.
-            # Als eigene Zeile braucht er weder Gedankenstrich noch ein
-            # vorangestelltes „Zurückgesetzt" — das sagte dasselbe zweimal.
-            rein = wann.lstrip(" —–")
-            zeilen.append(rein[0].upper() + rein[1:] + ".")
+        # **Exakt, nicht gerundet** — Adams ausdrueckliche Vorgabe vom 20.08.
+        # Der Zeitstempel aus dem Ereignis ist genauer als der Text der
+        # Oberflaeche, deshalb hat er Vorrang; fehlt er, wird der Text
+        # ausgewertet und der Wochentag daraus BERECHNET.
+        frei = _kontingent_frei_ab(wert.get("resets_at"))
+        if not frei and wert.get("resets_text"):
+            frei = _kontingent_frei_ab_text(wert["resets_text"])
+        if frei:
+            zeilen.append(frei)
         zeilen.append(f"Stand {alter} gesehen.")
     if ohne_zahl:
-        zeilen.append("\nEine Prozentzahl schickt der Anbieter erst mit, wenn "
-                      "es eng wird — solange keine dasteht, ist reichlich da.")
+        zeilen.append("\nFür die Fenster ohne Prozentwert hatte ich noch "
+                      "keine frische Abfrage — der Knopf holt sie.")
     # **Die Beschreibung wandert mit dem Bau** (Engywucks erste Auflage) —
     # und sie ist an einem Abend zweimal gewandert: erst, als die Messung
     # Kontingent kostete, und wieder, als der Weg über eine echte Sitzung
@@ -3638,14 +3722,17 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "anschauen, ✍ 👨‍💻 🏆 = merk dir das, 😴 = später, ❤️ 🎉 👏 💯 🍓 🍌 = "
         "Wertschätzung). Auf offene Fragen ist die Reaktion die Antwort. "
         "Nummerierte Optionslisten bekommen 1️⃣–9️⃣-Knöpfe.\n\n"
-        "📌 Buttons in der Tastatur (9):\n"
+        "📌 Buttons in der Tastatur (10):\n"
         "🟣 Haiku / 🟡 Sonnet / 🔵 Opus / 🟠 Fable — Modell wechseln\n"
         "⚡ Schnell / ⚖️ Normal / 🚀 Max — Denk-Tiefe\n"
         "🎙️ Genau ✓ → Flott (bzw. umgekehrt) — Transkriptions-Tempo: ✓ markiert "
         "den aktiven Modus, ein Tipp führt den gezeigten Wechsel aus\n"
         "🎯 Gründlich ✓ — Umschalter: solange er an ist, läuft JEDE Frage mit "
         "höchster Denktiefe und Pflicht-Quellencheck. Nochmal tippen schaltet "
-        "ihn aus; der Haken zeigt dir, ob er läuft\n\n"
+        "ihn aus; der Haken zeigt dir, ob er läuft\n"
+        "📉 Kontingent — zeigt, wie viel vom Fünf-Stunden- und vom "
+        "Wochenfenster aufgebraucht ist, mit Ampel und genauer Uhrzeit, ab "
+        "wann wieder frei ist. Die Abfrage kostet kein Kontingent\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
     )
     await update.message.reply_text(text)
@@ -7574,6 +7661,13 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
 
     if text == _BTN_RESTART:
         await _request_restart_confirm(update, user_id)
+        return
+
+    if text == _BTN_KONTINGENT:
+        # Derselbe Weg wie der Befehl — ein Knopf, der etwas anderes taete
+        # als sein Befehl, waere die naechste Stelle, an der zwei Pfade
+        # auseinanderlaufen.
+        await cmd_kontingent(update, None)
         return
 
     if text in (_BTN_THOROUGH, _BTN_THOROUGH_ACTIVE):

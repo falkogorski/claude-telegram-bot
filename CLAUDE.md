@@ -81,6 +81,33 @@ Auth-Passage. Als Bau-Leitplanke gilt:
   (Kostenquelle + Höhe + Adams Freigabe). Bei der Umsetzung von 8.1 ausdrücklich
   mitprüfen, ob der Erreichbarkeits-Check einen Modell-Aufruf enthält.
 
+**`[PRÄZISIERT 2026-08-20, Adam]` Die Linie verläuft zwischen Beginnen und
+Zu-Ende-Führen, nicht zwischen Mensch und Uhr:**
+
+> **Keine Automatik beginnt von sich aus Arbeit.** Das **Zu-Ende-Führen** einer
+> von Adam begonnenen und durch ein Limit unterbrochenen Interaktion ist
+> erlaubt — **genau ein nachgeholter Lauf**, **nur bei vermerkten
+> unbeantworteten Adam-Nachrichten**, **höchstens drei Weckversuche**.
+
+**Warum die Linie überhaupt bewegt wurde:** Greift das Kontingent-Limit, ruht
+die Sitzung. Sie läuft nicht im Hintergrund weiter und kann von sich aus nicht
+bemerken, dass wieder gearbeitet werden darf. **Eine Verhaltensregel wäre hier
+eine Bitte, kein Mechanismus** — Adams Frage bliebe liegen, bis er sie
+wiederholt. Der nachgeholte Lauf beginnt nichts Neues; er beantwortet eine
+Frage, die Adam bereits gestellt hat.
+
+**Die drei Bedingungen sind harte Bedingungen im Code, keine Kommentare.** Wer
+sie als Kommentar schreibt, hat sie nicht gebaut — dieselbe Lehre wie bei jeder
+Regel ohne Prüfer. Der Wecker sitzt **im Bot-Dienst** (er läuft ohnehin, kennt
+den Weg eine Sitzung zu starten und hält den Zustand); **kein neuer Zeitgeber,
+keine zweite Stelle mit dem Zugangstoken.** Vermerke werden **beim Beantworten**
+geräumt, nicht beim Wecken — sonst verschwindet die offene Frage mit dem
+ersten fehlgeschlagenen Versuch.
+
+**Unverändert gilt für alles andere:** Der Wachposten bleibt modellfrei, der
+Tagescheck bleibt modellfrei, der Erinnerungs-Läufer wird modellfrei. Diese
+Präzisierung deckt **einen** Fall ab und weitet sich nicht auf andere aus.
+
 ## ▶️ ARBEITSMODUS — Durchlauf ist der Normalfall (Adam 2026-07-25)
 
 **Geprüft, bevor diese Regel entstand:** „Nächte arbeiten, Tage entscheiden"

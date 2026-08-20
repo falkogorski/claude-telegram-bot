@@ -137,8 +137,18 @@ if [ -d "$WORK" ]; then
       name="$(basename "$f")"
       rel="${f#$WORK/}"
       [ -f "ausarbeitungen/$rel" ] && continue
+      # **Der Bericht muss denselben Filter spiegeln wie der Transport.**
+      # Gemessen am 20.08. nach dem ersten Fix: Er prueft nur den DATEINAMEN,
+      # rsync aber schliesst ueber `--exclude='.*'` auch versteckte
+      # VERZEICHNISSE aus. Ergebnis waren 120 Zeilen Pip-Metadaten aus
+      # `.pdfenv/` — jede mit dem Vermerk „bitte melden, das sollte mitkommen".
+      # Das ist keine Laenge mehr, das ist eine aktive Falschauskunft: Wer sie
+      # liest, meldet 120 harmlose Dateien als Fehler.
+      case "$rel" in
+        .*|*/.*)       continue ;;   # verstecktes Verzeichnis ODER Datei
+      esac
       case "$name" in
-        .*|*.tmp)      continue ;;   # Absicht, kein Befund
+        *.tmp)         continue ;;   # Absicht, kein Befund
         CLAUDE.md|MEMORY.md) continue ;;   # ausdruecklich unerwuenscht
         *secret*|*token*|*credential*|*passwor*|*key*|*.env)
                        grund="GEHEIMNIS-NAMENSFILTER - der Name enthaelt ein Schluesselwort" ;;

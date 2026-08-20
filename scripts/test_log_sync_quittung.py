@@ -88,6 +88,12 @@ def _nur_transportrelevantes_wird_als_ausgeschlossen_gemeldet():
     _vorbereiten()
     (WORK / "bericht.md").write_text("kommt mit\n", encoding="utf-8")
     (WORK / ".zwischenstand").write_text("egal\n", encoding="utf-8")
+    # **Ein verstecktes VERZEICHNIS mit harmlos benannten Dateien darin.**
+    # Genau das hat den ersten Fix ueberlebt: Der Filter sah nur den
+    # Dateinamen, rsync schliesst aber den ganzen Pfad aus — 120 Zeilen
+    # Pip-Metadaten mit dem Vermerk „bitte melden, das sollte mitkommen".
+    (WORK / ".pdfenv" / "lib").mkdir(parents=True, exist_ok=True)
+    (WORK / ".pdfenv" / "lib" / "top_level.txt").write_text("x", encoding="utf-8")
     (WORK / "arbeit.tmp").write_text("egal\n", encoding="utf-8")
     (WORK / "bild.png").write_bytes(b"\x89PNG")
     (WORK / "mein-token-plan.md").write_text("heikel\n", encoding="utf-8")
@@ -95,7 +101,7 @@ def _nur_transportrelevantes_wird_als_ausgeschlossen_gemeldet():
     q = _quittung()
     assert q, "es wurde gar keine Quittung geschrieben"
     kopf, _, rumpf = q.partition("AUSGESCHLOSSEN")
-    for still in (".zwischenstand", "arbeit.tmp", "bild.png"):
+    for still in (".zwischenstand", "arbeit.tmp", "bild.png", "top_level.txt"):
         assert still not in rumpf, \
             f"{still} steht in der Ausschluss-Liste, obwohl es nie vorgesehen war"
     # Die Gegenrichtung: Der Geheimnis-Filter bleibt SICHTBAR.

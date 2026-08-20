@@ -228,6 +228,30 @@ for frist_datei in "$BOTDIR"/*riegel*.md "$BOTDIR"/CLAUDE.md; do
   fi
 done
 
+# --- 9g. UNVERSIONIERTES IM VPS-KLON (Engywucks Befund 2, 20.08.) ----------
+#
+# DER VORFALL, und er ist meiner: Fuer einen Probeaufruf habe ich am 20.08. ein
+# Skript per scp direkt in den VPS-Klon gelegt, statt nach /tmp. Der naechste
+# `git pull` brach daran ab - "would be overwritten by merge". Nichts war
+# committet, deshalb sah es nach nichts aus; es war trotzdem genau die Klasse,
+# gegen die Governance 8.7 steht: Repo-Stand und laufender Code laufen
+# auseinander, und der Deploy scheitert im ungeeignetsten Moment.
+#
+# KEIN NEUER WAECHTER, sondern eine Zeile im bestehenden (Kurs-Regel): Was hier
+# unversioniert liegt, hat entweder jemand von Hand hingelegt - oder der Bot
+# hat sich selbst editiert, was er nie darf. Beides gehoert gemeldet.
+#
+# Bewusst NUR melden, nie aufraeumen: Eine automatische Loeschung koennte
+# Handarbeit vernichten, die jemand aus gutem Grund dort abgelegt hat.
+unversioniert="$(cd "$BOTDIR" && git status --porcelain 2>/dev/null | head -10)"
+if [ -n "$unversioniert" ]; then
+  anzahl="$(cd "$BOTDIR" && git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+  erste="$(printf '%s' "$unversioniert" | head -3 | tr '\n' ' ')"
+  red "Im VPS-Klon liegen $anzahl unversionierte/geaenderte Datei(en): $erste — der naechste git pull kann daran scheitern (Governance 8.7)"
+else
+  add "✅ VPS-Klon sauber (nichts Unversioniertes)"
+fi
+
 # --- 9f. A6.1: Der taegliche Sichtungs-Vermerk fuer die Kontrolle ----------
 #
 # Adams Vorgabe (20.08., 10:40/10:55): Die Kontrollsitzung braucht EINMAL JE TAG

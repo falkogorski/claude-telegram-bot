@@ -13,8 +13,19 @@ anstoßen. **Das Ausbleiben der Übergabe ist selbst der Alarm.** Nicht der Befu
 meldet sich, sondern die Lücke.
 
 **Warum das minütlich geht:** Eine Blume ruft **kein Modell** auf. Sie kostet
-nichts und darf deshalb laufen, so oft sie will. Sieht sie etwas Auffälliges,
-weckt sie ein Modell — billig immer, teuer nur bei Anlass.
+nichts und darf deshalb laufen, so oft sie will.
+
+**`[RICHTIGGESTELLT 2026-08-20]` Hier stand: „Sieht sie etwas Auffälliges,
+weckt sie ein Modell — billig immer, teuer nur bei Anlass."** Das war nie
+gebaut. Im Quelltext steht kein einziger Modellaufruf; sie führt ausschließlich
+Systembefehle aus. Claudia hat es am 20.08. beim Suchen nach einem Weckruf
+gefunden — **sie hätte auf einen Mechanismus gewartet, den es nie gab.**
+
+Dieselbe Klasse wie der Dämpfer-Docstring und wie „das Archiv, auf das
+Engywuck ohnehin zugreift": **Eine Beschreibung, die mehr verspricht als der
+Bau, ist gefährlicher als eine fehlende** — denn niemand prüft nach, was schon
+dasteht. Wer die Blume um einen Weckruf erweitern will, baut ihn; bis dahin
+sagt dieser Text, was sie wirklich tut.
 
 **Die Kette ist git-artig, keine Blockchain.** Jede Blume trägt den Fingerabdruck
 der vorigen; eine nachträglich veränderte Blume bricht die Kette sichtbar.

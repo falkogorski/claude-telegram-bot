@@ -255,6 +255,128 @@ _LIMIT_NAMEN = {
     "overage": "Zusatzverbrauch",
 }
 
+# ---------------------------------------------------------------------------
+# Kontingent-Stand auf Abruf (A2, gebaut 20.08.2026)
+#
+# **Die Vorgeschichte gehört hierher, weil sie die Lehre ist.** Punkt A2 galt
+# vier geprüfte Wege lang als „nicht baubar": Der Kontostand-Endpunkt weist das
+# Abo-Setup-Token ab (403), die CLI hat keinen skriptbaren Unterbefehl, ein
+# eigener Zähler wäre geraten, ein zweites Token auf dem VPS wäre eine zweite
+# Angriffsfläche. Adam hat nicht lockergelassen — „der Bot ist doch selber
+# eine laufende Sitzung, warum kann der nicht fragen?" — und damit lag er
+# richtig. Der Fund im CLI-Bündel:
+#
+#     anthropic-ratelimit-unified-<fenster>-utilization
+#     anthropic-ratelimit-unified-<fenster>-reset
+#
+# **Die Zahl steht in den Kopfzeilen jeder API-Antwort.** Es gibt nichts
+# abzufragen; sie fließt ohnehin durch den Nachrichtenstrom, den dieser Bot
+# schon verarbeitet. Kein Aufruf, kein Token, keine Kosten, keine neue
+# Angriffsfläche — der 403-Weg war die falsche Tür, nicht die einzige.
+#
+# **Die Lehre über den Fall hinaus** (V-Grundsatz, `CLAUDE.md`): Ein
+# gescheiterter Weg beweist keine Unmöglichkeit. Vier gescheiterte auch nicht.
+# Wer „geht nicht" sagt, schuldet den dritten Teil — welche Wege noch offen
+# sind. Den hatte ich nicht geprüft.
+#
+# **Warum gemerkt und nicht bei Bedarf geholt wird:** Das Ereignis kommt, wenn
+# es kommt — an eine Antwort gebunden, nicht an Adams Frage. Ein Abruf, der
+# selbst einen Modelllauf auslöste, um an eine frische Zahl zu kommen, würde
+# das Kontingent verbrauchen, dessen Stand er meldet. Deshalb: mitschreiben,
+# was vorbeikommt, und beim Abruf **das Alter dazusagen**. Eine Zahl ohne
+# Alter wäre genau die stille Falsch-Wahrheit, die dieses Projekt jagt.
+_LIMIT_LETZTER: dict[str, dict] = {}
+_LIMIT_STAND_MARKE = Path(os.environ.get("LIMIT_STAND_FILE") or
+                          (Path.home() / ".claude" / "limit-stand.json"))
+
+
+def _limit_letzten_laden() -> None:
+    try:
+        roh = _json.loads(_LIMIT_STAND_MARKE.read_text(encoding="utf-8"))
+        if isinstance(roh, dict):
+            for art, wert in roh.items():
+                if isinstance(wert, dict):
+                    _LIMIT_LETZTER[art] = wert
+    except FileNotFoundError:
+        pass
+    except Exception:
+        log.warning("Kontingent-Marke unlesbar — fange von vorn an", exc_info=True)
+
+
+def _limit_letzten_sichern() -> None:
+    try:
+        _LIMIT_STAND_MARKE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _LIMIT_STAND_MARKE.with_suffix(".tmp")
+        tmp.write_text(_json.dumps(_LIMIT_LETZTER, ensure_ascii=False),
+                       encoding="utf-8")
+        tmp.replace(_LIMIT_STAND_MARKE)
+    except Exception:
+        log.warning("Kontingent-Marke konnte nicht geschrieben werden",
+                    exc_info=True)
+
+
+def _limit_letzten_merken(info) -> None:
+    """Schreibt mit, was der Anbieter vorbeischickt — **jeden Stand, auch den
+    grünen.**
+
+    Die Warnlogik darunter interessiert sich nur für ``allowed_warning`` und
+    ``rejected``; genau deshalb war der grüne Stand bisher nicht abrufbar,
+    obwohl er die ganze Zeit durchs Haus lief. Hier wird vor jeder Bewertung
+    gemerkt.
+    """
+    art = getattr(info, "rate_limit_type", None)
+    anteil = getattr(info, "utilization", None)
+    if not art or not isinstance(anteil, (int, float)):
+        # Ohne Fenstername oder ohne Zahl ist der Eintrag wertlos — und ein
+        # wertloser Eintrag, der einen guten überschreibt, ist schädlich.
+        return
+    _LIMIT_LETZTER[str(art)] = {
+        "anteil": float(anteil),
+        "status": getattr(info, "status", "") or "",
+        "resets_at": getattr(info, "resets_at", None),
+        "gesehen": time.time(),
+    }
+    _limit_letzten_sichern()
+
+
+_limit_letzten_laden()
+
+
+def _vor_wie_lange(ts: float | None) -> str:
+    """Wie alt eine Angabe ist — in Marken, nie in Sekunden.
+
+    Bewusst der **kleine Ausschnitt** der Zeitform-Spec aus `CLAUDE.md`: Hier
+    geht es um das Alter eines Kontingent-Werts, und der ist nach einem Tag
+    ohnehin bedeutungslos. Eine vollständige Nachbildung der Fünf-Regeln-Form
+    wäre eine zweite Stelle, die dasselbe zu tun behauptet — und die zweite
+    Stelle ist es, die irgendwann abweicht.
+    """
+    if not ts:
+        return "unbekannt"
+    rest = int(time.time() - float(ts))
+    if rest < 90:
+        return "gerade eben"
+    minuten = rest // 60
+    if minuten < 13:
+        return f"vor {minuten} Minuten"
+    if minuten <= 17:
+        return "vor etwa einer Viertelstunde"
+    if minuten < 28:
+        return f"vor {minuten} Minuten"
+    if minuten <= 32:
+        return "vor einer halben Stunde"
+    if minuten < 55:
+        return f"vor {minuten} Minuten"
+    if minuten < 60:
+        return "vor einer knappen Stunde"
+    if minuten <= 65:
+        return "vor einer guten Stunde"
+    stunden = rest / 3600
+    if stunden < 24:
+        return f"vor etwa {round(stunden)} Stunden"
+    tage = round(stunden / 24)
+    return "vor einem Tag" if tage <= 1 else f"vor {tage} Tagen"
+
 
 def _limit_zeitspanne(resets_at: float | None) -> str:
     """Menschliche Angabe statt einer Unix-Zeit.
@@ -333,6 +455,9 @@ async def _limit_warnung_melden(sess, chat_id: int, thread_id, ereignis) -> None
     info = getattr(ereignis, "rate_limit_info", None) or getattr(ereignis, "info", None)
     if info is None:
         return
+    # A2: erst mitschreiben, dann bewerten. Die Reihenfolge ist der ganze
+    # Punkt — unter der Bewertung fällt jeder grüne Stand heraus.
+    _limit_letzten_merken(info)
     status = getattr(info, "status", "") or ""
     art = getattr(info, "rate_limit_type", "") or "unbekannt"
     resets_at = getattr(info, "resets_at", None)
@@ -3090,6 +3215,47 @@ async def cmd_presend(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("\n".join(L))
 
 
+async def cmd_kontingent(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Was vom Abo-Fenster noch übrig ist — **ohne dafür etwas zu verbrauchen.**
+
+    Der Wert stammt aus den Kopfzeilen der letzten API-Antwort, die vorbeikam.
+    Dieser Abruf löst deshalb **keinen** Modelllauf aus; er liest nur nach.
+    Der Preis dafür ist, dass die Zahl ein Alter hat — und genau das steht
+    dabei. Lieber eine ehrlich datierte Zahl als eine frische, die einen
+    Modelllauf gekostet hat, um sich selbst zu messen.
+    """
+    if not authorized(update):
+        return
+    if not _LIMIT_LETZTER:
+        await update.message.reply_text(
+            "📉 Noch kein Kontingent-Stand gesehen.\n\n"
+            "Die Zahl kommt mit den Antworten des Anbieters mit — nach der "
+            "nächsten Anfrage steht hier etwas. Ich frage sie nicht eigens ab, "
+            "das würde vom Kontingent nehmen, dessen Stand ich melde.")
+        return
+    zeilen = ["📉 Kontingent — zuletzt gesehener Stand:"]
+    for art, wert in sorted(_LIMIT_LETZTER.items()):
+        name = _LIMIT_NAMEN.get(art, art)
+        anteil = wert.get("anteil")
+        if not isinstance(anteil, (int, float)):
+            continue
+        prozent = round(anteil * 100)
+        # Ein Balken sagt auf einen Blick, was eine Zahl erst nach dem Lesen
+        # sagt — und wird vom Vorlese-Filter ohnehin entfernt.
+        voll = max(0, min(10, round(anteil * 10)))
+        balken = "█" * voll + "░" * (10 - voll)
+        wann = _limit_zeitspanne(wert.get("resets_at"))
+        alter = _vor_wie_lange(wert.get("gesehen"))
+        zeilen.append(f"\n{name}: {prozent} % aufgebraucht")
+        zeilen.append(f"{balken}")
+        if wann:
+            zeilen.append(f"Zurückgesetzt{wann}.")
+        zeilen.append(f"Stand {alter} gesehen.")
+    zeilen.append("\nDie Zahl fließt mit den Antworten mit; dieser Abruf "
+                  "verbraucht selbst nichts.")
+    await update.message.reply_text("\n".join(zeilen))
+
+
 async def cmd_usage(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
@@ -3155,6 +3321,8 @@ _BEFEHLE: tuple[tuple[str, str | None, str], ...] = (
     ("freigaben", "Dauerhafte Werkzeug-Freigaben",
      "Dauerfreigaben zeigen: Werkzeuge + vertraute Domains (reset zum Löschen)"),
     ("hilfe", "Alle Befehle anzeigen", "Diese Befehlsübersicht"),
+    ("kontingent", "Abo-Kontingent: zuletzt gesehener Stand",
+     "Abo-Kontingent: wie viel vom Fenster aufgebraucht ist (verbraucht selbst nichts)"),
     ("links", "Abgelegte Links zeigen",
      "abgelegte Links (ein Link allein wird abgelegt, nicht gleich verarbeitet)"),
     ("mail", "E-Mail-Konten zeigen (9.5)",
@@ -9315,6 +9483,7 @@ def main() -> None:
     app.add_handler(CommandHandler("ampel", cmd_ampel))
     app.add_handler(CommandHandler("presend", cmd_presend))
     app.add_handler(CommandHandler("usage", cmd_usage))
+    app.add_handler(CommandHandler("kontingent", cmd_kontingent))
     app.add_handler(CommandHandler("hilfe", cmd_hilfe))
     app.add_handler(CommandHandler("restart", cmd_restart))
     app.add_handler(CommandHandler("setkanal", cmd_setkanal))

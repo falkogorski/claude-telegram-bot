@@ -93,18 +93,6 @@ demselben.
       Weg: Drei beliebige Links in den Bot-Chat — gern gemischt (Artikel,
       Video, Beitrag), damit die Erkennung auf verschiedenen Arten läuft.
 
-- [ ] **Entscheidung: Kontingent-Frühwarnung — ja oder nein?** · ~5 Min ·
-      schaltet frei: Warnung bei 80 statt bei 97 Prozent.
-      Weg: Der geplante Weg ist **gescheitert** — der Kontostand-Endpunkt
-      lehnt das Abo-Setup-Token ab (403, dreimal geprüft). Es gäbe einen
-      zweiten Weg: ein Sitzungs-Token per `claude login` auf dem VPS
-      hinterlegen. **Ich empfehle ihn nicht** — er schafft eine zweite Stelle
-      mit einem Kontozugang, die gepflegt und geschützt werden muss. Der
-      Gewinn ist eine frühere Warnung, der Preis eine dauerhaft größere
-      Angriffsfläche. Sag, wie du es hältst; ohne dein Wort bleibt es beim
-      Bisherigen. Einzelheiten:
-      `docs/befund-a2-kontingent-nicht-baubar.md`.
-
 - [ ] **RAM-Entscheid N2** · ~5 Min Entscheidung · schaltet frei: Klarheit, ob
       der VPS aufgestockt wird oder es beim Gemessenen bleibt.
       Weg: Gemessen wurde 3017 MiB im Betrieb, im Ruhezustand null — **der
@@ -139,3 +127,10 @@ demselben.
 - [x] **Ja-Knopf an der Wachposten-Meldung** — 20.08.2026 gebaut. Ein Tipp
       hinterlegt den Befund im Auftragsbuch, deterministisch und ohne
       Modellstart. Deine Frage von 00:31 hat damit eine Wirkung.
+- [x] **Kontingent-Stand abrufbar** — 20.08.2026. **Deine Nachfrage hat
+      ihn gebaut.** Ich hatte A2 nach vier verschlossenen Türen als
+      „nicht baubar“ abgelegt; du hast nicht lockergelassen. Die Zahl
+      steht in den Kopfzeilen jeder Antwort und lief längst durchs Haus —
+      sie wurde nur weggeworfen. `/kontingent` zeigt sie jetzt, mit
+      Altersangabe, ohne selbst etwas zu verbrauchen. Die Entscheidung über
+      ein zweites Token entfällt damit ersatzlos.

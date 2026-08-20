@@ -1,7 +1,47 @@
 <!-- ROLLE: befund-a2-kontingent -->
+# Befund A2: Die Kontingent-Anzeige — vier Wege zu, der fünfte stand offen
+
+> **⚠️ BERICHTIGT AM 20.08.2026, 18:5x — der Titel dieser Datei war falsch.**
+>
+> Sie hieß „nicht baubar“. **Sie ist gebaut.** Der Abruf `/kontingent`
+> läuft, der Prüfer `scripts/test_kontingent_a2.py` hält ihn fest.
+>
+> **Was ich übersehen hatte:** Die Zahl muss gar nicht abgefragt werden. Sie
+> steht in den **Kopfzeilen jeder API-Antwort** und fließt ohnehin durch den
+> Nachrichtenstrom, den der Bot verarbeitet:
+>
+> ```
+> anthropic-ratelimit-unified-<fenster>-utilization
+> anthropic-ratelimit-unified-<fenster>-reset
+> ```
+>
+> Das SDK reicht sie als `RateLimitEvent` durch (`utilization`, `status`,
+> `resets_at`, `rate_limit_type`) — und `bot.py` verarbeitete dieses Ereignis
+> **seit F-5 bereits**. Nur lag das Merken **unter** der Statusbewertung, und
+> die lässt nur Warnung und Ablehnung durch. **Jeder grüne Stand fiel
+> heraus** — der Wert war die ganze Zeit im Haus und wurde weggeworfen.
+>
+> **Kosten: keine.** Kein Aufruf, kein zweites Token, keine neue
+> Angriffsfläche — genau die Bedenken, die unten gegen den zweiten Weg
+> sprechen, entfallen damit ersatzlos.
+>
+> **Wie der Fehler entstand, und das ist die Lehre:** Ich habe vier Wege
+> geprüft, alle vier führten zu einer verschlossenen Tür, und daraus
+> „nicht baubar“ gemacht. Der V-Grundsatz in `CLAUDE.md` sagt seit dem
+> 25.07., dass ein gescheiterter Weg keine Unmöglichkeit beweist und dass
+> ein „geht nicht“ den dritten Teil schuldet: **welche Wege noch offen
+> sind.** Den hatte ich nicht geprüft. **Adam hat nicht lockergelassen** —
+> „der Bot ist doch selber eine laufende Sitzung, warum kann der nicht
+> fragen?“ — und genau diese Frage führte zur richtigen: **woher nimmt
+> die CLI ihre Zahl?** Nicht: welchen Endpunkt rufe ich an.
+>
+> **Der Rest dieser Datei bleibt unverändert stehen**, weil er weiterhin
+> gilt: Die vier beschriebenen Wege sind tatsächlich zu. Sie waren nur nicht
+> alle.
+
 # Befund A2: Die Kontingent-Frühwarnung ist mit dem Abo-Token nicht baubar
 
-**Stichtag:** 2026-08-20 · **überholt durch:** — · **maßgeblich ist diese
+**Stichtag:** 2026-08-20 · **überholt durch:** die Berichtigung im Kasten oben (20.08.) · **maßgeblich ist diese
 Datei** · **Auftrag:** Claudia, 20.08. („Schritt 1 ist der Probeaufruf;
 scheitert er, endet der Auftrag als *nicht baubar*")
 

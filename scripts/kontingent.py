@@ -1,6 +1,24 @@
 #!/usr/bin/env python3
 # <!-- ROLLE: kontingent-abrufer -->
-"""Kontingent-Stand abfragen — A2, Claudias Bauauftrag vom 20.08.
+"""Kontingent-Stand abfragen — A2. **ÜBERHOLT, NICHT IN BETRIEB.**
+
+⚠️ **BERICHTIGT 20.08.2026:** Die Begründung unten — das Ereignis feuere
+nur bei einem *Zustandswechsel* — **ist falsch**, und sie war der Grund,
+warum A2 als nicht baubar galt. Im CLI-Bündel gemessen: Der Setzer läuft
+unter ``if(!isEqual(alt, neu))``, einem **tiefen Wertvergleich**. Es genügt,
+dass sich ``utilization`` ändert — und das tut sie mit jeder Anfrage.
+
+Die Zahl steht ohnehin in den Kopfzeilen jeder Antwort
+(``anthropic-ratelimit-unified-<fenster>-utilization``). **Es gibt nichts
+abzufragen.** Der Bau sitzt in ``bot.py`` (``_limit_letzten_merken``,
+``cmd_kontingent``), der Prüfer in ``scripts/test_kontingent_a2.py``.
+
+Diese Datei bleibt als Beleg des gescheiterten Wegs stehen und wird beim
+Abschluss-Audit (Phase 10, Entrümpelung) entfernt — nicht früher, weil
+Aufräumen die gefährlichere Art von Arbeit ist.
+
+Ursprünglicher Kopf:
+
 
 **Wofür:** Adams einzige Warnung kam bei 97 Prozent, Sekunden bevor nichts mehr
 ging. Er will Stufen bei **80, 85, 90 und 95**.
@@ -39,7 +57,7 @@ Sitzungs-Token aus `claude login` gedacht.
 Dieses Modul ist **nirgends eingebunden** — kein Zeitgeber, kein Aufruf aus
 dem Bot, keine Schwellenlogik. Es bleibt als fertiger Rückweg liegen, falls
 der Zugang je verfügbar wird. Maßgebliche Auskunft:
-`docs/befund-a2-kontingent-nicht-baubar.md`.
+`docs/befund-a2-kontingent.md`.
 
 Aufruf: ``python3 scripts/kontingent.py [--probe]``
 """

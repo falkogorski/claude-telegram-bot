@@ -228,6 +228,70 @@ for frist_datei in "$BOTDIR"/*riegel*.md "$BOTDIR"/CLAUDE.md; do
   fi
 done
 
+# --- 9f. A6.1: Der taegliche Sichtungs-Vermerk fuer die Kontrolle ----------
+#
+# Adams Vorgabe (20.08., 10:40/10:55): Die Kontrollsitzung braucht EINMAL JE TAG
+# einen Durchgang durch die Ablagen mit der Frage "ist daraus ein Auftrag
+# entstanden?" - und zwar VOR dem Bauen, ROLLENGEBUNDEN und UNABHAENGIG DAVON,
+# OB ADAM DARAN DENKT. Sein Satz: "sonst bin ich ja immer derjenige, der sich
+# Sachen merken und anstossen und fragen muss - und das ist nicht Sinn und
+# Zweck der ganzen Geschichte."
+#
+# DESHALB HIER UND NICHT ALS VORSATZ: Engywuck hat die Pflicht am 20.08. als
+# stehende Disziplin uebernommen - aber eine Pflicht ohne Mechanismus haengt an
+# Aufmerksamkeit, und die reisst (dieselbe Lehre wie R2). Der Vermerk macht sie
+# zu etwas, das die Kontrollsitzung beim naechsten Start VORFINDET.
+#
+# DETERMINISTISCH, KEIN MODELL: Der Tagescheck legt einen Eintrag ins
+# Auftragsbuch. Er startet nichts, er weckt niemanden - die AGB-Linie bleibt
+# unberuehrt, denn hier beginnt keine Automatik Arbeit.
+#
+# EINMAL JE TAG: Der Eintrag traegt das Datum in seiner Marke; ein zweiter Lauf
+# am selben Tag legt keinen zweiten. Sonst waeche die Liste bei jedem
+# Handstart, und eine Liste voller Dubletten wird als Ganzes ignoriert.
+if [ -f "$BOTDIR/auftragsbuch.py" ]; then
+  # Aus dem Repo-Verzeichnis, damit `import auftragsbuch` greift — dieselbe
+  # Vorbereitung wie bei der Stundenblume. Ein Befehl aus einem Skript kopiert
+  # nur die sichtbare Zeile; die Umgebung darueber ist Teil des Befehls
+  # (Blaupause 28.07.).
+  # PYTHONPATH statt `cd`: Ein Verzeichniswechsel wuerde den RELATIVEN Pfad in
+  # $VENVPY brechen (er haengt an `dirname $0`). Die Umgebung mitzugeben ist
+  # Teil des Befehls, nicht Beiwerk — Lehre vom 28.07., als ein aus einem
+  # Skript kopierter Aufruf ohne seine Vorbereitung scheiterte.
+  sicht="$("${BOTENV[@]}" "PYTHONPATH=$BOTDIR" "$VENVPY" - <<'PYEND' 2>&1
+import time
+try:
+    import auftragsbuch as ab
+except Exception as e:
+    print(f"FEHLER Auftragsbuch nicht ladbar: {type(e).__name__}")
+    raise SystemExit(0)
+heute = time.strftime("%Y-%m-%d")
+marke = f"sichtung:{heute}"
+try:
+    if any(a.get("marke") == marke for a in ab.eingang()):
+        print("SCHON-DA")
+        raise SystemExit(0)
+    ab.legen({
+        "titel": f"Taegliche Sichtung der Ablagen ({heute})",
+        "art": "sichtung",
+        "marke": marke,
+        "beschreibung": (
+            "Durchgang durch Tagesdatei, Ausarbeitungen, Fehlerprotokoll und "
+            "Tagescheck mit der Frage: Ist daraus ein Auftrag entstanden? "
+            "Geht dem Bauen voraus (Adams Vorgabe 20.08.)."),
+    }, absender="claudia")
+    print("GELEGT")
+except Exception as e:
+    print(f"FEHLER {type(e).__name__}")
+PYEND
+)"
+  case "$sicht" in
+    GELEGT)   add "🔎 Sichtungs-Vermerk fuer die Kontrolle ins Auftragsbuch gelegt" ;;
+    SCHON-DA) add "✅ Sichtungs-Vermerk liegt bereits (einer je Tag)" ;;
+    *)        red "Sichtungs-Vermerk NICHT gelegt: $sicht" ;;
+  esac
+fi
+
 # --- 9d. ZEITGEBER-WACHE (Befund E aus Vorlage 5.21-E) ---------------------
 #
 # DIE LUECKE: Dieser Check prueft die DIENSTE - und keinen einzigen ZEITGEBER.

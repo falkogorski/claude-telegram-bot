@@ -382,6 +382,45 @@ def _knopf_auftrag_ist_nicht_gruen():
     assert e["braucht_zustimmung"] is True, "er wuerde ohne Zustimmung laufen"
 
 
+def _sichtungsvermerk_einer_je_tag():
+    """**A6.1, Adams Vorgabe vom 20.08.** Der Tagescheck legt den Vermerk, die
+    Kontrolle findet ihn beim naechsten Start vor — unabhaengig davon, ob Adam
+    daran denkt. Sein Satz: „sonst bin ich ja immer derjenige, der sich Sachen
+    merken und anstossen und fragen muss."
+
+    Geprueft wird die Kernbedingung: **einer je Tag.** Ein zweiter Lauf am
+    selben Tag darf keinen zweiten legen — sonst waeche die Liste bei jedem
+    Handstart, und eine Liste voller Dubletten wird als Ganzes ignoriert."""
+    import time
+    heute = time.strftime("%Y-%m-%d")
+    marke = f"sichtung:{heute}"
+
+    def _legen():
+        if any(a.get("marke") == marke for a in ab.eingang()):
+            return "SCHON-DA"
+        ab.legen({"titel": f"Taegliche Sichtung der Ablagen ({heute})",
+                  "art": "sichtung", "marke": marke,
+                  "beschreibung": "Durchgang durch die Ablagen."},
+                 absender="claudia")
+        return "GELEGT"
+
+    vorher = len(ab.eingang())
+    assert _legen() == "GELEGT", "der erste Lauf hat nichts gelegt"
+    assert len(ab.eingang()) == vorher + 1, "kein Eintrag im Auftragsbuch"
+    assert _legen() == "SCHON-DA", "der zweite Lauf hat einen zweiten gelegt"
+    assert len(ab.eingang()) == vorher + 1, "der Eingang ist gewachsen"
+
+
+def _sichtung_ist_nicht_gruen():
+    """Auch der Sichtungs-Vermerk kommt **gelb** herein — „sichtung" steht
+    nicht in der geschlossenen Gruen-Liste. Das ist richtig: Er ist eine
+    Aufgabe fuer die Kontrolle, nichts, was ein Laeufer abarbeiten koennte."""
+    eintraege = [e for e in ab.eingang() if e.get("art") == "sichtung"]
+    assert eintraege, "kein Sichtungs-Vermerk vorhanden (Reihenfolge?)"
+    assert eintraege[-1]["ampel"] != "gruen", \
+        "der Sichtungs-Vermerk kam gruen herein"
+
+
 check("der Riegel ist eine Datei mit Frist und Kopf", _riegel_ist_eine_datei_mit_frist)
 check("abgelaufene/kaputte Frist schliesst den Riegel (4 Wege)",
       _abgelaufene_frist_schliesst_den_riegel)
@@ -392,6 +431,9 @@ check("Knopf hinterlegt und dublettet nicht (Adam 20.08.)",
       _knopf_hinterlegt_und_dublettet_nicht)
 check("der hinterlegte Befund ist NICHT gruen",
       _knopf_auftrag_ist_nicht_gruen)
+check("Sichtungs-Vermerk: einer je Tag (A6.1)",
+      _sichtungsvermerk_einer_je_tag)
+check("der Sichtungs-Vermerk ist NICHT gruen", _sichtung_ist_nicht_gruen)
 
 if fails:
     print(f"\n❌ {len(fails)} B8-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")

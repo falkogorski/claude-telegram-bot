@@ -114,29 +114,56 @@ if [ -d "$WORK" ]; then
     echo "Letzter Abgleich: $(date '+%d.%m.%Y, %H:%M')"
     echo
     echo "MITGENOMMEN:"
-    find ausarbeitungen -type f 2>/dev/null | sed 's|^ausarbeitungen/|  |' | sort
+    # Die Quittung selbst gehoert NICHT in ihre eigene Frachtliste — sie ist
+    # eine Aussage ueber den Transport, kein Transportgut. Ohne diesen
+    # Ausschluss aendert sie sich beim zweiten Lauf zwangslaeufig (dann liegt
+    # sie im Repo und listet sich selbst) und der Nur-bei-Aenderung-Riegel
+    # schwingt eine Runde lang nach. Gefunden vom Pruefer, nicht beim Bauen.
+    find ausarbeitungen -type f ! -name 'letzter-abgleich.txt' 2>/dev/null \
+      | sed 's|^ausarbeitungen/|  |' | sort
     echo
-    echo "AUSGESCHLOSSEN (lag im Ablage-Ordner, kam nicht mit):"
-    # Der Grund je Datei, nicht nur die Tatsache — sonst raet der Absender.
+    echo "AUSGESCHLOSSEN (haette mitkommen koennen, kam nicht):"
+    # `[GEAENDERT 2026-08-20, Engywuck]` Nur noch TRANSPORTRELEVANTE
+    # Kandidaten — Dateien mit Dokument-Endung, die nicht ankamen, plus alles
+    # vom Geheimnis-Filter Gestoppte. Vorher lief die Schleife ueber den
+    # GANZEN Baum und listete jede Punkt-Datei und jedes Zwischenprodukt:
+    # 5.207 Zeilen, 564 KB. Eine Liste dieser Laenge liest niemand, und was
+    # niemand liest, meldet nichts — der Sinn der Quittung war gerade,
+    # aussortierte Dateien SICHTBAR zu machen.
+    #
+    # Punkt-Dateien und `.tmp` gehoeren nicht dazu: Dass ein Arbeits-
+    # Zwischenstand nicht mitkommt, ist kein Befund, sondern die Absicht.
     find "$WORK" -type f 2>/dev/null | while read -r f; do
       name="$(basename "$f")"
       rel="${f#$WORK/}"
       [ -f "ausarbeitungen/$rel" ] && continue
       case "$name" in
-        .*)            grund="Punkt-Datei (Arbeits-Zwischenstand)" ;;
-        *.tmp)         grund="Zwischendatei" ;;
-        CLAUDE.md|MEMORY.md) grund="Kontext-/Gedaechtnisdatei, gehoert nicht ins Log-Repo" ;;
+        .*|*.tmp)      continue ;;   # Absicht, kein Befund
+        CLAUDE.md|MEMORY.md) continue ;;   # ausdruecklich unerwuenscht
         *secret*|*token*|*credential*|*passwor*|*key*|*.env)
                        grund="GEHEIMNIS-NAMENSFILTER - der Name enthaelt ein Schluesselwort" ;;
         *.md|*.pdf|*.txt|*.csv|*.html) grund="unklar - bitte melden, das sollte mitkommen" ;;
-        *)             grund="keine Dokument-Endung" ;;
+        *)             continue ;;   # keine Dokument-Endung, nie vorgesehen
       esac
       echo "  $rel — $grund"
     done
     echo
     echo "Fehlt hier etwas, das mitkommen sollte? Dann sag Bescheid —"
     echo "der Filter ist bewusst hart, aber er soll nichts Richtiges schlucken."
-  } > "$WORK/letzter-abgleich.txt" 2>/dev/null || true
+  } > "$WORK/.letzter-abgleich.neu" 2>/dev/null || true
+
+  # **Nur schreiben, wenn sich mehr geaendert hat als die Uhrzeit.**
+  # Gemessen am 20.08.: 155 Commits an einem halben Tag, jeder einzelne allein
+  # wegen der Kopfzeile. Ein Verlauf, in dem jeder Eintrag dasselbe sagt, ist
+  # kein Verlauf — er verdeckt die Aenderungen, die etwas bedeuten.
+  # (Engywucks Befund; sein Abnahmefehler, hier der Ein-Zeilen-Fix.)
+  if [ -f "$WORK/letzter-abgleich.txt" ] \
+     && diff -q <(tail -n +2 "$WORK/letzter-abgleich.txt") \
+                <(tail -n +2 "$WORK/.letzter-abgleich.neu") >/dev/null 2>&1; then
+    rm -f "$WORK/.letzter-abgleich.neu"      # inhaltsgleich — Quittung bleibt
+  else
+    mv "$WORK/.letzter-abgleich.neu" "$WORK/letzter-abgleich.txt"
+  fi
 fi
 
 

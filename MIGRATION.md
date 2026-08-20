@@ -1033,7 +1033,7 @@ Absturzfall ausdrücklich auf 5.18).
 - **Verifiziert am:** —
 
 ### 7.2 Scheduler (24/7 auf VPS)
-- **Status:** OFFEN
+- **Status:** 🔄 **GEBAUT UND RUHEND (20.08.2026)** — `scripts/erinnerungen.py`, neun Prüfungen. **Kein Zeitgeber eingespielt**; die Unit-Vorlage liegt in [`docs/befehlsbloecke-root.md`](docs/befehlsbloecke-root.md) mit dem Vermerk „NOCH NICHT EINSPIELEN". **Zwei Dinge fehlen, beide bei Adam:** der iCloud-Zugang (7.3) und der Erinnerungskanal (7.1) — **ohne Kanal hat der Läufer kein Ziel**; bis dahin legt er in den Bot-Chat und **nennt das ausdrücklich**. ⚠️ **Kein Modell im Pfad** (durch Prüfzeile abgesichert): Ein Zeit-Trigger, der ein Modell startet, wäre AGB-Grauzone. ⚠️ **Eine Meldung je Lauf**, nicht eine je Termin — sonst hielte die Postfach-Obergrenze ausgerechnet die Erinnerung zurück. **Vor dem Scharfstellen gilt Regel ①a** (Widerlegungs-Gegenprüfung).
 - **Akzeptanzkriterium:** APScheduler oder systemd-Timer plant Jobs; läuft auch ohne Mac.
 - **Test:** Erinnerung für 5 Minuten später anlegen → kommt pünktlich.
 - **Adam-Bestätigung:** —
@@ -1047,7 +1047,7 @@ Absturzfall ausdrücklich auf 5.18).
 - **Verifiziert am:** —
 
 ### 7.4 Direkte Links in Erinnerungen
-- **Status:** OFFEN
+- **Status:** ✅ **GEBAUT (20.08.2026)** — `Termin.link()` in `kalender.py` zieht die Zugangsadresse aus **Ort, Notiz und Titel** und hängt sie an die lesbare Zeile. **Genau EINE Adresse**, und zwar die, die nach einem Zugang aussieht (Zoom, Meet, Teams, Webex, YouTube, `/j/`, `/join` …) — eine Terminbeschreibung enthält oft mehrere, und alle anzuhängen macht die Zeile unlesbar. ⚠️ **Steht die Adresse im Ortsfeld** — der Normalfall bei Einladungen —, wird sie dort herausgenommen statt zweimal gezeigt (beim Bauen aufgefallen, nicht beim Entwerfen). ⚠️ **Der Link kommt NICHT in die Sprachausgabe**: Er steht bewusst **hinter** dem lesbaren Teil, damit der TTS-Filter ihn wegnehmen kann, ohne einen Satz zu zerreißen — mit Prüfzeile in beide Richtungen belegt. Sechs neue Prüfungen.
 - **Akzeptanzkriterium:** Zoom-/YouTube-Links werden aus Beschreibung/Ressource extrahiert und mitgeschickt.
 - **Test:** Termin mit Zoom-Link → Link kommt mit.
 - **Adam-Bestätigung:** —

@@ -27,14 +27,32 @@ from __future__ import annotations
 
 import datetime as _dt
 import os
+import re
 from dataclasses import dataclass
 
 ICLOUD_URL = os.environ.get("CALDAV_URL") or "https://caldav.icloud.com/"
+
+# 7.4: Woran eine Adresse als ZUGANG zu erkennen ist — im Unterschied zu
+# irgendeiner Adresse, die auch in einer Terminbeschreibung stehen kann.
+#
+# **Bewusst eine Liste bekannter Anbieter plus ein paar sprechende Pfade**, und
+# bewusst NICHT der Versuch, „Zugang" allgemein zu erkennen: Das ginge nicht,
+# und ein Fehlgriff wäre teuer — der falsche Link an einem Termin ist
+# schlimmer als keiner, weil man ihn anklickt statt nachzusehen.
+#
+# Wird nichts erkannt, fällt die Auswahl auf die erste gefundene Adresse
+# zurück. Das ist ehrlicher als zu schweigen: Eine Adresse im Termin ist mit
+# hoher Wahrscheinlichkeit die, um die es geht.
+_ZUGANG = re.compile(
+    r"(zoom\.us|teams\.microsoft|meet\.google|meet\.jit\.si|whereby\.com|"
+    r"webex\.com|gotomeet|bigbluebutton|youtube\.com|youtu\.be|twitch\.tv|"
+    r"/j/|/join|/meeting|/live|/webinar)", re.IGNORECASE)
 
 
 @dataclass
 class Termin:
     """Ein Kalendereintrag in der Form, in der der Bot ihn braucht."""
+    # (Felder unten; `_ZUGANG` steht vor der Klasse, siehe Modulkopf.)
     beginn: _dt.datetime
     ende: _dt.datetime | None
     titel: str
@@ -55,9 +73,50 @@ class Termin:
         else:
             zeit = f"{self.beginn:%H:%M}"
         teile = [f"{tag}, {datum}, {zeit} — {self.titel}"]
-        if self.ort:
-            teile.append(f"({self.ort})")
+        # 7.4: Der Zugangs-Link gehört an den Termin, nicht in eine Suche.
+        link = self.link()
+        # Steht die Adresse IM Ortsfeld — der Normalfall bei Einladungen —,
+        # wird sie dort herausgenommen statt zweimal gezeigt. Bleibt nichts
+        # übrig, entfällt die Ortsklammer ganz.
+        ort = self.ort or ""
+        if link and link in ort:
+            ort = ort.replace(link, "").strip(" ,;–—-")
+        if ort:
+            teile.append(f"({ort})")
+        if link:
+            teile.append(f"→ {link}")
         return " ".join(teile)
+
+    def link(self) -> str:
+        """Die Zugangsadresse zu diesem Termin — oder leer (7.4).
+
+        **Wofür:** Ein Videotermin ohne seinen Link ist eine Erinnerung an
+        etwas, das man dann erst suchen muss. Gesucht wird in **Ort, Notiz und
+        Titel**, in dieser Reihenfolge — der Ort ist das Feld, in das die
+        Kalender-Einladungen ihn üblicherweise schreiben.
+
+        **Genau EINE Adresse, nicht alle.** Eine Terminbeschreibung enthält oft
+        mehrere (Einwahl, Kalenderabsage, Anbieter-Startseite); alle
+        anzuhängen macht die Zeile unlesbar. Zurückgegeben wird die erste, die
+        nach einem **Zugang** aussieht — sonst die erste überhaupt.
+
+        ⚠️ **Diese Adresse darf nicht in die Sprachausgabe.** Der TTS-Pfad
+        filtert Adressen bereits heraus; deshalb steht der Link **hinter** dem
+        lesbaren Teil und nicht mittendrin — was gefiltert wird, soll am Ende
+        wegfallen und nicht einen Satz zerreißen.
+        """
+        quellen = (self.ort or "", self.notiz or "", self.titel or "")
+        gefunden: list[str] = []
+        for feld in quellen:
+            for treffer in re.findall(r"https?://[^\s<>\"')\]]+", feld):
+                # Satzzeichen am Ende gehören zum Text, nicht zur Adresse.
+                gefunden.append(treffer.rstrip(".,;:!?"))
+        if not gefunden:
+            return ""
+        for adresse in gefunden:
+            if _ZUGANG.search(adresse):
+                return adresse
+        return gefunden[0]
 
 
 @dataclass

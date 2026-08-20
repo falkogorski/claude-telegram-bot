@@ -100,12 +100,88 @@ def _keine_zugangsdaten_im_quelltext():
     assert "os.environ" in quelle, "Zugang kommt nicht aus der Umgebung"
 
 
+def _zugangslink_haengt_am_termin():
+    """**7.4.** Ein Videotermin ohne seinen Link ist eine Erinnerung an etwas,
+    das man dann erst suchen muss. Gesucht wird in Ort, Notiz und Titel."""
+    def _t(**kw):
+        return k.Termin(beginn=dt.datetime(2026, 8, 21, 10, 0),
+                               ende=None, titel=kw.pop("titel", "T"), **kw)
+    assert _t(ort="https://zoom.us/j/123").link() == "https://zoom.us/j/123"
+    assert "youtu.be" in _t(notiz="Stream: https://youtu.be/abc").link()
+    assert _t(titel="Los https://meet.google.com/x").link().endswith("/x")
+
+
+def _ohne_link_keine_leere_zeile():
+    """**Die Gegenprobe aus dem Messbefund**, wörtlich: „Ein Termin ohne Link
+    darf keine leere Zeile erzeugen." Sonst trüge jeder Zahnarzttermin einen
+    Pfeil ins Nichts."""
+    t = k.Termin(beginn=dt.datetime(2026, 8, 21, 10, 0), ende=None,
+                        titel="Zahnarzt", ort="Hauptstrasse 5")
+    assert t.link() == "", "aus einer Adresse ohne Link wurde einer"
+    assert "→" not in t.lesbar(), f"leerer Pfeil in der Zeile: {t.lesbar()}"
+
+
+def _der_zugang_gewinnt_gegen_beiwerk():
+    """Eine Terminbeschreibung enthält oft mehrere Adressen — Einwahl,
+    Unterlagen, Anbieter-Startseite. Gezeigt wird die, die nach **Zugang**
+    aussieht, nicht die erste."""
+    t = k.Termin(
+        beginn=dt.datetime(2026, 8, 21, 10, 0), ende=None, titel="Vortrag",
+        notiz="Unterlagen https://example.com/pdf — Zugang https://zoom.us/j/9")
+    assert "zoom.us" in t.link(), f"das Beiwerk hat gewonnen: {t.link()}"
+
+
+def _die_adresse_steht_nicht_zweimal():
+    """Bei Einladungen steht der Link im **Ortsfeld**. Ihn dort zu belassen und
+    zusätzlich anzuhängen, zeigt ihn doppelt — beim Bauen aufgefallen, nicht
+    beim Entwerfen."""
+    t = k.Termin(beginn=dt.datetime(2026, 8, 21, 10, 0), ende=None,
+                        titel="Runde", ort="https://zoom.us/j/12345")
+    assert t.lesbar().count("zoom.us") == 1, \
+        f"die Adresse steht zweimal: {t.lesbar()}"
+    # Gegenrichtung: Ein Ort MIT zusätzlichem Text behält seinen Text.
+    t2 = k.Termin(beginn=dt.datetime(2026, 8, 21, 10, 0), ende=None,
+                         titel="Beirat", ort="Raum 3, https://meet.google.com/x")
+    assert "(Raum 3)" in t2.lesbar(), f"der Ortstext ging verloren: {t2.lesbar()}"
+
+
+def _satzzeichen_gehoeren_nicht_zur_adresse():
+    """`…/abc.` am Satzende — der Punkt ist Grammatik, nicht Teil des Links."""
+    t = k.Termin(beginn=dt.datetime(2026, 8, 21, 10, 0), ende=None,
+                        titel="X", notiz="Siehe https://meet.google.com/abc-def.")
+    assert t.link().endswith("abc-def"), f"Satzzeichen mitgenommen: {t.link()}"
+
+
+def _der_link_ueberlebt_die_vorlese_kette_nicht():
+    """**Die Auflage aus dem Messbefund.** Adressen gehören nicht in die
+    Sprachausgabe — „schräg schräg schräg Punkt Punkt HTML" ist genau das,
+    was Adam am 17.06. beanstandet hat. Geprüft wird, dass der bestehende
+    Filter greift **und** dass der lesbare Teil dabei heil bleibt."""
+    import os
+    os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:test")
+    os.environ.setdefault("ALLOWED_USER_IDS", "1")
+    import bot
+    t = k.Termin(beginn=dt.datetime(2026, 8, 21, 10, 0), ende=None,
+                        titel="Team-Runde", ort="https://zoom.us/j/12345")
+    gesprochen = bot._strip_markdown_for_tts(t.lesbar())
+    assert "zoom.us" not in gesprochen, \
+        f"die Adresse landet in der Sprachausgabe: {gesprochen}"
+    assert "Team-Runde" in gesprochen, \
+        f"der lesbare Teil wurde mit weggefiltert: {gesprochen}"
+
+
 check("ohne Zugang: deutlicher Fehler statt Leerlauf", _ohne_zugang_deutlicher_fehler)
 check("Termin liest sich wie gesprochen", _termin_lesbar)
 check("ganztägig nennt keine Uhrzeit", _ganztags_sagt_ganztaegig)
 check("Aufgabe ohne Frist bleibt schlicht", _aufgabe_ohne_frist_bleibt_schlicht)
 check("unbekannte Sammlung wird benannt, nicht ersetzt", _falscher_name_wird_benannt)
 check("keine Zugangsdaten im Quelltext", _keine_zugangsdaten_im_quelltext)
+check("7.4: der Zugangslink haengt am Termin", _zugangslink_haengt_am_termin)
+check("7.4: ohne Link keine leere Zeile (Gegenprobe)", _ohne_link_keine_leere_zeile)
+check("7.4: der Zugang gewinnt gegen Beiwerk", _der_zugang_gewinnt_gegen_beiwerk)
+check("7.4: die Adresse steht nicht zweimal", _die_adresse_steht_nicht_zweimal)
+check("7.4: Satzzeichen gehoeren nicht zur Adresse", _satzzeichen_gehoeren_nicht_zur_adresse)
+check("7.4: der Link kommt NICHT in die Sprachausgabe", _der_link_ueberlebt_die_vorlese_kette_nicht)
 
 if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")

@@ -59,8 +59,9 @@ demselben.
       Umgebung auf dem VPS vor, du fügst den Wert dort ein. Sag Bescheid, dann
       lege ich ihn an.
 
-- [ ] **Erinnerungskanal anlegen (7.1)** · ~5 Min · schaltet frei: **7.2**, den
-      Erinnerungs-Läufer — ohne Kanal hat er kein Ziel.
+- [ ] **Erinnerungskanal anlegen (7.1)** · ~5 Min · schaltet frei: **7.2** —
+      der Erinnerungs-Läufer ist seit dem 20.08. **fertig gebaut und wartet**;
+      ohne Kanal hat er kein Ziel.
       Weg: Telegram-Kanal anlegen, Bot als Administrator mit Schreibrecht
       hinzufügen, mir die Kennung nennen. Kann zusammen mit den vier
       Live-Gruppen für Phase 6 erledigt werden — derselbe Handgriff.

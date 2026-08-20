@@ -379,6 +379,77 @@ dran ist.
 
 ---
 
+## Erinnerungs-Läufer 7.2 — NOCH NICHT EINSPIELEN
+
+> ⚠️ **Zwei Dinge fehlen, beide bei Adam** — bis dahin bleibt der Läufer
+> ruhend:
+>
+> 1. **Der iCloud-Zugang** (7.3). Ohne ihn liest er nichts; er sagt das dann
+>    auch, statt einen leeren Kalender vorzutäuschen.
+> 2. **Der Erinnerungskanal** (7.1). Ohne ihn hat er **kein Ziel** — er legt
+>    dann in den Bot-Chat und nennt das ausdrücklich in der Meldung.
+>
+> Der Läufer ist gebaut und mit neun Prüfungen belegt. **Vor dem Scharfstellen
+> gilt Regel ①a:** Widerlegungs-Gegenprüfung durch eine frische Sitzung —
+> gebaut-und-ruhend darf warten, gebaut-und-wachend nicht.
+
+**Erst prüfen, ob er überhaupt etwas zu sagen hätte** (ändert nichts, legt
+nichts ab):
+
+```bash
+sudo -u claudebot /home/claudebot/claude-telegram-bot/.venv/bin/python3 /home/claudebot/claude-telegram-bot/scripts/erinnerungen.py --trocken
+```
+
+**Dann die Unit anlegen.** `User=claudebot` ist Pflicht — die B1-Lehre: Ein
+Dienst ohne `User=` läuft als root und bekommt kein `HOME`; der Tagescheck ist
+daran einundzwanzig Tage lang lautlos gestorben.
+
+```bash
+cat > /etc/systemd/system/erinnerungen.service <<'EOF'
+[Unit]
+Description=Erinnerungs-Laeufer (deterministisch, kein Modell im Pfad)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=claudebot
+WorkingDirectory=/home/claudebot/claude-telegram-bot
+EnvironmentFile=-/etc/claude-telegram-bot.env
+ExecStart=/home/claudebot/claude-telegram-bot/.venv/bin/python3 scripts/erinnerungen.py
+EOF
+```
+
+```bash
+cat > /etc/systemd/system/erinnerungen.timer <<'EOF'
+[Unit]
+Description=Erinnerungs-Laeufer stuendlich
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+```
+
+```bash
+systemctl daemon-reload && systemctl enable --now erinnerungen.timer && systemctl list-timers erinnerungen.timer --no-pager
+```
+
+**Prüfzeile:** Der Timer erscheint mit einem nächsten Lauf innerhalb der
+nächsten Stunde, `User=claudebot` ist gesetzt. · **Rückweg:**
+`systemctl disable --now erinnerungen.timer`.
+
+**Nach dem Einspielen die Wirkungs-Regel fahren:** einen Testtermin in den
+Kalender legen und nachsehen, ob die Meldung ankommt — die Konfiguration zu
+lesen genügt nicht.
+
+**💰 Keine Kosten:** kein Modell im Pfad (durch eine Prüfzeile abgesichert),
+CalDAV läuft direkt zu Apple, iCloud ist im Konto enthalten.
+
+---
+
 ## Log-Abgleich alle fünf Minuten (19.08.2026) — EINGESPIELT 19.08., 23:15 (gemessen)
 
 **Adams ①-Entscheid vom 18.08. spät ersetzt den Stundentakt**, der am selben

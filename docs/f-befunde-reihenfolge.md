@@ -184,6 +184,20 @@ Warteschlangen-Hinweis („einmal Text, einmal Stimme") steht so **nicht** im
 Volltext der Gegenprüfung und ließ sich im Code nicht nachstellen. Ich habe ihn
 beim Zusammenfassen hinzugefügt; er wird hier gestrichen statt stillschweigend
 weitergeführt. Fällt er im Betrieb auf, kommt er als neuer Befund zurück.
+### F-6 · `sudo`-Lärm im Journal beim Zielumgebungs-Prüfer `[offen]`
+
+Beim Tagescheck-Lauf vom 20.08. steht im Journal eine Zeile
+`claudebot : user NOT in sudoers ... COMMAND=/usr/bin/bash
+scripts/regressionstest.sh`. Vermutlich stammt sie aus
+`test_zielumgebung.sh`, der zeitgesteuerte Skripte mit `env -i` startet —
+`daily_check.sh` ruft darin `sudo -u claudebot`, was als `claudebot` scheitern
+muss. **Der Lauf war grün, der Schaden ist Lärm, kein Ausfall.**
+
+Trotzdem eintragen: Eine wiederkehrende Fehlzeile im Journal ist genau das, was
+den Log-Wachposten künftig täglich anschlagen lässt — und ein Wächter, der
+täglich dasselbe Harmlose meldet, wird abgeschaltet. **Vermutung, nicht
+Befund:** Der Verursacher ist ungeprüft.
+
 ## Erledigt
 
 - **Zeitgeber-Wache** (Befund B1/B4/B5): gelöschte Timer werden erfasst,

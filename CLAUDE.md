@@ -313,6 +313,28 @@ Prozesse"*.
 **Warum das hier steht und nicht nur im Laufplan:** Ein Takt, der nur mündlich
 verabredet ist, hält bis zum ersten Tag, an dem die Arbeit gut läuft. Genau
 dann ist er am wichtigsten.
+
+#### Ein Block heißt nach der Uhr, nicht nach seinem Inhalt `[NACHGESCHÄRFT 2026-08-20, Adam]`
+
+**Anlass, und der Fehler war meiner:** Ich hatte eine Punkteliste „Nachtblock"
+genannt und sie um vierzehn Uhr abarbeiten wollen. Adam: *„Wir haben jetzt
+vierzehn Uhr. Das ist einfach noch kein Nachtblock."* Der Name war zu einer
+**Inhaltsbezeichnung** geworden — und damit war der ganze Takt eine Etikette
+ohne Bezug zur Wirklichkeit.
+
+- **Die Tageszeit bestimmt den Namen, nicht der Plan.** Vormittag, Nachmittag,
+  Nacht — **an der Uhr geprüft, bevor der Name fällt** (Systemdatum, nicht
+  Gedächtnis). Was inhaltlich für „nachts" vorgesehen war, wird nachmittags
+  eben **Teil des Nachmittagsblocks**.
+- **Ein Block darf verlängert und erweitert werden**, statt einen neuen Namen
+  zu bekommen. Das ist der Normalfall, wenn die Arbeit weitergeht.
+- **Vor dem Verlängern wird Adam gefragt.** Nicht „darf ich weiterarbeiten",
+  sondern konkret: *Machen wir weiter, verlängern wir den Nachmittagsblock?*
+  Er entscheidet, ob seine Zeit und das Kontingent das hergeben — beides
+  gehört ihm, nicht mir.
+- **Der echte Nachtblock beginnt, wenn Adam schlafen geht**, nicht wenn eine
+  Liste „Nachtblock" heißt. Er ist der einzige, der ohne Rückfrage lang laufen
+  darf, weil dann niemand sonst auf das Kontingent wartet.
 ## 🧠 SELBSTLERNENDE ASSISTENZ (Adam-Grundprinzip 2026-07-24)
 
 Der Assistent lernt mit der Zeit Adams Vorlieben (Kategorisierung, Reihenfolge,

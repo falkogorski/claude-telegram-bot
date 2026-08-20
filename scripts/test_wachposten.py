@@ -43,16 +43,25 @@ def check(name, fn):
 
 
 _GESENDET: list[str] = []
+_KNOEPFE: list[dict | None] = []
 _postfach_ersetzt = False
 
 
 def _postfach_stellen():
-    """Der RAND — hier würde etwas zu Adam hinausgehen."""
+    """Der RAND — hier würde etwas zu Adam hinausgehen.
+
+    **Die Attrappe spiegelt die ECHTE Signatur, kein `**kwargs`.** Am 18.08.
+    baute ein Prüfer seine Attrappe mit genau der falschen Arität, die der
+    Fehler hatte — damit war der Fehler per Konstruktion unsichtbar. Ein
+    nachsichtiges `**kwargs` hätte hier dieselbe Wirkung: Ein Tippfehler im
+    Aufrufnamen bliebe grün.
+    """
     import botenpost
     echt = botenpost.legen
 
-    def _fang(text, absender, ziel=None, thread_id=None):
+    def _fang(text, absender, ziel=None, thread_id=None, knopf=None):
         _GESENDET.append(text)
+        _KNOEPFE.append(knopf)
         return Path("/dev/null")
     botenpost.legen = _fang
     wachposten.botenpost = botenpost
@@ -210,7 +219,9 @@ def _quelle_bestimmt_die_schwelle():
         "dieselbe Zeile im Gespraech schlaegt an — dort braucht es Muster"
 
 
-_postfach_stellen()   # der Rand wird EINMAL gestellt, vor allen Pruefungen
+_ECHTES_LEGEN = _postfach_stellen()   # der Rand wird EINMAL gestellt, vor allen Pruefungen
+# Die echte Funktion bleibt greifbar: Eine Pruefung misst ihre Abweisungen,
+# und die kann nur die echte leisten (die Attrappe wuerde alles durchlassen).
 
 check("auffällige Zeile wird MIT Wortlaut gemeldet", _rote_zeile_wird_gemeldet_mit_wortlaut)
 check("harmlose Zeilen schweigen (Gegenprobe)", _harmlose_zeilen_schweigen)
@@ -391,6 +402,64 @@ def _keine_frage_ohne_wirkung():
     assert "Engywuck findet ihn" in letzte, "die Stand-Zeile fehlt"
 
 
+def _meldung_traegt_einen_knopf():
+    """**Adams Entscheid vom 20.08., 00:38.** Die Meldung bietet an, statt zu
+    fragen — und das Angebot hat einen Weg. Geprüft wird, dass der Knopf
+    tatsächlich mitgeht und eine Kennung trägt; ohne sie wäre ein zweiter Tipp
+    nicht als Dublette erkennbar."""
+    _frisch()
+    _KNOEPFE.clear()
+    _fehlerdatei("Traceback (most recent call last):")
+    wachposten.lauf()
+    assert _KNOEPFE and _KNOEPFE[-1], "die Meldung geht ohne Knopf hinaus"
+    k = _KNOEPFE[-1]
+    assert k["art"] == "wachposten_hinterlegen", f"falsche Art: {k}"
+    assert len(str(k.get("kennung", ""))) >= 8, f"Kennung zu schwach: {k}"
+
+
+def _die_kennung_haengt_am_befund_nicht_an_der_zeit():
+    """**Die 28.07.-Lehre, hier zum zweiten Mal angewandt.** Damals hebelte ein
+    Zeitstempel im Text den Dämpfer aus, weil jede Meldung neu aussah. Trüge
+    die Kennung die Zeit, wäre derselbe Befund nach einem Neustart eine andere
+    Sache — und der Dublettenschutz liefe leer."""
+    _frisch()
+    _KNOEPFE.clear()
+    _fehlerdatei("Traceback (most recent call last):")
+    wachposten.lauf()
+    erste = _KNOEPFE[-1]["kennung"]
+    _frisch()                                # neuer Lauf, gleicher Befund
+    _fehlerdatei("Traceback (most recent call last):")
+    wachposten.lauf()
+    assert _KNOEPFE[-1]["kennung"] == erste, \
+        "derselbe Befund bekommt zwei verschiedene Kennungen"
+    # Gegenrichtung: ein ANDERER Befund muss eine andere Kennung tragen.
+    _frisch()
+    _fehlerdatei("ValueError: etwas ganz anderes")
+    wachposten.lauf()
+    assert _KNOEPFE[-1]["kennung"] != erste, \
+        "zwei verschiedene Befunde teilen sich eine Kennung"
+
+
+def _botenpost_weist_erfundene_knopfarten_ab():
+    """**Die geschlossene Liste, gemessen statt geglaubt.** Der Postfach-Ordner
+    wird von mehreren Skripten beschrieben. Ohne diese Prüfung könnte jedes
+    davon eine beliebige Schaltfläche in Adams Chat setzen."""
+    import botenpost
+    echt = botenpost.legen
+    botenpost.legen = _ECHTES_LEGEN            # die Attrappe kurz beiseite
+    try:
+        for schlecht in ({"art": "alles_loeschen", "kennung": "abc12345"},
+                         {"art": "wachposten_hinterlegen"}):   # ohne Kennung
+            try:
+                botenpost.legen("Probe", absender="probe", ziel="1",
+                                knopf=schlecht)
+                raise AssertionError(f"durchgelassen: {schlecht}")
+            except botenpost.Abgewiesen:
+                pass
+    finally:
+        botenpost.legen = echt
+
+
 check("ein Fehlersturm sieht nicht aus wie ein Einzelfall (W1)",
       _ein_fehlersturm_sieht_nicht_aus_wie_ein_einzelfall)
 check("dieselbe Zeile wird zwischen Laeufen gedaempft (Gegenrichtung)",
@@ -400,6 +469,12 @@ check("der Befund wird nicht verbraucht, bevor er ankommt (W2)",
 check("die Fundstelle nennt Zeile und Zeit (W3)", _die_fundstelle_nennt_zeile_und_zeit)
 check("halbe Zeilen werden nicht zerrissen (W4)", _halbe_zeilen_werden_nicht_zerrissen)
 check("Ampel-Ausfall wird benannt (W5)", _ampel_ausfall_wird_benannt)
+check("die Meldung traegt einen Knopf (Adams Entscheid 00:38)",
+      _meldung_traegt_einen_knopf)
+check("die Kennung haengt am Befund, nicht an der Zeit",
+      _die_kennung_haengt_am_befund_nicht_an_der_zeit)
+check("erfundene Knopfarten werden abgewiesen",
+      _botenpost_weist_erfundene_knopfarten_ab)
 check("Gedaempftes wird gezaehlt und genannt (Claudia 2)",
       _gedaempfte_werden_gezaehlt_und_genannt)
 check("ohne Daempfung keine Zaehlzeile (Gegenrichtung)",

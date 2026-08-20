@@ -72,6 +72,40 @@ die nächste Stille, die wie Ruhe aussieht.**
 Kein Sicherkanal in v1 — als **[später prüfen]** in der Auswertung vermerkt,
 damit aus „für jetzt" nicht stillschweigend „für immer" wird.
 
+## Die Schaltfläche an der Meldung
+
+Jede Meldung trägt eine Schaltfläche **📌 Befund hinterlegen**. Ein Tipp legt
+den Befund ins Auftragsbuch — **deterministisch, ohne Modellstart** — und
+bestätigt es in derselben Nachricht.
+
+**Warum es sie gibt.** Bis zum 20.08. endete jede Meldung mit „Engywuck
+wecken?". Adams Daumen darauf blieb wirkungslos: Der Postfach-Versand
+registriert keine offene Frage, also griff die stille Quittung — ein Häkchen,
+kein Lauf. Daraus wurde Adams Regel: *Eine Frage nur, wenn sie im Chat
+beantwortbar ist und die Antwort wirkt.* Die Schaltfläche ist diese Wirkung;
+die Meldung fragt seither nicht mehr, sie **bietet an**.
+
+**Der hinterlegte Auftrag ist gelb, nicht grün** — und das ist keine
+Nachlässigkeit, sondern der Punkt: Adam stimmt dem **Hinterlegen** zu, nicht
+dem Bauen. „wachposten-befund" steht bewusst nicht in der geschlossenen
+Grün-Liste, also legt das Auftragsbuch ihn zur Vorlage. Über das Ausführen
+entscheidet Engywuck.
+
+**Zwei Riegel gegen Doppel-Einträge:** Der Knopf verschwindet nach dem Tippen,
+und der Eintrag trägt eine Marke aus der Befund-Kennung, gegen die ein zweiter
+Versuch geprüft wird. Der zweite Riegel ist der doppelte Boden — ein Knopf, der
+stehen bleibt, lädt zum zweiten Tippen ein.
+
+**Die Kennung hängt am Befund, nicht an der Zeit.** Trüge sie einen
+Zeitstempel, wäre derselbe Befund nach einem Neustart eine andere Sache und der
+Dublettenschutz liefe leer — dieselbe Lehre wie beim Dämpf-Schlüssel (28.07.).
+
+**Erlaubte Knopf-Arten sind eine geschlossene Liste** (`botenpost.KNOPF_ARTEN`).
+Der Postfach-Ordner wird von mehreren Skripten beschrieben; ohne diese Prüfung
+könnte jedes davon eine beliebige Schaltfläche in Adams Chat setzen. Fällt eine
+Art durch, geht die **Nachricht trotzdem hinaus, nur ohne Knopf** — ein
+Meldeweg darf an einem Zierrat nicht scheitern.
+
 ## Wie er sich dämpft
 
 Dieselbe Kennung frühestens nach einer Stunde erneut, höchstens fünf Zeilen je

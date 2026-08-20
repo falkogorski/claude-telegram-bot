@@ -42,6 +42,15 @@ _SCHLUESSEL = re.compile(
     r"(\d{6,}:[A-Za-z0-9_\-]{20,}|sk-[A-Za-z0-9_\-]{6,}|[A-Za-z0-9_\-]{40,})")
 
 
+# Erlaubte Knopf-Arten — geschlossene Liste, aus demselben Grund wie die
+# Absenderliste darüber und die Grün-Arten im Auftragsbuch: **Ein Feld, in das
+# jeder Schreiber alles eintragen kann, belegt nichts.** Der Postfach-Ordner
+# wird von mehreren Skripten beschrieben; ohne diese Liste könnte jedes davon
+# eine beliebige Schaltfläche in Adams Chat setzen. Was die Arten auslösen,
+# steht in `bot.py` — hier steht nur, welche es überhaupt geben darf.
+KNOPF_ARTEN = ("wachposten_hinterlegen",)
+
+
 class Abgewiesen(Exception):
     """Die Nachricht verletzt eine Leitplanke und wird nicht abgelegt."""
 
@@ -65,17 +74,38 @@ def ziel_finden() -> str:
 
 
 def legen(text: str, absender: str, ziel: str | int | None = None,
-          thread_id: int | None = None) -> Path | None:
+          thread_id: int | None = None,
+          knopf: dict | None = None) -> Path | None:
     """Legt eine Nachricht ab. Rückgabe: der Pfad, oder None wenn kein Ziel.
 
     Der Absender steht **zweimal** drin — im Dateinamen und im Inhalt. Das ist
     Absicht: Der Dateiname ist das, was man beim Durchsehen eines vollen
     Ordners sieht, ohne eine einzige Datei zu öffnen.
+
+    **`knopf` hängt eine Schaltfläche an** — `{"art": …, "kennung": …,
+    "beschriftung": …, "titel": …}`. Die Art muss in `KNOPF_ARTEN` stehen, die
+    Kennung ist eine kurze Zeichenfolge, an der ein zweiter Tipp als Dublette
+    erkannt wird.
+
+    **Warum es das gibt (Adams Regel vom 20.08.):** Eine Frage darf nur
+    gestellt werden, wenn die Antwort ankommt und wirkt. Bis hierher konnte
+    eine Postfach-Nachricht nur erzählen; jede Frage darin lief ins Leere, weil
+    eine Reaktion darauf nur die stille Quittung auslöste. Der Knopf ist der
+    Weg, den diese Regel verlangt — **deterministisch, ohne Modellstart.**
     """
     if absender not in ABSENDER:
         raise Abgewiesen(
             f"unbekannter Absender {absender!r} — erlaubt sind: "
             + ", ".join(ABSENDER))
+    if knopf is not None:
+        art = str(knopf.get("art", ""))
+        if art not in KNOPF_ARTEN:
+            raise Abgewiesen(
+                f"unbekannte Knopf-Art {art!r} — erlaubt sind: "
+                + ", ".join(KNOPF_ARTEN))
+        if not str(knopf.get("kennung", "")).strip():
+            raise Abgewiesen("ein Knopf ohne Kennung — der zweite Tipp wäre "
+                             "nicht als Dublette erkennbar")
     ziel = str(ziel or ziel_finden())
     if not ziel.isdigit():
         return None
@@ -90,6 +120,8 @@ def legen(text: str, absender: str, ziel: str | int | None = None,
         }
         if thread_id is not None:
             eintrag["thread_id"] = thread_id
+        if knopf is not None:
+            eintrag["knopf"] = dict(knopf)
         tmp = POSTFACH / f".{absender}-{marke}.tmp"
         tmp.write_text(json.dumps(eintrag, ensure_ascii=False), encoding="utf-8")
         ziel_datei = POSTFACH / f"{absender}-{marke}.json"

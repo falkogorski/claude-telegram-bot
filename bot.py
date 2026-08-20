@@ -4700,6 +4700,36 @@ def _postfach_target_ok(chat_id: int) -> bool:
     return False
 
 
+def _postfach_knopf(knopf: dict | None):
+    """Die Schaltfläche an einer Postfach-Nachricht — oder nichts.
+
+    **Die Art wird gegen `botenpost.KNOPF_ARTEN` geprüft, nicht geglaubt.**
+    Der Postfach-Ordner wird von mehreren Skripten beschrieben; ohne diese
+    Prüfung könnte jedes davon eine beliebige Schaltfläche in Adams Chat
+    setzen. Dieselbe Überlegung wie bei der Absender- und der Grün-Liste:
+    *ein Feld, in das jeder alles eintragen kann, belegt nichts.*
+
+    Fällt hier etwas durch, gibt es **keinen Knopf, aber die Nachricht** —
+    ein Meldeweg darf an einem Zierrat nicht scheitern.
+    """
+    if not isinstance(knopf, dict):
+        return None
+    try:
+        import botenpost
+        art = str(knopf.get("art", ""))
+        kennung = str(knopf.get("kennung", "")).strip()
+        if art not in botenpost.KNOPF_ARTEN or not kennung:
+            log.warning("Postfach: Knopf abgewiesen (art=%r)", art)
+            return None
+        daten = f"pfk:{art}:{kennung}"[:64]
+        text = str(knopf.get("beschriftung") or "Ja, hinterlegen")
+        return InlineKeyboardMarkup(
+            [[InlineKeyboardButton(text[:60], callback_data=daten)]])
+    except Exception:
+        log.warning("Postfach: Knopf konnte nicht gebaut werden", exc_info=True)
+        return None
+
+
 async def _postfach_send_one(app: Application, claimed: Path,
                              sent_dir: Path, failed_dir: Path) -> None:
     orig = claimed.name[:-len(".processing")] if claimed.name.endswith(".processing") else claimed.name
@@ -4778,7 +4808,8 @@ async def _postfach_send_one(app: Application, claimed: Path,
             await app.bot.send_message(
                 chat_id=chat_id,
                 text=(text + "\n\n" + sammel) if sammel else text,
-                message_thread_id=thread_id)
+                message_thread_id=thread_id,
+                reply_markup=_postfach_knopf(data.get("knopf")))
         _move(sent_dir)
         log.info("postfach: Auftrag %s an %s zugestellt.", orig, chat_id)
     except Exception as e:
@@ -6628,6 +6659,89 @@ async def _request_restart_confirm(update: Update, user_id: int) -> None:
         "🔄 Wirklich neu starten?",
         reply_markup=kb,
     )
+
+
+def _wachposten_hinterlegen(kennung: str, titel: str) -> tuple[bool, str]:
+    """Trägt einen Wachposten-Befund ins Auftragsbuch. Läuft im Arbeitsfaden.
+
+    **Deterministisch, ohne Modellstart** — das ist die Bedingung, unter der
+    dieser Weg überhaupt gebaut werden durfte. Am 24.07. lösten fünf
+    zugestellte Nachrichten fünf Modellläufe in sechzehn Sekunden aus, deren
+    ganzes Ergebnis „Passt." und „Gut." war; die stille Quittung ist die
+    Antwort darauf und bleibt unangetastet.
+
+    **Der Auftrag wird NICHT künstlich grün.** „Wachposten-Befund" steht nicht
+    in der geschlossenen Grün-Liste, also stuft ihn das Auftragsbuch als gelb
+    ein und verlangt Zustimmung. Das ist der Zweck: Adam bestätigt, dass der
+    Befund **hinterlegt** wird — nicht, dass er ausgeführt wird. Über das
+    Ausführen entscheidet Engywuck, wenn er ihn beim nächsten Start vorfindet.
+    """
+    try:
+        import auftragsbuch
+    except Exception as e:
+        return False, f"Das Auftragsbuch ist nicht erreichbar ({type(e).__name__})."
+    marke = f"wachposten:{kennung}"
+    try:
+        # Dublettenschutz: Ein zweiter Tipp auf denselben Knopf darf keinen
+        # zweiten Eintrag erzeugen. Geprüft wird gegen die Marke, nicht gegen
+        # den Titel — Titel können sich gleichen, die Marke nicht.
+        for vorhanden in auftragsbuch.eingang():
+            if vorhanden.get("marke") == marke:
+                return False, "Der Befund liegt bereits im Auftragsbuch."
+        auftragsbuch.legen({
+            "titel": titel or "Wachposten-Befund",
+            "art": "wachposten-befund",
+            "marke": marke,
+            "quelle": "Log-Wachposten",
+            "beschreibung": (
+                "Adam hat diesen Befund per Schaltfläche hinterlegt. "
+                "Der Wortlaut steht in der Meldung im Chat und vollständig "
+                "in den Protokollen."),
+        }, absender="claudia")
+    except Exception as e:
+        return False, f"Konnte nicht hinterlegt werden ({type(e).__name__})."
+    return True, ("✅ Hinterlegt. Engywuck findet den Befund beim nächsten "
+                  "Start im Auftragsbuch — er ist als gelb eingestuft, "
+                  "wird also vorgelegt und nicht selbsttätig gebaut.")
+
+
+async def on_postfach_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Die Schaltfläche an einer Postfach-Meldung (Adams Entscheid 20.08.).
+
+    **Warum es diesen Weg gibt:** Bis hierher konnte eine Postfach-Nachricht
+    nur erzählen. Eine Frage darin lief ins Leere — eine Reaktion darauf löste
+    nur die stille Quittung aus, weil der Postfach-Versand keine offene Frage
+    registriert. Adams Regel: *Eine Frage nur, wenn die Antwort ankommt und
+    wirkt.* Das hier ist das Ankommen.
+    """
+    query = update.callback_query
+    if query is None or not authorized(update):
+        return
+    await query.answer()
+    teile = (query.data or "").split(":", 2)
+    if len(teile) != 3:
+        return
+    _, art, kennung = teile
+    if art != "wachposten_hinterlegen":
+        log.warning("Postfach-Knopf: unbekannte Art %r", art)
+        return
+    quelle = (query.message.text or "") if query.message else ""
+    # Der Titel ist die erste sinntragende Zeile UNTER der Überschrift — sie
+    # nennt den Befund, die Überschrift nur den Absender.
+    zeilen = [z.strip() for z in quelle.splitlines() if z.strip()]
+    titel = next((z for z in zeilen[1:] if not z.startswith("(")),
+                 "Wachposten-Befund")[:120]
+    ok, meldung = await asyncio.to_thread(_wachposten_hinterlegen, kennung, titel)
+    try:
+        # Knopf entfernen, damit ein zweiter Tipp gar nicht erst entsteht —
+        # der Dublettenschutz oben ist der doppelte Boden, nicht die einzige
+        # Sicherung. (Ein Knopf, der nach dem Drücken stehenbleibt, lädt zum
+        # zweiten Tippen ein.)
+        await query.edit_message_text(quelle + "\n\n" + meldung,
+                                      reply_markup=None)
+    except Exception:
+        log.warning("Postfach-Knopf: Meldung konnte nicht ergänzt werden",
+                    exc_info=True)
 
 
 async def on_restart_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -9022,6 +9136,7 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(on_channel_callback, pattern=r"^ch:"))
     app.add_handler(CallbackQueryHandler(on_update_callback, pattern=r"^upd:"))
     app.add_handler(CallbackQueryHandler(on_restart_callback, pattern=r"^rst:"))
+    app.add_handler(CallbackQueryHandler(on_postfach_knopf, pattern=r"^pfk:"))
     app.add_handler(ChatMemberHandler(on_my_chat_member, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(MessageReactionHandler(on_reaction))
     app.add_handler(MessageHandler(filters.StatusUpdate.PINNED_MESSAGE, on_pinned_message))

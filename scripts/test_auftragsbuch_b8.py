@@ -346,12 +346,52 @@ def _hora_speist_sich_aus_dem_auftragsbuch():
         "ein Fehlschlag des Auftragsbuchs wuerde Horas Lauf verhindern"
 
 
+def _knopf_hinterlegt_und_dublettet_nicht():
+    """**Adams Gut-genug-Kriterium vom 20.08.** Ein Tipp auf die Schaltfläche
+    erzeugt einen Auftragsbuch-Eintrag und eine Bestätigung; ein zweiter Tipp
+    erzeugt keinen zweiten Eintrag.
+
+    Geprüft wird die **echte** Funktion aus `bot.py`, nicht ihre Beschreibung
+    — ein Prüfer, der nur nachsieht, ob der Aufruf im Text steht, misst die
+    Schreibweise (18.08., dreifach belegt)."""
+    os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:test")
+    os.environ.setdefault("ALLOWED_USER_IDS", "1")
+    import bot
+    vorher = len(ab.eingang())
+    ok, meldung = bot._wachposten_hinterlegen("abc123456789", "Ein Befund")
+    assert ok, f"der erste Tipp hat nichts hinterlegt: {meldung}"
+    assert len(ab.eingang()) == vorher + 1, "kein Eintrag im Auftragsbuch"
+    assert "Hinterlegt" in meldung, f"keine Bestaetigung: {meldung}"
+
+    ok2, meldung2 = bot._wachposten_hinterlegen("abc123456789", "Ein Befund")
+    assert not ok2, "der zweite Tipp hat einen Doppel-Eintrag erzeugt"
+    assert len(ab.eingang()) == vorher + 1, "der Eingang ist gewachsen"
+    assert "bereits" in meldung2, f"die Dublette wird nicht benannt: {meldung2}"
+
+
+def _knopf_auftrag_ist_nicht_gruen():
+    """**Die wichtigere Haelfte.** Wuerde der Befund gruen hereinkommen, koennte
+    Hora ihn selbsttaetig abarbeiten — Adam hat aber nur dem HINTERLEGEN
+    zugestimmt, nicht dem Bauen. Die Art steht bewusst nicht in der
+    geschlossenen Gruen-Liste."""
+    eintraege = [e for e in ab.eingang() if e.get("art") == "wachposten-befund"]
+    assert eintraege, "kein Wachposten-Auftrag vorhanden (Reihenfolge?)"
+    e = eintraege[-1]
+    assert e["ampel"] != "gruen", \
+        f"ein Wachposten-Befund kam gruen herein: {e.get('ampel_grund')}"
+    assert e["braucht_zustimmung"] is True, "er wuerde ohne Zustimmung laufen"
+
+
 check("der Riegel ist eine Datei mit Frist und Kopf", _riegel_ist_eine_datei_mit_frist)
 check("abgelaufene/kaputte Frist schliesst den Riegel (4 Wege)",
       _abgelaufene_frist_schliesst_den_riegel)
 check("Gruen-Liste traegt Adams vier Arten", _gruen_liste_traegt_adams_vier_arten)
 check("die Uebergabe meldet sich ungedaempft", _uebergabe_meldet_sich_ungedaempft)
 check("Hora speist sich aus dem Auftragsbuch", _hora_speist_sich_aus_dem_auftragsbuch)
+check("Knopf hinterlegt und dublettet nicht (Adam 20.08.)",
+      _knopf_hinterlegt_und_dublettet_nicht)
+check("der hinterlegte Befund ist NICHT gruen",
+      _knopf_auftrag_ist_nicht_gruen)
 
 if fails:
     print(f"\n❌ {len(fails)} B8-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")

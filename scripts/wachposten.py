@@ -312,15 +312,29 @@ def lauf(trocken: bool = False) -> int:
     # Frage, also löste Adams Daumen um 00:19 nur die stille Quittung aus;
     # und einen technischen Weckruf für die Kontrollsitzung gibt es nicht,
     # ihr Weg läuft mit Absicht über Adam (Vier-Augen-Prinzip).
-    # Eine Frage ohne Wirkung ist schlimmer als keine, weil man sich darauf
-    # verlässt, entschieden zu haben. Bis der Knopf steht: nur der Stand.
-    text += "\n\nDer Befund liegt im Log; Engywuck findet ihn beim nächsten Start."
+    #
+    # **Jetzt gibt es die Wirkung** (Adams Entscheid 00:38): Der Knopf legt den
+    # Befund deterministisch ins Auftragsbuch, ohne Modellstart. Die Meldung
+    # sagt weiterhin den Stand — sie fragt nicht, sie **bietet an**. Der
+    # Unterschied ist nicht sprachlich: Ein Angebot mit Schaltfläche kommt an,
+    # eine Frage ohne Weg nicht.
+    text += ("\n\nDer Befund liegt im Log; Engywuck findet ihn beim nächsten "
+             "Start. Zum Hinterlegen im Auftragsbuch: Schaltfläche unten.")
+
+    # Die Kennung bindet den Knopf an DIESEN Befundsatz — daran erkennt der
+    # Dublettenschutz einen zweiten Tipp. Kein Text, keine Zeitangabe: dieselbe
+    # 28.07.-Lehre wie beim Dämpf-Schlüssel.
+    import hashlib
+    kennung = hashlib.sha256(
+        "\n".join(z for _, _, z in zu_melden).encode("utf-8")).hexdigest()[:12]
+    knopf = {"art": "wachposten_hinterlegen", "kennung": kennung,
+             "beschriftung": "📌 Befund hinterlegen"}
 
     if trocken:
         print(text)
         return len(zu_melden)
     try:
-        botenpost.legen(text, absender="wachposten")
+        botenpost.legen(text, absender="wachposten", knopf=knopf)
     except Exception as e:
         # NICHT den Stand schreiben: Der nächste Lauf soll dieselben Zeilen
         # wiederfinden und es erneut versuchen.

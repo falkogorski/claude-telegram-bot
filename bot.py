@@ -3811,9 +3811,14 @@ async def on_channel_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> N
     _save_prefs(_USER_PREFS)
 
     title = _USER_PREFS.get("output_channel_title") or str(channel_id)
-    url = _channel_url(channel_id, _USER_PREFS.get("output_channel_username"))
+    # 6.2: über die zentrale Link-Funktion, nicht von Hand. Vorher stand hier
+    # ein handgebauter Anchor mit `_channel_url` — dieselbe Art Textlink wie an
+    # drei anderen Stellen, nur auf einem anderen Weg. Zwei Wege für dieselbe
+    # Sache heißt: einer von beiden ist falsch, und niemand merkt welcher.
+    link = _channel_title_link_html(
+        channel_id, title, _USER_PREFS.get("output_channel_username"))
     await query.edit_message_text(
-        f'Kanal <a href="{url}">{title}</a> als Output-Kanal gespeichert.',
+        f'Kanal {link} als Output-Kanal gespeichert.',
         parse_mode=ParseMode.HTML,
     )
 
@@ -4113,8 +4118,11 @@ async def cmd_setkanal(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not args or args[0] == "status":
         cid, title, url = get_output_channel()
         if cid:
+            # 6.2: zentrale Link-Funktion statt handgebautem Anchor.
+            link = _channel_title_link_html(
+                cid, title, _USER_PREFS.get("output_channel_username"))
             await update.message.reply_text(
-                f'Output-Kanal: <a href="{url}">{title}</a> ({cid})\n\nÄndern mit:\n/setkanal -100XXXXXXXXX',
+                f'Output-Kanal: {link} ({cid})\n\nÄndern mit:\n/setkanal -100XXXXXXXXX',
                 parse_mode=ParseMode.HTML,
             )
         else:
@@ -4138,9 +4146,12 @@ async def cmd_setkanal(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     _USER_PREFS["summary_channel_id"] = channel_id
     _USER_PREFS["tts_channel_id"] = channel_id
     _save_prefs(_USER_PREFS)
-    url = _channel_url(channel_id, _USER_PREFS.get("output_channel_username"))
+    # 6.2: zentrale Link-Funktion statt handgebautem Anchor (s. o.).
+    link = _channel_title_link_html(
+        channel_id, str(channel_id),
+        _USER_PREFS.get("output_channel_username"))
     await update.message.reply_text(
-        f'Output-Kanal gespeichert: <a href="{url}">{channel_id}</a>\nAlle Ausgaben (Zusammenfassungen + Vorlesen) gehen dorthin.',
+        f'Output-Kanal gespeichert: {link}\nAlle Ausgaben (Zusammenfassungen + Vorlesen) gehen dorthin.',
         parse_mode=ParseMode.HTML,
     )
 

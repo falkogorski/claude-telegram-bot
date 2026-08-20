@@ -139,6 +139,7 @@ run "Abgleich-Quittung (log_sync)"     "$PY" scripts/test_log_sync_quittung.py
 run "Wecker nach Limit (A3)"           "$PY" scripts/test_wecker_a3.py
 run "Erinnerungs-Laeufer 7.2 (ruhend)"  "$PY" scripts/test_erinnerungen_7_2.py
 run "Kontingent-Stand (A2)"            "$PY" scripts/test_kontingent_a2.py
+run "Kanal-Links 6.2/6.4"              "$PY" scripts/test_kanal_links_6_2.py
 run "Zielumgebung (bash -n + env -i)"  bash scripts/test_zielumgebung.sh
 run "Sendepfad-Rauchtest (Pflicht 1)"  "$PY" scripts/test_sendepfad_rauch.py
 run "Gruendlich-Umschalter (B3)"        "$PY" scripts/test_gruendlich_b3.py

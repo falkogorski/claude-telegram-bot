@@ -233,6 +233,42 @@ def _nachgereichtes_ist_als_solches_erkennbar():
         f"ein Erstversuch wird als nachgereicht ausgegeben: {_GESENDET[-1][:80]}"
 
 
+def _drosselung_verbraucht_den_versuchszaehler_nicht():
+    """**Engywucks Befund vom 20.08.** Eine gedrosselte Nachricht ist nicht
+    gescheitert — sie war noch nicht dran. Zaehlte sie gegen die fuenf
+    Versuche, landeten bei laengerem Rueckstau hintere Nachrichten im
+    Endlager, obwohl nie ein Versuch fehlschlug.
+
+    Gemessen ueber SECHS Drossel-Runden: mehr als die Versuchsgrenze."""
+    _frisch()
+    for i in range(bot.POSTFACH_GRENZE):
+        _zustellen(_App(), _auftrag(f"durch-{i}.json"))
+    job = _auftrag("gestaut.json")
+    for runde in range(bot.WIEDERVERSUCH_MAX + 1):
+        _zustellen(_App(), job)
+        liegend = list(OUT.glob("gestaut.json"))
+        assert liegend, f"nach Drossel-Runde {runde + 1} ist die Nachricht fort"
+        job = liegend[0]
+        d = json.loads(job.read_text())
+        assert d.get("versuche", 0) == 0, \
+            f"die Drosselung hat den Versuchszaehler verbraucht: {d}"
+    assert not list(FAILED.glob("gestaut.json")), \
+        "eine nie gescheiterte Nachricht landete im Endlager"
+    assert d["drossel_runden"] == bot.WIEDERVERSUCH_MAX + 1, \
+        f"die Drossel-Runden werden nicht gezaehlt: {d}"
+
+
+def _echte_fehlschlaege_zaehlen_weiterhin():
+    """**Die Gegenrichtung.** Wuerde gar nichts mehr zaehlen, liefe ein
+    dauerhaft unzustellbarer Auftrag ewig im Kreis — die Endlosschleife, die
+    der Zaehler gerade verhindern soll."""
+    _frisch()
+    job = _auftrag("kaputt-aber-transient.json")
+    _zustellen(_App(TimeoutError("Timed out")), job)
+    d = json.loads(list(OUT.glob("*.json"))[0].read_text())
+    assert d["versuche"] == 1, f"ein echter Fehlschlag zaehlt nicht mehr: {d}"
+
+
 check("vorübergehender Fehler kommt zurück in die outbox",
       _voruebergehender_fehler_kommt_zurueck)
 check("dauerhafter Fehler wandert sofort ins Endlager (Gegenrichtung)",
@@ -251,6 +287,10 @@ check("die Klassifizierung trifft die echten Fälle",
       _klassifizierung_trifft_die_echten_faelle)
 check("Nachgereichtes ist als solches erkennbar (beide Richtungen)",
       _nachgereichtes_ist_als_solches_erkennbar)
+check("Drosselung verbraucht den Versuchszaehler nicht (Engywuck)",
+      _drosselung_verbraucht_den_versuchszaehler_nicht)
+check("echte Fehlschlaege zaehlen weiterhin (Gegenrichtung)",
+      _echte_fehlschlaege_zaehlen_weiterhin)
 
 print()
 if fails:

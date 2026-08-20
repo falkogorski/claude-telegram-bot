@@ -4832,14 +4832,28 @@ async def _postfach_send_one(app: Application, claimed: Path,
         except Exception:
             log.warning("postfach move failed", exc_info=True)
 
-    def _zurueckstellen(daten: dict, grund: str, wartezeit: float) -> None:
+    def _zurueckstellen(daten: dict, grund: str, wartezeit: float,
+                        zaehlt: bool = True) -> None:
         """Zurück in die outbox mit Wiedervorlage — statt ins Endlager.
 
         **`nicht_vor` steht im Auftrag selbst, nicht in einer Nebenliste.**
         Ein Neustart des Bots darf die Wiedervorlage nicht vergessen; alles,
         was den Auftrag überleben muss, gehört in den Auftrag.
+
+        **`zaehlt=False` für die Drosselung** (Engywucks Befund, 20.08.):
+        Eine gedrosselte Nachricht ist **nicht gescheitert** — sie war noch gar
+        nicht dran. Zählte sie gegen `WIEDERVERSUCH_MAX`, landeten bei einem
+        Rückstau von mehr als etwa fünf Stunden (fünf je Fenster, fünf
+        Versuche) hintere Nachrichten im Endlager, **obwohl nie ein Versuch
+        fehlgeschlagen ist**. Der Zähler bewacht Fehlschläge, nicht Wartezeit.
+        Beides in einem Feld zu führen, hieße zwei verschiedene Dinge zu
+        zählen — dieselbe Verwechslung wie beim Dämpfer, der „habe ich das
+        gemeldet" und „wie viele zeige ich" in einer Frage beantwortete.
         """
-        daten["versuche"] = int(daten.get("versuche", 0)) + 1
+        if zaehlt:
+            daten["versuche"] = int(daten.get("versuche", 0)) + 1
+        else:
+            daten["drossel_runden"] = int(daten.get("drossel_runden", 0)) + 1
         daten["nicht_vor"] = time.time() + wartezeit
         daten["letzter_grund"] = grund[:300]
         try:
@@ -4902,7 +4916,7 @@ async def _postfach_send_one(app: Application, claimed: Path,
                     str(data.get("text", ""))[:200])
         _zurueckstellen(data,
                         f"gedrosselt (mehr als {POSTFACH_GRENZE}/h von {herkunft})",
-                        _postfach_fenster_rest(herkunft))
+                        _postfach_fenster_rest(herkunft), zaehlt=False)
         return
     sammel = _postfach_sammelmeldung(herkunft)
 
@@ -4935,7 +4949,8 @@ async def _postfach_send_one(app: Application, claimed: Path,
             # A1, Claudias Randbemerkung: Ein wiederholter Auftrag kommt
             # später an als ein frisch gelegter. Das ist hinzunehmen — aber
             # nicht unsichtbar, sonst wirkt die Reihenfolge im Chat willkürlich.
-            versuche_bisher = int(data.get("versuche", 0))
+            versuche_bisher = (int(data.get("versuche", 0))
+                               + int(data.get("drossel_runden", 0)))
             vorspann = ""
             if versuche_bisher:
                 gelegt = str(data.get("gelegt") or "").strip()

@@ -38,12 +38,30 @@ export POSTFACH_DIR="$PRUEFHEIM/postfach"
 export FREIGABE_DIR="$PRUEFHEIM/freigaben"
 export HORA_DIR="$PRUEFHEIM/hora"
 export BLUMEN_DIR="$PRUEFHEIM/blumen"
-mkdir -p "$POSTFACH_DIR/outbox" "$FREIGABE_DIR" "$HORA_DIR" "$BLUMEN_DIR"
+# `[NEU 2026-08-20]` Das Auftragsbuch fehlte hier — und der Riegel hat prompt
+# ein Loch gehabt, das sich am selben Tag zeigte: Der Zielumgebungs-Pruefer
+# startet den ECHTEN Tagescheck, und der legt seit A6.1 einen Sichtungs-Vermerk
+# ins Auftragsbuch. Am 20.08. um 13:58 stand dieser Eintrag im echten Buch,
+# erzeugt von einem Pruflauf. Dieselbe Klasse wie der 26.07. um 01:44, als eine
+# Testmeldung als echte Nachricht bei Adam ankam.
+#
+# **Die Lehre ist nicht „diesen Pfad nachtragen", sondern: Wer eine neue
+# Zustandsablage einfuehrt, traegt sie im selben Zug in die Wegwerf-Umgebung
+# ein.** Sonst waechst die Liste der Riegel langsamer als die Liste der Orte,
+# an denen ein Test schreiben kann.
+export AUFTRAGSBUCH_DIR="$PRUEFHEIM/auftragsbuch"
+export PENDING_DIR="$PRUEFHEIM/pending"
+mkdir -p "$POSTFACH_DIR/outbox" "$FREIGABE_DIR" "$HORA_DIR" "$BLUMEN_DIR" \
+         "$AUFTRAGSBUCH_DIR" "$PENDING_DIR"
 trap 'rm -rf "$PRUEFHEIM"' EXIT
 
 # Stand des ECHTEN Postfachs VOR dem Lauf — der Nachweis am Ende vergleicht.
 ECHTPOST="${HOME:-/home/claudebot}/postfach/outbox"
 POST_VORHER="$(ls -A "$ECHTPOST" 2>/dev/null | wc -l | tr -d ' ')"
+# Zweiter Nachweis, aus dem Vorfall vom 20.08.: Auch das echte Auftragsbuch
+# darf durch einen Pruflauf nicht wachsen.
+ECHTBUCH="${HOME:-/home/claudebot}/.claude/auftragsbuch/eingang"
+BUCH_VORHER="$(ls -A "$ECHTBUCH" 2>/dev/null | wc -l | tr -d ' ')"
 
 FAILS=0
 # GESAMT wird GEZAEHLT, nicht getippt. Vorher stand die Zahl fest im
@@ -146,6 +164,17 @@ if [ "$POST_NACHHER" -gt "$POST_VORHER" ]; then
   FAILS=$((FAILS+1))
 else
   echo "✅ Wegwerf-Umgebung: keine Pruefung hat ins echte Postfach geschrieben"
+fi
+
+GESAMT=$((GESAMT+1))
+BUCH_NACHHER="$(ls -A "$ECHTBUCH" 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$BUCH_NACHHER" -gt "$BUCH_VORHER" ]; then
+  echo "❌ Eine Pruefung hat ins ECHTE Auftragsbuch geschrieben ($((BUCH_NACHHER-BUCH_VORHER)) neu)."
+  echo "   Belegt am 20.08.: Der Zielumgebungs-Pruefer startet den echten"
+  echo "   Tagescheck, und der legt seit A6.1 einen Sichtungs-Vermerk."
+  FAILS=$((FAILS+1))
+else
+  echo "✅ Wegwerf-Umgebung: keine Pruefung hat ins echte Auftragsbuch geschrieben"
 fi
 
 echo "== Ergebnis: $((GESAMT-FAILS))/$GESAMT bestanden =="

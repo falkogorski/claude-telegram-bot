@@ -543,3 +543,52 @@ Adams Entscheid, damit der Kurier-Weg nicht bis zu einem Tag braucht. Am
 ```
 sed -i 's|^OnCalendar=.*|OnCalendar=hourly|' /etc/systemd/system/claude-log-sync.timer && systemctl daemon-reload && systemctl restart claude-log-sync.timer && systemctl list-timers claude-log-sync.timer --no-pager
 ```
+
+---
+
+## iCloud-Kalenderzugang 7.3 — FREIGEGEBEN, wartet auf Adam
+
+Schaltet `/termine` und `/aufgaben` frei. Der Bau steht seit dem 25.07.
+vollstaendig; `zugang_vorhanden()` meldet nur deshalb `False`, weil zwei
+Werte in der geschuetzten Umgebung fehlen.
+
+**Vorher im Apple-Konto** (appleid.apple.com → Anmeldung & Sicherheit →
+App-spezifische Passwoerter) ein **anwendungsspezifisches Kennwort** erzeugen.
+Das normale Apple-Kennwort funktioniert bei CalDAV nicht.
+
+**Warum dieser Weg und kein einfacherer:** Das Kennwort wird eingetippt, nicht
+eingefuegt und nicht in einen Befehl geschrieben. `read -s` zeigt nichts an,
+und weil der Wert nur in einer Variablen lebt, landet er weder in der
+Shell-Historie noch in einer Protokolldatei. Ein Kennwort, das einmal in einer
+Verlaufsdatei steht, steht dort dauerhaft.
+
+Erst auf den Server:
+
+```
+ssh claudevps
+```
+
+Dann dort — erst pruefen, ob schon etwas hinterlegt ist:
+
+```
+grep -c ICLOUD_CALDAV /etc/claude-telegram-bot.env
+```
+
+Steht dort `0`, dieser Block (er fragt beide Werte nacheinander ab; beim
+Kennwort bleibt die Zeile leer, das ist richtig so):
+
+```
+read -p "Apple-ID (E-Mail): " AID
+read -s -p "App-spezifisches Kennwort: " APW; echo
+printf 'ICLOUD_CALDAV_USER=%s\nICLOUD_CALDAV_APP_PASSWORT=%s\n' "$AID" "$APW" >> /etc/claude-telegram-bot.env
+unset AID APW
+chmod 600 /etc/claude-telegram-bot.env
+systemctl restart claude-telegram-bot
+```
+
+Steht dort **nicht** `0`, sind die Werte schon da — dann nichts anhaengen
+(doppelte Zeilen ueberschreiben sich still), sondern Bescheid sagen.
+
+**Danach zum Pruefen** — im Bot `/termine` tippen. Erwartet: entweder
+Termine oder die ehrliche Auskunft, dass keine anstehen. Kommt weiterhin
+"Kalender-Zugang fehlt", stimmt einer der beiden Werte nicht.

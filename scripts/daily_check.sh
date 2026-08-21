@@ -33,6 +33,24 @@ BOTDIR=/home/claudebot/claude-telegram-bot
 # schlimmer als keiner.
 BOTHOME=/home/claudebot
 
+# --- Trockenlauf ------------------------------------------------------------
+# Gesetzt (TROCKENLAUF=1) tut dieser Lauf NICHTS nach aussen: kein Vermerk im
+# Auftragsbuch, keine Telegram-Nachricht, kein Anhang ans Protokoll. Geprueft
+# wird alles wie sonst, nur die Wirkung bleibt aus.
+#
+# WARUM ES IHN GIBT (gemessen 21.08.): Der Zielumgebungs-Pruefer startet dieses
+# Skript vollstaendig, und dieses Skript ruft den Regressionstest - der jenen
+# Pruefer enthaelt. Beim Messen brach der innere Lauf an Dateirechten ab und
+# erreichte die Ausgaenge nie. Das war ZUFALL, kein Riegel: Als root gestartet
+# haette er volle Rechte und haette in Adams echte Ablagen geschrieben.
+#
+# WARUM AN DEN AUSGAENGEN, NICHT AN DEN STELLEN (Engywuck, 21.08.): Verstreute
+# Abfragen an jeder Aufrufstelle waeren eine Liste, die waechst - und jede
+# vergessene Stelle ein Leck. Es gibt genau drei Ausgaenge; die tragen die
+# Weiche.
+TROCKENLAUF="${TROCKENLAUF:-}"
+trocken() { [ -n "$TROCKENLAUF" ]; }
+
 # --- Die Umgebung des BOT-Benutzers, fuer jeden Python-Aufruf von hier ------
 #
 # GEMESSEN 18.08.2026, beim allerersten echten Lauf nach der Reparatur:
@@ -46,10 +64,17 @@ BOTHOME=/home/claudebot
 # hingezeigt wird. Und die Wirkung ist womoeglich schlimmer: Ein Waechter, der
 # jeden Tag grundlos rot meldet, wird abgeschaltet. Ein stiller wird nur
 # vergessen.
+# AUFTRAGSBUCH_DIR mit Rueckfall (Engywuck-Auflage 21.08., PFLICHT nicht Kuer):
+# Ohne diese Zeile zeigt der Python-Block IMMER auf die echte Ablage, und ein
+# Pruefer kann den NORMALFALL gar nicht messen - er koennte nur pruefen, dass
+# im Trockenlauf nichts passiert, nie dass ohne Schalter der Vermerk wirklich
+# gelegt wird. Mit durchlassender Umleitung geht beides, ohne das echte Buch
+# anzufassen.
 BOTENV=(env "HOME=$BOTHOME"
             "BLUMEN_DIR=$BOTHOME/.claude/stundenblumen"
             "HORA_DIR=$BOTHOME/.claude/hora"
             "POSTFACH_DIR=$BOTHOME/postfach"
+            "AUFTRAGSBUCH_DIR=${AUFTRAGSBUCH_DIR:-$BOTHOME/.claude/auftragsbuch}"
             "CLAUDE_MEMORY_DIR=$BOTHOME/.claude/memory")
 LOGDIR="$BOTDIR/logs"
 CHECKLOG="$LOGDIR/daily-check.log"
@@ -75,7 +100,7 @@ lines=()
 mkdir -p "$LOGDIR" 2>/dev/null || true
 : > "$LAUFDATEI" 2>/dev/null || true
 
-merken() { printf '%s\n' "$1" >> "$LAUFDATEI" 2>/dev/null || true; }
+merken() { trocken && return 0; printf '%s\n' "$1" >> "$LAUFDATEI" 2>/dev/null || true; }
 add() { lines+=("$1"); merken "$1"; }
 red() { problems+=("$1"); lines+=("❌ $1"); merken "❌ $1"; }
 
@@ -282,6 +307,12 @@ if [ -f "$BOTDIR/auftragsbuch.py" ]; then
   # $VENVPY brechen (er haengt an `dirname $0`). Die Umgebung mitzugeben ist
   # Teil des Befehls, nicht Beiwerk — Lehre vom 28.07., als ein aus einem
   # Skript kopierter Aufruf ohne seine Vorbereitung scheiterte.
+  # Ausgang 3 von 3: der Vermerk im Auftragsbuch. Im Trockenlauf wird gar
+  # nicht erst gestartet - der Python-Block schriebe sonst durch BOTENV in die
+  # echte Ablage, unabhaengig davon, wer ihn aufruft.
+  if trocken; then
+    sicht="TROCKEN"
+  else
   sicht="$("${BOTENV[@]}" "PYTHONPATH=$BOTDIR" "$VENVPY" - <<'PYEND' 2>&1
 import time
 try:
@@ -309,7 +340,9 @@ except Exception as e:
     print(f"FEHLER {type(e).__name__}")
 PYEND
 )"
+  fi
   case "$sicht" in
+    TROCKEN) add "🧪 Sichtungs-Vermerk: im Trockenlauf uebersprungen" ;;
     GELEGT)   add "🔎 Sichtungs-Vermerk fuer die Kontrolle ins Auftragsbuch gelegt" ;;
     SCHON-DA) add "✅ Sichtungs-Vermerk liegt bereits (einer je Tag)" ;;
     *)        red "Sichtungs-Vermerk NICHT gelegt: $sicht" ;;
@@ -550,9 +583,17 @@ if [ "${#problems[@]}" -gt 0 ]; then
   # der Meldephase. Gefunden am 18.08. vom neuen Zielumgebungs-Pruefer beim
   # allerersten Lauf. Ohne Rueckfall waere die Meldung genau dann
   # ausgeblieben, wenn die Empfaengerliste fehlt - also im Stoerfall.
+  # Ausgang 2 von 3: die Nachricht an Adam.
+  #
+  # Der curl-Weg BLEIBT bewusst (Engywuck-Entscheid 21.08.) und ist KEIN
+  # uebersehener Doppelweg neben dem Boten-Postfach: Dieser Check ist der
+  # Waechter, der einen toten Bot melden koennen muss - das Postfach laeuft
+  # durch den Bot-Prozess und waere ausgerechnet im wichtigsten Stoerfall
+  # stumm. Wer das hier als "zwei Wege fuer dasselbe" aufraeumt, nimmt dem
+  # Waechter die Stimme.
   for uid in "${uids[@]:-}"; do
     [ -n "$uid" ] || continue
-    [ -n "$uid" ] || continue
+    trocken && { echo "[trocken] Meldung an ${uid} unterdrueckt"; continue; }
     curl -s -m 15 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
       --data-urlencode "chat_id=${uid}" \
       --data-urlencode "text=${report}" >/dev/null 2>&1

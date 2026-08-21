@@ -61,9 +61,24 @@ done
 # wie ein System-Dienst ohne `User=` startet. Geprueft wird nur, ob das Skript
 # an einer FEHLENDEN VARIABLEN stirbt - dass es ohne Server, ohne venv und
 # ohne Rechte nicht durchlaeuft, ist erwartbar und kein Befund.
+# DREI RIEGEL, damit dieser Start nichts nach aussen tut (21.08.):
+#
+#   TROCKENLAUF=1          - der Schalter an den drei Ausgaengen des Tagescheck
+#   AUFTRAGSBUCH_DIR=...   - die Umleitung, falls der Schalter je verrutscht
+#   TELEGRAM_BOT_TOKEN=""  - kein Versand, auch wenn beides versagt
+#   ALLOWED_USER_IDS=""    - und niemand, an den gesendet werden koennte
+#
+# Warum vier Zeilen fuer eine Sache: Gemessen am 21.08. lief dieser Start heute
+# schon ins Leere - aber nur, weil ihm die DATEIRECHTE fehlten. Als root
+# gestartet haette er in Adams echte Ablagen geschrieben. Das war Zufall; hier
+# steht die Zusage.
+_wegwerf="${TMPDIR:-/tmp}/zielumgebung-buch.$$"
+mkdir -p "$_wegwerf"
 for f in scripts/daily_check.sh scripts/api_cache_pflege.sh; do
   [ -f "$f" ] || continue
-  ausgabe="$(env -i /bin/bash "$f" 2>&1 </dev/null | head -40 || true)"
+  ausgabe="$(env -i TROCKENLAUF=1 "AUFTRAGSBUCH_DIR=$_wegwerf" \
+                 TELEGRAM_BOT_TOKEN= ALLOWED_USER_IDS= \
+                 /bin/bash "$f" 2>&1 </dev/null | head -40 || true)"
   if echo "$ausgabe" | grep -q 'unbound variable'; then
     zeile="$(echo "$ausgabe" | grep -m1 'unbound variable')"
     melde nein "startet ohne HOME: $(basename "$f")" "$zeile"
@@ -71,6 +86,42 @@ for f in scripts/daily_check.sh scripts/api_cache_pflege.sh; do
     melde ok "startet ohne HOME: $(basename "$f")"
   fi
 done
+# Nachweis statt Vertrauen: Hat der Start trotz aller Riegel etwas abgelegt?
+if [ -n "$(ls -A "$_wegwerf" 2>/dev/null)" ]; then
+  melde nein "Trockenlauf legt nichts ab" "$(ls -A "$_wegwerf" | head -3 | tr '\n' ' ')"
+else
+  melde ok "Trockenlauf legt nichts ab"
+fi
+rm -rf "$_wegwerf"
+
+# --- 3c. Der NORMALFALL (Engywuck-Auflage 21.08.) ---------------------------
+#
+# Die Zeile darueber misst, dass im Trockenlauf NICHTS passiert. Das allein
+# waere ein Pruefer, der Untaetigkeit belohnt: Ein Tagescheck, der gar nichts
+# mehr legt, bestuende ihn glaenzend. Deshalb die Gegenrichtung - OHNE Schalter
+# muss der Vermerk wirklich entstehen, und zwar in der Umleitung, nicht im
+# echten Buch.
+#
+# Nur in der Zielumgebung messbar: Der Python-Block braucht Bot-Verzeichnis und
+# venv. Fehlen sie, wird das GESAGT statt still uebersprungen - ein
+# uebersprungener Pruefer, der wie ein bestandener aussieht, ist schlimmer als
+# keiner.
+_bot="/home/claudebot/claude-telegram-bot"
+if [ -d "$_bot" ] && [ -x "$_bot/.venv/bin/python3" ]; then
+  _norm="${TMPDIR:-/tmp}/zielumgebung-normal.$$"
+  mkdir -p "$_norm"
+  env -i "AUFTRAGSBUCH_DIR=$_norm" TELEGRAM_BOT_TOKEN= ALLOWED_USER_IDS= \
+      /bin/bash scripts/daily_check.sh >/dev/null 2>&1 </dev/null || true
+  if [ -n "$(ls -A "$_norm" 2>/dev/null)" ]; then
+    melde ok "ohne Schalter entsteht der Vermerk (in der Umleitung)"
+  else
+    melde nein "ohne Schalter entsteht der Vermerk (in der Umleitung)" \
+               "die Umleitung blieb leer - legt der Tagescheck ueberhaupt noch?"
+  fi
+  rm -rf "$_norm"
+else
+  melde ok "Normalfall-Vermerk: uebersprungen (nicht die Zielumgebung)"
+fi
 
 # --- 3b. Python-Aufrufe des Tagescheck bekommen die Bot-Umgebung -------------
 #

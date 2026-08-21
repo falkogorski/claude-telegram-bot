@@ -759,6 +759,39 @@ Bei mehreren Blöcken kurz hintereinander gilt der mit dem **späteren
 Zeitstempel**. Gilt für **alle Instanzen**, damit die Chronologie zwischen den
 Sitzungen eindeutig bleibt.
 
+### `[AUSGEWEITET 2026-08-21, Adam]` Die Regel galt nur für Blockköpfe — und genau daneben brach sie
+
+Ich habe im Fließtext „eine Stunde nach Mitternacht" geschrieben. Es war
+**halb eins mittags**, zwölf Stunden daneben. **Die Köpfe stimmten, weil dort
+die Zeit abgelesen wird; die Prosa war konstruiert** — aus dem letzten
+Commit-Zeitstempel und einem Datumswechsel, ohne zu bemerken, dass dazwischen
+eine **Nacht** lag.
+
+**Die befolgbare Fassung lautet deshalb nicht „auf die Zeit achten", sondern:**
+
+> **Keine Aussage über Tageszeit, Wochentag oder verstrichene Zeit ohne einen
+> `date`-Aufruf in derselben Antwort.** Wurde nicht gemessen, wird nichts
+> gesagt — eine Antwort ohne Tageszeit-Bezug ist vollständig, eine mit
+> falschem ist beschädigt.
+
+Das verlangt keine Daueraufmerksamkeit, sondern verbietet eine **Aussageklasse
+ohne vorangehende Handlung** — der Unterschied zwischen einer Bitte und einer
+Regel. Besonders gefährdet ist die **Schlusszeile** einer langen Antwort: Der
+Inhalt ist fertig, die Aufmerksamkeit liegt beim Abschluss, und dort rutscht
+die Tageszeit hinein.
+
+**Zweiter Vorfall dieser Klasse** (der erste am 22.06., gleiche Ursache:
+Nachtpause übersehen, Tonfall fortgeschrieben). Daraus die Zusatzprüfung:
+**Vor dem ersten Tageszeit-Bezug einer Antwort prüfen, wie viel Zeit seit der
+letzten Nachricht vergangen ist.** Liegt eine Nacht dazwischen, ist es keine
+Fortsetzung, sondern ein neuer Tag.
+
+**Ehrlich zur Durchsetzung:** Für Antworten dieser Sitzung existiert **kein**
+Prüfer und ist auch keiner baubar — der Pre-Send-Hook (`presend.py`, Zweig b')
+sieht nur Bot-Ausgaben und läuft dort ohnehin nur ins Protokoll. Diese Regel
+trägt also allein die Disziplin; deshalb ist sie so eng gefasst, dass sie
+ohne Aufmerksamkeit auskommt.
+
 ## 🔗 BEZUGS-INTEGRITÄT — Abhängigkeits-Register (Adam-Anweisung 2026-07-16)
 
 Schutz gegen stille Abhängigkeits-Brüche (das „Excel-`#BEZUG!`-Problem"): Eine

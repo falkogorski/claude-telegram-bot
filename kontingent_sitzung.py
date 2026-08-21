@@ -145,10 +145,21 @@ def _bildschirm_holen(cli: str) -> str:
                 schliessen()
             except Exception:
                 pass
-        try:
-            os.waitpid(pid, os.WNOHANG)
-        except Exception:
-            pass
+        # **Einsammeln, nicht einmal nachsehen** (Engywuck-Befund 21.08.):
+        # ``WNOHANG`` direkt nach dem ``kill`` verpasst das Kind, wenn es noch
+        # nicht gestorben ist — und hinterlässt je Abfrage einen Zombie, bis
+        # der nächtliche Neustart aufräumt. Kurz wiederholt kostet nichts und
+        # trifft den Normalfall sofort.
+        for _ in range(20):
+            try:
+                weg, _st = os.waitpid(pid, os.WNOHANG)
+                if weg:
+                    break
+            except ChildProcessError:
+                break
+            except Exception:
+                break
+            time.sleep(0.05)
     return _ANSI.sub("", "".join(stuecke))
 
 

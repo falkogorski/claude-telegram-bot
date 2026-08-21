@@ -256,8 +256,18 @@ def _regression() -> dict:
     """Führt den bestehenden Regressionstest aus und liefert eine MESSBARE Zahl
     (bestanden/gesamt) statt nur ja/nein — Grundlage der Delta-Bewertung."""
     try:
+        # KONTINGENT_LIVE: Nach einem Update wird die Kontingent-Abfrage
+        # EINMAL wirklich gefahren. Sie liest den Bildschirm der Oberflaeche
+        # (`/usage`) und ist damit die benannte Sollbruchstelle: Aendert ein
+        # CLI-Update das Layout, liefert sie nichts mehr, und ohne diese Zeile
+        # merkte es erst Adam (Engywuck-F-Zeile 21.08.).
+        #
+        # Warum nur hier und nicht im normalen Lauf: Die Abfrage kostet rund
+        # eine Minute. Ein Pruefer, der jeden Lauf um eine Minute verlaengert,
+        # wird abgeschaltet - und ein abgeschalteter Pruefer prueft nichts.
+        umgebung = {**os.environ, "KONTINGENT_LIVE": "1"}
         r = subprocess.run(["bash", str(REGRESSION)], capture_output=True,
-                           text=True, timeout=900)
+                           text=True, timeout=900, env=umgebung)
         text = r.stdout or ""
         m = None
         for line in reversed(text.strip().splitlines()):  # A8: robuster lesen

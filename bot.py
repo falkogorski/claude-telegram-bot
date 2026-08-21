@@ -3395,6 +3395,8 @@ def _kontingent_ampel(prozent: int) -> str:
 
 _WOCHENTAGE = ("Montag", "Dienstag", "Mittwoch", "Donnerstag",
                "Freitag", "Samstag", "Sonntag")
+_MONATSNAMEN = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
+                "August", "September", "Oktober", "November", "Dezember")
 
 
 def _kontingent_frei_ab(resets_at: float | None) -> str:
@@ -3460,10 +3462,16 @@ def _kontingent_frei_ab_text(roh: str) -> str:
     except ValueError:
         return ""
     tag = _WOCHENTAGE[ziel.weekday()]
-    return (f"Wieder frei am {tag}, {ziel.day}. "
-            f"{('Januar Februar März April Mai Juni Juli August September '
-                'Oktober November Dezember').split()[monat - 1]}, "
-            f"{stunde}:00 Uhr.")
+    # Der Monatsname wird VOR dem f-String gebildet, nicht darin. Die frühere
+    # Fassung hatte den Ausdruck über zwei Zeilen ins Ersetzungsfeld gelegt —
+    # das ist PEP-701-Syntax und verlangt **Python 3.12 aufwärts**; unter 3.11
+    # scheitert schon das Parsen der Datei. Zielumgebung und Mac liegen
+    # darüber, aber das wäre eine **stille Umgebungs-Abhängigkeit** gewesen,
+    # genau die Klasse, die uns am 25.07. eine unbemerkte Versions-Divergenz
+    # beschert hat. Ein Einzeiler ist billiger als eine Registerzeile, die
+    # jemand lesen müsste (Engywuck-Befund 21.08.).
+    monatsname = _MONATSNAMEN[monat - 1]
+    return f"Wieder frei am {tag}, {ziel.day}. {monatsname}, {stunde}:00 Uhr."
 
 
 def _kontingent_knopf(beschriftung: str = "🔄 Frisch abfragen") -> InlineKeyboardMarkup:

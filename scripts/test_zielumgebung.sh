@@ -123,6 +123,25 @@ else
   melde ok "Normalfall-Vermerk: uebersprungen (nicht die Zielumgebung)"
 fi
 
+# --- 3d. Die Sollbruchstelle der Kontingent-Abfrage (Engywuck-F-Zeile 21.08.)
+#
+# /kontingent liest den BILDSCHIRM der Oberflaeche. Aendert ein CLI-Update
+# deren Layout, liefert die Abfrage nichts mehr - und ohne diese Zeile merkte
+# es erst Adam. Der Updater setzt KONTINGENT_LIVE=1, wenn er nach einem
+# Einspielen prueft; im Alltag bleibt die Zeile aus, weil sie rund eine Minute
+# kostet und ein Pruefer, der jeden Lauf verlaengert, abgeschaltet wird.
+if [ -n "${KONTINGENT_LIVE:-}" ] && [ -d "$_bot" ]; then
+  _kout="$("$_bot/.venv/bin/python3" "$_bot/kontingent_sitzung.py" \
+           "$_bot/.venv/lib/python3.13/site-packages/claude_agent_sdk/_bundled/claude" \
+           2>/dev/null || true)"
+  if echo "$_kout" | grep -q "anteil"; then
+    melde ok "Kontingent-Abfrage liefert nach dem Update noch Werte"
+  else
+    melde nein "Kontingent-Abfrage liefert nach dem Update noch Werte" \
+               "kein Wert gelesen - hat sich das Layout von /usage geaendert?"
+  fi
+fi
+
 # --- 3b. Python-Aufrufe des Tagescheck bekommen die Bot-Umgebung -------------
 #
 # GEMESSEN 18.08.2026 beim ersten echten Lauf: Der Tagescheck laeuft als root,

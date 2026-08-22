@@ -2131,7 +2131,8 @@ _COST_TOOLS = {
 # Wegen zum Geheimnis (⑥, gemessen am selben Tag) ist eine unsichtbare
 # Dauerfreigabe der Unterschied zwischen „Adam wird gefragt" und „niemand wird
 # gefragt". Der Preis ist eine Rückfrage je Bash-Befehl — bewusst bezahlt.
-_NO_ALWAYS_TOOLS = {"WebFetch", "Bash"} | set(_COST_TOOLS)
+_NO_ALWAYS_TOOLS = ({"WebFetch", "Bash", "Write", "Edit", "MultiEdit",
+                     "NotebookEdit"} | set(_COST_TOOLS))
 
 # ---------- 5.25: Herkunfts-Schranke + Geheimnis-Schutz ----------
 
@@ -2203,6 +2204,16 @@ def _extract_hosts(text: str, fuer_vertrauen: bool = False) -> set[str]:
 # und entscheidet). Kein Token darf je in Sitzungskontext oder Chat geraten.
 _SENSITIVE_MARKERS = (".env", "credentials", "token", "secret", "_key", "key.",
                       "keys.", "id_ed25519", "id_rsa", "/etc/claude-telegram-bot",
+                      # H7 (Engywuck 22.08.): Pfade, die ueber die SITZUNG
+                      # HINAUS wirken. Ein Schreibzugriff hierhin ist keine
+                      # einmalige Handlung, sondern eine dauerhafte
+                      # Einfluesterung: Der Gedaechtnis-Ordner geht in den
+                      # System-Prompt JEDER kuenftigen Sitzung, und eine
+                      # hooks-Sektion in den Einstellungen fuehrt Befehle aus,
+                      # ganz ohne das Werkzeug Bash. Gemessen waren alle drei
+                      # nicht einmal dialogpflichtig.
+                      "/.claude/settings", "/.claude/projects", "/memory/",
+                      "claude.md", "/.claude/hooks",
                       # 5.34: Der eigene Bot-API-Server braucht Zugangsdaten —
                       # der Token lebt damit an einer ZWEITEN Stelle. Vor dem
                       # Bau eingetragen, nicht danach (Conni-Bedingung).

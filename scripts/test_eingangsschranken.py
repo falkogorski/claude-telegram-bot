@@ -900,6 +900,57 @@ def _auch_im_suchtreffer_gilt_die_endungs_sperre():
 check("nur Suchtreffer erweitern die Herkunft", _nur_suchtreffer_erweitern_die_herkunft)
 check("Endungs-Sperre gilt auch im Suchtreffer", _auch_im_suchtreffer_gilt_die_endungs_sperre)
 
+
+# --------------------------------------------------------------------------
+# H7 - der Bash-Entscheid hing an EINEM Namen statt an der Eigenschaft
+# --------------------------------------------------------------------------
+
+def _auch_schreibende_werkzeuge_sind_nicht_dauerfreigebbar():
+    """**H7 - Write ist in dieser Konfiguration so maechtig wie Bash.**
+
+    Die Begruendung von (10) lautete: Bash ist das maechtigste Werkzeug, und
+    eine unsichtbare Dauerfreigabe ist der Unterschied zwischen 'Adam wird
+    gefragt' und 'niemand wird gefragt'. Genau dieser Unterschied blieb fuer
+    Write und Edit offen - und die wirken UEBER DIE SITZUNG HINAUS: in den
+    Gedaechtnis-Ordner geschrieben, steht es im System-Prompt jeder kuenftigen
+    Sitzung.
+
+    Das Projekt weiss es an anderer Stelle selbst: `_WERKZEUGE_VERBOTEN`
+    zaehlt vierzehn Werkzeuge auf, die ein Lauf mit Fremdinhalt nie braucht.
+    Davon standen genau drei auf dieser Liste.
+    """
+    for werkzeug in ("Bash", "Write", "Edit", "NotebookEdit", "WebFetch"):
+        assert werkzeug in bot._NO_ALWAYS_TOOLS, \
+            f"{werkzeug} ist dauerfreigebbar - ein Klick gilt unsichtbar fort"
+
+
+def _pfade_mit_dauerwirkung_sind_dialogpflichtig():
+    """Die zweite Haelfte von H7: Diese Pfade waren nicht einmal heikel.
+
+    Gemessen lieferten alle drei False - sie waren also nicht nur
+    dauerfreigebbar, sondern nicht einmal fuer den Geheimnis-Dialog
+    qualifiziert.
+    """
+    for pfad in ("/home/claudebot/.claude/settings.json",
+                 "/home/claudebot/.claude/projects/x/memory/MEMORY.md",
+                 "/home/claudebot/CLAUDE.md",
+                 "~/.claude/hooks/start.sh"):
+        assert bot._is_sensitive_ref(pfad), \
+            (f"{pfad} ist nicht dialogpflichtig - ein Schreibzugriff dorthin "
+             "wirkt in JEDE kuenftige Sitzung")
+
+
+def _alltagsbefehle_bleiben_ohne_dialog():
+    """Gegenrichtung - die neuen Marker duerfen den Alltag nicht sperren."""
+    for c in ("cat README.md", "ls -la", "git status", "tail logs/bot.out.log",
+              "python3 scripts/test_x.py"):
+        assert not bot._is_sensitive_ref(c), f"Fehlalarm bei: {c}"
+
+
+check("auch Write/Edit nicht dauerfreigebbar", _auch_schreibende_werkzeuge_sind_nicht_dauerfreigebbar)
+check("Pfade mit Dauerwirkung sind dialogpflichtig", _pfade_mit_dauerwirkung_sind_dialogpflichtig)
+check("Alltagsbefehle bleiben ohne Dialog", _alltagsbefehle_bleiben_ohne_dialog)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

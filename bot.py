@@ -2333,16 +2333,60 @@ def _repo_read_grund(cmd: str) -> str:
     return ""
 
 
+# H6 (Engywucks Probelauf 22.08.): Schalter, die aus einem LESE-Befehl einen
+# ausführenden oder löschenden machen. `find` ist ein Lese-Verb — mit `-exec`
+# ist es eine Shell, mit `-delete` ein Löschwerkzeug, und beides braucht kein
+# einziges Verkettungszeichen, an dem die Meta-Prüfung greifen würde.
+_AUSFUEHRENDE_SCHALTER = re.compile(
+    r"(?<![\w-])-(exec(dir)?|delete|ok(dir)?|fprintf?|fls|printf)(?![\w-])"
+    r"|(?<![\w-])--(hide|exclude)=", re.IGNORECASE)
+
+# Was wie ein Pfad aussieht. Für die Prüfung, ob WIRKLICH ALLE Pfade im Repo
+# liegen — nicht nur irgendeiner.
+_PFAD_ARTIG = re.compile(r"(?<![\w=])(/[\w./~-]{2,}|~/[\w./-]+)")
+
+
 def _is_repo_read_cmd(cmd: str) -> bool:
+    """Ein einzelner, verkettungsfreier LESE-Befehl im Projekt-Repo.
+
+    **H6 aus Engywucks Probelauf — die Prüfung war zu großzügig, und zwar an
+    zwei Stellen.**
+
+    Erstens genügte es, dass die Zeichenkette ``claude-telegram-bot``
+    *irgendwo* im Befehl stand. Gemessen liefen damit durch:
+    ``cat /home/claudebot/notizen/privat.md …/README.md`` (fremde Datei
+    mitgelesen) und ``ls -la /root/.ssh --hide=claude-telegram-bot``.
+    **Jetzt müssen ALLE pfadartigen Argumente im Repo liegen.**
+
+    Zweitens ist ``find`` ein Lese-Verb — aber ``find -exec`` ist eine Shell
+    und ``find -delete`` ein Löschwerkzeug, und **beides braucht kein
+    Verkettungszeichen**, an dem die Meta-Prüfung greifen würde. Gemessen:
+    ``find … -exec bash -c "curl …" +`` und ``find … -name "*.py" -delete``
+    liefen ohne Dialog durch.
+
+    **Warum das schwerer wog als eine Dauerfreigabe:** Diese Auto-Freigabe
+    steht *im Code*. Sie taucht in keiner Anzeige auf, ``/freigaben reset``
+    erreicht sie nicht, und ``freigaben_bereinigen`` sieht sie nie. Sie war
+    damit stärker als das, was ⑩ am Vortag geschlossen hat — und die
+    Kernzusage von ⑩ („eine Rückfrage je Bash-Befehl") war schlicht falsch.
+    """
     c = cmd or ""
     if "claude-telegram-bot" not in c:
         return False
     if _SHELL_META_RE.search(_ohne_harmlose_umleitung(c)):
         return False               # keine Verkettung/echte Umleitung
+    if _AUSFUEHRENDE_SCHALTER.search(c):
+        return False               # find -exec/-delete & Co. sind kein Lesen
     if _is_repo_write_cmd(c):
         return False               # doppelter Boden gegen Schreiben
     if _is_sensitive_ref(c):
         return False               # Geheimnis-Pfade bleiben auch fürs Lesen zu
+    # **ALLE** Pfade müssen ins Repo zeigen, nicht nur einer. Ein zweiter,
+    # fremder Pfad daneben war der bequemste Weg nach draußen.
+    for treffer in _PFAD_ARTIG.findall(c):
+        pfad = treffer[0] if isinstance(treffer, tuple) else treffer
+        if "claude-telegram-bot" not in pfad:
+            return False
     return bool(_REPO_READ_VERBS.match(c))
 
 

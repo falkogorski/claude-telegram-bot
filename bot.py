@@ -1718,7 +1718,10 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
     # 5.25 (a): Herkunfts-Menge PRO AUFGABE frisch aufsetzen — Adressen aus Adams
     # Nachricht; Suchtreffer der Aufgabe kommen in stream_response dazu. Nur
     # dorthin darf WebFetch ohne Rückfrage.
-    sess.task_origins = _extract_hosts(job.text)
+    # ③ Auch Adams eigene Nachricht speist die Vertrauensliste nur mit echten
+    # Adressen — „schau mal in MIGRATION.md" darf `migration.md` nicht zu einem
+    # freigeschalteten Abrufziel machen.
+    sess.task_origins = _extract_hosts(job.text, fuer_vertrauen=True)
     # AUSSCHLIESSLICH Primitive (5.2): so läuft dieser Pfad identisch für frische
     # und für nach einem Neustart wiederaufgenommene Jobs (dort gibt es kein Update).
     sess.chat_id = job.chat_id
@@ -2115,9 +2118,31 @@ _BARE_DOMAIN_RE = re.compile(
     re.IGNORECASE)
 
 
-def _extract_hosts(text: str) -> set[str]:
-    """Alle Hostnamen aus einem Text (Adams Nachricht, Suchtreffer) —
-    mit UND ohne Schema/www-Präfix."""
+# ③ Endungen, die im Projektalltag Dateien bezeichnen — und zugleich echte
+# Länderkürzel sind. Der frühere Kommentar hielt Treffer wie „bot.py" für
+# „harmlos, niemand ruft sie ab". Das war die Fehlannahme: **`.md` ist
+# Moldawien, `.py` Paraguay, `.sh` St. Helena.** Wer `migration.md` registriert,
+# bekäme einen dauerhaft vertrauten Abrufkanal, weil wir diese Dateinamen in
+# fast jeder Nachricht schreiben.
+#
+# Die Endungen bleiben für die **Erkennung** erlaubt (Adam soll Adressen ohne
+# `https://` schreiben dürfen) — sie erweitern nur das **Vertrauen** nicht.
+_DATEIENDUNGEN_KEINE_DOMAIN = frozenset({
+    "md", "py", "sh", "js", "ts", "json", "yml", "yaml", "toml", "txt", "log",
+    "cfg", "ini", "env", "bak", "tmp", "csv", "pdf", "png", "jpg", "gif", "mp3",
+    "mp4", "zip", "gz", "html", "css", "sql", "db", "lock", "pid", "conf",
+})
+
+
+def _extract_hosts(text: str, fuer_vertrauen: bool = False) -> set[str]:
+    """Alle Hostnamen aus einem Text — mit UND ohne Schema/www-Präfix.
+
+    ``fuer_vertrauen=True`` heißt: Das Ergebnis erweitert die Menge der
+    Adressen, die **ohne Rückfrage** abgerufen werden dürfen. Dann fallen
+    schemalose Treffer mit Datei-Endung heraus (`MIGRATION.md`, `bot.py`).
+    Für die reine Erkennung bleibt alles wie bisher — sonst würde Adams
+    „schau auf de.wikipedia.org/…" wieder eine Rückfrage auslösen.
+    """
     hosts = set()
     for m in _URL_RE.finditer(text or ""):
         h = m.group(1).split("/")[0].split(":")[0].lower()
@@ -2129,6 +2154,8 @@ def _extract_hosts(text: str) -> set[str]:
         h = m.group(1).lower()
         if h.startswith("www."):
             h = h[4:]
+        if fuer_vertrauen and h.rsplit(".", 1)[-1] in _DATEIENDUNGEN_KEINE_DOMAIN:
+            continue
         hosts.add(h)
     return hosts
 
@@ -2408,9 +2435,28 @@ def make_permission_callback(user_id: int):
         # nachgereichte fremde Ziele → Dialog (sonst könnte eine gelesene Seite
         # den Agenten zu Folge-Abrufen dirigieren). Spur bleibt immer sichtbar.
         if tool_name == "WebFetch" and not sensitive:
-            host = _url_host(str(tool_input.get("url") or ""))
+            roh_url = str(tool_input.get("url") or "")
+            host = _url_host(roh_url)
             trusted = set(_USER_PREFS.get(str(user_id), {}).get("trusted_domains", []))
-            if host and (host in sess.task_origins or host in trusted):
+            # ③ **Der Name allein genügt nicht mehr.** Bisher entschied der
+            # Hostname; an eine vertraute Adresse liess sich damit ein
+            # beliebiger Anhang hängen — `wikipedia.org/?x=<Geheimnis>` galt
+            # als vertraut, und der Anhang ist der Weg nach draussen.
+            #
+            # Jetzt: Vertrauen ohne Rückfrage nur für Adressen **ohne
+            # Nutzdaten**. Trägt die Adresse einen Frage- oder Rautenteil, geht
+            # sie in den Dialog — auch bei vertrautem Namen.
+            #
+            # **Ehrlich zur Grenze:** Daten liessen sich weiterhin in den
+            # PFAD legen (`wikipedia.org/<Geheimnis>`). Das bleibt offen,
+            # ist aber deutlich auffälliger (die Seite antwortet mit einem
+            # Fehler) und lässt sich nicht schliessen, ohne jede Unterseite
+            # rückfragepflichtig zu machen. Eine Zeichen- oder Längenprüfung
+            # wäre hier Schein: Ein Zugangsschlüssel besteht aus genau den
+            # Zeichen, die auch normale Pfade tragen — im Befund gemessen.
+            hat_nutzdaten = "?" in roh_url or "#" in roh_url
+            if (host and not hat_nutzdaten
+                    and (host in sess.task_origins or host in trusted)):
                 return PermissionResultAllow()
 
         # 5.25 (a) + Session-Diät (5.23): Lesen in Workspace + Memory-Ordner ohne
@@ -9707,6 +9753,9 @@ async def stream_response(
     """
     claude_turn_started = False
     parts: list[str] = []
+    # ③ Kennungen der Suchaufrufe dieses Turns. Nur deren Ergebnisse dürfen
+    # die Vertrauensliste für Web-Abrufe erweitern — siehe unten.
+    _such_ids: set = set()
 
     # Tipp-Indikator nur außerhalb des quiet-Modus (die 🔧-Spur läuft unabhängig).
     typing_task = (
@@ -9731,6 +9780,12 @@ async def stream_response(
                             sess.logger.log_assistant_text(block.text)
                         parts.append(block.text)
                     elif isinstance(block, ToolUseBlock):
+                        # ③ Kennungen der SUCHAUFRUFE merken — nur deren
+                        # Ergebnisse dürfen später die Vertrauensliste
+                        # erweitern. Der Aufruf kommt immer vor seinem
+                        # Ergebnis, deshalb genügt ein einfacher Merker.
+                        if block.name in ("WebSearch", "web_search"):
+                            _such_ids.add(getattr(block, "id", None))
                         # Werkzeug-Lebenszeichen — BEWUSST unabhängig von quiet:
                         # ohne Live-Textstrom ist die Spur bei langen Recherche-
                         # Turns das einzige Zeichen, dass gearbeitet wird.
@@ -9744,13 +9799,33 @@ async def stream_response(
                         if sess.logger:
                             sess.logger.log_tool(block.name)
             elif isinstance(msg, UserMessage):
-                # 5.25 (a): Suchtreffer der laufenden Aufgabe erweitern die
-                # Herkunfts-Menge — deren Adressen darf WebFetch ohne Klick abrufen.
+                # ③ **Nur SUCHTREFFER erweitern die Herkunfts-Menge — nichts
+                # sonst.** (Engywuck-Bauauftrag 22.08.)
+                #
+                # **Der Befund:** Der Kommentar hier sagte seit jeher
+                # „Suchtreffer der laufenden Aufgabe"; der Code nahm **jedes**
+                # Werkzeug-Ergebnis — auch den Inhalt einer gelesenen Webseite,
+                # einer gelesenen Datei, einer Bash-Ausgabe. **Eine Seite
+                # konnte sich damit den nächsten Abruf selbst freischalten:**
+                # Sie nennt in ihrem Text eine weitere Adresse, die landet in
+                # der Vertrauensliste, und der nächste Abruf dorthin läuft ohne
+                # Rückfrage. Der Kommentar beschrieb die Absicht, der Code tat
+                # etwas anderes — dasselbe Muster wie schon zweimal in diesem
+                # Projekt.
+                #
+                # Jetzt trägt nur ein, was aus einer **Suche** stammt: Deren
+                # Trefferliste ist der einzige Fall, für den die Bequemlichkeit
+                # gedacht war. Der Preis ist eine Rückfrage beim ersten Abruf
+                # nach einem Seitenbesuch — und das ist der richtige Preis.
                 sess.last_activity = time.monotonic()
                 try:
                     for block in (getattr(msg, "content", None) or []):
-                        if isinstance(block, ToolResultBlock):
-                            sess.task_origins |= _extract_hosts(str(block.content))
+                        if not isinstance(block, ToolResultBlock):
+                            continue
+                        if getattr(block, "tool_use_id", None) not in _such_ids:
+                            continue
+                        sess.task_origins |= _extract_hosts(
+                            str(block.content), fuer_vertrauen=True)
                 except Exception:
                     pass
             elif _RateLimitEvent is not None and isinstance(msg, _RateLimitEvent):

@@ -189,6 +189,77 @@ check("Nebenlauf hat kein Werkzeug", _nebenlauf_hat_keine_werkzeuge)
 check("bypassPermissions kommt nicht zurueck", _die_gefaehrliche_kombination_kommt_nicht_zurueck)
 check("beide Nebenlaeufe nutzen die Fabrik", _beide_nebenlaeufe_nutzen_die_fabrik)
 
+
+# --------------------------------------------------------------------------
+# (3) Die Vertrauensliste fuer Web-Abrufe
+# --------------------------------------------------------------------------
+
+def _dateinamen_werden_keine_vertrauten_domains():
+    """**Der Kern von (3b).**
+
+    `.md` ist Moldawien, `.py` Paraguay, `.sh` St. Helena. Der alte Kommentar
+    hielt "bot.py" fuer harmlos, weil "niemand ruft sie ab" - man KANN sie
+    abrufen, wenn jemand die Domain registriert. Und wir schreiben diese
+    Dateinamen in fast jeder Nachricht.
+    """
+    text = "Schau in MIGRATION.md und bot.py, dann auf de.wikipedia.org"
+    vertrauen = bot._extract_hosts(text, fuer_vertrauen=True)
+    assert "migration.md" not in vertrauen, \
+        f"ein Dateiname wurde zur vertrauten Domain: {sorted(vertrauen)}"
+    assert "bot.py" not in vertrauen, \
+        f"ein Dateiname wurde zur vertrauten Domain: {sorted(vertrauen)}"
+    assert "de.wikipedia.org" in vertrauen, \
+        "eine echte Adresse faellt jetzt heraus - zu scharf geschnitten"
+
+
+def _die_erkennung_bleibt_grosszuegig():
+    """Gegenrichtung: OHNE Vertrauens-Flagge bleibt alles wie bisher.
+
+    Sonst haette Adams "schau auf de.wikipedia.org/xy" wieder eine Rueckfrage
+    ausgeloest - der Komfort-Fund vom 23.07., den wir nicht zurueckdrehen.
+    """
+    hosts = bot._extract_hosts("Schau in MIGRATION.md")
+    assert "migration.md" in hosts, \
+        "die reine Erkennung wurde mitverschaerft - das war nicht beauftragt"
+
+
+def _adresse_mit_anhang_wird_nicht_automatisch_freigegeben():
+    """**Der Kern von (3c) - ausgefuehrt ueber den echten Rueckruf.**
+
+    Eine vertraute Domain mit Frageteil ist der Weg nach draussen:
+    `wikipedia.org/?x=<Geheimnis>`. Der Name allein darf nicht mehr genuegen.
+    """
+    from claude_agent_sdk import PermissionResultAllow
+    # Echte Sitzung statt handgebauter Attrappe: Eine Attrappe traegt genau
+    # die Felder, an die der Schreiber gedacht hat - und deckt damit den
+    # Fehler, den sie finden soll (in diesem Projekt schon vorgekommen).
+    sess = bot.UserSession(client=object())
+    sess.task_origins = {"wikipedia.org"}
+    sess.bot = object()
+    sess.chat_id = 4711
+    sess.user_id = 4711
+    bot.SESSIONS[4711] = sess
+    rueckruf = bot.make_permission_callback(4711)
+
+    class _Ctx:
+        suggestions = None
+
+    def frage(url):
+        return asyncio.run(rueckruf("WebFetch", {"url": url}, _Ctx()))
+
+    ohne = frage("https://wikipedia.org/wiki/Koeln")
+    assert isinstance(ohne, PermissionResultAllow), \
+        "eine schlichte vertraute Adresse loest jetzt eine Rueckfrage aus"
+
+    mit = frage("https://wikipedia.org/?x=sk-geheim-1234")
+    assert not isinstance(mit, PermissionResultAllow), \
+        "eine vertraute Adresse MIT Anhang wurde ohne Rueckfrage freigegeben"
+
+
+check("Dateinamen werden keine vertrauten Domains", _dateinamen_werden_keine_vertrauten_domains)
+check("die Erkennung bleibt grosszuegig", _die_erkennung_bleibt_grosszuegig)
+check("Adresse mit Anhang braucht Rueckfrage", _adresse_mit_anhang_wird_nicht_automatisch_freigegeben)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

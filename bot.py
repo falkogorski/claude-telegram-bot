@@ -3460,7 +3460,24 @@ def werkzeugfreie_optionen(system_prompt: str, modell: str | None = None,
     """
     return ClaudeAgentOptions(
         cwd=str(WORKDIR),
-        # Positivliste mit null Eintraegen — nicht "alles erlaubt".
+        # **H1 aus Engywucks Probelauf (22.08.) — der eigentliche Riegel.**
+        #
+        # `tools=[]` erzeugt `--tools ""` und schaltet damit **alle
+        # eingebauten Werkzeuge ab**. Das ist die echte Positivliste.
+        #
+        # Warum das nicht von Anfang an dastand, und warum der Fehler zweimal
+        # dieselbe Wurzel hat: Ich hielt `allowed_tools=[]` für die
+        # Erlaubnisliste. Sie ist es nicht — und schlimmer, sie **erreicht die
+        # CLI gar nicht**: `if effective_allowed_tools:` (subprocess_cli.py)
+        # ist bei leerer Liste falsch-wertig, das Flag entfällt ersatzlos.
+        # Der Lauf hatte also weiterhin den vollen Werkzeugsatz im Kontext,
+        # gesperrt war allein, was namentlich auf der Verbotsliste stand.
+        #
+        # `tools` prüft dagegen auf `is not None` — genau deshalb greift dort
+        # die leere Liste. **Ein Zeichen Unterschied im SDK, und der ganze
+        # Riegel hing daran.**
+        tools=[],
+        # Bleibt als Auto-Genehmigungsliste (leer = nichts wird durchgewunken).
         permission_mode="dontAsk",
         allowed_tools=[],
         # Zweiter Riegel, bewusst redundant (Adam: doppelt und dreifach):

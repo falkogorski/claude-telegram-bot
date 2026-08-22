@@ -139,20 +139,35 @@ check("auch der Gruppen-Zweig prueft den Absender", _auch_gruppen_brauchen_den_a
 # --------------------------------------------------------------------------
 
 def _nebenlauf_hat_keine_werkzeuge():
-    """**Der Kern von (2) - ausgefuehrt, nicht gelesen.**
+    """**Der Kern von (2) - und diese Zeile hat schon einmal getrogen.**
 
-    Die Optionen werden ERZEUGT und ihre Felder gemessen. Ein Text-Pruefer
-    haette hier versagt: Die alte Fassung sah mit `allowed_tools=[]` aus wie
-    "keine Werkzeuge" und bedeutete das Gegenteil.
+    Ihre erste Fassung mass die FELDER des Options-Objekts und war gruen,
+    waehrend der Riegel zur Haelfte gar nicht existierte. Engywucks Probelauf
+    (H1, 22.08.) hat es gemessen: `allowed_tools=[]` erreicht die CLI
+    ueberhaupt nicht - `if effective_allowed_tools:` ist bei leerer Liste
+    falsch-wertig, das Flag entfaellt ersatzlos. Der Lauf hatte weiterhin den
+    vollen Werkzeugsatz im Kontext.
+
+    **Deshalb misst diese Zeile jetzt die BEFEHLSZEILE**, also das, was die
+    Oberflaeche tatsaechlich zu sehen bekommt. Das ist der Unterschied
+    zwischen "die Funktion tut das Richtige" und "die Verdrahtung traegt" -
+    Engywucks Kernbefund ueber die ganze Pruefer-Reihe.
     """
+    from claude_agent_sdk._internal.transport.subprocess_cli import SubprocessCLITransport
     o = bot.werkzeugfreie_optionen("egal")
-    assert o.permission_mode == "dontAsk", (
-        f"Modus ist {o.permission_mode!r} - bei 'bypassPermissions' wird JEDER "
-        "Werkzeugaufruf automatisch genehmigt und der Rueckruf nie gefragt")
-    assert o.allowed_tools == [], \
-        f"die Positivliste ist nicht leer: {o.allowed_tools}"
-    assert "Bash" in o.disallowed_tools, \
-        "der zweite Riegel fehlt - Bash steht nicht auf der Verbotsliste"
+    transport = SubprocessCLITransport(prompt="x", options=o)
+    transport._cli_path = "/bin/echo"        # Pfad setzen, ohne zu starten
+    cmd = transport._build_command()
+
+    assert "--tools" in cmd, (
+        "`--tools` fehlt in der Befehlszeile - die eingebauten Werkzeuge sind "
+        "NICHT abgeschaltet (H1: `allowed_tools=[]` erreicht die CLI nie)")
+    assert cmd[cmd.index("--tools") + 1] == "", \
+        f"`--tools` traegt einen Wert: {cmd[cmd.index('--tools') + 1]!r}"
+    assert "--permission-mode" in cmd and cmd[cmd.index("--permission-mode") + 1] == "dontAsk", \
+        "der Rueckfall ist nicht 'deny' - bei bypassPermissions wird alles genehmigt"
+    assert "--disallowedTools" in cmd and "Bash" in cmd[cmd.index("--disallowedTools") + 1], \
+        "der zweite Riegel erreicht die Befehlszeile nicht"
 
 
 def _die_gefaehrliche_kombination_kommt_nicht_zurueck():

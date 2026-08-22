@@ -672,6 +672,44 @@ def _adams_eigener_text_speist_sie_weiterhin():
 check("Fremdtext speist die Vertrauensliste nicht", _fremdtext_speist_die_vertrauensliste_nicht)
 check("Adams eigener Text speist sie weiterhin", _adams_eigener_text_speist_sie_weiterhin)
 
+
+# --------------------------------------------------------------------------
+# H5 - der gebaute Mechanismus traf den echten Werkzeugnamen nie
+# --------------------------------------------------------------------------
+
+def _der_echte_suchname_wird_erkannt():
+    """**H5 - kein Loch, aber ein Totalausfall.**
+
+    Der Standardweg ist der MCP-Server `suche`; der Agent sieht das Werkzeug
+    als `mcp__suche__web_search`. Der Vergleich prueftte gegen die
+    unqualifizierten Namen und traf nie - `_such_ids` blieb leer, also verwarf
+    der Zweig darunter JEDES Werkzeug-Ergebnis.
+
+    Die Richtung war fail-closed, deshalb kein Sicherheitsloch. Aber was im
+    Kommentar als 'nur Suchtreffer tragen ein' stand, hiess im Betrieb 'gar
+    nichts traegt ein' - und die vorhersehbare Folge waere gewesen, dass Adam
+    nach jeder Recherche auf 'immer erlauben' klickt. Die Schranke waere durch
+    Ermuedung geweitet worden, nicht durch eine Luecke.
+    """
+    assert bot._ist_suchwerkzeug(bot._SEARCH_TOOL_NAME), \
+        (f"der echte Suchname {bot._SEARCH_TOOL_NAME!r} wird nicht erkannt - "
+         "der Mechanismus laeuft leer")
+    for rueckfall in ("WebSearch", "web_search"):
+        assert bot._ist_suchwerkzeug(rueckfall), \
+            f"der Rueckfall {rueckfall} wird nicht mehr erkannt"
+
+
+def _andere_werkzeuge_gelten_nicht_als_suche():
+    """Die Gegenrichtung - sonst traegt wieder jedes Ergebnis ein, und der
+    Kopfbefund von (3) waere zurueck."""
+    for fremd in ("WebFetch", "Read", "Bash", "mcp__suche__etwas_anderes"):
+        assert not bot._ist_suchwerkzeug(fremd), \
+            f"{fremd} gilt als Suche - dann speist wieder jedes Ergebnis die Liste"
+
+
+check("der echte Suchname wird erkannt", _der_echte_suchname_wird_erkannt)
+check("andere Werkzeuge gelten nicht als Suche", _andere_werkzeuge_gelten_nicht_als_suche)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

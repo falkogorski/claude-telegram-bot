@@ -2944,6 +2944,20 @@ _SEARCH_MCP = create_sdk_mcp_server(name="suche", version="1.0.0",
 _SEARCH_TOOL_NAME = "mcp__suche__web_search"
 
 
+def _ist_suchwerkzeug(name: str) -> bool:
+    """Ob ein Werkzeugname eine Websuche bezeichnet.
+
+    **Eigene Funktion, damit die Entscheidung ausfuehrbar prueftbar ist**
+    (H5, Engywuck 22.08.). Vorher stand der Vergleich mitten im Nachrichtenstrom
+    und traf den echten Namen nie — messbar war das nur durch Lesen, und genau
+    solche Stellen sind in diesem Projekt zweimal unentdeckt geblieben.
+
+    Der Standardweg ist der MCP-Server ``suche``; die unqualifizierten Namen
+    bleiben als Rueckfall fuer die anbietereigene Suche stehen.
+    """
+    return name in (_SEARCH_TOOL_NAME, "WebSearch", "web_search")
+
+
 _UNSET = object()  # Sentinel: effort=None ist ein gültiger Wert (Normal)
 
 
@@ -10005,7 +10019,28 @@ async def stream_response(
                         # Ergebnisse dürfen später die Vertrauensliste
                         # erweitern. Der Aufruf kommt immer vor seinem
                         # Ergebnis, deshalb genügt ein einfacher Merker.
-                        if block.name in ("WebSearch", "web_search"):
+                        # H5 (Engywuck 22.08.): Der Standard-Suchweg ist der
+                        # MCP-Server `suche`, und der Agent sieht das Werkzeug
+                        # als `mcp__suche__web_search`. Die erste Fassung
+                        # verglich nur gegen die unqualifizierten Namen und
+                        # **traf nie** — `_such_ids` blieb leer, also verwarf
+                        # der Zweig unten jedes Ergebnis.
+                        #
+                        # Die Richtung war fail-closed, deshalb kein Loch. Aber
+                        # der gebaute Mechanismus tat nichts: Was im Kommentar
+                        # als „nur Suchtreffer tragen ein" stand, hieß im
+                        # Betrieb „gar nichts trägt ein". Folge im Alltag wäre
+                        # nach jeder Recherche ein Dialog je Treffer — und die
+                        # vorhersehbare Reaktion darauf ist der Knopf „immer
+                        # erlauben", also **dauerhaftes statt
+                        # aufgabengebundenes Vertrauen. Die Schranke wäre durch
+                        # Ermüdung geweitet worden, nicht durch eine Lücke.**
+                        #
+                        # Der Beweis lag acht Zeilen weiter: Derselbe
+                        # `block.name` wird an `_tool_trace_line` gereicht, und
+                        # die vergleicht gegen `_SEARCH_TOOL_NAME`. Beide
+                        # Vergleiche konnten nicht zugleich richtig sein.
+                        if _ist_suchwerkzeug(block.name):
                             _such_ids.add(getattr(block, "id", None))
                         # Werkzeug-Lebenszeichen — BEWUSST unabhängig von quiet:
                         # ohne Live-Textstrom ist die Spur bei langen Recherche-

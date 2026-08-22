@@ -4196,7 +4196,10 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         local_path_obj = Path(local_path_str) if local_path_str else None
         bot = query.get_bot()
 
-        if local_path_obj and local_path_obj.exists() and filename.lower().endswith(".pdf"):
+        # H2: nicht mehr die Endung allein — `_dokument_text_lesen` entscheidet
+        # am Inhalt (PDF-Kennung) bzw. an bekannten Textformaten und scheitert
+        # ehrlich, statt den Fremdinhalt in die Hauptsitzung zu geben.
+        if local_path_obj and local_path_obj.exists() and _ist_direkt_lesbar(local_path_obj):
             try:
                 summary = await _summarize_pdf_direct(local_path_obj)
                 sess = SESSIONS.get(orig_update.effective_user.id)
@@ -4256,7 +4259,10 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         local_path_obj = Path(local_path_str) if local_path_str else None
         bot = query.get_bot()
 
-        if local_path_obj and local_path_obj.exists() and filename.lower().endswith(".pdf"):
+        # H2: nicht mehr die Endung allein — `_dokument_text_lesen` entscheidet
+        # am Inhalt (PDF-Kennung) bzw. an bekannten Textformaten und scheitert
+        # ehrlich, statt den Fremdinhalt in die Hauptsitzung zu geben.
+        if local_path_obj and local_path_obj.exists() and _ist_direkt_lesbar(local_path_obj):
             try:
                 summary = await _summarize_pdf_direct(local_path_obj)
                 # Voice + Text gekoppelt: unabhängig vom Toggle, denn genau das ist
@@ -9896,12 +9902,70 @@ async def _send_tts(bot, chat_id: int, text: str, reply_to: int | None = None,
     return first_msg
 
 
+# H2 (Engywuck 22.08.): Endungen, deren Inhalt sich ohne Fremdbibliothek als
+# Text lesen laesst. Sie gehen damit durch den WERKZEUGFREIEN Lauf statt in
+# die Hauptsitzung — eine `.txt`-Datei ist der bequemste Traeger fuer
+# unsichtbare Anweisungen ueberhaupt.
+_TEXTDOKUMENTE = frozenset({
+    ".txt", ".md", ".markdown", ".csv", ".log", ".json", ".yaml", ".yml",
+    ".ini", ".cfg", ".rst", ".tsv",
+})
+
+
+def _ist_direkt_lesbar(local_path: Path) -> bool:
+    """Ob dieses Dokument den **werkzeugfreien** Weg nehmen kann.
+
+    Der Gegentest zu `_dokument_text_lesen`: Beide muessen dieselbe Antwort
+    geben, sonst faellt eine Datei durch die Ritze in die Hauptsitzung.
+    """
+    try:
+        if local_path.open("rb").read(5).startswith(b"%PDF-"):
+            return True
+    except Exception:
+        return False
+    return local_path.suffix.lower() in _TEXTDOKUMENTE
+
+
+def _dokument_text_lesen(local_path: Path) -> str:
+    """Text eines Dokuments — PDF oder schlichtes Textformat.
+
+    **H2:** Der werkzeugfreie Lauf griff nur bei `.pdf`. Alles andere fiel in
+    die Hauptsitzung mit vollem Werkzeugsatz — auch `.txt`, obwohl das der
+    einfachste Träger für versteckte Anweisungen ist, und auch jedes PDF, dem
+    der Absender die Endung genommen hat (weitergeleitete Anhänge heißen oft
+    schlicht `Rechnung`).
+
+    Deshalb entscheidet jetzt der **Inhalt**, nicht der Name: Beginnt die
+    Datei mit der PDF-Kennung, wird sie als PDF gelesen, unabhängig davon,
+    wie sie heißt.
+    """
+    try:
+        kopf = local_path.open("rb").read(5)
+    except Exception:
+        kopf = b""
+    if kopf.startswith(b"%PDF-"):
+        return _extract_pdf_text(local_path)
+    if local_path.suffix.lower() in _TEXTDOKUMENTE:
+        return local_path.read_text(encoding="utf-8", errors="replace")
+    # Unbekanntes Format: lieber ehrlich scheitern als den Inhalt einem Lauf
+    # mit Werkzeugen vorlegen.
+    raise RuntimeError(
+        f"Das Format {local_path.suffix or '(ohne Endung)'} kann ich hier nicht "
+        "sicher lesen. Schick es als PDF oder Textdatei — Word-Dateien gehen "
+        "noch nicht.")
+
+
 async def _summarize_pdf_direct(local_path: Path) -> str:
-    """Fasst ein PDF über das Agent SDK zusammen — nutzt den CLAUDE_CODE_OAUTH_TOKEN
-    (Abo) wie der restliche Bot, kein separater ANTHROPIC_API_KEY mehr."""
-    pdf_text = _extract_pdf_text(local_path)
+    """Fasst ein Dokument über das Agent SDK zusammen — nutzt den
+    CLAUDE_CODE_OAUTH_TOKEN (Abo) wie der restliche Bot.
+
+    Läuft **werkzeugfrei** (`werkzeugfreie_optionen`): Der Inhalt ist zu
+    hundert Prozent fremd, einschließlich dessen, was Adam im Dokument nicht
+    sehen kann.
+    """
+    pdf_text = _dokument_text_lesen(local_path)
     if not pdf_text.strip():
-        raise RuntimeError("PDF enthält keinen lesbaren Text.")
+        raise RuntimeError("Das Dokument enthält keinen lesbaren Text.")
 
     if len(pdf_text) > 50000:
         pdf_text = pdf_text[:50000] + "\n\n[… Dokument gekürzt auf 50.000 Zeichen …]"

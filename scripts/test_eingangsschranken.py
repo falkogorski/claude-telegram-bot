@@ -710,6 +710,80 @@ def _andere_werkzeuge_gelten_nicht_als_suche():
 check("der echte Suchname wird erkannt", _der_echte_suchname_wird_erkannt)
 check("andere Werkzeuge gelten nicht als Suche", _andere_werkzeuge_gelten_nicht_als_suche)
 
+
+# --------------------------------------------------------------------------
+# H2 - der werkzeugfreie Lauf deckte genau eine Dateiendung
+# --------------------------------------------------------------------------
+
+def _textdokumente_gehen_den_werkzeugfreien_weg():
+    """**H2 - die Geschwister-Regel war nicht angewandt.**
+
+    Der Knopf 'Zusammenfassen' wird auch fuer text/plain und .docx angeboten,
+    aber nur `.pdf` ging in den werkzeugfreien Lauf. Alles andere fiel in die
+    Hauptsitzung mit vollem Werkzeugsatz - und eine .txt-Datei ist der
+    bequemste Traeger fuer unsichtbare Anweisungen ueberhaupt.
+    """
+    import tempfile as _tf
+    d = Path(_tf.mkdtemp(prefix="h2-"))
+    (d / "a.txt").write_text("hallo", encoding="utf-8")
+    (d / "b.md").write_text("# titel", encoding="utf-8")
+    for name in ("a.txt", "b.md"):
+        assert bot._ist_direkt_lesbar(d / name), \
+            f"{name} faellt weiterhin in die Hauptsitzung"
+
+
+def _pdf_ohne_endung_wird_am_inhalt_erkannt():
+    """Weitergeleitete Anhaenge heissen oft schlicht 'Rechnung' - ohne Endung.
+
+    Der Name kommt vom ABSENDER; ihn zum einzigen Kriterium zu machen heisst,
+    die Entscheidung dem Fremden zu ueberlassen.
+    """
+    import tempfile as _tf
+    d = Path(_tf.mkdtemp(prefix="h2b-"))
+    (d / "Rechnung").write_bytes(b"%PDF-1.4 irgendwas")
+    assert bot._ist_direkt_lesbar(d / "Rechnung"), \
+        "ein PDF ohne Endung faellt in die Hauptsitzung - der Absender waehlt den Weg"
+
+
+def _unbekanntes_format_scheitert_ehrlich():
+    """Was nicht sicher lesbar ist, wird NICHT einem Lauf mit Werkzeugen
+    vorgelegt - lieber eine ehrliche Fehlmeldung."""
+    import tempfile as _tf
+    d = Path(_tf.mkdtemp(prefix="h2c-"))
+    (d / "c.docx").write_bytes(b"PK\x03\x04")
+    assert not bot._ist_direkt_lesbar(d / "c.docx"), \
+        "ein unlesbares Format gilt als direkt lesbar"
+    try:
+        bot._dokument_text_lesen(d / "c.docx")
+    except RuntimeError as e:
+        assert "nicht sicher lesen" in str(e), f"unklare Fehlmeldung: {e}"
+    else:
+        raise AssertionError("unbekanntes Format wurde stillschweigend gelesen")
+
+
+def _beide_wege_geben_dieselbe_antwort():
+    """Der Gegentest: `_ist_direkt_lesbar` und `_dokument_text_lesen` duerfen
+    nicht auseinanderlaufen - sonst faellt eine Datei durch die Ritze."""
+    import tempfile as _tf
+    d = Path(_tf.mkdtemp(prefix="h2d-"))
+    (d / "a.txt").write_text("x", encoding="utf-8")
+    (d / "c.docx").write_bytes(b"PK")
+    for name in ("a.txt", "c.docx"):
+        lesbar = bot._ist_direkt_lesbar(d / name)
+        try:
+            bot._dokument_text_lesen(d / name)
+            gelesen = True
+        except RuntimeError:
+            gelesen = False
+        assert lesbar == gelesen, \
+            f"{name}: Pruefung sagt {lesbar}, Leser sagt {gelesen}"
+
+
+check("Textdokumente gehen werkzeugfrei", _textdokumente_gehen_den_werkzeugfreien_weg)
+check("PDF ohne Endung wird am Inhalt erkannt", _pdf_ohne_endung_wird_am_inhalt_erkannt)
+check("unbekanntes Format scheitert ehrlich", _unbekanntes_format_scheitert_ehrlich)
+check("beide Wege geben dieselbe Antwort", _beide_wege_geben_dieselbe_antwort)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

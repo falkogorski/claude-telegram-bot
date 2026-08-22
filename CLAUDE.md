@@ -1096,6 +1096,38 @@ Belegt an einem Tag, dreifach:
   Entfernt man den **Aufruf** und lässt eine Kommentarzeile stehen, bleibt er
   grün und die Wache ist tot.
 
+### `[VERSCHÄRFT 2026-08-22, Engywucks Probelauf]` Die Faustregel, gemessen
+
+**Jede Prüfzeile, die Quelltext LIEST, ist umgehbar — acht von acht gemessenen
+Fällen.** Gemeint ist alles, was den Code als Text betrachtet: `getsource`,
+`read_text`, `find`, Zeilenzählung. **Und ausdrücklich auch AST-Prüfungen, die
+nur nach einem Namen suchen** — ein Name im Baum sagt nichts darüber, ob die
+Stelle noch gerufen wird.
+
+Der Anlass war ein Probelauf an **frischem** Sicherheitscode: Von neun
+Prüfzeilen, die ich für ausführend hielt, waren **fünf entkernbar**, alle aus
+demselben Grund — sie riefen die Funktion auf, aber niemand prüfte, ob sie noch
+**aufgerufen wird**. Fabrik ja, Aufrufer nein. Bereinigung ja, Aufruf nein.
+Kopf-Zeichenkette ja, Kontext nein.
+
+**Die zwei tragfähigen Formen:**
+- **Verhalten messen:** den Pfad ausführen. Geht das nicht, weil die
+  Entscheidung mitten in einer großen Funktion sitzt, wird sie **in eine
+  eigene Funktion gezogen** — nicht, um den Code zu verschönern, sondern damit
+  ein Prüfer sie überhaupt erreichen kann.
+- **Abwesenheit messen:** über den Syntaxbaum, aber **echte Aufrufknoten**
+  zählen (`ast.Call`), nicht Zeilen mit dem Namen. Kommentare gibt es im Baum
+  nicht — genau das war die Lücke der Zeilenzählung.
+
+**Ein Commit, der einen Befund im Titel trägt, ist kein Prüfer.** Der
+Kopfbefund des eigenen Berichts — „eine gelesene Seite schaltet sich den
+nächsten Abruf selbst frei" — hatte **keinen**: Der Commit hieß danach, die
+Schutzzeilen ließen sich entfernen, und alle einundzwanzig Prüfzeilen blieben
+grün. Aufgefallen ist es erst bei der Gegenprobe einer fremden Instanz.
+**Deshalb gehört zu jedem Fix die Gegenprobe: Schutz entfernen, rot werden
+sehen.** Wer sie nicht gefahren hat, weiß nicht, ob er einen Prüfer gebaut hat
+oder eine Beruhigung.
+
 **Und die Zielumgebung ist die Prüfumgebung.** Der 29.07. war der Beweis: Ein
 `$HOME` in einem Skript, das als root-Dienst ohne HOME läuft, tötete einen
 täglichen Wächter einundzwanzig Tage lang. Am Mac lief alles.

@@ -2131,6 +2131,33 @@ _COST_TOOLS = {
 # Wegen zum Geheimnis (⑥, gemessen am selben Tag) ist eine unsichtbare
 # Dauerfreigabe der Unterschied zwischen „Adam wird gefragt" und „niemand wird
 # gefragt". Der Preis ist eine Rückfrage je Bash-Befehl — bewusst bezahlt.
+# ══════════════════════════════════════════════════════════════════════════
+# **DAS AUFNAHMEKRITERIUM — lies es, bevor du diese Menge änderst.**
+#
+# Ein Werkzeug steht hier nicht, **weil es „Bash" heißt**, sondern weil seine
+# **Wirkung über die Sitzung hinausreicht**. Wer die Menge erweitert oder
+# kürzt, prüft **diese Eigenschaft** — nicht den Namen.
+#
+# Warum der Satz hier steht (Engywuck 22.08.): Ohne ihn liest jemand in drei
+# Wochen eine Liste aus sechs Namen und sieht keinen Grund, warum `MultiEdit`
+# darin steht und ein neu hinzugekommenes Werkzeug nicht. Genau derselbe Fall
+# wie beim curl-Weg im Tagescheck, den wir als bewusste Redundanz festgehalten
+# haben, damit ihn niemand als Doppelung aufräumt.
+#
+# Die Eigenschaft im Einzelnen — ein Werkzeug gehört hierher, wenn ein
+# **einziger** Klick auf „immer erlauben" danach **unsichtbar fortgilt** und
+# eine Wirkung hat, die der Sitzung nicht endet:
+#   • `Bash`      — führt beliebiges aus.
+#   • `Write` / `Edit` / `MultiEdit` / `NotebookEdit` — schreiben in den
+#     Gedächtnis-Ordner wirkt in den System-Prompt JEDER künftigen Sitzung;
+#     eine `hooks`-Sektion in den Einstellungen führt Befehle aus, ganz ohne
+#     das Werkzeug Bash.
+#   • `WebFetch`  — würde die Herkunfts-Schranke aushebeln (Adams Live-Klick
+#     vom 23.07. war der Anlass).
+#   • Kosten-Werkzeuge — 💰-Regel: keine Ausgabe ohne Adams Wort.
+#
+# Der Preis ist eine Rückfrage je Aufruf. Bewusst bezahlt (Adam 22.08.).
+# ══════════════════════════════════════════════════════════════════════════
 _NO_ALWAYS_TOOLS = ({"WebFetch", "Bash", "Write", "Edit", "MultiEdit",
                      "NotebookEdit"} | set(_COST_TOOLS))
 

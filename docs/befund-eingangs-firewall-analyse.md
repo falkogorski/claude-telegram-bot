@@ -42,6 +42,29 @@ Behauptungen sind, bis sie am Code gemessen wurden:
    Bash-Ausgaben. Eine gelesene Seite kann sich damit den nächsten Abruf
    selbst freischalten.
 
+### Berichtigung 22.08. — „Immer erlauben" ist dauerhaft, nicht sitzungsweit
+
+**Der Ist-Stand oben war an einer Stelle falsch, und der Fehler war meiner.**
+Ich hatte gemeldet, Dauerfreigaben für Werkzeuge lebten nur in der laufenden
+Sitzung und seien nach einem Neustart weg — das habe ich aus dem Sitzungsfeld
+`always_allowed_tools` geschlossen, ohne den Schreibweg zu verfolgen.
+
+Nachgemessen (Engywucks Befund): `bot.py:2621` schreibt nach
+`prefs["always_allow"]`, `bot.py:2923` lädt es beim Sitzungsaufbau zurück.
+**Eine einmal erteilte Dauerfreigabe überlebt jeden Neustart.**
+
+**Warum das die Lage ändert:** Ich hatte das begrenzte Zeitfenster als
+mildernden Umstand angeführt — „ein Angriff müsste in einem Fenster
+stattfinden, in dem Bash freigegeben ist". Dieses Fenster schließt sich nicht
+von selbst. Ein einziger Klick auf „Immer erlauben" bei Bash steht dauerhaft,
+und zwar unsichtbar: Adam sieht danach keine Rückfragen mehr, also auch keinen
+Hinweis darauf, dass die Freigabe noch gilt.
+
+**Offene Entscheidung (Adam):** Soll `Bash` in `_NO_ALWAYS_TOOLS` aufgenommen
+werden — also dauerhaft **nicht** dauerfreigebbar, wie heute schon `WebFetch`
+und die Kosten-Werkzeuge? Engywuck empfiehlt es. **Nicht gebaut, bis Adam
+entscheidet** — der Rest der Kette hängt nicht daran.
+
 ### Nachtrag 22.08. — der Kalender ist ebenfalls ein Fremdeingang (Adams Frage)
 
 Adam hat gefragt, ob **abonnierte** Kalender unter dieselbe Regel fallen. Sie

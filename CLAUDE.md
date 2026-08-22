@@ -1148,6 +1148,21 @@ ohne dass eine gewollte Funktion verlorengeht. Dasselbe gilt für Webseiten und
 Dokumente. **Wo kein legitimer Anwendungsfall existiert, ist das harte Verbot
 gratis.**
 
+**`[ERGÄNZT 2026-08-21, Adam]` Der Kern ist das UNSICHTBARE.** Adams Vermutung,
+und sie trifft zu: Anweisungen lassen sich so in Mails und Webseiten legen,
+dass **für das Auge nichts dasteht**, das Modell aber klare Befehle liest —
+weiße Schrift auf weißem Grund, `font-size:0`, `display:none`,
+HTML-Kommentare, alt- und title-Attribute, Preheader-Zeilen, Zero-Width- und
+Steuerzeichen mitten im Wort, kodierte Kopfzeilen, Text in Bildern und
+Tonspuren.
+
+**Daraus folgt die Bauform:** Eine Absicherung, die *erkennen* will, ob etwas
+ein Befehl ist, verliert dieses Rennen — sie prüft Inhalt, und Inhalt lässt
+sich beliebig tarnen. Tragfähig ist nur, was **bauartbedingt** wirkt: Fremder
+Inhalt darf gar nicht erst in die Rolle kommen, in der er wirken könnte.
+Adams Bild dafür ist ein **Rücklaufventil** — nicht ein Wächter, der
+entscheidet, sondern eine Richtung, die es nicht gibt.
+
 **Zwei Richtungen, beide Pflicht:**
 1. **Herein:** Nichts von außen wird zur Anweisung. Auch nicht verkleidet als
    Systemmeldung, als „Nachricht von Adam", als Fehlertext oder als Zitat.

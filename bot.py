@@ -2938,13 +2938,7 @@ async def ensure_session(
     # Einträge aus _NO_ALWAYS_TOOLS (WebFetch, 💰) werden entfernt und die
     # bereinigte Liste zurückgeschrieben (Adams Live-Klick „Always allow
     # WebFetch" vom 23.07. hätte sonst die Herkunfts-Schranke ausgehebelt).
-    _stored_allow = set(user_prefs.get("always_allow", []))
-    _cleaned_allow = _stored_allow - _NO_ALWAYS_TOOLS
-    if _cleaned_allow != _stored_allow:
-        _USER_PREFS.setdefault(str(user_id), {})["always_allow"] = sorted(_cleaned_allow)
-        _save_prefs(_USER_PREFS)
-        log.info("always_allow bereinigt (user=%s): %s entfernt", user_id,
-                 sorted(_stored_allow - _cleaned_allow))
+    _cleaned_allow = freigaben_bereinigen(user_id, user_prefs)
     sess = UserSession(
         client=client,
         user_id=user_id,
@@ -3399,6 +3393,35 @@ _WERKZEUGE_VERBOTEN = (
     "Bash", "Read", "Write", "Edit", "NotebookEdit", "WebFetch", "WebSearch",
     "Glob", "Grep", "Task", "Agent", "Skill", "KillShell", "BashOutput",
 )
+
+
+def freigaben_bereinigen(user_id: int, user_prefs: dict) -> set[str]:
+    """Gespeicherte Dauerfreigaben laden — und dabei **rückwirkend säubern.**
+
+    Beim Sitzungsstart werden Einträge aus ``_NO_ALWAYS_TOOLS`` entfernt und
+    die bereinigte Liste zurückgeschrieben. Ursprünglich für Adams Live-Klick
+    „Always allow WebFetch" vom 23.07. gebaut, der sonst die Herkunfts-Schranke
+    ausgehebelt hätte.
+
+    **Warum das seit dem 22.08. eine eigene Funktion ist** (Engywucks Nachtrag
+    zum Bash-Entscheid): Die Rückwirkung ist der eigentliche Wert des
+    Ein-Wort-Fixes — ein *früher* erteilter Bash-Klick liegt gespeichert vor
+    und würde sonst weitergelten. Solange die Logik im Sitzungsaufbau steckte,
+    war sie nur mit einem echten Client erreichbar, und ein Prüfer hätte sie
+    nur **lesen** können. Jetzt lässt sie sich ausführen.
+
+    **Ohne diese Prüfung hinge die Rückwirkung an einer Annahme** — und
+    Annahmen sind in diesem Projekt schon mehrfach die eigentliche Fehlerquelle
+    gewesen.
+    """
+    gespeichert = set(user_prefs.get("always_allow", []))
+    bereinigt = gespeichert - _NO_ALWAYS_TOOLS
+    if bereinigt != gespeichert:
+        _USER_PREFS.setdefault(str(user_id), {})["always_allow"] = sorted(bereinigt)
+        _save_prefs(_USER_PREFS)
+        log.info("always_allow bereinigt (user=%s): %s entfernt", user_id,
+                 sorted(gespeichert - bereinigt))
+    return bereinigt
 
 
 def werkzeugfreie_optionen(system_prompt: str, modell: str | None = None,

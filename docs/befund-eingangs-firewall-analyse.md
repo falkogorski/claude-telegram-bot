@@ -60,10 +60,32 @@ von selbst. Ein einziger Klick auf „Immer erlauben" bei Bash steht dauerhaft,
 und zwar unsichtbar: Adam sieht danach keine Rückfragen mehr, also auch keinen
 Hinweis darauf, dass die Freigabe noch gilt.
 
-**Offene Entscheidung (Adam):** Soll `Bash` in `_NO_ALWAYS_TOOLS` aufgenommen
-werden — also dauerhaft **nicht** dauerfreigebbar, wie heute schon `WebFetch`
-und die Kosten-Werkzeuge? Engywuck empfiehlt es. **Nicht gebaut, bis Adam
-entscheidet** — der Rest der Kette hängt nicht daran.
+**✅ ENTSCHIEDEN (Adam, 22.08.):** `Bash` ist in `_NO_ALWAYS_TOOLS`
+aufgenommen — dauerhaft **nicht** dauerfreigebbar, wie `WebFetch` und die
+Kosten-Werkzeuge. Gebaut, ausgeführt geprüft, Gegenprobe gefahren. Der Preis
+ist eine Rückfrage je Bash-Befehl; bewusst bezahlt.
+
+### Nachtrag 22.08. — (6) und (10) ersetzen einander NICHT
+
+Engywucks Klarstellung nach dem Bau, und sie gehoert festgehalten, damit
+spaeter niemand das eine als ueberfluessig streicht:
+
+- **(10) Dauerfreigabe weg** schliesst den **bequemen** Weg. Ein einziger Klick
+  auf `Immer erlauben` bei Bash haette unsichtbar fortgegolten.
+- **(6) Platzhalter- und Umgebungs-Luecke** schliesst den **getarnten** Weg.
+  `.e*`, `.[e]nv` und die Prozessumgebung trugen keinen der Marker.
+
+**Beide gehoeren in denselben Bau, sonst deckt der eine den anderen zu:** Mit
+geschlossener Dauerfreigabe kaeme zwar eine Rueckfrage — aber sie kaeme mit
+einem Befehl, der harmlos aussieht (`cat .e*`), und Adam wuerde ihn freigeben.
+Umgekehrt haette die geschlossene Platzhalter-Luecke nichts genuetzt, solange
+Bash pauschal dauerfreigegeben war: Dann wird ueberhaupt nicht gefragt.
+
+**Die Rueckwirkung ist ausgefuehrt geprueft** (Engywucks Nachtrag 1): Eine
+gespeicherte Bash-Freigabe wird beim Sitzungsstart entfernt — aus der
+laufenden Sitzung UND aus den gespeicherten Vorlieben, sonst kaeme sie beim
+naechsten Start zurueck. Gegenprobe gefahren: Nimmt man Bash aus der Liste,
+werden alle drei Pruefzeilen rot.
 
 ### Nachtrag 22.08. — der Kalender ist ebenfalls ein Fremdeingang (Adams Frage)
 

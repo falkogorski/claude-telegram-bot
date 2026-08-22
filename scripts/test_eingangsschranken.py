@@ -511,6 +511,33 @@ def _eine_alte_bash_freigabe_greift_nicht_mehr():
 check("Bash steht auf der Nie-dauerhaft-Liste", _bash_steht_auf_der_nie_dauerhaft_liste)
 check("alte Bash-Freigabe greift nicht mehr", _eine_alte_bash_freigabe_greift_nicht_mehr)
 
+
+def _eine_gespeicherte_bash_freigabe_wird_rueckwirkend_geraeumt():
+    """**Engywucks Nachtrag (1) zum Bash-Entscheid - ausgefuehrt.**
+
+    Der Ein-Wort-Fix wirkt RUECKWIRKEND, weil die Bereinigung beim
+    Sitzungsstart schon existierte. Genau das ist sein eigentlicher Wert: Ein
+    frueher erteilter Klick liegt gespeichert vor und wuerde sonst
+    weitergelten - unsichtbar, weil danach keine Rueckfragen mehr kommen.
+
+    "Ohne diese Zeile haengt die Rueckwirkung an einer Annahme."
+    """
+    vorlieben = {"always_allow": ["Bash", "Read"]}
+    bereinigt = bot.freigaben_bereinigen(4711, vorlieben)
+    assert "Bash" not in bereinigt, \
+        "eine gespeicherte Bash-Freigabe ueberlebt den Sitzungsstart"
+    assert "Read" in bereinigt, \
+        "harmlose Dauerfreigaben wurden mitgeraeumt - zu scharf"
+    # Und sie ist auch aus den Vorlieben verschwunden, nicht nur aus der
+    # Rueckgabe: sonst kaeme sie beim naechsten Start wieder.
+    zurueck = bot._USER_PREFS.get("4711", {}).get("always_allow", [])
+    assert "Bash" not in zurueck, \
+        f"Bash steht weiter in den gespeicherten Vorlieben: {zurueck}"
+
+
+check("gespeicherte Bash-Freigabe wird geraeumt",
+      _eine_gespeicherte_bash_freigabe_wird_rueckwirkend_geraeumt)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

@@ -2094,7 +2094,25 @@ _COST_TOOLS = {
 # den einen Wächter entfernt, den die Herkunfts-Schranke darstellt (fremde
 # Seiten könnten dann klicklos Folge-Abrufe steuern/exfiltrieren). Vertrauen
 # wird stattdessen PRO DOMAIN vergeben (trusted_domains in den Prefs).
-_NO_ALWAYS_TOOLS = {"WebFetch"} | set(_COST_TOOLS)
+# ⑩ **Bash ist seit dem 22.08. nicht mehr dauerfreigebbar** (Adams Entscheid
+# auf Engywucks und meine Empfehlung).
+#
+# **Was den Ausschlag gab, war eine Berichtigung meines eigenen Ist-Stands:**
+# Ich hatte gemeldet, „Immer erlauben" gelte nur für die laufende Sitzung, und
+# das aus dem Sitzungsfeld geschlossen, ohne den Schreibweg zu verfolgen.
+# Tatsächlich wird die Freigabe gespeichert (`prefs["always_allow"]`) und beim
+# Sitzungsaufbau zurückgeladen — **sie überlebt jeden Neustart.**
+#
+# Damit fiel der mildernde Umstand weg, auf den ich mich berufen hatte: Das
+# Zeitfenster schließt sich nicht von selbst. Und es ist **unsichtbar** — nach
+# dem Klick kommen keine Rückfragen mehr, also erinnert auch nichts daran,
+# dass die Freigabe noch gilt.
+#
+# Bash ist das mächtigste Werkzeug im Satz; im Verbund mit den fünf offenen
+# Wegen zum Geheimnis (⑥, gemessen am selben Tag) ist eine unsichtbare
+# Dauerfreigabe der Unterschied zwischen „Adam wird gefragt" und „niemand wird
+# gefragt". Der Preis ist eine Rückfrage je Bash-Befehl — bewusst bezahlt.
+_NO_ALWAYS_TOOLS = {"WebFetch", "Bash"} | set(_COST_TOOLS)
 
 # ---------- 5.25: Herkunfts-Schranke + Geheimnis-Schutz ----------
 

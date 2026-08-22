@@ -471,6 +471,46 @@ check("scharfe Befehle werden gewarnt", _scharfe_befehle_werden_gewarnt)
 check("harmlose Bloecke bleiben still", _harmlose_bloecke_bleiben_still)
 check("die Warnung erreicht Adam", _die_warnung_erreicht_adam)
 
+
+# --------------------------------------------------------------------------
+# (10) Bash ist nicht dauerfreigebbar
+# --------------------------------------------------------------------------
+
+def _bash_steht_auf_der_nie_dauerhaft_liste():
+    assert "Bash" in bot._NO_ALWAYS_TOOLS, \
+        "Bash ist wieder dauerfreigebbar - ein Klick wuerde unsichtbar fortgelten"
+    assert "WebFetch" in bot._NO_ALWAYS_TOOLS, \
+        "WebFetch ist aus der Liste gefallen"
+
+
+def _eine_alte_bash_freigabe_greift_nicht_mehr():
+    """**Der Kern von (10) - ausgefuehrt ueber den echten Rueckruf.**
+
+    Entscheidend ist nicht, ob Bash auf einer Liste steht, sondern was
+    passiert, wenn eine Sitzung Bash als dauerfreigegeben FUEHRT. Genau das
+    kann heute noch der Fall sein: Ein frueherer Klick liegt gespeichert vor.
+    """
+    from claude_agent_sdk import PermissionResultAllow
+    sess = bot.UserSession(client=object())
+    sess.bot = object()
+    sess.chat_id = 4711
+    sess.user_id = 4711
+    sess.always_allowed_tools = {"Bash"}      # so, als haette Adam geklickt
+    bot.SESSIONS[4711] = sess
+    rueckruf = bot.make_permission_callback(4711)
+
+    class _Ctx:
+        suggestions = None
+
+    ergebnis = asyncio.run(rueckruf("Bash", {"command": "ls -la"}, _Ctx()))
+    assert not isinstance(ergebnis, PermissionResultAllow), \
+        ("eine gefuehrte Bash-Dauerfreigabe wurde durchgewunken - der Klick "
+         "gilt unsichtbar weiter")
+
+
+check("Bash steht auf der Nie-dauerhaft-Liste", _bash_steht_auf_der_nie_dauerhaft_liste)
+check("alte Bash-Freigabe greift nicht mehr", _eine_alte_bash_freigabe_greift_nicht_mehr)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

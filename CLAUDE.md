@@ -741,6 +741,22 @@ es beißen kann, und an keine anderen.
 - **Vor der Weitergabe an Dritte** (Produkt/Blaupause, 9.6). Was für Adam
   allein tragbar ist, ist es für fremde Nutzer noch nicht.
 
+**Womit gefahren wird: Opus 5, maximaler Aufwand.** `[NEU 2026-08-22, Engywuck]`
+Ausdrücklich **nicht** „das jeweils höchste verfügbare Modell" — diese
+Formulierung bricht im Alltag. Gemessen am 22.08.: Bei sicherheitsanalytischem
+Material schaltet Fable wiederholt selbsttätig herunter, und ein Prüflauf, der
+mittendrin das Modell wechselt, liefert Befunde aus **zwei Urteilsgrundlagen**,
+ohne dass hinterher jemand sagen kann, welcher woher stammt. **Homogenität
+schlägt hier Spitzenleistung.**
+
+Dazu der Grund aus der Bauart: Ultracode ist ein **Breiten**-Werkzeug. Sein
+Gewinn kommt aus der Fächerung vieler Blickwinkel und der adversarischen
+Gegenprüfung, nicht aus der Stärke des Einzelagenten — belegt am eigenen Lauf
+vom 22.08. (26 Agenten, 58 Befunde, davon fünf von der Kontrolle am Code
+bestätigt). Fable bleibt der Kontrollsitzung für **Einzelurteile** vorbehalten;
+für Ultracode ist es keine Option, weil es für genau dieses Material nicht
+zuverlässig bereitsteht.
+
 **Wer startet ihn, und wo:** **Die Kontroll-Rolle, nicht die Bau-Rolle.** Der
 Befund ginge sonst zuerst an den Erbauer, der ihn ueber die eigene Arbeit
 bewertet — dieselbe Schwaeche, gegen die das Vier-Augen-Prinzip ueberhaupt

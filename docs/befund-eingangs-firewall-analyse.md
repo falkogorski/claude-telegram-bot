@@ -42,6 +42,35 @@ Behauptungen sind, bis sie am Code gemessen wurden:
    Bash-Ausgaben. Eine gelesene Seite kann sich damit den nächsten Abruf
    selbst freischalten.
 
+### Nachtrag 22.08. — der Kalender ist ebenfalls ein Fremdeingang (Adams Frage)
+
+Adam hat gefragt, ob **abonnierte** Kalender unter dieselbe Regel fallen. Sie
+tun es, und die Messung zeigt eine Nuance, die schwerer wiegt als die Frage:
+
+**`kalender.py` liest genau EINE Sammlung — aber es ist nicht festgelegt,
+welche.** `/termine` ruft `termine_lesen()` ohne Kalendernamen;
+`_kalender_waehlen` nimmt dann `sammlungen[0]` (Zeile 179), also die erste
+Sammlung, die der Server liefert. **Die Reihenfolge bestimmt iCloud, nicht
+wir.** Steht ein abonnierter Kalender vorn, wird genau der gelesen.
+
+Titel, Ort und Notiz landen im Modellkontext (`Termin.lesbar()`). Ein
+Kalendereintrag ist dabei **unauffälliger als eine Mail**: Niemand liest einen
+Termintitel als Text, der etwas bewirken könnte.
+
+**Ausdrücklich UNGEPRÜFT:** ob iCloud abonnierte Kalender über CalDAV
+überhaupt anbietet — ICS-Abos liegen bei Apple teilweise nur lokal auf den
+Geräten. Das ist vor einer Entscheidung zu messen, nicht anzunehmen.
+
+**Vorgeschlagenes Vorgehen ohne Bau:** Zugang freischalten, dann einmal
+`sammlungen_auflisten()` abfragen (reine Lesung). Stehen dort nur eigene
+Kalender, ist `/termine` unkritisch. Steht Fremdes dabei, gehört ein FESTER
+Kalendername in die Konfiguration statt „der erste, der kommt" — eine Zeile,
+die mit dem Sicherheitsbau kommt, nicht davor.
+
+**Für Engywuck:** Bitte die acht Fragen auch auf diesen Pfad anwenden. Er ist
+im Bericht unter den 20 Eingangspfaden erfasst, aber die Unbestimmtheit der
+Sammlungswahl steht dort nicht.
+
 ---
 
 # Unsichtbare Anweisungen: was sich absichern lässt und was nicht

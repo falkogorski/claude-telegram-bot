@@ -2383,7 +2383,14 @@ def _is_repo_read_cmd(cmd: str) -> bool:
         return False               # Geheimnis-Pfade bleiben auch fürs Lesen zu
     # **ALLE** Pfade müssen ins Repo zeigen, nicht nur einer. Ein zweiter,
     # fremder Pfad daneben war der bequemste Weg nach draußen.
-    for treffer in _PFAD_ARTIG.findall(c):
+    #
+    # Geprüft wird der Befehl **ohne die harmlose Fehlerumleitung**: `2>/dev/null`
+    # trägt einen Pfad, der naturgemäß nicht im Repo liegt. Die erste Fassung
+    # dieses Riegels hat daran genau die Zeile gebrochen, die Claudia am 18.08.
+    # mit dreizehn Beobachtungen belegt hat — der Regressionslauf hat es sofort
+    # gefangen. **Das ist der Grund, warum ein Sicherheitsfix nie ohne den
+    # vollen Lauf committet wird; ich hatte hier zu früh committet.**
+    for treffer in _PFAD_ARTIG.findall(_ohne_harmlose_umleitung(c)):
         pfad = treffer[0] if isinstance(treffer, tuple) else treffer
         if "claude-telegram-bot" not in pfad:
             return False

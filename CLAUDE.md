@@ -741,6 +741,14 @@ es beißen kann, und an keine anderen.
 - **Vor der Weitergabe an Dritte** (Produkt/Blaupause, 9.6). Was für Adam
   allein tragbar ist, ist es für fremde Nutzer noch nicht.
 
+**Wer startet ihn, und wo:** **Die Kontroll-Rolle, nicht die Bau-Rolle.** Der
+Befund ginge sonst zuerst an den Erbauer, der ihn ueber die eigene Arbeit
+bewertet — dieselbe Schwaeche, gegen die das Vier-Augen-Prinzip ueberhaupt
+gebaut ist. Der Bau-Sitzung obliegt es, **den zu pruefenden Commit zu benennen
+und gepusht zu haben**; die Kontrolle startet `/code-review ultra` auf diesem
+Stand und reicht weiter, was zu tun ist. **Mick kann ihn nicht selbst
+ausloesen** — der Befehl ist nutzergetriggert.
+
 **Was ausdrücklich KEINE Prüfstelle ist:** einzelne Feature-Commits,
 Doku-Änderungen, Textarbeit, Aufräumen. Dort ist es Verschwendung — und ein
 Werkzeug, das man aus Gewohnheit einsetzt, verliert seine Bedeutung für die

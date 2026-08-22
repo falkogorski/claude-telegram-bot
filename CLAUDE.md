@@ -709,6 +709,43 @@ Entsprechung verfällt still.
 - **9.4 ist deshalb hoch eingeordnet:** nicht als Bequemlichkeit, sondern als
   die fehlende Leitung selbst.
 
+## 🧿 WANN ULTRACODE (Adam & Mick 2026-08-21)
+
+`/code-review ultra` ist ein **Code-Review**, kein Denkwerkzeug: Es zerlegt
+**vorhandenen** Code mit vielen Agenten. Es verbraucht deutlich mehr
+Kontingent als ein normaler Lauf — deshalb gehört es an die Stellen, an denen
+es beißen kann, und an keine anderen.
+
+**Vier Bedingungen, alle vier müssen zutreffen:**
+
+1. **Es gibt Code.** In der Entwurfsphase hat es nichts zu prüfen und
+   antwortet entsprechend dünn. Dort gehört eine Kontroll-Sitzung mit hoher
+   Denktiefe hin, nicht eine Agentenflotte.
+2. **Ein Fehler bliebe still.** Wo ein Bruch sofort auffällt, tut es der
+   Regressionslauf billiger. Ultracode lohnt bei Code, dessen Versagen **wie
+   Ruhe aussieht** — Sicherheitsschranken, Filter, Wächter.
+3. **Der Schaden wäre groß und schwer rückholbar.** Datenabfluss, ein
+   ausgehebelte Freigabe, ein stiller Fehlalarm-Dauerzustand.
+4. **Der Code ist stabil genug**, dass das Ergebnis nicht binnen Tagen
+   veraltet. Ein Review auf beweglichem Grund ist verlorenes Kontingent.
+
+**Die daraus folgenden Prüfstellen dieses Projekts:**
+
+- **Nach dem Bau der Eingangs-Absicherung**, bevor das erste fremde Postfach
+  hinterlegt wird. Der Fall erfüllt alle vier Bedingungen deutlicher als
+  alles andere im Projekt.
+- **Vor jeder weiteren Anbindung fremder Datenquellen** (Kalender fremder
+  Personen, Kundendaten, Konto-Lesezugriff bei 5.19) — aber nur, wenn dafür
+  neue Schrankenlogik entstanden ist; sonst genügt der Regressionslauf.
+- **Beim Gesamtaudit (10.1)** auf den dann stehenden Gesamtstand.
+- **Vor der Weitergabe an Dritte** (Produkt/Blaupause, 9.6). Was für Adam
+  allein tragbar ist, ist es für fremde Nutzer noch nicht.
+
+**Was ausdrücklich KEINE Prüfstelle ist:** einzelne Feature-Commits,
+Doku-Änderungen, Textarbeit, Aufräumen. Dort ist es Verschwendung — und ein
+Werkzeug, das man aus Gewohnheit einsetzt, verliert seine Bedeutung für die
+Fälle, in denen es zählt.
+
 ## 🔍 PRÜFREGEL — Status ist ein Befund, keine Behauptung (Adam 2026-07-25)
 
 Gilt für **alle Instanzen**. Ein Punkt gilt **nicht** deshalb als offen, weil

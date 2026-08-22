@@ -2171,9 +2171,49 @@ _SENSITIVE_MARKERS = (".env", "credentials", "token", "secret", "_key", "key.",
                       "/etc/telegram-bot-api")
 
 
+# ⑥ Befehle, die die **Prozessumgebung** ausgeben. Dort liegen Token und
+# Kennwörter — sie sind für `claudebot` als Datei nicht lesbar, im eigenen
+# Prozess aber vollständig vorhanden.
+#
+# **Wortweise geprüft, nicht als Teilzeichenfolge.** Ein Teilstring-Marker
+# „env" schlüge bei „Adventskalender", „Inventar" und „eventuell" an — und ein
+# Filter, der dreimal täglich grundlos anspringt, wird binnen einer Woche
+# abgeschaltet. Dann prüft er nichts mehr.
+_UMGEBUNGS_BEFEHLE = frozenset({"env", "printenv", "set", "export", "declare"})
+
+# Glob- und Klammerformen, mit denen sich ein Name buchstabieren lässt, ohne
+# ihn zu schreiben: `.e*`, `.[e]nv`, `.?nv`. Gemessen am 22.08. — alle drei
+# liefen an der reinen Zeichenketten-Prüfung vorbei.
+_GLOB_NACH_PUNKT = re.compile(r"\.\s*[\w\[\]?*]*[\[\]?*]")
+
+
 def _is_sensitive_ref(raw: str) -> bool:
+    """Ob ein Verweis in den Freigabe-Dialog gehört.
+
+    **Drei Prüfungen statt einer** (⑥ aus dem Bauauftrag vom 22.08.). Die
+    ursprüngliche Fassung verglich Zeichenketten und fing damit `cat .env` —
+    aber gemessen liefen fünf von acht Wegen vorbei: `.e*`, `.[e]nv`, `env`,
+    `printenv` und `set | grep MAIL`. Dass `os.environ` gefangen wurde, war
+    **Zufall**: `.env` steckt zufällig als Teilfolge darin.
+    """
     s = (raw or "").lower()
-    return any(m in s for m in _SENSITIVE_MARKERS)
+    if any(m in s for m in _SENSITIVE_MARKERS):
+        return True
+    # Entkernt: Klammern entfernen, dann erneut vergleichen — so wird aus
+    # `.[e]nv` wieder `.env`, ohne dass die Marker-Liste wachsen muss.
+    entkernt = s.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
+    if entkernt != s and any(m in entkernt for m in _SENSITIVE_MARKERS):
+        return True
+    # Ein Platzhalter direkt hinter einem Punkt buchstabiert einen versteckten
+    # Namen, ohne ihn zu schreiben. Was dahinter steht, kann die Textprüfung
+    # nicht mehr wissen — also entscheidet Adam.
+    if _GLOB_NACH_PUNKT.search(s):
+        return True
+    # Umgebungs-Ausgabe: wortweise, damit „Adventskalender" nicht anschlägt.
+    for wort in re.findall(r"[a-z_]+", s):
+        if wort in _UMGEBUNGS_BEFEHLE:
+            return True
+    return False
 
 
 # 8.7 Governance-Härtung: Der Bot editiert sein eigenes Repo NIE — auch nicht

@@ -298,6 +298,45 @@ def _suche_mit_geheimnis_wird_nicht_durchgewunken():
 
 check("Suche mit Geheimnis braucht Rueckfrage", _suche_mit_geheimnis_wird_nicht_durchgewunken)
 
+
+# --------------------------------------------------------------------------
+# (6) Die Geheimnis-Sperre
+# --------------------------------------------------------------------------
+
+# Am 22.08. GEMESSEN: fuenf dieser neun Wege liefen an der alten Pruefung
+# vorbei. Dass os.environ gefangen wurde, war Zufall - ".env" steckt zufaellig
+# als Teilfolge darin.
+_MUSS_SPERREN = (
+    "cat .env", "cat .e*", "cat .[e]nv", "env", "printenv",
+    "set | grep MAIL", 'python -c "print(os.environ)"',
+    "cat /etc/claude-telegram-bot.env", "export",
+)
+
+# Die Gegenrichtung ist genauso wichtig: Ein Filter, der dreimal taeglich
+# grundlos anspringt, wird binnen einer Woche abgeschaltet - und prueft dann
+# gar nichts mehr. Deshalb wortweise statt als Teilzeichenfolge.
+_MUSS_DURCHLASSEN = (
+    "ls -la", "git status", "cat MIGRATION.md", "Adventskalender basteln",
+    "grep -n inventar liste.txt", "wie war das eventuell gemeint",
+    "python3 scripts/test_x.py", "tail -20 logs/bot.out.log",
+)
+
+
+def _geheimnis_sperre_faengt_alle_wege():
+    offen = [p for p in _MUSS_SPERREN if not bot._is_sensitive_ref(p)]
+    assert not offen, f"diese Wege zum Geheimnis stehen offen: {offen}"
+
+
+def _geheimnis_sperre_ohne_fehlalarm():
+    falsch = [p for p in _MUSS_DURCHLASSEN if bot._is_sensitive_ref(p)]
+    assert not falsch, (
+        f"Fehlalarm bei harmlosen Befehlen: {falsch} - ein Filter, der grundlos "
+        "anspringt, wird abgeschaltet und prueft dann nichts mehr")
+
+
+check("Geheimnis-Sperre faengt alle Wege", _geheimnis_sperre_faengt_alle_wege)
+check("Geheimnis-Sperre ohne Fehlalarm", _geheimnis_sperre_ohne_fehlalarm)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

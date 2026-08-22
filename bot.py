@@ -1381,6 +1381,12 @@ class QueuedJob:
     received_at: float = field(default_factory=time.time)
     context_retry: bool = False  # True, nachdem wg. Kontext-Überlauf frisch neu gestartet
     thorough: bool = False       # 🎯 Gründlich: aktives Modell + Max + Quellencheck
+    # H3 (Engywucks Probelauf 22.08.): NUR Adams eigener Wortlaut — nie
+    # Beschriftung, Dateiname, Tonspur oder zitierter Fremdtext. Speist die
+    # Vertrauensliste für Web-Abrufe. **Vorgabe None heisst: kein Vertrauen**
+    # (fail-closed) — ein Pfad, der es nicht ausdruecklich setzt, kann keine
+    # Adresse freischalten.
+    adam_anteil: str | None = None
     pending_key: str | None = None  # 5.2: Schlüssel des Persistenz-Records (logs/pending/<key>.json)
     # --- 5.2: Primitive statt update.* (überleben Reboot) ---
     user_id: int = 0
@@ -1719,10 +1725,23 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
     # 5.25 (a): Herkunfts-Menge PRO AUFGABE frisch aufsetzen — Adressen aus Adams
     # Nachricht; Suchtreffer der Aufgabe kommen in stream_response dazu. Nur
     # dorthin darf WebFetch ohne Rückfrage.
-    # ③ Auch Adams eigene Nachricht speist die Vertrauensliste nur mit echten
-    # Adressen — „schau mal in MIGRATION.md" darf `migration.md` nicht zu einem
-    # freigeschalteten Abrufziel machen.
-    sess.task_origins = _extract_hosts(job.text, fuer_vertrauen=True)
+    # ③+H3 Die Vertrauensliste speist sich **allein aus Adams eigenem
+    # Wortlaut** — und aus nichts sonst.
+    #
+    # **Der Befund (Engywuck, 22.08.):** Hier stand `job.text`. Bei jedem
+    # weitergeleiteten Medium besteht der aber überwiegend aus **Fremdtext**:
+    # Beschriftung des Absenders, sein gewählter Dateiname, die transkribierte
+    # Tonspur, bis zu 600 Zeichen zitierter Fremdrede. Gemessen: „Beschriftung:
+    # Jetzt bestellen bei shop-boese.tld" trug `shop-boese.tld` ein, und der
+    # nächste Abruf dorthin lief ohne Rückfrage.
+    #
+    # Es war exakt dasselbe Muster wie der Befund, der ③ ausgelöst hat: Der
+    # Kommentar sagte „Adressen aus Adams Nachricht", der Code nahm alles. Ich
+    # habe damals den Ausgang verengt und den **Eingang nie angesehen**.
+    #
+    # **Fail-closed:** Ist `adam_anteil` nicht gesetzt, bleibt die Liste leer —
+    # dann fragt der Bot, statt zu vertrauen.
+    sess.task_origins = _extract_hosts(job.adam_anteil or "", fuer_vertrauen=True)
     # AUSSCHLIESSLICH Primitive (5.2): so läuft dieser Pfad identisch für frische
     # und für nach einem Neustart wiederaufgenommene Jobs (dort gibt es kein Update).
     sess.chat_id = job.chat_id
@@ -7531,6 +7550,7 @@ async def process_user_text(
     reply_to_override: int | None = None,
     log_note: str | None = None,
     links_abhaken: list[str] | None = None,
+    adam_anteil: str | None = None,
 ) -> None:
     """Shared path: authorized update + text → Claude query + streamed response.
 
@@ -7593,6 +7613,7 @@ async def process_user_text(
         output_chat_id=output_chat_id or chat_id,
         reply_to_override=reply_to_override,
         thorough=thorough,
+        adam_anteil=adam_anteil,
         user_id=user_id,
         chat_id=chat_id,
         message_id=message_id,
@@ -8304,7 +8325,9 @@ async def on_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     prefix = _extract_reply_context(update)
-    await process_user_text(update, prefix + text)
+    # H3: `text` ist Adams eigener Wortlaut, `prefix` ist zitierter FREMDtext —
+    # deshalb geht nur `text` als Vertrauensquelle mit.
+    await process_user_text(update, prefix + text, adam_anteil=text)
 
 
 def _text_ohne_links(text: str) -> str:

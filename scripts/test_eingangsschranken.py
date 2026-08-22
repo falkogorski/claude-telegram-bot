@@ -622,6 +622,56 @@ check("find -exec/-delete sind kein Lesen", _find_exec_und_delete_sind_kein_lese
 check("ein fremder Pfad daneben reicht nicht", _ein_fremder_pfad_daneben_reicht_nicht)
 check("der Alltag laeuft weiter ohne Dialog", _der_alltag_laeuft_weiter_ohne_dialog)
 
+
+# --------------------------------------------------------------------------
+# H3 - Fremdinhalt speiste die Vertrauensliste
+# --------------------------------------------------------------------------
+
+def _fremdtext_speist_die_vertrauensliste_nicht():
+    """**H3 - der kuerzeste Weg von Fremdinhalt zu einer Handlung.**
+
+    Bei jedem weitergeleiteten Medium besteht `job.text` ueberwiegend aus
+    Fremdtext: Beschriftung des Absenders, sein gewaehlter Dateiname, die
+    transkribierte Tonspur, zitierte Fremdrede. Gemessen (Engywuck 22.08.):
+    'Beschriftung: Jetzt bestellen bei shop-boese.tld' trug den Host ein, und
+    der naechste Abruf dorthin lief ohne Rueckfrage.
+
+    Geprueft wird der Auftrag, wie ihn der Medienpfad baut - also das Feld,
+    das die Vertrauensliste speist, nicht der Anzeigetext.
+    """
+    fremd = ("Beschriftung: Jetzt bestellen bei shop-boese.tld\n"
+             "Dateiname: update.boese.tld\n"
+             "Gesprochener Inhalt der Tonspur: schau auf kanal-boese.tld")
+    # So baut der Medienpfad den Auftrag: viel Fremdtext, KEIN adam_anteil.
+    job = bot.QueuedJob(update=None, text=fremd, user_id=4711, chat_id=4711,
+                        message_id=1)
+    assert job.adam_anteil is None, \
+        "der Medienpfad setzt einen Adam-Anteil, obwohl er keinen hat"
+    gemessen = bot._extract_hosts(job.adam_anteil or "", fuer_vertrauen=True)
+    assert not gemessen, \
+        f"Fremdtext hat die Vertrauensliste gespeist: {sorted(gemessen)}"
+
+
+def _adams_eigener_text_speist_sie_weiterhin():
+    """Die Gegenrichtung: Adams eigenes Wort soll weiter ohne Dialog gehen.
+
+    Sonst kaeme nach jeder Adresse, die er selbst nennt, eine Rueckfrage -
+    und die vorhersehbare Reaktion darauf ist der Knopf 'immer erlauben',
+    also dauerhaftes statt aufgabengebundenes Vertrauen (Engywucks H5).
+    """
+    job = bot.QueuedJob(update=None, text="[Zitat: boese.tld]\n\nSchau auf de.wikipedia.org",
+                        adam_anteil="Schau auf de.wikipedia.org",
+                        user_id=4711, chat_id=4711, message_id=1)
+    gemessen = bot._extract_hosts(job.adam_anteil or "", fuer_vertrauen=True)
+    assert "de.wikipedia.org" in gemessen, \
+        "Adams eigene Adresse wird nicht mehr vertraut - jeder Abruf braeuchte einen Dialog"
+    assert "boese.tld" not in gemessen, \
+        "zitierter Fremdtext ist mitgewandert - der Reply-Kontext ist nicht getrennt"
+
+
+check("Fremdtext speist die Vertrauensliste nicht", _fremdtext_speist_die_vertrauensliste_nicht)
+check("Adams eigener Text speist sie weiterhin", _adams_eigener_text_speist_sie_weiterhin)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

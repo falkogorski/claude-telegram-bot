@@ -3250,6 +3250,70 @@ async def cmd_presend(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("\n".join(L))
 
 
+# Die Werkzeuge, die ein Neben-Lauf nie braucht — namentlich, weil eine
+# ausdrueckliche Verbotsliste laut SDK auch `bypassPermissions` uebersteht.
+# **Bewusst eine Liste des Verbotenen ALS ZWEITER Riegel**, nicht als erster:
+# Sie altert gegen jedes neue Werkzeug, und genau deshalb traegt sie die Last
+# nicht allein — das tut die leere Positivliste darueber.
+_WERKZEUGE_VERBOTEN = (
+    "Bash", "Read", "Write", "Edit", "NotebookEdit", "WebFetch", "WebSearch",
+    "Glob", "Grep", "Task", "Agent", "Skill", "KillShell", "BashOutput",
+)
+
+
+def werkzeugfreie_optionen(system_prompt: str, modell: str | None = None,
+                           **rest) -> ClaudeAgentOptions:
+    """Optionen für einen Lauf, der **kein einziges Werkzeug** benutzen darf.
+
+    ② aus dem Engywuck-Bauauftrag vom 22.08. — und der Grund ist eine
+    Fehlannahme, die ich selbst geteilt habe.
+
+    **Was falsch war:** Beide Neben-Läufe (PDF-Zusammenfassung, der hinfällige
+    Kontingent-Messlauf) trugen ``permission_mode="bypassPermissions"`` mit
+    ``allowed_tools=[]``. Das las sich wie „keine Werkzeuge". Es bedeutet das
+    Gegenteil. Die Anbieter-Dokumentation im SDK sagt es wörtlich:
+
+        bypassPermissions auto-approves every tool call (except explicit deny
+        rules) before the callback is consulted.
+
+    Die leere Liste ist eine Liste von **Auto-Genehmigungen**, keine
+    Erlaubnisliste — und der Freigabe-Rückruf wird in diesem Modus **nie**
+    gerufen. Ein Lauf, der zu hundert Prozent mit einem fremden Dokument
+    gefüttert wird, hätte damit den vollen Werkzeugsatz gehabt: lesen,
+    schreiben, ausführen, abrufen. Ohne Rückfrage.
+
+    **Was jetzt gilt:** ``dontAsk`` — im SDK beschrieben als *„Don't prompt for
+    permissions; deny if not pre-approved."* Zusammen mit einer leeren
+    ``allowed_tools`` ist das eine **Positivliste mit null Einträgen**: Es wird
+    nichts gefragt (der Lauf bleibt also nicht hängen) und nichts erlaubt.
+
+    **Warum eine gemeinsame Fabrik und nicht zwei Zeilen:** Zwei Stellen mit
+    derselben Sicherheitsentscheidung sind zwei Stellen, die auseinanderlaufen
+    können — dieselbe Klasse wie die fünf Kanal-Verweise am 20.08. Und nur so
+    kann ein Prüfer die Entscheidung **ausführen** statt sie im Text zu suchen.
+
+    **Was das NICHT deckt:** den Hauptstrom. Dort braucht Adam Werkzeuge; die
+    Trennung leisten dort ③ bis ⑦.
+    """
+    return ClaudeAgentOptions(
+        cwd=str(WORKDIR),
+        # Positivliste mit null Eintraegen — nicht "alles erlaubt".
+        permission_mode="dontAsk",
+        allowed_tools=[],
+        # Zweiter Riegel, bewusst redundant (Adam: doppelt und dreifach):
+        # Sollte eine kuenftige SDK-Fassung `dontAsk` anders auslegen, steht
+        # hier die ausdrueckliche Verbotsliste, die laut Dokumentation selbst
+        # `bypassPermissions` ueberstimmt ("except explicit deny rules").
+        disallowed_tools=list(_WERKZEUGE_VERBOTEN),
+        system_prompt=system_prompt,
+        max_buffer_size=SDK_MAX_BUFFER,
+        **({"model": modell} if modell else {}),
+        **rest,
+    )
+
+
+
+
 def _kontingent_cli_pfad() -> str | None:
     """Wo die gebündelte Oberfläche liegt.
 
@@ -3341,14 +3405,9 @@ async def _kontingent_frisch_messen_alt() -> bool:
     ersten Antwort; wer hier `True` zurückgäbe, weil der Lauf glückte, würde
     einen Stand behaupten, den niemand gesehen hat.
     """
-    options = ClaudeAgentOptions(
-        cwd=str(WORKDIR),
-        permission_mode="bypassPermissions",
-        allowed_tools=[],
-        model=_MODEL_ALIASES.get("haiku", "haiku"),
-        system_prompt="Antworte ausschließlich mit dem Zeichen: .",
-        max_buffer_size=SDK_MAX_BUFFER,
-    )
+    options = werkzeugfreie_optionen(
+        "Antworte ausschließlich mit dem Zeichen: .",
+        modell=_MODEL_ALIASES.get("haiku", "haiku"))
     gesehen = False
     client = ClaudeSDKClient(options=options)
     await client.connect()
@@ -4081,6 +4140,26 @@ async def on_my_chat_member(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
     chat = member_update.chat
     new_status = member_update.new_chat_member.status if member_update.new_chat_member else None
     if new_status not in ("administrator", "creator", "member"):
+        return
+
+    # ① Absender-Schranke (Engywuck-Bauauftrag 22.08., aus dem 26-Agenten-Befund).
+    #
+    # **Der Befund:** Wer den Bot IRGENDWO als Administrator eintrug, bog damit
+    # den Ausgabekanal auf seinen eigenen Kanal um — Zusammenfassungen, Dateien
+    # und Sprachausgabe wären dorthin gegangen. Kein Einschleusen, sondern der
+    # Rückweg: der Ausgang, nicht der Eingang.
+    #
+    # **Warum es die beiden anderen Wege nicht traf:** `/setkanal` und der
+    # Knopf-Rückruf prüfen `authorized()`. Nur dieser Pfad läuft **ohne Adams
+    # Zutun** an — er wird von Telegram ausgelöst, nicht von einer Nachricht.
+    # Genau deshalb hatte er keine Prüfung: Es sah nicht nach einem Befehl aus.
+    #
+    # Kategorisch, kein Modell beteiligt, keine Nebenwirkung.
+    ausloeser = getattr(member_update, "from_user", None)
+    ausloeser_id = int(getattr(ausloeser, "id", 0) or 0)
+    if ausloeser_id not in ALLOWED_USER_IDS:
+        log.warning("my_chat_member von fremder Kennung %s in Chat %s (%s) — "
+                    "ignoriert", ausloeser_id, chat.id, chat.type)
         return
 
     bot = update.get_bot()
@@ -9557,13 +9636,10 @@ async def _summarize_pdf_direct(local_path: Path) -> str:
         "Überschrift, ohne abschließende Meta-Bemerkung."
     )
 
-    options = ClaudeAgentOptions(
-        cwd=str(WORKDIR),
-        permission_mode="bypassPermissions",
-        allowed_tools=[],
-        system_prompt=system_prompt,
-        max_buffer_size=SDK_MAX_BUFFER,
-    )
+    # ② Der Lauf wird zu hundert Prozent mit einem FREMDEN Dokument gefuettert
+    # — einschliesslich Text, den Adam darin nicht sehen kann (weiss auf weiss,
+    # Schriftgroesse null, Kommentare). Er bekommt deshalb kein Werkzeug.
+    options = werkzeugfreie_optionen(system_prompt)
     client = ClaudeSDKClient(options=options)
     await client.connect()
     try:

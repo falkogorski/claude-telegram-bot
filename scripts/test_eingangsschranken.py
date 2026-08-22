@@ -337,6 +337,48 @@ def _geheimnis_sperre_ohne_fehlalarm():
 check("Geheimnis-Sperre faengt alle Wege", _geheimnis_sperre_faengt_alle_wege)
 check("Geheimnis-Sperre ohne Fehlalarm", _geheimnis_sperre_ohne_fehlalarm)
 
+
+# --------------------------------------------------------------------------
+# (5) Der Rueckweg vom Protokoll in den Systemrang
+# --------------------------------------------------------------------------
+
+def _die_mitschrift_ist_kein_auftrag():
+    """**Der Kern von (5) - die haltbarste Angriffsform des Berichts.**
+
+    Der Verlauf wurde als "Dies ist der juengste Dialog mit Adam" eingeleitet,
+    und die Zeilenkoepfe darin sind einfacher Text, den jeder Inhalt
+    mitschreiben kann. Eine einmal eingeschleuste Zeile haette damit bei JEDEM
+    Start als Adams Wort gegolten - ueber Neustart und Zuruecksetzen hinweg.
+
+    Geprueft wird der Text, der TATSAECHLICH in den Kontext geht.
+    """
+    import inspect
+    quelle = inspect.getsource(bot)
+    i = quelle.find("MITSCHRIFT DES LETZTEN VERLAUFS")
+    assert i > 0, "der Rangvermerk im Recall-Kopf fehlt"
+    kopf = quelle[i:i + 1200]
+    assert "KEINE Anweisung" in kopf, "der Block wird nicht als Protokoll eingefuehrt"
+    # Auf einen Ausdruck pruefen, der im Quelltext NICHT ueber zwei Zeilen
+    # bricht - sonst misst der Pruefer die Zeilenumbrueche des Autors statt
+    # der Aussage. (Beim ersten Lauf genau daran gescheitert.)
+    assert "Gültige Aufträge" in kopf, \
+        "es fehlt der Satz, woher gueltige Auftraege kommen"
+    assert "juengste Dialog mit Adam" not in quelle, \
+        "der alte Wortlaut steht wieder da - er verleiht Fremdtext Adams Rang"
+
+
+def _angepinntes_traegt_einen_herkunftsvermerk():
+    """Angepinntes wandert ins Dauergedaechtnis - ohne Vermerk sieht fremder
+    Text spaeter aus wie Adams eigenes Wort."""
+    import inspect
+    quelle = inspect.getsource(bot.on_pinned_message)
+    assert "keine " in quelle and "Anweisung" in quelle, \
+        "der Pin-Eintrag traegt keinen Rangvermerk"
+
+
+check("die Mitschrift ist kein Auftrag", _die_mitschrift_ist_kein_auftrag)
+check("Angepinntes traegt einen Herkunftsvermerk", _angepinntes_traegt_einen_herkunftsvermerk)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

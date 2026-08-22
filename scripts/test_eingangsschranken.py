@@ -260,6 +260,44 @@ check("Dateinamen werden keine vertrauten Domains", _dateinamen_werden_keine_ver
 check("die Erkennung bleibt grosszuegig", _die_erkennung_bleibt_grosszuegig)
 check("Adresse mit Anhang braucht Rueckfrage", _adresse_mit_anhang_wird_nicht_automatisch_freigegeben)
 
+
+# --------------------------------------------------------------------------
+# (4) Die Suchanfrage ist ein Ausgangskanal
+# --------------------------------------------------------------------------
+
+def _suche_mit_geheimnis_wird_nicht_durchgewunken():
+    """**Der Kern von (4) - ausgefuehrt ueber den echten Rueckruf.**
+
+    Die Suchfreigabe stand als eine der ERSTEN Regeln, noch vor der
+    Geheimnis-Pruefung. Was in eine Suchanfrage geschrieben wird, verlaesst
+    das System - ein Zugangsschluessel waere abgeflossen, ohne dass jemand
+    gefragt worden waere.
+    """
+    from claude_agent_sdk import PermissionResultAllow
+    sess = bot.UserSession(client=object())
+    sess.bot = object()
+    sess.chat_id = 4711
+    sess.user_id = 4711
+    bot.SESSIONS[4711] = sess
+    rueckruf = bot.make_permission_callback(4711)
+
+    class _Ctx:
+        suggestions = None
+
+    def suche(frage):
+        return asyncio.run(rueckruf(bot._SEARCH_TOOL_NAME, {"query": frage}, _Ctx()))
+
+    normal = suche("Wetter in Koeln morgen")
+    assert isinstance(normal, PermissionResultAllow), \
+        "eine normale Suche loest jetzt eine Rueckfrage aus - zu scharf"
+
+    heikel = suche("was bedeutet dieser token aus der .env datei")
+    assert not isinstance(heikel, PermissionResultAllow), \
+        "eine Suche mit Geheimnis-Bezug wurde ohne Rueckfrage nach draussen gelassen"
+
+
+check("Suche mit Geheimnis braucht Rueckfrage", _suche_mit_geheimnis_wird_nicht_durchgewunken)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

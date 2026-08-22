@@ -2383,10 +2383,6 @@ def make_permission_callback(user_id: int):
                         "Frag solche Themen bei Bedarf in der Code-/Web-Sitzung."
             )
 
-        # Lokale private Websuche (SearxNG, 2.7): kostenfrei + lokal → ohne Rückfrage.
-        if tool_name == _SEARCH_TOOL_NAME:
-            return PermissionResultAllow()
-
         # Führungs-Register: Das Projekt-Repo ist für den Bot NUR-LESEN —
         # Schreibzugriffe dorthin hart ablehnen (nur die Migrations-Sitzung schreibt).
         if tool_name in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
@@ -2419,8 +2415,27 @@ def make_permission_callback(user_id: int):
         # Dialog — vor jeder Auto-Freigabe geprüft, auch vor Always-Allow.
         _ref = str(tool_input.get("file_path") or tool_input.get("path")
                    or tool_input.get("pattern") or tool_input.get("command")
-                   or tool_input.get("url") or "")
+                   or tool_input.get("url")
+                   # (4) Auch die SUCHANFRAGE ist ein Verweis. Sie stand
+                   # vorher gar nicht in dieser Ermittlung, weil das
+                   # Suchwerkzeug schon oben freigegeben war.
+                   or tool_input.get("query") or tool_input.get("q") or "")
         sensitive = _is_sensitive_ref(_ref)
+
+        # (4) Lokale private Websuche (SearxNG, 2.7): kostenfrei + lokal, aber
+        # **nicht mehr bedingungslos.**
+        #
+        # **Der Befund:** Diese Freigabe stand als eine der ERSTEN Regeln —
+        # noch vor der Geheimnis-Pruefung. Eine Suchanfrage ist aber ein
+        # freier Kanal nach draussen: Was hineingeschrieben wird, verlaesst
+        # das System, und ein Zugangsschluessel als Suchbegriff waere
+        # abgeflossen, ohne dass jemand gefragt worden waere.
+        #
+        # Jetzt steht sie **unter** der Pruefung und respektiert sie. Der
+        # Alltag aendert sich nicht: Eine normale Frage traegt keinen der
+        # Geheimnis-Marker.
+        if tool_name == _SEARCH_TOOL_NAME and not sensitive:
+            return PermissionResultAllow()
 
         # Kosten-Tools + WebFetch NIE über die Always-Allow-Liste durchwinken
         # (_NO_ALWAYS_TOOLS): 💰 wegen der Kostenregel, WebFetch wegen der

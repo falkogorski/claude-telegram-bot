@@ -32,30 +32,35 @@ echo "E-Mail-Konto anlegen"
 echo "===================="
 echo
 echo "Welcher Anbieter?"
-echo "  1) mailbox.org"
-echo "  2) iCloud / me.com"
-echo "  3) web.de"
-echo "  4) Gmail"
-echo "  5) anderer (Server von Hand eingeben)"
+echo "  1) mailbox.org   (geschaeftlich)"
+echo "  2) Posteo         (privat)"
+echo "  3) iCloud / me.com"
+echo "  4) web.de"
+echo "  5) Gmail"
+echo "  6) anderer (Server von Hand eingeben)"
 read -rp "Zahl: " WAHL < /dev/tty
 
 case "$WAHL" in
   1) VORNAME=mailbox; IMAP=imap.mailbox.org; SMTP=smtp.mailbox.org
      HINWEIS="mailbox.org: Das normale Kennwort funktioniert. Sicherer ist ein
      eigenes App-Passwort in den Kontoeinstellungen." ;;
-  2) VORNAME=icloud;  IMAP=imap.mail.me.com; SMTP=smtp.mail.me.com
+  2) VORNAME=posteo;  IMAP=posteo.de;          SMTP=posteo.de
+     HINWEIS="Posteo: Das normale Kennwort funktioniert. Ist bei dir die
+     Zwei-Faktor-Anmeldung aktiv, wird stattdessen das dafuer vorgesehene
+     Kennwort gebraucht." ;;
+  3) VORNAME=icloud;  IMAP=imap.mail.me.com; SMTP=smtp.mail.me.com
      HINWEIS="iCloud verlangt ein ANWENDUNGSSPEZIFISCHES Kennwort
      (appleid.apple.com). Das normale Apple-Kennwort wird abgewiesen." ;;
-  3) VORNAME=webde;   IMAP=imap.web.de;      SMTP=smtp.web.de
+  4) VORNAME=webde;   IMAP=imap.web.de;      SMTP=smtp.web.de
      HINWEIS="web.de: IMAP muss im Postfach unter Einstellungen erst
      FREIGESCHALTET werden, sonst schlaegt die Anmeldung fehl. Ob das im
      kostenlosen Tarif geht, ist hier NICHT geprueft — bitte im Postfach
      nachsehen." ;;
-  4) VORNAME=gmail;   IMAP=imap.gmail.com;   SMTP=smtp.gmail.com
+  5) VORNAME=gmail;   IMAP=imap.gmail.com;   SMTP=smtp.gmail.com
      HINWEIS="Gmail verlangt ein APP-PASSWORT und dafuer aktive
      Zwei-Faktor-Anmeldung; zusaetzlich muss IMAP in den Gmail-Einstellungen
      eingeschaltet sein. Das normale Google-Kennwort wird abgewiesen." ;;
-  5) VORNAME=""; IMAP=""; SMTP=""; HINWEIS="" ;;
+  6) VORNAME=""; IMAP=""; SMTP=""; HINWEIS="" ;;
   *) echo "Ungueltige Auswahl." >&2; exit 1 ;;
 esac
 

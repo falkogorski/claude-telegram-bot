@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from dotenv import load_dotenv
-from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity, ReactionTypeEmoji, ReplyKeyboardMarkup, ReplyParameters, Update
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, MessageEntity, ReactionTypeEmoji, ReplyKeyboardMarkup, ReplyParameters, Update
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application,
@@ -29,6 +29,7 @@ from telegram.ext import (
     ChatMemberHandler,
     CommandHandler,
     ContextTypes,
+    Defaults,
     MessageHandler,
     MessageReactionHandler,
     TypeHandler,
@@ -10084,11 +10085,27 @@ def main() -> None:
     # deadlock: without it, PTB processes updates sequentially across the whole
     # application, so a text message handler that's awaiting a permission
     # future blocks the callback_query update that would resolve it.
+    # ⑦ Link-Vorschau programmweit aus (Bauauftrag 22.08.).
+    #
+    # **Warum an DIESER Stelle und nicht in einer Sendefunktion:** Der Bot
+    # sendet an rund hundertsechzig Stellen. Eine Abschaltung in `send_chunked`
+    # deckt genau eine davon — und die gefährlichste ist eine andere.
+    #
+    # **Die gefährliche ist der Freigabedialog.** Er zeigt Adam den vollen
+    # Befehl samt Adresse, damit er entscheiden kann. Telegram ruft für die
+    # Vorschau aber genau diese Adresse ab, **bevor Adam sie überhaupt sieht**
+    # — der Abruf ist also längst passiert, wenn er „ablehnen" drückt. Der
+    # Dialog, der die Wache sein soll, wäre damit selbst der Weg nach draußen
+    # gewesen.
+    #
+    # Als Voreinstellung am Programm gilt es für jede Nachricht, auch für die,
+    # die noch niemand geschrieben hat.
     _builder = (
         Application.builder()
         .token(TELEGRAM_BOT_TOKEN)
         .post_init(post_init)
         .concurrent_updates(True)
+        .defaults(Defaults(link_preview_options=LinkPreviewOptions(is_disabled=True)))
     )
     if LOKALER_API_SERVER:
         # 5.34: Beide Adressen umstellen — die zweite wird gern vergessen, und

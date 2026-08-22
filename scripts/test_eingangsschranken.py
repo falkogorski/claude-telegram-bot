@@ -379,6 +379,34 @@ def _angepinntes_traegt_einen_herkunftsvermerk():
 check("die Mitschrift ist kein Auftrag", _die_mitschrift_ist_kein_auftrag)
 check("Angepinntes traegt einen Herkunftsvermerk", _angepinntes_traegt_einen_herkunftsvermerk)
 
+
+# --------------------------------------------------------------------------
+# (7) Link-Vorschau
+# --------------------------------------------------------------------------
+
+def _link_vorschau_ist_programmweit_aus():
+    """**Der Kern von (7) - und die gefaehrlichste Stelle ist der Freigabedialog.**
+
+    Er zeigt Adam den vollen Befehl samt Adresse, damit er entscheiden kann.
+    Telegram ruft fuer die Vorschau genau diese Adresse ab, BEVOR Adam sie
+    sieht - der Abruf ist also passiert, wenn er "ablehnen" drueckt. Der
+    Dialog, der die Wache sein soll, waere selbst der Weg nach draussen.
+
+    Deshalb als VOREINSTELLUNG am Programm, nicht in einer Sendefunktion: Der
+    Bot sendet an rund hundertsechzig Stellen; eine davon zu decken hilft
+    nicht.
+    """
+    quelle = (Path(__file__).resolve().parent.parent / "bot.py").read_text(encoding="utf-8")
+    assert ".defaults(Defaults(" in quelle, \
+        "die Programm-Voreinstellungen fehlen"
+    i = quelle.find(".defaults(Defaults(")
+    fenster = quelle[i:i + 200]
+    assert "link_preview_options" in fenster and "is_disabled=True" in fenster, \
+        f"die Link-Vorschau ist nicht programmweit abgeschaltet: {fenster[:120]}"
+
+
+check("Link-Vorschau programmweit aus", _link_vorschau_ist_programmweit_aus)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

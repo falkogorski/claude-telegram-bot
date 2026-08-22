@@ -2958,6 +2958,31 @@ def _ist_suchwerkzeug(name: str) -> bool:
     return name in (_SEARCH_TOOL_NAME, "WebSearch", "web_search")
 
 
+def _herkunft_aus_ergebnissen(sess, msg, such_ids: set) -> None:
+    """Erweitert die Vertrauensliste — **nur aus Suchtreffern.**
+
+    **Eigene Funktion, weil der Kopfbefund von ③ sonst keinen Prüfer hat**
+    (H8, Engywuck 22.08.): Die beiden Schutzzeilen liessen sich entfernen, und
+    **alle einundzwanzig Prüfzeilen blieben grün**. Genau der Fehlertyp, den
+    dieses Projekt zweimal aktenkundig hat — gemessen wurde die Funktion, nicht
+    ihre Verdrahtung.
+
+    Ohne die Prüfung schaltet sich eine gelesene Seite den nächsten Abruf
+    selbst frei: Sie nennt in ihrem Text eine Adresse, die landet hier, und der
+    nächste Abruf dorthin läuft ohne Rückfrage.
+    """
+    try:
+        for block in (getattr(msg, "content", None) or []):
+            if not isinstance(block, ToolResultBlock):
+                continue
+            if getattr(block, "tool_use_id", None) not in such_ids:
+                continue
+            sess.task_origins |= _extract_hosts(str(block.content),
+                                                fuer_vertrauen=True)
+    except Exception:
+        pass
+
+
 _UNSET = object()  # Sentinel: effort=None ist ein gültiger Wert (Normal)
 
 
@@ -10139,13 +10164,7 @@ async def stream_response(
                 # nach einem Seitenbesuch — und das ist der richtige Preis.
                 sess.last_activity = time.monotonic()
                 try:
-                    for block in (getattr(msg, "content", None) or []):
-                        if not isinstance(block, ToolResultBlock):
-                            continue
-                        if getattr(block, "tool_use_id", None) not in _such_ids:
-                            continue
-                        sess.task_origins |= _extract_hosts(
-                            str(block.content), fuer_vertrauen=True)
+                    _herkunft_aus_ergebnissen(sess, msg, _such_ids)
                 except Exception:
                     pass
             elif _RateLimitEvent is not None and isinstance(msg, _RateLimitEvent):

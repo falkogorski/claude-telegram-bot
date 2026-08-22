@@ -784,6 +784,74 @@ check("PDF ohne Endung wird am Inhalt erkannt", _pdf_ohne_endung_wird_am_inhalt_
 check("unbekanntes Format scheitert ehrlich", _unbekanntes_format_scheitert_ehrlich)
 check("beide Wege geben dieselbe Antwort", _beide_wege_geben_dieselbe_antwort)
 
+
+# --------------------------------------------------------------------------
+# H8 - der KOPFBEFUND von (3) hatte keinen Pruefer
+# --------------------------------------------------------------------------
+
+def _Ergebnis(tool_use_id, content):
+    """Ein ECHTER ToolResultBlock des SDK - keine Attrappe.
+
+    Die erste Fassung baute die Klasse selbst nach und war rot: Der Code
+    prueft `isinstance(block, ToolResultBlock)`, und eine nachgebaute Klasse
+    besteht diese Pruefung nicht. Das ist genau die Attrappen-Falle, vor der
+    der Kopf dieser Datei warnt - hier hat sie der Pruefer selbst gefangen.
+    """
+    from claude_agent_sdk import ToolResultBlock
+    return ToolResultBlock(tool_use_id=tool_use_id, content=content)
+
+
+class _Nachricht:
+    def __init__(self, *bloecke):
+        self.content = list(bloecke)
+
+
+def _nur_suchtreffer_erweitern_die_herkunft():
+    """**H8 - gemessen: die zwei Schutzzeilen liessen sich entfernen, und alle
+    einundzwanzig Pruefzeilen blieben gruen.**
+
+    Das ist der Kopfbefund des eigenen Berichts - 'eine gelesene Seite
+    schaltet sich den naechsten Abruf selbst frei' - und der Commit cd2a68d
+    heisst danach. Fuer genau diese Behebung gab es keinen Pruefer: Abschnitt
+    (3) setzte die Herkunftsmenge von Hand und fuehrte den Pfad nie aus, ueber
+    den sie sich fuellt.
+    """
+    import types
+    sess = types.SimpleNamespace(task_origins=set())
+
+    # Ergebnis einer GELESENEN SEITE (keine Suche): darf nichts eintragen.
+    bot._herkunft_aus_ergebnissen(
+        sess, _Nachricht(_Ergebnis("werkzeug-1", "Besuchen Sie boese-seite.tld")),
+        such_ids={"such-9"})
+    assert not sess.task_origins, \
+        (f"eine gelesene Seite hat sich selbst freigeschaltet: "
+         f"{sorted(sess.task_origins)}")
+
+    # Ergebnis einer SUCHE: darf eintragen, sonst laeuft der Mechanismus leer
+    # und Adam klickt aus Ermuedung auf 'immer erlauben' (H5).
+    bot._herkunft_aus_ergebnissen(
+        sess, _Nachricht(_Ergebnis("such-9", "Treffer: de.wikipedia.org")),
+        such_ids={"such-9"})
+    assert "de.wikipedia.org" in sess.task_origins, \
+        "Suchtreffer tragen nichts ein - der Mechanismus laeuft leer"
+
+
+def _auch_im_suchtreffer_gilt_die_endungs_sperre():
+    """Die Sperre aus (3b) muss auch hier greifen - sonst fuehrt ein
+    Suchtreffer mit 'irgendwas.md' eine Datei-Endung als Domain ein."""
+    import types
+    sess = types.SimpleNamespace(task_origins=set())
+    bot._herkunft_aus_ergebnissen(
+        sess, _Nachricht(_Ergebnis("s1", "siehe MIGRATION.md und echte.tld")),
+        such_ids={"s1"})
+    assert "migration.md" not in sess.task_origins, \
+        "eine Dateiendung kam ueber den Suchtreffer herein"
+    assert "echte.tld" in sess.task_origins, "echte Adressen fallen heraus"
+
+
+check("nur Suchtreffer erweitern die Herkunft", _nur_suchtreffer_erweitern_die_herkunft)
+check("Endungs-Sperre gilt auch im Suchtreffer", _auch_im_suchtreffer_gilt_die_endungs_sperre)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

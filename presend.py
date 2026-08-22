@@ -77,6 +77,45 @@ _RE_TENTATIV = re.compile(
     re.IGNORECASE,
 )
 
+# ⑧ Verben, die in einem Befehlsblock einen Blick wert sind, bevor Adam ihn
+# ins Terminal einfügt. **Bewusst kurz gehalten.** Eine lange Liste erzeugt
+# Warnungen bei jedem zweiten Block, und eine Warnung, die immer kommt, wird
+# überlesen — dann warnt sie nicht mehr, sie schmückt nur noch.
+#
+# Aufgenommen ist, was **löscht, überschreibt, Rechte ändert oder Fremdes
+# ausführt**. Nicht aufgenommen: `git`, `ls`, `cat`, `systemctl` — die stehen
+# in fast jedem Block, den wir uns gegenseitig schicken.
+_SCHARFE_MUSTER = (
+    (re.compile(r"\brm\s+(-\w+\s+)*-?\w*[rf]", re.I), "rm mit -r oder -f (löscht Verzeichnisse)"),
+    (re.compile(r"\b(curl|wget)\b[^\n|]*\|\s*(ba)?sh", re.I), "Herunterladen und direkt Ausführen"),
+    (re.compile(r"\bbase64\s+-d\b[^\n|]*\|", re.I), "Entschlüsseln und Weiterleiten"),
+    (re.compile(r"\bchmod\s+(-\w+\s+)*[0-7]*777", re.I), "chmod 777 (Rechte für alle)"),
+    (re.compile(r"\bdd\s+.*\bof=", re.I), "dd (überschreibt roh)"),
+    (re.compile(r">\s*/etc/", re.I), "Schreiben nach /etc"),
+    (re.compile(r"\bmkfs\b|\bshred\b", re.I), "Formatieren oder Schreddern"),
+    (re.compile(r":\(\)\s*\{.*\}\s*;\s*:", re.S), "Fork-Bombe"),
+)
+
+# Codeblöcke — nur dort wird gesucht. Fließtext, der „rm" erwähnt, ist kein
+# Befehl, und eine Warnung darüber wäre genau das Rauschen, das die Warnung
+# entwertet.
+_RE_CODEBLOCK = re.compile(r"```[a-zA-Z]*\n(.*?)```", re.S)
+
+
+def _scharfe_befehle(text: str) -> list[str]:
+    """Welche scharfen Verben stehen in den Codeblöcken dieser Antwort?
+
+    Ohne Dubletten und in stabiler Reihenfolge: Zwei gleiche Warnungen unter
+    einer Nachricht sind eine zu viel.
+    """
+    gefunden: list[str] = []
+    for block in _RE_CODEBLOCK.findall(text or ""):
+        for muster, name in _SCHARFE_MUSTER:
+            if name not in gefunden and muster.search(block):
+                gefunden.append(name)
+    return gefunden
+
+
 # Auto-Korrektur nur für Daten nahe der Gegenwart: entfernte/historische Angaben
 # stammen oft aus Zitaten oder Quellen — da ändern wir keinen fremden Wortlaut.
 _AUTOFIX_WINDOW_DAYS = 370
@@ -177,6 +216,33 @@ def check_and_fix(text: str, *, pending_newer: int = 0,
                 "code": "tentativ",
                 "art": "log",
                 "detail": f"Hedging: „{m.group(0)}“",
+            })
+
+        # (e) ⑧ Ausgangs-Wächter für Befehlsblöcke (Adams Einwand 22.08.:
+        #     „auch mit Daumen kein Schaden").
+        #
+        # **Warum hier und nirgends sonst:** Der Bot sieht nicht, was Adam ins
+        # Terminal einfügt. Die einzige Stelle, an der ein Schadbefehl noch
+        # abzufangen ist, ist der Moment, in dem der Bot ihn **schreibt**.
+        # Danach führt der Weg durch einen Menschen, und dort endet jede
+        # technische Sicherheit.
+        #
+        # Das macht aus „kein Schaden ohne deinen Daumen" das ehrlichere
+        # **„…und der Daumen sieht, was er drückt"**.
+        #
+        # **Was das NICHT ist:** eine Erkennung von Absicht. Geprüft wird nur,
+        # ob scharfe Verben im Block stehen — ob sie berechtigt sind,
+        # entscheidet Adam. Der Wächter macht sichtbar, er verbietet nicht.
+        for treffer in _scharfe_befehle(text):
+            findings.append({
+                "code": "scharfer_befehl",
+                "art": "vermerk",
+                "detail": f"scharfer Befehl im Ausgang: {treffer}",
+                "hinweis": (
+                    f"⚠️ Vorsicht: Der Block oben enthält **{treffer}**. "
+                    "Lies ihn, bevor du ihn ausführst — ich kann nach dem "
+                    "Einfügen nichts mehr prüfen."
+                ),
             })
     except Exception:
         log.exception("Pre-Send-Check fehlgeschlagen (nicht-fatal)")

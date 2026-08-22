@@ -951,6 +951,46 @@ check("auch Write/Edit nicht dauerfreigebbar", _auch_schreibende_werkzeuge_sind_
 check("Pfade mit Dauerwirkung sind dialogpflichtig", _pfade_mit_dauerwirkung_sind_dialogpflichtig)
 check("Alltagsbefehle bleiben ohne Dialog", _alltagsbefehle_bleiben_ohne_dialog)
 
+
+# --------------------------------------------------------------------------
+# H4 - der Dialog zeigte die Adresse nicht, ueber die er entscheiden liess
+# --------------------------------------------------------------------------
+
+def _der_dialog_zeigt_die_ganze_adresse():
+    """**H4 - der Fix aus (3c) war nur formal.**
+
+    Eine vertraute Domain mit Anhang faellt seit gestern in den Dialog. Der
+    Dialog zeigte aber allein den Hostnamen: 'WebFetch / args: url, prompt'.
+    Die Adresse - und damit der Anhang, der die Daten traegt - stand nirgends.
+
+    Aus 'niemand wird gefragt' wurde damit 'Adam wird gefragt, ohne etwas zu
+    sehen'. Das ist keine Verbesserung, sondern eine Verlagerung der
+    Verantwortung auf jemanden, dem die Grundlage fehlt.
+
+    Der zugehoerige Test prueftte nur, dass das Ergebnis kein Allow ist - dass
+    der Mensch am anderen Ende entscheiden KANN, mass niemand. Halbe Wirkung
+    gemessen, genau der Fehlertyp der Prueferegel.
+    """
+    zeile = bot.format_tool_call(
+        "WebFetch", {"url": "https://wikipedia.org/?x=sk-geheim-1234", "prompt": "lies"})
+    assert "sk-geheim-1234" in zeile, \
+        f"der Anhang steht nicht im Dialog - Adam gibt frei, was er nicht sieht: {zeile!r}"
+    assert "args:" not in zeile, \
+        f"WebFetch faellt wieder in den generischen Zweig: {zeile!r}"
+
+
+def _sehr_lange_adressen_werden_gekuerzt():
+    """Eine Nachricht, die im Bildschirm nicht endet, wird nicht gelesen -
+    dann waere die Anzeige wieder wertlos, nur anders."""
+    lang = "https://x.tld/?d=" + "A" * 900
+    zeile = bot.format_tool_call("WebFetch", {"url": lang})
+    assert len(zeile) < 400, f"die Zeile ist zu lang zum Lesen: {len(zeile)}"
+    assert "[…]" in zeile, "die Kuerzung wird nicht kenntlich gemacht"
+
+
+check("der Dialog zeigt die ganze Adresse", _der_dialog_zeigt_die_ganze_adresse)
+check("sehr lange Adressen werden gekuerzt", _sehr_lange_adressen_werden_gekuerzt)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

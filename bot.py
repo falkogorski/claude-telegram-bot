@@ -2485,6 +2485,23 @@ def format_tool_call(tool_name: str, tool_input: dict[str, Any]) -> str:
     if tool_name in ("Read", "Edit", "Write"):
         path = tool_input.get("file_path", "")
         return f"{tool_name}: {path}"
+    # H4 (Engywuck 22.08.): Bei WebFetch stand hier der generische Zweig —
+    # „WebFetch / args: url, prompt". **Die Adresse selbst stand nirgends.**
+    #
+    # Das machte den Fix aus ③ nur formal: Eine vertraute Domain mit Anhang
+    # (`wikipedia.org/?x=<Geheimnis>`) fällt jetzt in den Dialog — aber der
+    # Dialog zeigte allein den Hostnamen. Aus „niemand wird gefragt" wurde
+    # damit „Adam wird gefragt, ohne etwas zu sehen", und das ist keine
+    # Verbesserung, sondern eine Verlagerung der Verantwortung auf jemanden,
+    # dem die Entscheidungsgrundlage fehlt.
+    #
+    # Adams Regel dazu ist eindeutig: **der Daumen soll sehen, was er drückt.**
+    if tool_name == "WebFetch":
+        url = str(tool_input.get("url") or "")
+        # Vollständig, aber begrenzt: Ein Anhang kann beliebig lang sein, und
+        # eine Nachricht, die im Bildschirm nicht endet, wird nicht gelesen.
+        gekuerzt = url if len(url) <= 300 else url[:300] + " […]"
+        return f"WebFetch\n{gekuerzt}" if url else "WebFetch\n(ohne Adresse)"
     keys = ", ".join(list(tool_input.keys())[:5])
     return f"{tool_name}\nargs: {keys}"
 

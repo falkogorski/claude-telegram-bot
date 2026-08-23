@@ -1009,7 +1009,56 @@ def _ein_fragment_ist_kein_ausgangskanal():
 
 check("die or-Kette versteckt nichts mehr", _die_or_kette_versteckt_nichts_mehr)
 check("harmlose Werkzeugaufrufe ohne Dialog", _harmlose_werkzeugaufrufe_bleiben_ohne_dialog)
+def _lesen_im_gedaechtnis_braucht_keinen_dialog():
+    """**Engywucks Nachtrag ① (23.08.): G war halb zu — gemessen am Rückruf.**
+
+    Die Zwei-Wege-Logik stimmte, und der Bash-Weg nutzte sie. Der Read-Zweig
+    nicht: `sensitive` wurde einmal mit der strengen Vorgabe berechnet, und die
+    lesenden Werkzeuge nahmen dieselbe. Folge: `Read` auf `pending-items.md`
+    oder `CLAUDE.md` öffnete weiter einen Dialog — **während der Kommentar
+    direkt darüber das Gegenteil verspricht** und der System-Prompt dem Agenten
+    genau dieses Lesen zusagt.
+
+    Diese Zeile misst den **Rückruf**, nicht die Hilfsfunktion: Der vorige
+    Prüfer war grün, weil er `_is_sensitive_ref(schreibend=False)` direkt fragte
+    — die Stelle, an der die Antwort nicht ankam, lag eine Ebene höher.
+    """
+    from claude_agent_sdk import PermissionResultAllow
+    sess = _sitzung()
+    rueckruf = bot.make_permission_callback(4711)
+
+    class _Ctx:
+        suggestions = None
+
+    def lies(pfad):
+        return asyncio.run(rueckruf("Read", {"file_path": str(pfad)}, _Ctx()))
+
+    gedaechtnis = bot._MEMORY_DIR / "pending-items.md"
+    ergebnis = lies(gedaechtnis)
+    assert isinstance(ergebnis, PermissionResultAllow), \
+        (f"Lesen im Gedaechtnis loest einen Dialog aus - gegen 8.7 und gegen "
+         f"die Zusage im System-Prompt: {gedaechtnis}")
+    assert not sess.bot.dialoge, "es wurde trotzdem gefragt"
+
+    # Die Gegenrichtung, und die ist die wichtigere: Ein Geheimnis bleibt zu,
+    # auch wenn es im selben Ordner liegt.
+    sess.bot.dialoge.clear()
+    geheim = lies(bot._MEMORY_DIR / ".env")
+    assert not isinstance(geheim, PermissionResultAllow), \
+        "ein Geheimnis-Pfad wurde beim Lesen durchgewunken"
+    assert sess.bot.dialoge, "niemand wurde gefragt - das Deny kam aus einem Fehlschlag"
+
+    # Und SCHREIBEN dorthin bleibt dialogpflichtig (H7 unangetastet).
+    sess.bot.dialoge.clear()
+    schreiben = asyncio.run(rueckruf(
+        "Write", {"file_path": str(gedaechtnis), "content": "x"}, _Ctx()))
+    assert not isinstance(schreiben, PermissionResultAllow), \
+        "Schreiben ins Gedaechtnis wurde mitgelockert - H7 waere zurueck"
+
+
 check("die Marker treffen das Richtige", _die_marker_treffen_das_richtige)
+check("Lesen im Gedaechtnis braucht keinen Dialog",
+      _lesen_im_gedaechtnis_braucht_keinen_dialog)
 check("der Alltag loest keinen Fehlalarm aus", _der_alltag_loest_keinen_fehlalarm_aus)
 check("verschleierte Namen bleiben zu", _die_verschleierten_namen_bleiben_zu)
 check("ein Fragment ist kein Ausgangskanal", _ein_fragment_ist_kein_ausgangskanal)

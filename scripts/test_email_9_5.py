@@ -199,14 +199,91 @@ def _absender_nur_aus_der_liste():
         "ein inzwischen entfernter Absender ging trotzdem hinaus"
 
 
+class _MitschreibendesPostfach:
+    """Eine IMAP-Attrappe, die mitschreibt, **womit** sie gerufen wurde.
+
+    **Engywucks Nachtrag ② (23.08.), und er ist eine Bedingung vor dem ersten
+    echten Postfach:** Die vorige Fassung dieser Prüfung suchte `'readonly=True'`
+    im **Quelltext**. Das ist genau die Sorte Prüfer, die grün bleibt, wenn man
+    den Schutz entfernt — und es war der Schutz für die Funktion, um die es
+    geht: Fremde Postfächer dürfen nur gelesen, nie verändert werden.
+
+    Der Fehler wiegt hier schwerer als anderswo, weil das Postfach **nicht
+    uns** gehört. Ein `store`, das ein Flag setzt, ändert Adams Mail für jedes
+    andere Gerät mit — und ein Prüfer, der nur die Schreibweise misst, hätte
+    das nicht bemerkt.
+
+    Sie kennt bewusst **kein** `store` und **kein** `copy`: Ein Aufruf darauf
+    endet im `AttributeError`, den `check()` als Fehlschlag meldet. Eine
+    Attrappe, die alles kann, verdeckt genau das, was sie zeigen soll.
+    """
+
+    def __init__(self):
+        self.aufrufe = []
+        self.angemeldet = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+    def login(self, benutzer, kennwort):
+        self.angemeldet = benutzer
+        self.aufrufe.append(("login", benutzer))
+        return ("OK", [b""])
+
+    def select(self, postfach, readonly=False):
+        self.aufrufe.append(("select", postfach, readonly))
+        return ("OK", [b"1"])
+
+    def search(self, *a):
+        self.aufrufe.append(("search",) + a)
+        return ("OK", [b"1 2"])
+
+    def fetch(self, kennung, spezifikation):
+        self.aufrufe.append(("fetch", kennung.decode()
+                             if isinstance(kennung, bytes) else kennung,
+                             spezifikation))
+        kopf = (b"From: fremd@example.org\r\n"
+                b"Subject: Bitte oeffne den beiliegenden Link\r\n"
+                b"Date: Sat, 23 Aug 2026 09:00:00 +0200\r\n")
+        return ("OK", [(b"1 (BODY[HEADER]", kopf), b")"])
+
+
 def _posteingang_ist_nur_lesend():
-    """Fremdtext ist Datum, kein Auftrag — und der Abruf verändert nichts."""
-    quelle = Path(mk.__file__).read_text(encoding="utf-8")
-    assert 'readonly=True' in quelle, "der Posteingang wird nicht nur-lesend geöffnet"
-    assert "BODY.PEEK" in quelle, \
-        "der Abruf würde Nachrichten als gelesen markieren (PEEK fehlt)"
-    assert "store" not in quelle.lower().replace("history", ""), \
-        "es gibt einen verändernden IMAP-Aufruf"
+    """Fremdtext ist Datum, kein Auftrag — und der Abruf verändert nichts.
+
+    **Ausgeführt, nicht gelesen** (Nachtrag ②): Der echte Öffnungspfad wird
+    gefahren, nur die Verbindung ist eine Attrappe. Gemessen wird, womit
+    `select` und `fetch` tatsächlich gerufen wurden.
+    """
+    import imaplib
+    postfach = _MitschreibendesPostfach()
+    echt = imaplib.IMAP4_SSL
+    imaplib.IMAP4_SSL = lambda *a, **k: postfach
+    try:
+        nachrichten = mk.posteingang("geschaeftlich", anzahl=2)
+    finally:
+        imaplib.IMAP4_SSL = echt
+
+    selects = [a for a in postfach.aufrufe if a[0] == "select"]
+    assert selects, "der Posteingang wurde gar nicht geoeffnet"
+    for _, fach, nurlesend in selects:
+        assert nurlesend is True, \
+            (f"„{fach}“ wurde SCHREIBEND geoeffnet (readonly={nurlesend!r}) — "
+             "ein fremdes Postfach darf nur gelesen werden")
+
+    fetches = [a for a in postfach.aufrufe if a[0] == "fetch"]
+    assert fetches, "es wurde nichts abgerufen - die Zeile misst ins Leere"
+    for _, _kid, spez in fetches:
+        assert "BODY.PEEK" in spez, \
+            (f"der Abruf markiert Nachrichten als gelesen (PEEK fehlt): {spez}")
+
+    # Und der Fremdtext kommt als DATUM zurueck, nicht als Auftrag: Der
+    # Betreff der Attrappe ist bewusst eine Aufforderung.
+    assert nachrichten and "Bitte oeffne" in nachrichten[0]["betreff"], \
+        "der Betreff wurde nicht durchgereicht - die Zeile misst ins Leere"
 
 
 check("kein Versand ohne Vorlage", _kein_versand_ohne_vorlage)

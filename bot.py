@@ -2773,6 +2773,17 @@ def make_permission_callback(user_id: int):
         # entkaeme ihr — der Feld-Fix von F haette den H-Fix ausgehebelt.
         _ref = "\n".join(str(tool_input.get(f) or "") for f in _felder).strip()
         sensitive = _is_sensitive_ref(_ref)
+        # **Engywucks Nachtrag ① (23.08.): G war halb zu.** Die Zwei-Wege-Logik
+        # stimmte und der Bash-Weg nutzte sie — der Read-Zweig nicht. Er nahm
+        # dieselbe strenge Berechnung von oben, und damit öffnete `Read` auf
+        # `pending-items.md` oder `CLAUDE.md` weiter einen Dialog, **während der
+        # Kommentar direkt darüber das Gegenteil verspricht**.
+        #
+        # Kein Loch, nur Übervorsicht — aber Übervorsicht mit Preis: Wer für
+        # jedes Nachschlagen im eigenen Gedächtnis gefragt wird, klickt
+        # irgendwann auf „immer erlauben". Und der Doku-Spiegel bleibt gebrochen,
+        # solange der System-Prompt etwas zusagt, das die Schranke verweigert.
+        sensitive_lesend = _is_sensitive_ref(_ref, schreibend=False)
 
         # (4) Lokale private Websuche (SearxNG, 2.7): kostenfrei + lokal, aber
         # **nicht mehr bedingungslos.**
@@ -2843,7 +2854,7 @@ def make_permission_callback(user_id: int):
         # 5.25 (a) + Session-Diät (5.23): Lesen in Workspace + Memory-Ordner ohne
         # Rückfrage — der Agent recherchiert/liest selbst nach (nur lesend).
         # Schreibende/ausführende Werkzeuge bleiben freigabepflichtig.
-        if tool_name in ("Read", "Grep", "Glob") and not sensitive:
+        if tool_name in ("Read", "Grep", "Glob") and not sensitive_lesend:
             raw = tool_input.get("file_path") or tool_input.get("path") or ""
             try:
                 if not raw:
@@ -7352,9 +7363,24 @@ def run_self_check() -> tuple[bool, list[str]]:
 
         Die Regel „neue Bezüge SOFORT eintragen" stand seit dem 16.07. da und
         hatte niemanden, der sie prüft — eine Regel ohne Prüfer ist eine Bitte.
-        Deterministisch geprüft wird das Nachweisbare: Jedes eigene Modul und
-        jedes Betriebsskript muss im Register namentlich vorkommen. Reine
+        Deterministisch geprüft wird das Nachweisbare: Module und
+        Betriebsskripte müssen im Register namentlich vorkommen. Reine
         Testskripte sind ausgenommen, sie tragen keine Laufzeit-Kette.
+
+        **`[BERICHTIGT 2026-08-23, Schritt 0]` Hier stand „jedes eigene Modul".
+        Das ist für den Modul-Teil falsch** und war die Begründung, mit der das
+        Projekt seine Mengen-Regel belegt hat: Die Liste unten ist **fest
+        verdrahtet und erfasst sieben von achtzehn**. Dass sie damals `ampel.py`
+        „fand", lag daran, dass `ampel.py` **in ihr steht** — nicht an
+        Mengenbildung.
+
+        Der Skript-Teil darunter bildet dagegen wirklich eine Menge (alles in
+        `scripts/`, außer `test_*`), und der ist in Ordnung. **Der Unterschied
+        zwischen den beiden Hälften dieser Funktion ist das Lehrstück.**
+
+        Alle achtzehn Module stehen heute im Register — durch Disziplin. **Modul
+        Nummer neunzehn ist ungeschützt**; das schließt Differenzart A
+        (Engywucks Bauauftrag, Schritt 1).
         """
         register = _REPO_DIR / "ABHAENGIGKEITEN.md"
         if not register.exists():

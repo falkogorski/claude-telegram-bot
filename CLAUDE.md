@@ -880,9 +880,28 @@ benötigt von → Prüfbefehl).
    eingefroren**, nicht bloß der geänderte Teil.
 
 **Wächter statt Bitte (R2):** Die Selbstcheck-Zeile „Register-Vollständigkeit"
-meldet jedes eigene Modul und jedes Betriebsskript, das keinen Register-Eintrag
-hat. Eine Regel ohne Prüfer ist eine Bitte — sie fand beim ersten Lauf sofort
-eine Lücke (`ampel.py`).
+meldet Module und Betriebsskripte ohne Register-Eintrag. Eine Regel ohne Prüfer
+ist eine Bitte.
+
+**`[BERICHTIGT 2026-08-23, Engywucks Differenzmesser-Studie, Schritt 0]`** Hier
+stand, die Zeile laufe „über **jedes** eigene Modul" und habe „beim ersten Lauf
+sofort eine Lücke (`ampel.py`)" gefunden. **Beides ist falsch, und die
+Verwechslung ist genau die, gegen die dieser Abschnitt argumentiert.**
+
+Gemessen (`bot.py`, `_c_register_vollstaendig`): Der Modul-Teil ist eine **fest
+verdrahtete Siebenerliste**, und `ampel.py` **steht darin**. Es wurde gefunden,
+*weil es eingetragen war* — nicht durch Mengenbildung. Es gibt **18** eigene
+Wurzelmodule; der Prüfer erfasst sieben. (Der Skript-Teil bildet dagegen
+wirklich eine Menge und ist in Ordnung.)
+
+**Die Präzisierung, damit der Satz nicht in die andere Richtung kippt:** Alle 18
+Module stehen heute im Register — **durch Disziplin, nicht durch Prüfung**. Die
+Lücke ist noch nicht aufgeschlagen. **Modul Nummer 19 ist ungeschützt.**
+
+**Warum das hier so ausführlich steht:** Der Satz wurde als Beleg für die
+Mengen-Regel weitergereicht, in Aufträge hinein und Adam gegenüber. Eine
+Aufzählung als Beweis für „nimm Mengen statt Aufzählungen" — solange das steht,
+zitiert die nächste Sitzung ein Gegenbeispiel als Beispiel.
 
 Verkabelt mit **8.1** (täglicher 4-Uhr-Check arbeitet die Prüfbefehle ab, meldet
 Brüche per Telegram) und **8.2** (Regressionstest nutzt das Register als

@@ -110,9 +110,26 @@ bevor das erste fremde Postfach hinterlegt wird.* Die Absicherung ist gebaut
 und von dir geprüft — aber wir haben heute früh entschieden, **keinen vierten
 Lauf** zu fahren (Konvergenz-Bremse, und der Code war beweglich).
 
-Meine Lesart: Die Prüfstelle ist durch deine Gegenprüfung **erfüllt**, nicht
-übersprungen. Teilst du die? Wenn nein, gehört ein Lauf vor die Postfächer, und
-dann lieber am Dienstag mit frischem Kontingent.
+~~Meine Lesart: Die Prüfstelle ist durch deine Gegenprüfung **erfüllt**, nicht
+übersprungen.~~ `[FALSCH, RICHTIGGESTELLT 23.08. durch Engywuck]`
+
+**Diese Lesart war falsch und gefährlich**, und er hat genau begründet, warum:
+Eine Kontroll-Gegenprüfung **ersetzt Ultracode nicht** — es sind zwei
+Instrumente. Ultracode misst **in die Breite** (Fächerung vieler Blickwinkel,
+adversarische Gegenprüfung), die Kontrolle misst **in die Tiefe an wenigen
+Stellen**. Wäre mein Satz in der Ablage stehen geblieben, hätte ihn in vier
+Wochen jemand als Präzedenz zitiert — und die Prüfstelle wäre still weggefallen.
+
+**Der richtige Grund, warum hier kein Lauf gehört** (seiner): Die Prüfstelle
+war bereits **bedient**, zweimal — am 22.08. und am 23.08. Ihr Auslöser ist
+*neue Schrankenlogik*, und für den Mail-Pfad ist keine entstanden:
+`email_kanal.py` ist unverändert, umgebaut wurde nur sein **Prüfer**. Dazu
+fällt Bedingung ④: zwölf Fixes gestern, drei heute — der Code ist beweglich.
+
+**Entsteht mail-eigene Schrankenlogik, greift die Prüfstelle wieder.**
+
+Die Klarstellung ist in `CLAUDE.md` unter „WANN ULTRACODE" eingetragen, damit
+sie dort steht, wo jemand sie sucht.
 
 **② Genügt „Bedingung erfüllt" für die echten Konten, oder fehlt noch etwas?**
 

@@ -757,6 +757,24 @@ bestätigt). Fable bleibt der Kontrollsitzung für **Einzelurteile** vorbehalten
 für Ultracode ist es keine Option, weil es für genau dieses Material nicht
 zuverlässig bereitsteht.
 
+**`[NEU 2026-08-23, Engywuck]` Eine Gegenprüfung der Kontrolle ERSETZT
+Ultracode nicht — es sind zwei Instrumente.** Ultracode misst **in die Breite**
+(Fächerung vieler Blickwinkel, adversarische Gegenprüfung); die Kontrolle misst
+**in die Tiefe an wenigen Stellen**. Beides ist nötig, keines vertritt das
+andere.
+
+**Warum das hier steht:** Ich hatte am 23.08. geschrieben, die Prüfstelle sei
+„durch Engywucks Gegenprüfung erfüllt". Der Satz klingt vernünftig und ist
+falsch — **in vier Wochen zitiert ihn jemand als Präzedenz, und dann fällt die
+Prüfstelle still weg.** Genau die Art Falschaussage, die dieses Projekt schon
+mehrfach in der eigenen Ablage gefunden hat.
+
+**Die zulässigen Gründe, eine Prüfstelle nicht zu bedienen**, sind stattdessen:
+sie **war bereits bedient** (dann sagt man wann), oder ihr **Auslöser ist nicht
+eingetreten** — bei „vor der Anbindung fremder Datenquellen" ist der Auslöser
+*neue Schrankenlogik*, nicht die Anbindung selbst. Wird nur ein **Prüfer**
+umgebaut und der geprüfte Pfad nicht angefasst, ist keine entstanden.
+
 **Wer startet ihn, und wo:** **Die Kontroll-Rolle, nicht die Bau-Rolle.** Der
 Befund ginge sonst zuerst an den Erbauer, der ihn ueber die eigene Arbeit
 bewertet — dieselbe Schwaeche, gegen die das Vier-Augen-Prinzip ueberhaupt

@@ -315,6 +315,16 @@ Differenz derselben zwei Mengen: `soll - ist` statt nur `ist - soll`.
 Die Lücke steht in Engywucks Auftrag („Ist: jede versionierte `*.py` → Soll:
 eine Tabellenzeile"), nicht in der Umsetzung. Er hat sie selbst gefunden.
 
+**Härte: `meldet`**, nach seinem Kriterium — *bricht, wenn etwas Wirkendes
+ungeschützt ist; meldet, wenn etwas Unwirksames herumliegt.* Eine Registerzeile
+ohne Modul führt einen Leser in die Irre, bricht aber nichts.
+
+**Die Vorbedingung ist erfüllt:** Der `meldet`-Ausgang steht seit dem 23.08. im
+Selbstcheck (`bot.py`, `_c_differenzen`). Vorher wurde eine `MELDET`-Differenz
+berechnet und **fallen gelassen** — F-15 wäre als erste solche Art sofort eine
+Attrappe gewesen. Genau die Sorge, die ich beim Bauen geäußert hatte; Engywucks
+Messung hat sie bestätigt und die Reihenfolge vorgegeben.
+
 **F-16 · `hora.py`: der Riegel hängt an der Disziplin künftiger Schreiber** `[offen, 23.08.2026]`
 
 **Kein Loch — Engywuck hat den Befund selbst gefahren.** Die Kette bricht

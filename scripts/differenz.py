@@ -58,9 +58,23 @@ from pathlib import Path
 
 WURZEL = Path(__file__).resolve().parent.parent
 
-# Härtegrade. `bricht` lässt den Selbstcheck fehlschlagen, `meldet` schreibt
-# nur eine Zeile. Ein Pflichtfeld, keine Vorgabe: Wer eine Art hinzufügt, muss
-# sich entscheiden.
+# Härtegrade. Ein Pflichtfeld, keine Vorgabe: Wer eine Art hinzufügt, muss sich
+# entscheiden.
+#
+# **Das Kriterium ist kein Geschmacksurteil** (Engywuck, 23.08.):
+#
+#   BRICHT, wenn etwas WIRKENDES ungeschützt ist.
+#   MELDET, wenn etwas UNWIRKSAMES herumliegt.
+#
+# Am Beispiel derselben zwei Mengen: Ein **Modul ohne Registerzeile** ist
+# unsichtbar für 8.1 und 8.2 — es wirkt und niemand prüft es → `bricht`. Eine
+# **Registerzeile ohne Modul** führt einen Leser in die Irre, bricht aber nichts
+# → `meldet`.
+#
+# **Der Ausgang für `meldet` muss stehen, BEVOR die erste Art ihn nutzt.** Bis
+# zum 23.08. prüfte der Selbstcheck nur `BRICHT`; eine `MELDET`-Differenz wurde
+# berechnet und fallen gelassen. Das Feld wäre eine Attrappe gewesen, sobald es
+# jemand benutzt hätte — gefunden hat es Engywuck, gefragt hatte ich danach.
 BRICHT = "bricht"
 MELDET = "meldet"
 

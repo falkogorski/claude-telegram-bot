@@ -7439,7 +7439,24 @@ def run_self_check() -> tuple[bool, list[str]]:
         # ausgeführt und den vollen Stapel gelesen habe.
         _sys.modules.setdefault("differenz", modul)
         spec.loader.exec_module(modul)
-        harte = [b for b in modul.messen() if b.haerte == modul.BRICHT]
+        befunde = modul.messen()
+        # **Der `meldet`-Ausgang, und warum er VOR der ersten meldet-Art
+        # gebaut wird** (Engywucks Fund, 23.08.): Diese Zeile prüfte zunächst
+        # nur `BRICHT`. Eine `MELDET`-Differenz wurde berechnet und **fallen
+        # gelassen** — der Zweig hatte gar keinen Ausgang.
+        #
+        # Ich hatte beim Bauen gefragt, ob F-15 als `meldet` das Härte-Feld zur
+        # Attrappe macht. Die Antwort war schärfer als die Frage: **Ohne Ausgang
+        # wäre es das gewesen**, und zwar sofort. Deshalb erst der Ausgang, dann
+        # die erste Art, die ihn nutzt.
+        #
+        # Kein neuer Kanal, keine zweite Meldestelle: eine Zeile im
+        # Selbstcheck-Text, die als `✓` durchgeht und den Hinweis mitführt. Ein
+        # eigener Kanal für „nicht schlimm" wird nicht gelesen.
+        weich = [b for b in befunde if b.haerte == modul.MELDET]
+        for b in weich:
+            results.append(f"✓ Hinweis — {b.was}: {', '.join(sorted(b.fehlend))}")
+        harte = [b for b in befunde if b.haerte == modul.BRICHT]
         assert not harte, "; ".join(
             f"{b.was}: {', '.join(sorted(b.fehlend))}" for b in harte)
     check("Differenzen (Mengen statt Aufzählungen)", _c_differenzen)

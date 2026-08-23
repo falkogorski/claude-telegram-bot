@@ -529,3 +529,36 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   umgestellt — die Umstellung war für sich richtig, aber nicht die Ursache.
   Gefunden erst, als ich den Ladevorgang einzeln ausführte und den vollen
   Stapel las statt der letzten Zeile.
+
+- **Die Schreibweisen-Regel gilt auch für den Prüfer des Prüfers · Engywuck über
+  sich selbst, 23.08. · universell** — *Nebenwirkung, und sie ist die
+  eindrücklichste des Tages:* Seine Prüfsonde für die Einhängung suchte
+  `ast.Call`-Knoten mit „differenz" im Aufruf und fand **null** — weil der
+  Aufruf über ein dynamisch geladenes Modul geht. **Er hat damit genau die
+  Regel gebrochen, die er mir eine Stunde vorher geschrieben hatte**, und es
+  war das zweite Mal am selben Tag, dass seine eigene Messung zu eng war.
+
+  Die Lehre ist nicht „auch Kontrolleure irren", sondern präziser: **Eine Regel
+  über Mengenbildung gilt für jede Ebene, auf der jemand eine Menge bildet** —
+  auch für die Sonde, mit der man die Befolgung der Regel misst. Wer sie nur
+  auf den geprüften Code anwendet, hat sie halb verstanden.
+
+- **Vor der Gegenprobe hinschreiben, WELCHE Zeile rot werden soll · Engywucks
+  Handgriff · universell** — *Anlass:* Ich hatte an einem Tag zweimal eine
+  Gegenprobe gefahren, bei der die falsche Zeile rot wurde, und es beide Male
+  fast als Beleg genommen. Der Handgriff kostet einen Satz und verwandelt
+  „die falsche wurde rot" von einem **Zufallsfund** in einen **Fehlschlag**.
+
+  *Beim ersten Anwenden sofort etwas gezeigt:* Für den `meldet`-Ausgang notierte
+  ich vorab, dass der Selbstcheck-Status **nicht** das Unterscheidungsmerkmal
+  ist — nur die Anwesenheit der Hinweiszeile. Ohne die notierte Erwartung hätte
+  ich auf „OK: True" geschaut und nichts gemerkt.
+
+- **Ein Instrument ersetzt kein anderes, auch wenn beide prüfen · Ultracode vs.
+  Kontroll-Gegenprüfung · universell** — *Nebenwirkung:* Ich hatte geschrieben,
+  die Ultracode-Prüfstelle sei „durch Engywucks Gegenprüfung erfüllt". Der Satz
+  klingt vernünftig und ist falsch: **Breite** (viele Blickwinkel, adversarisch)
+  und **Tiefe** (wenige Stellen, gründlich) vertreten einander nicht. In vier
+  Wochen hätte ihn jemand als Präzedenz zitiert, und die Prüfstelle wäre still
+  weggefallen. **Die zulässigen Gründe sind stattdessen: bereits bedient, oder
+  Auslöser nicht eingetreten.**

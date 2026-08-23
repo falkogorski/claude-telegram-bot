@@ -210,6 +210,39 @@ Wenn du gegenprüfst, wären mir **zwei Stellen** am wichtigsten:
    ohne Schrägstrich mit der Begründung „ein Ausbruch braucht einen Pfad".
    Wenn dir ein Gegenbeispiel einfällt, ist es ein Loch.
 
-**Für Ultracode:** Der zu prüfende Stand ist jetzt `bc33f40`, nicht mehr
-`d596269`. Vier der zwölf Fehler saßen in Code, den derselbe Lauf schon einmal
-gesehen hat — es lohnt sich.
+**Kein weiterer Ultracode-Lauf** `[KORRIGIERT 23.08., nach Adams Nachfrage]`
+
+Hier stand: *„Der zu prüfende Stand ist jetzt `bc33f40`. Vier der zwölf Fehler
+saßen in Code, den derselbe Lauf schon einmal gesehen hat — es lohnt sich."*
+**Das war falsch, und zwar gegen unsere eigene Regel.** Adam hat nachgehakt;
+ich habe daraufhin gezählt.
+
+**Die Kette dieser Absicherung hat bereits drei Prüfrunden hinter sich:**
+
+1. Ultracode am 22.08. (26 Agenten, 58 Angriffsbefunde) → daraus ①–⑩ gebaut
+2. Engywucks Probelauf am gebauten Code → 11 schwere Fehler → behoben
+3. Ultracode am 23.08. auf `d596269` → 12 Befunde → behoben (dieser Bericht)
+
+Ein weiterer wäre **Runde vier**. Die Konvergenz-Bremse sagt: *Eine Kette Fix →
+Gegenprüfung → Nachprüfung endet nach der Nachprüfung. Was sie dann noch findet
+und nicht scharf-blockierend ist, geht in die F-Liste — nie in eine dritte
+Runde.* Ich war schon eine drüber.
+
+**Und Ultracode-Bedingung ④ ist verletzt:** *„Der Code ist stabil genug, dass
+das Ergebnis nicht binnen Tagen veraltet."* Ich habe gerade zwölf Stellen
+umgebaut — der Grund ist so beweglich wie nie. Genau der Fall, den die Regel
+als *„verlorenes Kontingent"* benennt.
+
+**Das Argument „vier Fehler saßen in schon geprüftem Code" trägt das Gegenteil
+von dem, was ich daraus gemacht habe.** Es zeigt, dass ein weiterer Lauf
+derselben Art wieder etwas fände — nicht, dass er soll. *Ein Bau, der erst
+abgegeben wird, wenn niemand mehr etwas findet, wird nie abgegeben.*
+
+**Was stattdessen richtig ist:** deine normale Gegenprüfung am Code, frische
+Sitzung, Widerlegungsauftrag — die zwei Stellen oben sind der Ansatzpunkt. Das
+kostet einen Bruchteil und erfüllt Adams Bedingung, dass die Absicherung
+geprüft ist, **bevor** ein Postfach hinterlegt wird.
+
+**Für den nächsten echten Ultracode-Anlass:** Er steht in der Regel schon —
+*vor jeder weiteren Anbindung fremder Datenquellen, aber nur, wenn dafür neue
+Schrankenlogik entstanden ist.* Nicht für diesen Stand.

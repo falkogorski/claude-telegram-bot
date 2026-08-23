@@ -470,3 +470,38 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   Reihenfolge ist: anhalten, sichern, bereinigen, starten.** Ich hatte das
   Risiko sogar im Laufplan notiert und trotzdem am laufenden Dienst gearbeitet;
   eine notierte Gefahr ist keine abgewendete.
+
+## Differenzmesser (23.08.2026, Engywucks Bauauftrag)
+
+- **Die Gegenprobe als LADEBEDINGUNG statt als Prüfung · Schritt 1 · universell**
+  — geprüft: dass jede Differenzart eine Gegenprobe hat. *Nebenwirkung, die den
+  Entwurf trägt:* Sie ist damit **kein Prüfer über einen Prüfer** (Wächter
+  dritter Ordnung, verboten), sondern eine Bedingung beim Laden. Wer eine Art
+  ohne `<name>_gegenprobe` hinzufügt, bekommt einen Fehler statt einer stillen
+  Aufnahme. **Eine Art, die nie etwas meldet, sieht sonst aus wie eine, die
+  passt.**
+
+- **Die Ist-Menge über die Endung zu bilden ist eine Aufzählung mit
+  Regex-Anstrich · Differenzart B · universell** — geprüft: welche
+  Zustandsablagen der Regressionsläufer verriegelt. *Nebenwirkung:* Meine eigene
+  Fassung vom selben Vormittag suchte `_DIR` und `_FILE` und verfehlte damit
+  **die Ampel** — vier Schlüssel, die laut `CLAUDE.md` das Heikelste im Projekt
+  führen. Ein Prüflauf hätte ihre Regeldatei überschreiben können, und der
+  Prüfer, der genau das verhindern sollte, hätte geschwiegen. **Ein Muster ist
+  keine Menge, auch wenn es wie eine aussieht.**
+
+- **Der Regressionslauf entscheidet die Einzelfälle besser als Nachdenken ·
+  Schritt 2 · anpassbar** — *Nebenwirkung:* Ich habe `AUFTRAGSBUCH_RIEGEL`
+  umgebogen, weil er wie eine Zustandsablage aussah. Der Lauf meldete sofort:
+  Er ist ein **Konfigurationsdokument**, das die Frist der Probewoche trägt und
+  nur gelesen wird — umgebogen zeigt er ins Leere, und ein Riegel, der ins Leere
+  zeigt, sperrt nichts. Engywucks Anweisung „einzeln entscheiden" ließ sich so
+  billiger befolgen als durch Lesen.
+
+- **Eine geschätzte Größenordnung vor dem Bauen nachmessen · F-12 · universell**
+  — der Auftrag nannte „`Path.home()` in 16 Produktivmodulen". Gemessen: 39
+  Stellen, davon **30 bereits durch einen Umgebungsschalter abgedeckt**. Übrig
+  neun. *Die Nebenwirkung ist die Entscheidung:* Für neun Stellen eine
+  Dauermeldung zu bauen, hätte genau die Erosion neu erzeugt, die am selben Tag
+  bei zwei anderen Filtern behoben wurde. **Gebaut wurde deshalb nichts — die
+  Zahl ging in die F-Liste.**

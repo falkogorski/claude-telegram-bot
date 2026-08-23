@@ -70,9 +70,34 @@ export LIMIT_STAND_FILE="$PRUEFHEIM/limit.stand"
 # die ein Mensch spaeter liest: Gespraechsprotokolle und hochgeladene Dateien.
 export CONVERSATION_LOG_DIR="$PRUEFHEIM/claude-logs"
 export UPLOAD_DIR="$PRUEFHEIM/uploads"
+# `[NEU 2026-08-23]` Und WIEDER war die Liste unvollstaendig — diesmal gefunden
+# durch scripts/differenz.py, das die Ist-Menge nicht mehr ueber die ENDUNG
+# bildet. Meine eigene Fassung vom selben Tag suchte `_DIR` und `_FILE` und
+# verfehlte damit ausgerechnet die AMPEL, die laut CLAUDE.md das Heikelste im
+# Projekt fuehrt (Klienten-Namen, ausdruecklich cloud-frei zu pflegen). Ein
+# Pruflauf haette ihre Regeldatei ueberschreiben koennen, lautlos.
+export AMPEL_RULES_PATH="$PRUEFHEIM/ampel-regeln.json"
+export AMPEL_CUSTOM_PATH="$PRUEFHEIM/ampel-eigene.json"
+export AMPEL_STATE_PATH="$PRUEFHEIM/ampel-stand.json"
+export AMPEL_LOG_PATH="$PRUEFHEIM/ampel.log"
+export AUTH_MARKE="$PRUEFHEIM/auth-marke.json"
+export ZUSTELL_MARKE="$PRUEFHEIM/zustell-marke.json"
+export ERINNERUNG_DIR="$PRUEFHEIM/erinnerungen"
+export HORA_LISTE="$PRUEFHEIM/hora-liste.json"
+export KONTINGENT_HOME="$PRUEFHEIM/kontingent-heim"
+export LOG_SYNC_REPO="$PRUEFHEIM/log-repo"
+export PRESEND_LOG_PATH="$PRUEFHEIM/presend.log"
+export TAGESCHECK_LOG="$PRUEFHEIM/tagescheck.log"
+export UPDATER_STATE_DIR="$PRUEFHEIM/updater"
+export VERSION_MONITOR_LOG="$PRUEFHEIM/version-monitor.log"
+export VERSION_MONITOR_SEEN="$PRUEFHEIM/version-gesehen.json"
+export WACHPOSTEN_DIR="$PRUEFHEIM/wachposten"
+export WACHPOSTEN_LOGDIR="$PRUEFHEIM/wachposten-logs"
 mkdir -p "$POSTFACH_DIR/outbox" "$FREIGABE_DIR" "$HORA_DIR" "$BLUMEN_DIR" \
          "$AUFTRAGSBUCH_DIR" "$PENDING_DIR" "$LINK_INBOX_DIR" \
-         "$CONVERSATION_LOG_DIR" "$UPLOAD_DIR"
+         "$CONVERSATION_LOG_DIR" "$UPLOAD_DIR" \
+         "$ERINNERUNG_DIR" "$KONTINGENT_HOME" "$LOG_SYNC_REPO" \
+         "$UPDATER_STATE_DIR" "$WACHPOSTEN_DIR" "$WACHPOSTEN_LOGDIR"
 trap 'rm -rf "$PRUEFHEIM"' EXIT
 
 # Stand des ECHTEN Postfachs VOR dem Lauf — der Nachweis am Ende vergleicht.

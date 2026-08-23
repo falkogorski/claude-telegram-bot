@@ -254,6 +254,28 @@ kein Ausweichen, sondern der geschützte Weg für ein weiteres Format. Bewusst
 nicht in derselben Runde gebaut: Ein Sicherheitsfix und eine Formaterweiterung
 gehören nicht in denselben Commit.
 
+**F-12 · `Path.home()` ohne Umgebungsschalter — neun Stellen** `[offen, 23.08.2026]`
+
+Aus Engywucks Differenzmesser-Auftrag, Schritt 2, Punkt 4. Er schätzte „fest
+verdrahtete `Path.home()`-Pfade in 16 Produktivmodulen". **Nachgemessen ist die
+Klasse deutlich kleiner:** 39 Stellen insgesamt, davon **30 bereits durch einen
+Umgebungsschalter abgedeckt** (`os.environ.get(...) or Path.home()/...`).
+
+Übrig bleiben **neun** ohne Schalter:
+`bot.py` (136, 652, 659, 3540, 5886, 6013) · `botenpost.py:69` ·
+`scripts/start_waechter.py` (119, 195).
+
+**Bewusst NICHT als Differenzart gebaut**, obwohl der Auftrag „gemeldet, nicht
+gebrochen" vorsah. Eine Art, die bei jedem Bot-Start neun Stellen meldet, ist
+nach einer Woche Dauerlärm — und wird dann überlesen wie jede Meldung, die
+nichts ändert. Das ist exakt die Erosion, gegen die Befund H und I an diesem
+Tag behoben wurden; sie hier neu einzubauen wäre widersprüchlich.
+
+**Der sinnvolle Schritt ist stattdessen die Prüfung der neun einzeln:** Welche
+davon führen Zustand, der in einem Prüflauf geschrieben würde? Die bekommen
+einen Umgebungsschalter und fallen damit unter Differenzart B. Der Rest ist
+kein Befund.
+
 ## Erledigt
 - **Zeitgeber-Wache** (Befund B1/B4/B5): gelöschte Timer werden erfasst,
   monotone nicht mehr angeklagt, bewusst Abgeschaltetes hat einen Ausweg —

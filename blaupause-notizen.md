@@ -626,3 +626,24 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   oder der Eingriff die Prüfung gar nicht berührte. **Beides sah aus wie „der
   Schutz hält".** Der Handgriff verwandelt genau diesen Fall von einem
   beruhigenden Ergebnis in einen sichtbaren Fehlschlag.
+
+- **Zum zweiten Mal am selben Tag: der Prüfer stolperte über seinen eigenen
+  Erklärtext · B2 · universell** — *Nebenwirkung:* Die erste Fassung suchte
+  `task_origins`, `adam_anteil` und `QueuedJob` als **Text** im Quelltext der
+  geprüften Funktion — und schlug an, weil deren **Docstring genau erklärt,
+  warum sie diese Dinge nicht berührt.**
+
+  Die Regel vom 22.08. benennt das ausdrücklich, und ich habe sie an einem Tag
+  zweimal gebrochen (einmal beim Pfad-Prüfer, einmal hier). **Der Griff, der
+  hilft, ist derselbe wie überall:** über den Syntaxbaum messen, echte
+  Namensknoten statt Textvorkommen. Kommentare gibt es dort nicht, und
+  Docstrings sind Zeichenketten, keine Namen.
+
+- **Bauartbedingt schlägt geprüft · B2 · universell** — der werkzeugfreie
+  Mail-Lauf kann `task_origins` nicht erweitern, **weil es die Verbindung nicht
+  gibt**: eigene Optionen, eigener Client, kein Auftrag in der Warteschlange.
+  Kein Filter weist etwas ab; es führt schlicht kein Weg dorthin.
+
+  *Der Unterschied zur Prüfung ist praktisch, nicht philosophisch:* Ein Filter
+  muss richtig bleiben, während der Code sich ändert. Eine fehlende Verbindung
+  muss erst hergestellt werden, und das fällt beim Schreiben auf.

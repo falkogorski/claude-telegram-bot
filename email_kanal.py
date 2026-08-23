@@ -485,6 +485,61 @@ def _kopf_zerlegen(roh: bytes) -> dict[str, str]:
     return felder
 
 
+def nachricht_text(konto: str, kennung: str) -> tuple[dict, str, list[str]]:
+    """**Genau eine** Nachricht holen — Kopf, sichtbarer Text, Verborgenes.
+
+    **Stufe B, und die Zweistufigkeit ist der Punkt.** Der Überblick kostet
+    nichts und holt nur Kopfzeilen; der Text kommt erst, wenn Adam ihn
+    ausdrücklich anfordert. So bleibt Fremdtext aus dem Zusammenhang heraus,
+    solange ihn niemand braucht — dieselbe Zweistufigkeit wie bei Video,
+    Dokument und Link-Ablage.
+
+    **Weiterhin `readonly` und `BODY.PEEK`.** Ein fremdes Postfach wird gelesen,
+    nie verändert: Ein gesetztes Flag wanderte auf jedes andere Gerät, und Adam
+    hielte eine Mail für gelesen, die er nie gesehen hat.
+
+    **Anhänge werden nicht berührt** — auch nicht „nur zum Anzeigen". Sie sind
+    eine eigene Risikoklasse und ein eigener Auftrag; hier wird ausschließlich
+    der Textteil gelesen.
+    """
+    verfuegbar = konten()
+    if konto not in verfuegbar:
+        raise Abgewiesen(f"Kein Konto [{konto}] eingerichtet.")
+    if not re.fullmatch(r"\d{1,9}", str(kennung or "")):
+        # Die Kennung geht in einen IMAP-Befehl. Sie kommt zwar aus unserer
+        # eigenen Liste, aber ein Wert, der in eine Befehlssprache wandert,
+        # wird geprüft — nicht weil dieser Weg offen ist, sondern damit er es
+        # bleibt, wenn jemand die Herkunft ändert.
+        raise Abgewiesen(f"Unbrauchbare Nachrichtennummer: {kennung!r}")
+    k = verfuegbar[konto]
+    wirt, _, port = k.imap.partition(":")
+    try:
+        with imaplib.IMAP4_SSL(wirt, int(port or 993),
+                               ssl_context=ssl.create_default_context(),
+                               timeout=ABRUF_FRIST_S) as v:
+            v.login(k.benutzer, k._kennwort())
+            v.select("INBOX", readonly=True)
+            _, kopfteil = v.fetch(str(kennung),
+                                  "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])")
+            _, koerperteil = v.fetch(str(kennung), "(BODY.PEEK[TEXT])")
+    except imaplib.IMAP4.error:
+        log.warning("IMAP-Abruf einer Nachricht abgelehnt: %s", konto)
+        raise Abgewiesen(
+            f"Das Postfach [{konto}] hat den Zugriff abgelehnt.") from None
+    except (OSError, ssl.SSLError) as e:
+        log.warning("IMAP-Verbindung zu %s fehlgeschlagen: %s", wirt, e)
+        raise Abgewiesen(
+            f"Ich habe [{konto}] nicht erreicht: {e}. Das ist ein "
+            "Verbindungsproblem, keine leere Nachricht.") from None
+
+    felder = _kopf_zerlegen(
+        b"".join(t[1] for t in kopfteil if isinstance(t, tuple)))
+    roh = b"".join(t[1] for t in koerperteil if isinstance(t, tuple))
+    import mailtext
+    text, verborgen = mailtext.lesbar(roh.decode("utf-8", "replace"))
+    return felder, text, verborgen
+
+
 def posteingang_lesbar(konto: str, anzahl: int = 10) -> str:
     """Die Kopfzeilen als Text für den Chat — **fremder Wortlaut als Zitat.**
 

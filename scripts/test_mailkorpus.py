@@ -38,6 +38,13 @@ from pathlib import Path
 _TMP = Path(tempfile.mkdtemp(prefix="korpus-"))
 os.environ.update({
     "FREIGABE_DIR": str(_TMP / "f"), "TELEGRAM_BOT_TOKEN": "1:test",
+    # Ein Konto fuer die Abruf-Pruefungen — die Zugangsdaten sind erfunden,
+    # das Netz wird nie beruehrt (Attrappe).
+    "MAIL_GESCHAEFTLICH_ADRESSE": "adam@example.org",
+    "MAIL_GESCHAEFTLICH_BENUTZER": "adam@example.org",
+    "MAIL_GESCHAEFTLICH_KENNWORT": "nur-fuer-den-test",
+    "MAIL_GESCHAEFTLICH_IMAP": "imap.example.org:993",
+    "MAIL_GESCHAEFTLICH_SMTP": "smtp.example.org:465",
     "ALLOWED_USER_IDS": "4711", "USER_PREFS_FILE": str(_TMP / "prefs.json"),
     "PENDING_DIR": str(_TMP / "pending"), "LINK_INBOX_DIR": str(_TMP / "links"),
 })
@@ -224,7 +231,152 @@ def _der_bericht_traegt_den_rangvermerk_VOR_dem_fremdtext():
     assert "[unsichtbar]" in b, "das Verborgene ist im Bericht nicht markiert"
 
 
+def _der_lauf_ist_werkzeugfrei_ohne_ausnahme():
+    """**B1 — gemessen an der fertigen BEFEHLSZEILE, nicht an den Feldern.**
+
+    Engywucks H1 vom 22.08. hat gezeigt, warum: `allowed_tools=[]` erreicht die
+    CLI überhaupt nicht (`if effective_allowed_tools:` ist bei leerer Liste
+    falsch-wertig, das Flag entfällt ersatzlos). Ein Prüfer, der die Felder des
+    Options-Objekts liest, wäre grün gewesen, während der Lauf den vollen
+    Werkzeugsatz hatte.
+
+    Der Mailpfad nutzt dieselbe Fabrik wie der Dokumentenpfad — hier wird
+    belegt, dass sie trägt.
+    """
+    import bot
+    from claude_agent_sdk._internal.transport.subprocess_cli import SubprocessCLITransport
+    o = bot.werkzeugfreie_optionen("egal")
+    transport = SubprocessCLITransport(prompt="x", options=o)
+    transport._cli_path = "/bin/echo"
+    cmd = transport._build_command()
+    assert "--tools" in cmd and cmd[cmd.index("--tools") + 1] == "", \
+        "der Mail-Lauf haette Werkzeuge — `--tools` fehlt oder traegt einen Wert"
+    assert cmd[cmd.index("--permission-mode") + 1] == "dontAsk", \
+        "der Rueckfall ist nicht 'deny'"
+
+
+def _es_gibt_keinen_ausweichzweig_in_die_hauptsitzung():
+    """**B1, zweiter Teil** — das war Rang-1-Befund C, und er darf hier nicht
+    neu entstehen.
+
+    Gemessen über echte **Aufrufknoten** im Syntaxbaum, nicht über Namen im
+    Text: Im Mail-Berichtspfad darf `process_user_text` nicht vorkommen.
+    Kommentare gibt es im Baum nicht — ein Erklärtext kann die Zeile also nicht
+    grün halten.
+    """
+    import ast as _ast
+    import inspect
+    import bot
+    for fn in (bot.mail_zusammenfassen, bot.on_mail_knopf, bot.cmd_mail):
+        baum = _ast.parse(inspect.getsource(fn).lstrip())
+        aufrufe = [k.func.id for k in _ast.walk(baum)
+                   if isinstance(k, _ast.Call) and isinstance(k.func, _ast.Name)]
+        assert "process_user_text" not in aufrufe, \
+            (f"{fn.__name__} reicht Mailtext an die Hauptsitzung weiter — "
+             "der Ausweichpfad aus Befund C waere zurueck")
+
+
+def _der_bericht_kann_die_vertrauensliste_nicht_erreichen():
+    """**B2 — und zwar bauartbedingt, nicht durch eine Prüfung.**
+
+    Der werkzeugfreie Lauf geht **an der Warteschlange vorbei**: eigene
+    Optionen, eigener Client, kein `QueuedJob`. Es gibt damit gar keinen Weg,
+    auf dem er `task_origins` berühren könnte — das ist stärker als ein Filter,
+    der es abweist.
+
+    **Gemessen über den SYNTAXBAUM, nicht über den Quelltext** — und das ist
+    hier nicht Kosmetik: Die erste Fassung dieser Zeile suchte die Namen als
+    **Text** und schlug prompt an, weil der Docstring der geprüften Funktion
+    sie erklärt. **Ein Prüfer, der über die Beschreibung seines eigenen
+    Gegenstands stolpert, wird binnen einer Woche abgeschaltet** — die Regel
+    vom 22.08., von mir am selben Tag zum zweiten Mal gebrochen.
+
+    Im Baum gibt es keine Kommentare, und Docstrings sind Zeichenketten, keine
+    Namen. Gesucht werden **echte Namensknoten und Aufrufe**.
+    """
+    import ast as _ast
+    import inspect
+    import bot
+    baum = _ast.parse(inspect.getsource(bot.mail_zusammenfassen).lstrip())
+    namen = {k.attr for k in _ast.walk(baum) if isinstance(k, _ast.Attribute)}
+    namen |= {k.id for k in _ast.walk(baum) if isinstance(k, _ast.Name)}
+    for verboten in ("task_origins", "adam_anteil", "QueuedJob", "SESSIONS"):
+        assert verboten not in namen, \
+            (f"der Mail-Lauf beruehrt {verboten} — er soll an der "
+             "Warteschlange VORBEI laufen, nicht durch sie")
+
+
+def _der_textabruf_bleibt_nur_lesend():
+    """Auch der Einzelabruf: `readonly` und `BODY.PEEK`, wie die Übersicht.
+
+    Der Geschwister-Regel folgend — ein Fix an einem Pfad ist erst fertig, wenn
+    geprüft ist, welche Geschwister denselben Fehler tragen. `posteingang` war
+    abgesichert; `nachricht_text` ist der neue Zwilling.
+    """
+    import imaplib
+    import email_kanal
+
+    class _Postfach:
+        def __init__(self):
+            self.aufrufe = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def login(self, *a):
+            return ("OK", [b""])
+
+        def select(self, fach, readonly=False):
+            self.aufrufe.append(("select", fach, readonly))
+            return ("OK", [b"1"])
+
+        def fetch(self, kid, spez):
+            self.aufrufe.append(("fetch", kid, spez))
+            if "HEADER" in spez:
+                return ("OK", [(b"1 (", b"From: a@b.tld\r\nSubject: x\r\n")])
+            return ("OK", [(b"1 (", b"Hallo.")])
+
+    postfach = _Postfach()
+    echt = imaplib.IMAP4_SSL
+    imaplib.IMAP4_SSL = lambda *a, **k: postfach
+    try:
+        email_kanal.nachricht_text("geschaeftlich", "1")
+    finally:
+        imaplib.IMAP4_SSL = echt
+
+    selects = [a for a in postfach.aufrufe if a[0] == "select"]
+    assert selects and all(a[2] is True for a in selects), \
+        f"der Einzelabruf oeffnet SCHREIBEND: {selects}"
+    fetches = [a for a in postfach.aufrufe if a[0] == "fetch"]
+    assert fetches and all("BODY.PEEK" in a[2] for a in fetches), \
+        f"der Einzelabruf markiert als gelesen: {fetches}"
+
+
+def _eine_unbrauchbare_kennung_wird_abgewiesen():
+    """Die Kennung wandert in einen IMAP-Befehl. Sie kommt aus unserer eigenen
+    Liste — geprüft wird sie trotzdem, damit der Weg zu bleibt, wenn jemand
+    die Herkunft ändert."""
+    import email_kanal
+    for schlecht in ("1 OR DELETED", "*", "1:*", "", "abc", "1\r\nLOGOUT"):
+        try:
+            email_kanal.nachricht_text("geschaeftlich", schlecht)
+        except email_kanal.Abgewiesen:
+            continue
+        except Exception as e:
+            raise AssertionError(
+                f"unbrauchbare Kennung {schlecht!r} lief bis zum Netz: {e}")
+        raise AssertionError(f"unbrauchbare Kennung kam durch: {schlecht!r}")
+
+
 check("der Korpus ist vollstaendig (22 Faelle, 4 Kontrollen)", _der_korpus_ist_vollstaendig)
+check("der Lauf ist werkzeugfrei (B1)", _der_lauf_ist_werkzeugfrei_ohne_ausnahme)
+check("kein Ausweichzweig in die Hauptsitzung (B1)", _es_gibt_keinen_ausweichzweig_in_die_hauptsitzung)
+check("der Bericht erreicht die Vertrauensliste nicht (B2)", _der_bericht_kann_die_vertrauensliste_nicht_erreichen)
+check("der Textabruf bleibt nur lesend", _der_textabruf_bleibt_nur_lesend)
+check("unbrauchbare Kennung wird abgewiesen", _eine_unbrauchbare_kennung_wird_abgewiesen)
 check("kein Fall erweitert die Vertrauensliste", _kein_fall_erweitert_die_vertrauensliste)
 check("kein Fall faelscht den Absender", _kein_fall_faelscht_den_absender)
 check("kein unsichtbares Zeichen im Text", _kein_fall_traegt_unsichtbare_zeichen_in_den_text)

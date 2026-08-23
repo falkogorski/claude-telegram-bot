@@ -20,15 +20,20 @@
   <key>KeepAlive</key>
   <true/>
 
-  <!-- launchd-Sessions erben die Shell-Env NICHT. ANTHROPIC_API_KEY und ggf.
-       ANTHROPIC_BASE_URL hier explizit setzen, sonst startet der SDK-Subprozess
-       ohne Credentials. Werte aus `env | grep ANTHROPIC` übernehmen. -->
+  <!-- launchd-Sessions erben die Shell-Env NICHT; die Anmeldung muss hier
+       explizit stehen, sonst startet der SDK-Subprozess ohne Credentials.
+
+       KOSTENREGEL: Es gehoert das ABO-TOKEN hierher, NIE ein API-Schluessel.
+       Ein ANTHROPIC_API_KEY bucht getrennt vom Abo Geld ab und hat im SDK
+       sogar VORRANG vor dem Abo-Token - liegen beide, zahlt man doppelt fuer
+       etwas, das im Abo enthalten ist. Wert erzeugen mit `claude setup-token`
+       am Mac. -->
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    <key>ANTHROPIC_API_KEY</key>
-    <string>__HIER_DEINEN_KEY__</string>
+    <key>CLAUDE_CODE_OAUTH_TOKEN</key>
+    <string>__HIER_DEIN_ABO_TOKEN__</string>
     <!-- Optional, nur wenn du eine custom Base-URL nutzt:
     <key>ANTHROPIC_BASE_URL</key>
     <string>__HIER_DEINE_URL__</string>

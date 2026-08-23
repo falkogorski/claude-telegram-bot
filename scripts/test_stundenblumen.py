@@ -644,6 +644,55 @@ check("Tagescheck wird von den Blumen mitbewacht (Connis Fund)",
 check("die Verschränkung greift in BEIDE Richtungen",
       _verschraenkung_greift_in_BEIDE_richtungen)
 
+def _kostenwarnung_auch_neben_dem_abo_token():
+    """**Der Fall, den .env.example als die Gefahr benennt** (Engywuck 24.08.).
+
+    Liegen beide Anmeldungen nebeneinander, bevorzugt das SDK den Schluessel —
+    das Abo bleibt ungenutzt und es wird abgebucht. Der Waechter schwieg genau
+    hier, weil die Warnung im Zweig [kein Abo-Token] sass. **Er prueft jetzt
+    unabhaengig.**
+
+    Gemessen wird das VERHALTEN der herausgezogenen Entscheidung, nicht ihr
+    Quelltext — eine Pruefzeile, die Text liest, ist umgehbar.
+    """
+    befunde = sb.anmelde_befunde({"CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"})
+    schluessel = [k for k, _ in befunde]
+    assert "api-schluessel" in schluessel, (
+        "beide Anmeldungen gesetzt und KEINE Kostenwarnung — genau der Fall, "
+        f"den .env.example als die Gefahr benennt: {befunde}")
+
+
+def _kostenwarnung_auch_ohne_abo_token():
+    """Die alte Richtung muss weiter greifen — sonst hat der Umbau sie gekostet."""
+    befunde = sb.anmelde_befunde({"ANTHROPIC_API_KEY"})
+    assert "api-schluessel" in [k for k, _ in befunde], \
+        f"API-Schluessel allein loest keine Kostenwarnung aus: {befunde}"
+
+
+def _gesunde_anmeldung_schweigt():
+    """**Die Gegenrichtung, ohne die die Gegenprobe halb ist** (Engywuck).
+
+    Ein Waechter, der beim gesunden Zustand anschlaegt, wird abgeschaltet —
+    und dann warnt er nie wieder.
+    """
+    befunde = sb.anmelde_befunde({"CLAUDE_CODE_OAUTH_TOKEN"})
+    assert befunde == [], f"Fehlalarm bei sauberer Abo-Anmeldung: {befunde}"
+
+
+def _fehlende_anmeldung_faellt_weiter_auf():
+    """Und ganz ohne Anmeldung bleibt es beim alten Befund."""
+    assert [k for k, _ in sb.anmelde_befunde(set())] == ["keine-abo-anmeldung"]
+
+
+check("Kostenwarnung auch wenn das Abo-Token daneben liegt",
+      _kostenwarnung_auch_neben_dem_abo_token)
+check("Kostenwarnung auch ohne Abo-Token (alte Richtung)",
+      _kostenwarnung_auch_ohne_abo_token)
+check("saubere Abo-Anmeldung schweigt (Gegenrichtung)",
+      _gesunde_anmeldung_schweigt)
+check("fehlende Anmeldung faellt weiter auf",
+      _fehlende_anmeldung_faellt_weiter_auf)
+
 if fails:
     print(f"\n❌ {len(fails)} Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)

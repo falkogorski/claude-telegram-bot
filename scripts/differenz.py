@@ -94,6 +94,108 @@ class Befund:
 
 
 # --------------------------------------------------------------------------
+# Differenzart D — kopierbare Kosten-Zuweisungen in der Ablage
+# --------------------------------------------------------------------------
+
+_KOSTEN_ZUWEISUNG = re.compile(
+    r"ANTHROPIC_API_KEY\s*=\s*\S"          # Zuweisung MIT Wert
+    r"|<key>\s*ANTHROPIC_API_KEY\s*</key>"  # plist/XML-Schluessel
+)
+
+
+def _kopierbare_zuweisungen() -> set[str]:
+    """Fundstellen, an denen die Ablage einen kostenpflichtigen Schluessel SETZT.
+
+    **Die Menge ist `git ls-files`, nicht `*.md`** — und das ist der Kern.
+    Engywucks Befund nannte zehn Doku-Stellen; die schaerfste stand in
+    `com.user.claude-telegram-bot.plist.example` und fehlte, **weil seine Menge
+    Doku-Dateien war**. Eine Vorlagendatei ist nicht bloss kopierbar, sie ist
+    zum Kopieren gemacht. Dieselbe Mengen-Lehre, angewandt auf den Befund, der
+    sie formuliert hat.
+
+    **Die trennende Eigenschaft ist Kopierbarkeit, nicht die Zeichenkette.**
+    In Markdown zaehlt eine Zuweisung nur **innerhalb eines eingezaeunten
+    Codeblocks** — sonst schluege diese Art auf ihrem eigenen Bauauftrag an,
+    der die Gefahr im Fliesstext beschreibt, und waere binnen einer Woche
+    abgeschaltet. Ausserhalb von Markdown zaehlt sie ueberall: eine `.plist`,
+    ein Skript, eine Umgebungsvorlage haben keinen Fliesstext.
+
+    Erwaehnungen ohne Wert (`ANTHROPIC_API_KEY bewusst NICHT gesetzt`) fallen
+    heraus, weil das Muster ein Zeichen HINTER dem Gleichheitszeichen verlangt.
+    """
+    import subprocess
+    try:
+        aus = subprocess.run(["git", "-C", str(WURZEL), "ls-files"],
+                             capture_output=True, text=True, timeout=20)
+    except Exception:
+        return set()
+    treffer: set[str] = set()
+    for name in aus.stdout.split("\n"):
+        if not name:
+            continue
+        datei = WURZEL / name
+        try:
+            text = datei.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue                      # Binaerdatei oder weg — nichts zu lesen
+        markdown = name.endswith(".md")
+        im_zaun = False
+        for nr, zeile in enumerate(text.split("\n"), 1):
+            if markdown and zeile.lstrip().startswith("```"):
+                im_zaun = not im_zaun
+                continue
+            if markdown and not im_zaun:
+                continue                  # Fliesstext beschreibt, er fuehrt nicht aus
+            if _KOSTEN_ZUWEISUNG.search(zeile):
+                treffer.add(f"{name}:{nr}")
+    return treffer
+
+
+def kostenzuweisung_differenz(*, ist: set[str] | None = None,
+                              soll: set[str] | None = None) -> Befund:
+    """Keine versionierte Datei darf einen kostenpflichtigen Schluessel SETZEN.
+
+    **Anlass (24.08.2026):** `MIGRATION-DREHBUCH-ARCHIV.md` trug sechs Zeilen
+    ausfuehrbare Shell, die `ANTHROPIC_API_KEY` in zwei `.env`-Dateien
+    schrieben, und die Plist-Vorlage setzte ihn als Umgebungsvariable.
+    **Ablegen entschaerft keine Befehle** — ungepflegt und unwirksam sind zwei
+    verschiedene Dinge, und der Grund, warum niemand hinsah, stand im
+    Dateinamen.
+
+    **Ehrlich zur Reichweite** (Engywucks eigene Einschraenkung): Mechanisch
+    fassbar ist nur die **Zuweisung**. Die Prosa — [den Key ersetzen],
+    [gleicher Key wie lokal] — ist es nicht; dafuer gaebe es keine Regel ohne
+    Urteil, und eine Heuristik schluege auf den korrekten Warn-Stellen an. Die
+    Prosa wurde am 24.08. von Hand bereinigt und **bleibt der ungeschuetzte
+    Rest**. Das gehoert in den Befund geschrieben, nicht weggeheuristikt.
+
+    Anmerkung zum Feldnamen: `fehlend` heisst hier **ueberzaehlig** — gesucht
+    wird, was nicht da sein darf. Das Soll ist die leere Menge.
+    """
+    if ist is None:
+        ist = _kopierbare_zuweisungen()
+    if soll is None:
+        soll = set()
+    return Befund(
+        fehlend=ist - soll,
+        haerte=BRICHT,
+        was="ausfuehrbare Stellen, die einen kostenpflichtigen API-Schluessel setzen",
+        hinweis=("Auf den Abo-Weg umstellen: `claude setup-token` erzeugt den "
+                 "Wert fuer CLAUDE_CODE_OAUTH_TOKEN. Ein ANTHROPIC_API_KEY "
+                 "bucht getrennt vom Abo ab und hat im SDK sogar Vorrang. In "
+                 "Archiven den Block entschaerfen statt ihn stehenzulassen."),
+    )
+
+
+def kostenzuweisung_differenz_gegenprobe() -> None:
+    """Die Luecke kuenstlich erzeugen — die Art MUSS sie finden."""
+    b = kostenzuweisung_differenz(ist={"archiv.md:37"}, soll=set())
+    assert b.fehlend == {"archiv.md:37"}, f"die Art findet die Luecke nicht: {b.fehlend}"
+    leer = kostenzuweisung_differenz(ist=set(), soll=set())
+    assert not leer.fehlend, "die Art meldet ohne Luecke"
+
+
+# --------------------------------------------------------------------------
 # Differenzart A — Wurzelmodule gegen Register
 # --------------------------------------------------------------------------
 

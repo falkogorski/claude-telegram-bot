@@ -1,5 +1,14 @@
 # Migrations-Drehbuch — Telegram-Bot vom Mac auf den Netcup-VPS
 
+> **ARCHIV — NICHT AUSFUEHREN.** Diese Datei haelt den Planungsstand vom
+> 22.06.2026 fest. Sie ist **ueberholt**; massgeblich ist `MIGRATION.md`.
+>
+> **Ungepflegt heisst nicht unwirksam:** Ein Befehlsblock im Archiv ist genauso
+> kopierbar wie einer im gueltigen Drehbuch. Die Anmelde-Bloecke in Abschnitt 1
+> schrieben einen **kostenpflichtigen API-Schluessel** in die Umgebungsdateien
+> und wurden am 24.08.2026 entschaerft — der gueltige Weg ist das **Abo-Token**
+> (`claude setup-token`, `CLAUDE_CODE_OAUTH_TOKEN`).
+
 **Stand:** 2026-06-22
 **Migrations-Tag (geplant):** Dienstag, 23. Juni 2026, vormittags
 **Demo-Bot Pflicht-Fertigstellung:** Mittwoch, 24. Juni 2026, vormittags (erster Klienten-Termin)
@@ -29,29 +38,17 @@
 3. Zwei neue Schlüssel anlegen: `fanpost-mac-dev` und `telegram-bot`.
 4. Beide Werte sicher in die jeweilige `.env`-Datei eintragen, ohne sie im Chat zu pasten. Empfohlener Befehl je Schlüssel im Terminal:
 
-   ```bash
-   # Bot-Key
-   read -s -p "Bot-Key: " K; echo; \
-     ENV=~/Projects/claude-telegram-bot/.env; \
-     if grep -q '^ANTHROPIC_API_KEY=' "$ENV"; then \
-       sed -i.bak "s|^ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=$K|" "$ENV"; \
-     else \
-       echo "ANTHROPIC_API_KEY=$K" >> "$ENV"; \
-     fi; \
-     unset K; echo "Bot-Key gesetzt."
-   ```
+   > **ENTSCHAERFT 24.08.2026 — hier stand ein kopierbarer Block**, der
+   > `ANTHROPIC_API_KEY` in `~/Projects/claude-telegram-bot/.env` schrieb. Der Schluessel bucht
+   > **getrennt vom Abo** Geld ab und haette im SDK sogar Vorrang vor dem
+   > Abo-Token. Der gueltige Weg ist `claude setup-token` am Mac; der Wert
+   > gehoert als `CLAUDE_CODE_OAUTH_TOKEN` in die Umgebung.
 
-   ```bash
-   # Fanpost-Key
-   read -s -p "Fanpost-Key: " K; echo; \
-     ENV=~/projects/fanpost/.env; \
-     if grep -q '^ANTHROPIC_API_KEY=' "$ENV"; then \
-       sed -i.bak "s|^ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=$K|" "$ENV"; \
-     else \
-       echo "ANTHROPIC_API_KEY=$K" >> "$ENV"; \
-     fi; \
-     unset K; echo "Fanpost-Key gesetzt."
-   ```
+   > **ENTSCHAERFT 24.08.2026 — hier stand ein kopierbarer Block**, der
+   > `ANTHROPIC_API_KEY` in `~/projects/fanpost/.env` schrieb. Der Schluessel bucht
+   > **getrennt vom Abo** Geld ab und haette im SDK sogar Vorrang vor dem
+   > Abo-Token. Der gueltige Weg ist `claude setup-token` am Mac; der Wert
+   > gehoert als `CLAUDE_CODE_OAUTH_TOKEN` in die Umgebung.
 
 **Ich (während Adam die Schlüssel anlegt):**
 

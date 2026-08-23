@@ -111,9 +111,10 @@ mkdir -p ~/Projects/claude-telegram-bot/logs
 cp ~/Projects/claude-telegram-bot/com.user.claude-telegram-bot.plist.example \
    ~/Library/LaunchAgents/com.user.claude-telegram-bot.plist
 
-# In der kopierten Datei den Platzhalter `__HIER_DEINEN_KEY__` durch den echten
-# ANTHROPIC_API_KEY ersetzen (Wert aus `env | grep ANTHROPIC` übernehmen).
-# Falls du auch ANTHROPIC_BASE_URL nutzt, den auskommentierten Block aktivieren.
+# In der kopierten Datei den Platzhalter `__HIER_DEIN_ABO_TOKEN__` durch das
+# Abo-Token ersetzen. Erzeugen mit `claude setup-token` am Mac.
+# KOSTENREGEL: NIE ANTHROPIC_API_KEY eintragen - der bucht getrennt vom Abo ab
+# und hat im SDK sogar Vorrang vor dem Abo-Token.
 
 # Laden + starten
 launchctl load ~/Library/LaunchAgents/com.user.claude-telegram-bot.plist
@@ -131,9 +132,10 @@ Zum Stoppen / Entladen:
 launchctl unload ~/Library/LaunchAgents/com.user.claude-telegram-bot.plist
 ```
 
-**Wichtig:** launchd-Sessions erben die Shell-Env **nicht** — `ANTHROPIC_API_KEY`
-(und ggf. `ANTHROPIC_BASE_URL`) müssen im Plist explizit unter
-`EnvironmentVariables` stehen, sonst startet der SDK-Subprozess ohne Credentials.
+**Wichtig:** launchd-Sessions erben die Shell-Env **nicht** — die Anmeldung
+muss im Plist explizit unter `EnvironmentVariables` stehen, sonst startet der
+SDK-Subprozess ohne Credentials. **Dorthin gehört `CLAUDE_CODE_OAUTH_TOKEN`
+(Abo), nie `ANTHROPIC_API_KEY`** — letzterer bucht getrennt vom Abo ab.
 
 ---
 
@@ -143,7 +145,9 @@ Wenn der Mac nicht 24/7 läuft, ist ein VPS oder Raspberry Pi sinnvoll. Dafür
 braucht's:
 
 1. **Python 3.10+** und `pip install -r requirements.txt` auf dem Host.
-2. **`ANTHROPIC_API_KEY`** (gleicher Key wie lokal).
+2. **`CLAUDE_CODE_OAUTH_TOKEN`** — das Abo-Token, erzeugt mit
+   `claude setup-token`. **Nicht `ANTHROPIC_API_KEY`:** der bucht getrennt vom
+   Abo Geld ab und hätte im SDK sogar Vorrang.
 3. **`CLAUDE_WORKDIR`** auf einen Pfad auf dem Server zeigen lassen — nicht
    automatisch dein Mac-Home. Optional: SSHFS/Syncthing wenn du Mac-Dateien
    bearbeiten willst.
@@ -169,8 +173,8 @@ cd ~/Projects/claude-telegram-bot && grep ALLOWED_USER_IDS .env
 `rejected message from user_id=…`. Diese ID in `.env` eintragen.
 
 **„Connection refused" / „401" / „403" beim Tool-Use**
-→ `ANTHROPIC_API_KEY` fehlt oder ist ungültig im Bot-Prozess. Bei launchd:
-Plist anpassen (siehe oben).
+→ Die Anmeldung fehlt oder ist abgelaufen im Bot-Prozess. Bei launchd: Plist
+anpassen (siehe oben). Abo-Token neu erzeugen mit `claude setup-token`.
 
 **Permission-Buttons reagieren nicht**
 → Telegram-Callback-Query schlägt fehl. Logs prüfen, ggf. Bot neustarten. Kann

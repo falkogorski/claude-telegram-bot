@@ -787,3 +787,32 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   **Der Griff:** Beim Archivieren pruefen, ob die Datei **ausfuehrbare Bloecke**
   enthaelt. Wenn ja, gehoeren sie entschaerft oder mit einem Warnkopf versehen —
   **im selben Zug wie das Archivieren**, weil danach niemand mehr hinsieht.
+
+- **Die Mengen-Lehre, angewandt auf den Befund, der sie formuliert hat ·
+  Kostenregel 24.08. · universell**
+  — Engywucks Befund nannte **zehn Stellen in `*.md`**. Die schaerfste stand in
+  `com.user.claude-telegram-bot.plist.example` und **fehlte, weil seine Menge
+  Doku-Dateien war.** Eine Vorlagendatei ist nicht bloss kopierbar, sie ist
+  **zum Kopieren gemacht** — sie wird kopiert, umbenannt und geladen.
+
+  **Die Menge des Pruefers ist deshalb `git ls-files`, nicht `*.md`.** Wer eine
+  Menge ueber eine Endung bildet, hat sie ueber einen Namen gebildet.
+
+  **Und die trennende Eigenschaft ist Kopierbarkeit, nicht die Zeichenkette:**
+  In Markdown zaehlt eine Zuweisung nur **im eingezaeunten Codeblock**. Ohne
+  diese Trennung schluege die Art auf ihrem **eigenen Bauauftrag** an, der die
+  Gefahr im Fliesstext beschreibt — und waere binnen einer Woche abgeschaltet.
+
+- **Eine Gegenprobe, die zuruecksetzt, darf nicht an ungesicherter Arbeit
+  laufen · Kostenregel 24.08. · universell**
+  — Selbst passiert, im selben Zug: Ich habe die Gegenprobe der Sammelfunktion
+  an `README.md` gefahren und mit `git checkout README.md` zurueckgesetzt —
+  **und damit vier uncommittete Ersetzungen mitgeloescht**, die ich zehn
+  Minuten vorher in dieselbe Datei geschrieben hatte. Bei `stundenblume.py`
+  hatte ich zwei Schritte zuvor sauber mit `cp` gesichert; bei der README nicht.
+
+  **Der Griff:** Vor einer Gegenprobe, die den Zustand zurueckdreht, entweder
+  **committen** oder die Datei **kopieren** — oder an einer Datei pruefen, in
+  der nichts liegt. Dieselbe Klasse wie [git commit nie an einen
+  dateiaendernden Heredoc ketten]: **Der Rueckweg zerstoert, was er schuetzen
+  soll**, wenn man ihn ohne Blick auf den Arbeitsstand geht.

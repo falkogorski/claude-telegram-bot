@@ -393,6 +393,39 @@ import authmarke  # noqa: E402
 import zustellmarke  # noqa: E402
 
 
+def anmelde_befunde(namen: set) -> list:
+    """Aus der Menge der Umgebungs-NAMEN die Kosten-Befunde ableiten.
+
+    **Herausgezogen, damit ein Pruefer sie erreicht** (Engywuck 24.08.). Vorher
+    sass die Entscheidung mitten in `anmeldung_pruefen()` hinter einem
+    `/proc`-Zugriff — nicht ausfuehrbar pruefbar, und genau deshalb ungeprueft.
+
+    **Der Fehler, den das behebt:** Die API-Schluessel-Warnung sass INNERHALB
+    von `if "CLAUDE_CODE_OAUTH_TOKEN" not in namen`. **Waren BEIDE gesetzt,
+    schwieg der Waechter** — und `.env.example` benennt genau diesen Fall als
+    die Gefahr: liegen beide, bevorzugt das SDK den Schluessel, das Abo bleibt
+    ungenutzt, und es wird abgebucht. Der Waechter prueft seither den Fall, der
+    dokumentiert ist, nicht den, den sich jemand vorgestellt hat.
+
+    Es wird ausschliesslich mit NAMEN gearbeitet, nie mit Werten.
+    """
+    raus = []
+    hat_abo = "CLAUDE_CODE_OAUTH_TOKEN" in namen
+    if "ANTHROPIC_API_KEY" in namen:
+        # Zwei verschiedene Lagen, zwei verschiedene Saetze. Die gefaehrlichere
+        # ist die zweite, weil sie wie Ordnung aussieht: das Abo-Token liegt ja.
+        zusatz = ("— und er liegt NEBEN dem Abo-Token: das SDK bevorzugt den "
+                  "Schlüssel, das Abo bleibt ungenutzt."
+                  if hat_abo else
+                  "statt über das Abo-Token.")
+        raus.append(("api-schluessel",
+                     f"⚠️ Der Bot läuft über einen API-Schlüssel {zusatz} "
+                     "Das bucht Geld ab — getrennt vom Abo!"))
+    if not hat_abo:
+        raus.append(("keine-abo-anmeldung", "Keine Abo-Anmeldung in der Dienst-Umgebung"))
+    return raus
+
+
 def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
     """Meldet, wenn die Anmeldung gekippt ist — statt vorherzusagen, wann.
 
@@ -455,13 +488,7 @@ def anmeldung_pruefen(seit_s: int = 900) -> list[str]:
     try:
         roh = Path(f"/proc/{pid}/environ").read_bytes().decode("utf-8", "replace")
         namen = {z.split("=", 1)[0] for z in roh.split("\0") if "=" in z}
-        if "CLAUDE_CODE_OAUTH_TOKEN" not in namen:
-            if "ANTHROPIC_API_KEY" in namen:
-                raus.append(("api-schluessel",
-                             "⚠️ Der Bot läuft über einen API-Schlüssel statt "
-                             "über das Abo-Token — das bucht Geld ab!"))
-            else:
-                raus.append(("keine-abo-anmeldung", "Keine Abo-Anmeldung in der Dienst-Umgebung"))
+        raus.extend(anmelde_befunde(namen))
     except Exception as e:
         raus.append(("blind-umgebung",
                      "👁️ Ich darf die Umgebung des Bot-Prozesses nicht lesen "

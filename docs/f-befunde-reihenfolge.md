@@ -1,7 +1,7 @@
 <!-- ROLLE: f-befunde-reihenfolge -->
 # F-Befunde der Gegenprüfung — Reihenfolge und Stand
 
-**Stichtag:** 2026-08-23 · **Stand: F-1 bis F-6 erledigt · F-7 bis F-11 offen**
+**Stichtag:** 2026-08-23 · **Stand: F-1 bis F-6 erledigt · F-7 bis F-16 offen**
 · **überholt durch:** — · **maßgeblich ist diese Datei** (Volltext der Befunde:
 `docs/gegenpruefung-2026-08-18.md`; die neuen aus
 `BEFUND ULTRACODE 9456f16..d596269`, Engywuck 23.08.)
@@ -275,6 +275,59 @@ Tag behoben wurden; sie hier neu einzubauen wäre widersprüchlich.
 davon führen Zustand, der in einem Prüflauf geschrieben würde? Die bekommen
 einen Umgebungsschalter und fallen damit unter Differenzart B. Der Rest ist
 kein Befund.
+
+**F-13 · Die Idiom-Menge ist eingefroren** `[offen, 23.08.2026, Engywucks Gegenprüfung]`
+
+`_environ_get_name` in `scripts/differenz.py` kennt **genau ein** Idiom:
+`Path(os.environ.get("X") or "/pfad")`. Engywuck hat ein Probemodul mit sechs
+Schreibweisen durch den echten Einstieg gefahren — **erkannt wird eine,
+verfehlt werden fünf**: `os.getenv`, `os.environ["X"]`, die Vorgabe als zweites
+Argument, ein Name als Rückfall, ein Rückfall ohne Schrägstrich (`"outbox"`).
+
+**Nicht scharf-blockierend, und das ist gemessen, nicht vermutet:** `os.getenv`
+kommt im Produktivcode null Mal vor; Subscript neun Treffer, alle keine Ablagen
+(`TERM`, `HOME`, Bot-Token); Zweitargument fünfzehn Treffer, alle Modellnamen,
+Zahlen, URLs oder leere Vorgaben. **Er ist morgen blind, nicht heute.**
+
+**Die Lehre wiegt schwerer als der Befund** und steht im Blaupausen-Heft: Wer
+eine Menge bildet, muss auch die Menge der **Schreibweisen** bilden, in denen
+ihre Mitglieder auftreten können. Ich hatte die Dateimenge korrekt gebildet
+(`git ls-files` statt Endungsmuster) und dabei die Idiom-Menge eingefroren —
+dieselbe Krankheit eine Ebene tiefer, und tückischer, weil sie **nach** der
+befolgten Regel auftritt und deshalb wie Sorgfalt aussieht.
+
+**F-14 · `GEWOLLT_OFFEN`: vier Einträge, ein Grund** `[offen, 23.08.2026]`
+
+Fünf Einträge sind nicht zu viele — aber **vier tragen denselben Grund**
+(„wird nur gelesen"). Das ist eine **Kategorie, keine vier Entscheidungen**.
+
+Fix: Lesen von Schreiben im Prüfer unterscheiden. Dann bleibt **ein** Eintrag
+(das Gedächtnis), und die Liste kann nicht mehr wachsen — statt dass jeder
+Lesepfad künftig einzeln begründet dazukommt und die Ausnahme sich zur Regel
+mausert.
+
+**F-15 · Differenzart A prüft nur eine Richtung** `[offen, 23.08.2026, Engywucks eigener Fund]`
+
+Eine Registerzeile für ein **nicht existentes** Modul bleibt grün — die
+Karteileichen-Richtung, also genau das, womit Adam angefangen hat. Zweite
+Differenz derselben zwei Mengen: `soll - ist` statt nur `ist - soll`.
+
+Die Lücke steht in Engywucks Auftrag („Ist: jede versionierte `*.py` → Soll:
+eine Tabellenzeile"), nicht in der Umsetzung. Er hat sie selbst gefunden.
+
+**F-16 · `hora.py`: der Riegel hängt an der Disziplin künftiger Schreiber** `[offen, 23.08.2026]`
+
+**Kein Loch — Engywuck hat den Befund selbst gefahren.** Die Kette bricht
+zweimal: Der Wachposten schreibt gar keinen `befehl` (null Vorkommen im ganzen
+Pfad), und `wachposten-befund` steht nicht auf der geschlossenen Grün-Liste →
+gelb → wird Adam vorgelegt.
+
+Aber der Riegel hängt daran, dass die `art` heute der **Schreiber selbst**
+deklariert. Sein Einzeiler macht ihn unabhängig davon:
+
+```python
+braucht_zustimmung = ampel != "gruen" or bool(auftrag.get("befehl"))
+```
 
 ## Erledigt
 - **Zeitgeber-Wache** (Befund B1/B4/B5): gelöschte Timer werden erfasst,

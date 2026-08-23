@@ -505,3 +505,27 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   Dauermeldung zu bauen, hätte genau die Erosion neu erzeugt, die am selben Tag
   bei zwei anderen Filtern behoben wurde. **Gebaut wurde deshalb nichts — die
   Zahl ging in die F-Liste.**
+
+- **Wer eine Menge bildet, muss auch die Menge der SCHREIBWEISEN bilden ·
+  Engywucks Gegenprüfung 23.08. · universell** — geprüft: dass die Ist-Menge
+  der Zustandsablagen nicht über die Endung gebildet wird. *Nebenwirkung, die
+  erst seine Gegenprüfung fand:* Ich habe die **Dateimenge** korrekt gebildet
+  (`git ls-files` statt Endungsmuster) und dabei die **Idiom-Menge
+  eingefroren** — `_environ_get_name` kennt genau eine Schreibweise von sechs.
+
+  **Das ist die tückischere Ebene**, weil der Fehler *nach* der befolgten Regel
+  auftritt und deshalb wie Sorgfalt aussieht. Man hat die Aufzählung an der
+  einen Stelle abgeschafft und an der nächsten neu angelegt, ohne es zu merken.
+
+  Gemessen ist er heute folgenlos (kein `os.getenv` im Produktivcode, kein
+  Subscript auf eine Ablage) — **er ist morgen blind, nicht heute.** Genau
+  deshalb gehört er in die F-Liste und nicht in eine Sofortrunde.
+
+- **Ein dynamisch geladenes Modul braucht seinen Eintrag in `sys.modules`,
+  bevor es läuft · Einhängung · anpassbar** — *Nebenwirkung:* `@dataclass`
+  schlägt beim Aufbau `sys.modules.get(cls.__module__)` nach; fehlt der Eintrag,
+  stirbt der Import mit `'NoneType' object has no attribute '__dict__'`. **Ich
+  habe die Meldung zuerst der falschen Stelle zugeschrieben** und dort
+  umgestellt — die Umstellung war für sich richtig, aber nicht die Ursache.
+  Gefunden erst, als ich den Ladevorgang einzeln ausführte und den vollen
+  Stapel las statt der letzten Zeile.

@@ -437,17 +437,22 @@ def arten() -> list[tuple[str, callable]]:
     """
     quelle = Path(__file__).read_text(encoding="utf-8")
     baum = ast.parse(quelle)
-    hier = sys.modules[__name__]
+    # **`globals()`, nicht `sys.modules[__name__]`.** Beim Einhängen in den
+    # Selbstcheck wird dieses Modul über `importlib` von Hand geladen und steht
+    # dann NICHT in `sys.modules` — der Zugriff lieferte `None` und die ganze
+    # Prüfzeile brach mit `'NoneType' object has no attribute '__dict__'`.
+    # Gefunden beim Ausführen der Einhängung, nicht beim Lesen.
+    hier = globals()
     namen = [k.name for k in baum.body
              if isinstance(k, ast.FunctionDef) and k.name.endswith("_differenz")]
     raus = []
     for name in sorted(namen):
-        if not hasattr(hier, f"{name}_gegenprobe"):
+        if f"{name}_gegenprobe" not in hier:
             raise RuntimeError(
                 f"Differenzart {name!r} hat keine Gegenprobe. Ohne sie ist "
                 f"nicht belegt, dass sie eine Luecke ueberhaupt findet — "
                 f"eine Art, die nie etwas meldet, sieht genauso aus.")
-        raus.append((name, getattr(hier, name)))
+        raus.append((name, hier[name]))
     return raus
 
 
@@ -463,9 +468,9 @@ def messen() -> list[Befund]:
 
 def gegenproben_fahren() -> None:
     """Jede Gegenprobe einmal — für den Prüfstand."""
-    hier = sys.modules[__name__]
+    hier = globals()
     for name, _ in arten():
-        getattr(hier, f"{name}_gegenprobe")()
+        hier[f"{name}_gegenprobe"]()
 
 
 def main() -> int:

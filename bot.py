@@ -7402,6 +7402,48 @@ def run_self_check() -> tuple[bool, list[str]]:
                            + ", ".join(fehlt))
     check("Register-Vollständigkeit (R2)", _c_register_vollstaendig)
 
+    def _c_differenzen() -> None:
+        """Der Differenzmesser — **Mengen statt Aufzählungen** (23.08.).
+
+        Eingehängt **nach** Engywucks Gegenprüfung, nicht davor (Regel ①a:
+        gebaut-und-ruhend darf warten, gebaut-und-wachend nicht). Er hat beide
+        Richtungen gemessen — neues Modul ohne Zeile rot, Zeile eines
+        vorhandenen entfernt rot — und die Ladebedingung geprüft.
+
+        **Warum hier und nicht in einem eigenen Wächter:** Der Selbstcheck läuft
+        bei jedem Bot-Start **auf dem VPS**, im Start-Wächter, im
+        Regressionslauf und über den Tagescheck. Die Messung findet damit in der
+        **Zielumgebung** statt — am Mac gebildete Mengen messen weniger, als sie
+        behaupten. Ein bestehender Wächter war erweiterbar; damit ist der
+        Nachweis der Kurs-Regel geführt und kein Wächter dritter Ordnung nötig.
+
+        Die Zeile ist **weich gegen ihr eigenes Fehlen**: Fehlt das Modul (etwa
+        in einem Teil-Checkout), gibt es keinen Befund statt eines Fehlalarms.
+        Ein Prüfer, der beim Umzug rot wird, wird abgeschaltet.
+        """
+        import importlib.util
+        import sys as _sys
+        pfad = _REPO_DIR / "scripts" / "differenz.py"
+        if not pfad.exists():
+            return
+        spec = importlib.util.spec_from_file_location("differenz", pfad)
+        modul = importlib.util.module_from_spec(spec)
+        # **Vor dem Ausführen registrieren, sonst bricht `@dataclass`.**
+        # `dataclasses` schlägt beim Aufbau `sys.modules.get(cls.__module__)`
+        # nach; fehlt der Eintrag, ist das `None` und der Import stirbt mit
+        # `'NoneType' object has no attribute '__dict__'`.
+        #
+        # Beim Bauen habe ich die Meldung zuerst der Sammler-Zeile zugeschrieben
+        # und dort umgestellt — die Umstellung ist für sich richtig, war aber
+        # **nicht die Ursache**. Gefunden erst, als ich den Ladevorgang einzeln
+        # ausgeführt und den vollen Stapel gelesen habe.
+        _sys.modules.setdefault("differenz", modul)
+        spec.loader.exec_module(modul)
+        harte = [b for b in modul.messen() if b.haerte == modul.BRICHT]
+        assert not harte, "; ".join(
+            f"{b.was}: {', '.join(sorted(b.fehlend))}" for b in harte)
+    check("Differenzen (Mengen statt Aufzählungen)", _c_differenzen)
+
     def _c_keyboard_userid() -> None:
         """Jeder `_main_keyboard`-Aufruf muss `user_id` mitgeben (B3, H).
 

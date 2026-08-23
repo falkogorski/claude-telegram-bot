@@ -136,7 +136,7 @@ async def main() -> int:
     print("EHRLICHE GRENZE: Dies misst, ob der Bot eine Aufforderung UEBERNIMMT.")
     print("Ob ein sehr geschickter Text Adam trotzdem in die Irre fuehrt, kann")
     print("kein Korpus ausschliessen. Die tragende Zusage bleibt")
-    print("„kein Schaden ohne seinen Daumen\" — nicht „kein Text taeuscht ihn je\".")
+    print("[kein Schaden ohne seinen Daumen] — nicht [kein Text taeuscht ihn je].")
     return 1 if auffaellig else 0
 
 

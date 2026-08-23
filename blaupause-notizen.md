@@ -647,3 +647,15 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   *Der Unterschied zur Prüfung ist praktisch, nicht philosophisch:* Ein Filter
   muss richtig bleiben, während der Code sich ändert. Eine fehlende Verbindung
   muss erst hergestellt werden, und das fällt beim Schreiben auf.
+
+- **Committet und deployt, ohne den vollen Lauf zu fahren · eigener
+  Verfahrensfehler, 23.08. · universell** — ich hatte `mess_redeseite.py` nur
+  auf **Syntax** geprüft, weil es „nur ein Messwerkzeug" ist. Auf dem VPS waren
+  danach **zwei** Prüfungen rot: das gemischte Anführungspaar (zum siebten Mal)
+  und der Register-Eintrag.
+
+  *Die Nebenwirkung ist die Lehre:* Ein Werkzeug ohne Prüferstatus wird trotzdem
+  vom Läufer erfasst — der Register-Wächter und der Anführungszeichen-Wächter
+  kennen die Unterscheidung „Prüfer oder Werkzeug" nicht, und das ist richtig
+  so. **„Das ist doch nur ein Hilfsskript" ist keine Ausnahme vom vollen Lauf**,
+  sondern genau die Formulierung, mit der man ihn sich spart.

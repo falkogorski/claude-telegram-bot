@@ -16,7 +16,7 @@ from pathlib import Path
 _TMP = Path(tempfile.mkdtemp(prefix="h2test-"))
 os.environ["PENDING_DIR"] = str(_TMP / "pending")
 os.environ["QUESTIONS_FILE"] = str(_TMP / "q.json")
-os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:testtoken")
+os.environ["TELEGRAM_BOT_TOKEN"] = ("1:testtoken")
 os.environ["ALLOWED_USER_IDS"] = "4242"
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

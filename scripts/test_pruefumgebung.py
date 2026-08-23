@@ -47,7 +47,42 @@ def check(name, fn):
 
 
 def _testdateien() -> list[Path]:
-    return sorted(p for p in HIER.glob("test_*.py") if p.name != Path(__file__).name)
+    """Jede Datei, die sich wie ein Prüfstand VERHÄLT — nicht die, die so heißt.
+
+    **`[KORRIGIERT 2026-08-23, Engywucks Fund F-18]`** Hier stand
+    `HIER.glob("test_*.py")` — eine Menge über den **Namen**. Am 23.08. entstand
+    `scripts/mess_redeseite.py`: importiert `bot`, setzt Umgebungsvariablen,
+    heißt aber nicht `test_*`. Die Datei fiel aus der Menge, und ihr
+    `os.environ["ALLOWED_USER_IDS"] = (...)` — genau die Schreibweise,
+    die dieser Prüfer verbietet — blieb ungesehen.
+
+    **Einen Tag nach dem Differenzmesser**, dessen ganze Diagnose lautet: Mengen
+    über eine **Eigenschaft** bilden, nicht über eine Aufzählung. Ein Namensmuster
+    ist eine Aufzählung mit Regex-Anstrich.
+
+    Die tragfähige Regel ist deshalb nicht „heißt `test_*`", sondern: **jede
+    Datei unter `scripts/`, die `bot` importiert UND Umgebungsvariablen setzt.**
+    Dann fällt das nächste Messwerkzeug von selbst hinein.
+    """
+    raus = []
+    for p in sorted(HIER.glob("*.py")):
+        if p.name == Path(__file__).name:
+            continue
+        try:
+            quelle = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        # **Die trennende Eigenschaft ist die WEGWERF-ABLAGE.** Ein Prüfstand
+        # legt sich eine an (`tempfile`); ein Betriebsskript arbeitet im echten
+        # Zustand und tut es nicht.
+        #
+        # Der erste Entwurf nahm „setzt Umgebung UND importiert bot" — und fing
+        # damit `start_waechter.py` mit, ein Betriebsskript, das `Popen`
+        # LEGITIM braucht. Gemessen trennt `tempfile` sauber: zwei
+        # Messwerkzeuge auf der einen Seite, elf Betriebsskripte auf der anderen.
+        if "os.environ" in quelle and "tempfile" in quelle:
+            raus.append(p)
+    return raus
 
 
 # Module, deren Aufruf einen Prozess erzeugt, der die eigene Laufzeit überleben
@@ -90,20 +125,24 @@ def _jede_pruefung_haelt_ihre_umgebung_fest():
     dieselbe Klasse wie der geerbte `ALLOWED_USER_IDS`, der den 12/14-Fehlalarm
     erzeugt hat.
     """
-    schreibend = {"POSTFACH_DIR": "postfach", "FREIGABE_DIR": "freigab",
-                  "BLUMEN_DIR": "blumen", "HORA_DIR": "hora"}
+    # **`[KORRIGIERT 2026-08-23, F-18]` Hier stand eine Namensliste mit vier
+    # Ordnern.** `ALLOWED_USER_IDS` stand nicht darin — und ausgerechnet die
+    # ist im Register namentlich als Anlass geführt (12/14-Fehlalarm, 25.07.).
+    # Ein `setdefault` darauf blieb ungesehen.
+    #
+    # **Die tragfähige Regel ist die Eigenschaft, nicht die Liste:** In einem
+    # Prüfstand ist JEDES `setdefault` falsch. Der Sinn eines Prüfstands ist
+    # Hermetik; `setdefault` erbt im Zweifel den echten Wert und macht genau
+    # das kaputt. Es gibt keinen Fall, in dem das erwünscht wäre — deshalb
+    # braucht diese Zeile auch keine Ausnahmeliste.
+    import re as _re
     suender = []
     for p in _testdateien():
         text = p.read_text(encoding="utf-8")
-        for name, spur in schreibend.items():
-            benutzt = spur in text.lower() or name in text
-            if not benutzt:
-                continue
-            if f'os.environ["{name}"]' in text:
-                continue                       # hart gesetzt — richtig
-            if f'os.environ.setdefault("{name}"' in text:
-                suender.append(f"{p.name} setzt {name} nur per setdefault — "
-                               "das erbt im Zweifel den echten Ordner")
+        for treffer in _re.finditer(r'os\.environ\.setdefault\(\s*["\']([A-Z_]+)', text):
+            suender.append(
+                f"{p.name} setzt {treffer.group(1)} per setdefault — das erbt "
+                "im Zweifel den echten Wert und hebt die Hermetik auf")
     assert not suender, "\n  ".join([""] + suender)
 
 
@@ -185,8 +224,8 @@ def _postfach_hat_eine_obergrenze():
     schlimmer als einer, der zu viele schickt.
     """
     import os as _os
-    _os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:test")
-    _os.environ.setdefault("ALLOWED_USER_IDS", "1")
+    _os.environ["TELEGRAM_BOT_TOKEN"] = ("1:test")
+    _os.environ["ALLOWED_USER_IDS"] = ("1")
     sys.path.insert(0, str(HIER.parent))
     import bot
 

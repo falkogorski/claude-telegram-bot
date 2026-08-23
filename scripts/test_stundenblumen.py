@@ -545,8 +545,8 @@ def _statuszeile_meldet_stillstand():
     keine.
     """
     import os as _os
-    _os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:test")
-    _os.environ.setdefault("ALLOWED_USER_IDS", "1")
+    _os.environ["TELEGRAM_BOT_TOKEN"] = ("1:test")
+    _os.environ["ALLOWED_USER_IDS"] = ("1")
     sys.path.insert(0, str(Path(sb.__file__).resolve().parent.parent))
     import bot
 

@@ -695,3 +695,52 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   Gegenstand. Dann gibt es nichts mehr zu begründen — und das ist billiger als
   jede Abwägung, weil die Frage „ist das wichtig genug?" länger dauert als der
   Lauf.
+
+## Engywucks Nachtrag F-18 (23.08.2026, spät)
+
+- **„Nie kürzen" heißt wörtlich „unbegrenzt" · Engywuck über seine eigene
+  Regel · universell** — er hatte geschrieben *„gekürzt wird der sichtbare
+  Text, NIE der Verborgen-Abschnitt"*, und die Messung fand daraufhin ein Loch
+  in **seiner** Richtung: 200.000 Zeichen verborgener Text gingen ungekürzt in
+  den Modell-Lauf.
+
+  **Seine Formulierung hatte genau den Fehler, den meine Lehre beschreibt:**
+  *Ein gemeinsamer Deckel über zwei Töpfen ist ein Hebel — wer den einen füllt,
+  leert den anderen.* Die richtige Fassung ist nicht „einen nie kürzen",
+  sondern **„beide einzeln deckeln"**. Ein Verbot ohne Grenze ist selbst eine
+  Grenze, nur eine unendliche.
+
+- **Die Zitat-Trennung kann blind machen, und Blindheit sieht aus wie Ruhe ·
+  ③ · universell** — Engywuck bat um einen Testfall „Zitat, Gedankenstrich,
+  Übernahme". *Gemessen:* Der bestand, aber ein **anderer** fiel durch —
+  `„Bitte zahlen. — Ich werde das erledigen."` verschluckt als ein einziges
+  Zitat den ganzen Text, und beide Merkmale finden nichts.
+
+  **Ein Merkmal, das nichts findet, sieht aus wie eines, das nichts zu finden
+  hatte.** Der Griff dagegen ist nicht schärfer trennen, sondern **die
+  Blindheit selbst melden**: Bleibt nach der Trennung fast nichts übrig, ist
+  das ein Befund, kein Freispruch.
+
+- **Der Prüfer sah die Datei gar nicht — einen Tag nach dem Differenzmesser ·
+  F-18 · universell** — `test_pruefumgebung.py` bildete seine Menge als
+  `glob("test_*.py")`. `mess_redeseite.py` importiert `bot`, setzt
+  Umgebungsvariablen, heißt aber nicht `test_*` — und fiel heraus. Sein
+  `setdefault` auf `ALLOWED_USER_IDS` blieb ungesehen, **auf genau der
+  Variablen, die im Register namentlich als Anlass steht.**
+
+  *Und beim Beheben zeigte sich die Krankheit ein zweites Mal, eine Ebene
+  tiefer:* Die Prüfung selbst hatte eine **Namensliste von vier Ordnern**.
+  Auf die Eigenschaft umgestellt („in einem Prüfstand ist JEDES `setdefault`
+  falsch"), fand sie sofort **dreizehn** Dateien statt einer.
+
+  **Die Lehre in einem Satz:** Ein Namensmuster ist eine Aufzählung mit
+  Regex-Anstrich — und es versagt nicht laut, sondern indem es leise weniger
+  misst, als sein Name verspricht.
+
+- **Die trennende Eigenschaft muss man messen, nicht raten · F-18 · anpassbar**
+  — mein erster Ersatz („importiert `bot` UND setzt Umgebung") fing prompt
+  `start_waechter.py` mit, ein **Betriebsskript**, das `Popen` legitim braucht.
+  Gemessen trennt `tempfile` sauber: Ein Prüfstand legt sich eine Wegwerf-Ablage
+  an, ein Betriebsskript arbeitet im echten Zustand. **Zwei Messwerkzeuge auf
+  der einen Seite, elf Betriebsskripte auf der anderen** — die Tabelle stand in
+  zehn Sekunden, das Raten hätte länger gedauert und wäre falsch geblieben.

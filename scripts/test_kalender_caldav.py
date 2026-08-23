@@ -158,8 +158,8 @@ def _der_link_ueberlebt_die_vorlese_kette_nicht():
     was Adam am 17.06. beanstandet hat. Geprüft wird, dass der bestehende
     Filter greift **und** dass der lesbare Teil dabei heil bleibt."""
     import os
-    os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:test")
-    os.environ.setdefault("ALLOWED_USER_IDS", "1")
+    os.environ["TELEGRAM_BOT_TOKEN"] = ("1:test")
+    os.environ["ALLOWED_USER_IDS"] = ("1")
     import bot
     t = k.Termin(beginn=dt.datetime(2026, 8, 21, 10, 0), ende=None,
                         titel="Team-Runde", ort="https://zoom.us/j/12345")

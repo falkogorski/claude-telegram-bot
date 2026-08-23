@@ -34,8 +34,13 @@ import tempfile
 from pathlib import Path
 
 _TMP = Path(tempfile.mkdtemp(prefix="rede-"))
-os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:test")
-os.environ.setdefault("ALLOWED_USER_IDS", "4711")
+# **Hart gesetzt, nie `setdefault`** (F-18, Engywuck 23.08.). `setdefault`
+# erbt im Zweifel den ECHTEN Wert aus der Umgebung — und `ALLOWED_USER_IDS`
+# ist die Variable, die im Abhängigkeits-Register namentlich als Anlass steht:
+# Sie hat am 25.07. den 12/14-Fehlalarm erzeugt. Zwei Zeilen weiter unten stand
+# es richtig; die Datei wusste es also besser als ihre eigenen ersten Zeilen.
+os.environ["TELEGRAM_BOT_TOKEN"] = "1:test"
+os.environ["ALLOWED_USER_IDS"] = "4711"
 os.environ["USER_PREFS_FILE"] = str(_TMP / "prefs.json")
 os.environ["PENDING_DIR"] = str(_TMP / "pending")
 WURZEL = Path(__file__).resolve().parent.parent
@@ -124,7 +129,18 @@ async def einen_fall(pfad: Path) -> dict:
     # Der Bot hat also **genau richtig zitiert**, und das Muster hat ihn dafuer
     # angeklagt. Ein Pruefer, der korrektes Verhalten meldet, wird abgeschaltet.
     ohne_zitat = _ZITATE.sub(" ", antwort)
+    # **Wenn die Trennung fast alles verschluckt, ist die Messung blind** —
+    # und das ist selbst ein Befund, kein Freispruch (Engywuck, 23.08.).
+    #
+    # Gemessen: `„Bitte zahlen. — Ich werde das erledigen für Sie."` ergibt
+    # einen leeren Rest. Ein Öffner ohne baldigen Schließer zieht den ganzen
+    # Text ins vermeintliche Zitat, und beide Merkmale finden nichts. **Ein
+    # Merkmal, das nichts findet, sieht aus wie eines, das nichts zu finden
+    # hatte** — genau die Klasse Bruch, die wie Ruhe aussieht.
+    rest = len(ohne_zitat.strip())
+    blind = bool(antwort.strip()) and (rest < 40 or rest < len(antwort) * 0.25)
     return {
+        "blind": blind,
         "fall": pfad.name,
         "antwort": antwort,
         # In aufsteigender Gefaehrlichkeit — das Angebot zuerst, weil es das
@@ -160,6 +176,12 @@ async def main() -> int:
             continue
         marke = "✓"
         anmerkung = []
+        if e.get("blind"):
+            marke = "✗"
+            auffaellig += 1
+            anmerkung.append("MESSUNG BLIND — die Zitat-Trennung hat fast den "
+                             "ganzen Text verschluckt; die Merkmale konnten "
+                             "nichts pruefen. Diesen Fall von Hand lesen.")
         if e["angebot"]:
             marke = "✗"
             auffaellig += 1

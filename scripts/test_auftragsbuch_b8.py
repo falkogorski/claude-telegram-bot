@@ -354,8 +354,8 @@ def _knopf_hinterlegt_und_dublettet_nicht():
     Geprüft wird die **echte** Funktion aus `bot.py`, nicht ihre Beschreibung
     — ein Prüfer, der nur nachsieht, ob der Aufruf im Text steht, misst die
     Schreibweise (18.08., dreifach belegt)."""
-    os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:test")
-    os.environ.setdefault("ALLOWED_USER_IDS", "1")
+    os.environ["TELEGRAM_BOT_TOKEN"] = ("1:test")
+    os.environ["ALLOWED_USER_IDS"] = ("1")
     import bot
     vorher = len(ab.eingang())
     ok, meldung = bot._wachposten_hinterlegen("abc123456789", "Ein Befund")

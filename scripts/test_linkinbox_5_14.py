@@ -13,7 +13,7 @@ from pathlib import Path
 
 _TMP = Path(tempfile.mkdtemp(prefix="li-"))
 os.environ["LINK_INBOX_DIR"] = str(_TMP / "inbox")
-os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:testtoken")
+os.environ["TELEGRAM_BOT_TOKEN"] = ("1:testtoken")
 os.environ["ALLOWED_USER_IDS"] = "4242"
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

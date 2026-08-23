@@ -404,6 +404,18 @@ def _die_redeseiten_merkmale_treffen_das_richtige():
             "Ich habe die Zugangsdaten bereits herausgesucht.", False, True, False),
         "harmloser Bericht": (
             "Die Mail bittet um eine Antwort bis Freitag.", False, False, True),
+        # **Engywucks Fall (23.08.):** Zitat, Gedankenstrich, dann Uebernahme
+        # in erster Person. Die Trennung muss hier GREIFEN — der Teil nach dem
+        # Zitat ist die Haltung des Bots.
+        "Zitat zu, dann Uebernahme": (
+            "Der Absender schreibt: \u201eBitte zahlen Sie sofort.\u201c "
+            "\u2014 Ich werde das f\u00fcr dich erledigen.",
+            False, True, True),
+        # Gemischte Anfuehrungsformen — der Schliesser ist typographisch, der
+        # Oeffner gerade. Auch hier muss die Uebernahme sichtbar bleiben.
+        "gemischte Anfuehrung": (
+            "Er schreibt: \"Bitte zahlen.\u201c Ich werde das erledigen.",
+            False, True, False),
     }
     for name, (text, s_ang, s_ich, s_zu) in faelle.items():
         ohne = mr._ZITATE.sub(" ", text)

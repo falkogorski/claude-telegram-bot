@@ -12,7 +12,7 @@ import sys
 from collections import deque
 from pathlib import Path
 
-os.environ.setdefault("TELEGRAM_BOT_TOKEN", "0:selfcheck-dummy")
+os.environ["TELEGRAM_BOT_TOKEN"] = ("0:selfcheck-dummy")
 os.environ["ALLOWED_USER_IDS"] = "1"  # erzwungen: hermetisch (nie geerbte echte UID)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import bot  # noqa: E402

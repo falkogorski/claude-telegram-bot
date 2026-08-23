@@ -8,7 +8,7 @@ die Session kein Lebenszeichen mehr sendet. Geprüft wird, was der Wächter tut.
 import asyncio, os, sys, tempfile
 from pathlib import Path
 
-os.environ.setdefault("TELEGRAM_BOT_TOKEN", "0:test")
+os.environ["TELEGRAM_BOT_TOKEN"] = ("0:test")
 os.environ["ALLOWED_USER_IDS"] = "4242"  # erzwungen: hermetisch (nie geerbte echte UID)
 os.environ["PENDING_DIR"] = tempfile.mkdtemp(prefix="pending-test-")
 os.environ["STALL_LIMIT"] = "2"

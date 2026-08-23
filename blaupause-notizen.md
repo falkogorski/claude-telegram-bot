@@ -659,3 +659,39 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   kennen die Unterscheidung „Prüfer oder Werkzeug" nicht, und das ist richtig
   so. **„Das ist doch nur ein Hilfsskript" ist keine Ausnahme vom vollen Lauf**,
   sondern genau die Formulierung, mit der man ihn sich spart.
+
+## Engywucks Nachfreigabe zum Mail-Abruf (23.08.2026, Abend)
+
+- **Der Deckel muss GETRENNT sein, sonst schiebt man die Markierung über die
+  Kante · ② · universell** — Engywucks Bedingung, und die Messung gab ihm in
+  **beide** Richtungen recht: Fülltext im sichtbaren Teil hätte den
+  Verborgen-Abschnitt verdrängt (fail-open), und ein einzelnes langes Versteck
+  ging mit **200.000 Zeichen** ungekürzt in den Modell-Lauf (Kontext-Flutung).
+
+  *Die Lehre über den Fall hinaus:* **Ein gemeinsamer Deckel über zwei Töpfen
+  ist ein Hebel** — wer den einen füllt, leert den anderen. Wo zwei Dinge
+  unterschiedlich wichtig sind, brauchen sie unterschiedliche Grenzen.
+
+- **Die Heuristik klagte korrektes Verhalten an · ③ · universell** — mein
+  Merkmal „erste Person" schlug bei Fall 12 an. Der Satz lautete: *„Der
+  Absender schreibt wörtlich: ‚…, **ich habe** sie verlegt.'"* Der Bot hatte
+  **genau richtig zitiert**, und das Muster klagte ihn dafür an.
+
+  *Nebenwirkung:* Ein Prüfer, der korrektes Verhalten meldet, wird schneller
+  abgeschaltet als einer, der nichts findet. Fix: **zitierte Rede vor der
+  Messung herausnehmen** — die Merkmale suchen die Haltung des Bots *daneben*.
+
+- **Die Tatsache nehmen, nicht die Zeichenkette · ④ · universell** — Engywucks
+  Griff für die Anhänge, und er ist allgemeiner als sein Anlass: Adam braucht
+  „diese Mail bringt etwas mit", **nicht** den vom Absender gewählten
+  Dateinamen. Der MIME-Typ kommt vom Server, die Abbildung ist eine feste
+  Wortliste, Unbekanntes heißt „unbekannt". **Damit steht in der Übersicht kein
+  einziges Zeichen, das ein Fremder gewählt hat.**
+
+- **Die Ausnahme wird aus der Harmlosigkeit des GEGENSTANDS begründet, nie aus
+  dem Risiko · Engywuck zu meinem fünften Fehler · universell** — *„ist ja nur
+  ein Messwerkzeug" hat dieselbe Form wie „ist ja nur ein Kommentar".* Die
+  tragfähige Fassung hängt den vollen Lauf an den **Commit**, nicht an den
+  Gegenstand. Dann gibt es nichts mehr zu begründen — und das ist billiger als
+  jede Abwägung, weil die Frage „ist das wichtig genug?" länger dauert als der
+  Lauf.

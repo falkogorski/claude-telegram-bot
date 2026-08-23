@@ -1115,6 +1115,33 @@ Der Prüfer dazu: `scripts/test_auftragsbuch_b8.py`, Zeilen „rote Worte treffe
 deutsche Zusammensetzungen" und „häufige harmlose Träger bremsen nicht" — beide
 Richtungen gemessen.
 
+## ✅ DER VOLLE LAUF HÄNGT AM COMMIT, NICHT AM GEGENSTAND (Engywuck 2026-08-23)
+
+Ich hatte ein Messwerkzeug committet und deployt, ohne den Regressionslauf zu
+fahren — **„ist ja nur ein Hilfsskript".** Auf dem VPS waren daraufhin zwei
+Prüfungen rot: das gemischte Anführungspaar (zum siebten Mal) und ein
+fehlender Register-Eintrag.
+
+**Engywucks Diagnose trifft die Form, nicht den Einzelfall:** *„Ist ja nur ein
+Messwerkzeug" hat dieselbe Form wie „ist ja nur ein Kommentar" — die Ausnahme
+wird immer aus der Harmlosigkeit des **Gegenstands** begründet, nie aus dem
+Risiko.*
+
+**Die tragfähige Fassung lautet deshalb:**
+
+> **Vor jedem `git commit` läuft `bash scripts/regressionstest.sh` durch.**
+> Nicht „vor jeder Code-Änderung", nicht „bei allem Wichtigen" — **vor jedem
+> Commit.** Dann gibt es nichts mehr zu begründen.
+
+Das ist billiger als jede Abwägung: Der Lauf dauert unter einer Minute, und die
+Frage „ist das wichtig genug?" dauert länger als er — und wird falsch
+beantwortet, sobald es eilig ist.
+
+**Warum kein Prüfer dafür:** Ein pre-commit-Hook wäre möglich, aber
+`core.hooksPath` zu setzen verdrängt `.git/hooks/pre-commit` vollständig
+(gemessen 23.08.) — und damit die dritte Schutzschicht der Governance 8.7. Die
+Regel trägt hier die Disziplin, und sie ist so kurz, dass sie das kann.
+
 ## 🧪 VERHALTENS-PRÜFER: ausführen, nicht lesen (Conni 2026-08-18)
 
 **Ein Prüfer, der nur Text sucht, prüft die Schreibweise — nicht die Wirkung.**

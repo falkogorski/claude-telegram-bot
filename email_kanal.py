@@ -423,11 +423,41 @@ def _abrufen(k, wirt: str, port: str, anzahl: int, raus: list) -> list[dict]:
                                    "(FROM SUBJECT DATE)])")
             kopf = b"".join(t[1] for t in teil if isinstance(t, tuple))
             felder = _kopf_zerlegen(kopf)
+            # Nur die ART der Anhaenge, nie ihr Name (Engywuck ④). Die
+            # Struktur liefert IMAP ohne den Inhalt zu laden.
+            arten = _anhang_arten(v, kid)
             raus.append({"kennung": kid.decode(),
+                         "anhaenge": arten,
                          "von": felder.get("from", "—"),
                          "betreff": felder.get("subject", "(ohne Betreff)"),
                          "datum": felder.get("date", "")})
     return raus
+
+
+def _anhang_arten(v, kid) -> list[str]:
+    """Die ARTEN der Anhänge — über BODYSTRUCTURE, ohne Inhalt zu laden.
+
+    **Nie der Dateiname** (Engywuck ④, 23.08.): Adam braucht die Tatsache
+    „diese Mail bringt etwas mit", nicht die vom Absender gewählte
+    Zeichenkette. Der MIME-Typ kommt vom Server, die Abbildung ist eine feste
+    Wortliste, und alles Unbekannte heißt „unbekannt".
+
+    Fail-quiet: Kann die Struktur nicht gelesen werden, gibt es eben keinen
+    Hinweis. Ein Fehler hier darf die Übersicht nicht kosten — sie ist die
+    Hauptsache, der Anhang-Hinweis die Zugabe.
+    """
+    try:
+        _, daten = v.fetch(kid, "(BODYSTRUCTURE)")
+        roh = b" ".join(d if isinstance(d, bytes) else d[1] for d in daten
+                        if d).decode("utf-8", "replace").lower()
+    except Exception:
+        return []
+    arten = []
+    for typ, unter in re.findall(r'"(\w+)"\s+"([\w.+-]+)"', roh):
+        if typ == "text" and unter in ("plain", "html"):
+            continue          # der Nachrichtentext selbst ist kein Anhang
+        arten.append(_anhang_art(f"{typ}/{unter}"))
+    return arten
 
 
 def _kopf_zerlegen(roh: bytes) -> dict[str, str]:
@@ -540,6 +570,50 @@ def nachricht_text(konto: str, kennung: str) -> tuple[dict, str, list[str]]:
     return felder, text, verborgen
 
 
+# **Die Tatsache nehmen, nicht die Zeichenkette** (Engywuck, 23.08., zu ④).
+#
+# Adam braucht das Signal „diese Mail bringt etwas mit" — **nicht den vom
+# Absender gewählten Dateinamen.** Ein Dateiname ist angreifergewählter Text
+# und hätte in der Übersicht nichts zu suchen; die Art des Anhangs dagegen
+# leitet sich aus dem MIME-Typ ab, den der Server mitliefert.
+#
+# **Alles Unbekannte wird „unbekannt"** — die Abbildung ist eine feste
+# Wortliste, keine Übernahme. Damit steht in der Übersicht kein einziges
+# Zeichen, das ein Fremder gewählt hat.
+#
+# Der allgemeine Griff dahinter, und er gilt über E-Mail hinaus: Wo eine
+# Zeichenkette und eine Tatsache dasselbe ausdrücken, nimm die Tatsache.
+_ANHANG_ARTEN = {
+    "application/pdf": "PDF",
+    "image": "Bild", "audio": "Audio", "video": "Video",
+    "text": "Text",
+    "application/zip": "Archiv", "application/x-tar": "Archiv",
+    "application/gzip": "Archiv", "application/x-7z-compressed": "Archiv",
+    "application/msword": "Word", "application/vnd.ms-excel": "Tabelle",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Tabelle",
+}
+
+
+def _anhang_art(mime: str) -> str:
+    """MIME-Typ → ein Wort aus fester Liste. Unbekanntes bleibt „unbekannt"."""
+    m = (mime or "").split(";")[0].strip().lower()
+    if m in _ANHANG_ARTEN:
+        return _ANHANG_ARTEN[m]
+    return _ANHANG_ARTEN.get(m.split("/")[0], "unbekannt")
+
+
+def _anhang_hinweis(arten: list[str]) -> str:
+    """„2 Anhänge (PDF, Bild)" — die Tatsache, kein Dateiname."""
+    if not arten:
+        return ""
+    from collections import Counter
+    gezaehlt = Counter(arten)
+    teile = [f"{n}× {a}" if n > 1 else a for a, n in sorted(gezaehlt.items())]
+    wort = "Anhang" if len(arten) == 1 else "Anhänge"
+    return f"{len(arten)} {wort} ({', '.join(teile)})"
+
+
 def posteingang_lesbar(konto: str, anzahl: int = 10) -> str:
     """Die Kopfzeilen als Text für den Chat — **fremder Wortlaut als Zitat.**
 
@@ -575,6 +649,11 @@ def posteingang_lesbar(konto: str, anzahl: int = 10) -> str:
         zeilen.append(f"   ▏Betreff: [{_neutral(n['betreff'])}]")
         if n.get("datum"):
             zeilen.append(f"   ▏{_neutral(n['datum'])}")
+        hinweis = _anhang_hinweis(n.get("anhaenge") or [])
+        if hinweis:
+            # NICHT im Zitat-Rahmen: Das ist meine Feststellung, nicht der
+            # Wortlaut des Absenders.
+            zeilen.append(f"   📎 {hinweis}")
         zeilen.append("")
     zeilen.append("Der Text einer Nachricht wird erst geholt, wenn du ihn "
                   "anforderst — bis dahin habe ich nur diese Kopfzeilen.")

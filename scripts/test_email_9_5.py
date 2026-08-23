@@ -480,6 +480,12 @@ def _posteingang_ist_nur_lesend():
     fetches = [a for a in postfach.aufrufe if a[0] == "fetch"]
     assert fetches, "es wurde nichts abgerufen - die Zeile misst ins Leere"
     for _, _kid, spez in fetches:
+        # **PEEK ist nur noetig, wo INHALT geholt wird.** `BODYSTRUCTURE`
+        # liefert die MIME-Struktur und setzt kein Gelesen-Flag (RFC 3501) —
+        # nur `BODY[...]` ohne `.PEEK` tut das. Praezisiert am 23.08., als der
+        # Anhang-Hinweis dazukam und die Zeile berechtigt anschlug.
+        if "BODY[" not in spez.upper().replace("BODY.PEEK[", ""):
+            continue
         assert "BODY.PEEK" in spez, \
             (f"der Abruf markiert Nachrichten als gelesen (PEEK fehlt): {spez}")
 

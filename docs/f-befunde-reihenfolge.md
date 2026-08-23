@@ -1,7 +1,7 @@
 <!-- ROLLE: f-befunde-reihenfolge -->
 # F-Befunde der Gegenprüfung — Reihenfolge und Stand
 
-**Stichtag:** 2026-08-23 · **Stand: F-1 bis F-6 erledigt · F-7 bis F-16 offen**
+**Stichtag:** 2026-08-23 · **Stand: F-1 bis F-6 erledigt · F-7 bis F-17 offen**
 · **überholt durch:** — · **maßgeblich ist diese Datei** (Volltext der Befunde:
 `docs/gegenpruefung-2026-08-18.md`; die neuen aus
 `BEFUND ULTRACODE 9456f16..d596269`, Engywuck 23.08.)
@@ -338,6 +338,17 @@ deklariert. Sein Einzeiler macht ihn unabhängig davon:
 ```python
 braucht_zustimmung = ampel != "gruen" or bool(auftrag.get("befehl"))
 ```
+
+**F-17 · B2 ist ein Argument, kein Messwert** `[offen, 23.08.2026, Engywucks Gegenprüfung]`
+
+„Kein Weg zu `task_origins`" ist wahr — **solange niemand den Mail-Pfad an
+`process_user_text` hängt.** Nichts misst diese Abwesenheit heute; die
+vorhandene Zeile prüft nur, dass die Namen im Berichtspfad selbst nicht
+vorkommen.
+
+Eine AST-Zeile, die die **Erreichbarkeit** misst („von den Mail-Handlern aus
+ist `process_user_text` nicht erreichbar"), macht daraus einen gemessenen
+Befund. **Nicht blockierend** — der Zustand ist heute richtig, nur ungeprüft.
 
 ## Erledigt
 - **Zeitgeber-Wache** (Befund B1/B4/B5): gelöschte Timer werden erfasst,

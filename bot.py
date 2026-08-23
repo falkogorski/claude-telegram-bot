@@ -7323,6 +7323,9 @@ def _reconcile_pending(app: Application) -> str:
                 reply_to_override=r.get("reply_to_override"),
                 received_at=r.get("received_at") or time.time(),
                 thorough=bool(r.get("thorough")),
+                # J: fehlte hier — die Wiederaufnahme konnte den Adam-Anteil
+                # nicht herstellen, weil er nie abgelegt wurde.
+                adam_anteil=r.get("adam_anteil"),
                 pending_key=key,
                 user_id=uid,
                 chat_id=r.get("chat_id"),
@@ -7778,6 +7781,11 @@ async def process_user_text(
                 "output_chat_id": job.output_chat_id,
                 "reply_to_override": reply_to_override,
                 "thorough": thorough,
+                # J (Engywuck, 23.08.): Ohne dieses Feld verhaelt sich DIESELBE
+                # Nachricht vor und nach einem Neustart verschieden — vorher mit
+                # Vertrauen in Adams eigene Adressen, nachher ohne. Ein
+                # Unterschied, den niemand sieht und niemand erklaeren kann.
+                "adam_anteil": adam_anteil,
                 "received_at": job.received_at,
                 "message_date": job.message_date,
             })
@@ -8463,9 +8471,48 @@ async def on_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     prefix = _extract_reply_context(update)
-    # H3: `text` ist Adams eigener Wortlaut, `prefix` ist zitierter FREMDtext —
-    # deshalb geht nur `text` als Vertrauensquelle mit.
-    await process_user_text(update, prefix + text, adam_anteil=text)
+    # H3: `prefix` ist zitierter FREMDtext und geht nie als Vertrauensquelle
+    # mit. Ob `text` Adams eigener Wortlaut ist, entscheidet `_adam_anteil`.
+    await process_user_text(update, prefix + text,
+                            adam_anteil=_adam_anteil(update, text))
+
+
+def _adam_anteil(update, text: str) -> str | None:
+    """Ist dieser Text wirklich Adams eigener Wortlaut? — **Befund A, 23.08.**
+
+    Nur was hier zurückkommt, darf die Vertrauensliste speisen: Ein Hostname
+    aus Adams eigenem Satz wird ohne Rückfrage abgerufen, weil er ihn ja selbst
+    genannt hat. Genau deshalb ist die Frage, WESSEN Wort das ist, keine
+    Formalie.
+
+    **Was gemessen wurde:** `bot.py` enthielt null Vorkommen von
+    `forward_origin`. Der Texthandler ist `filters.TEXT & ~filters.COMMAND` —
+    Weiterleitungen gehen ungefiltert durch, und `adam_anteil=text` erklärte
+    fremden Text zu Adams Wort. Eine weitergeleitete Werbenachricht mit
+    „Details unter shop-boese.tld" trug den Host ein; der nächste Abruf dorthin
+    lief ohne Rückfrage. **Der Kommentar darüber war die falsche Aussage, nicht
+    der Code** — er behauptete, `text` sei Adams eigener Wortlaut.
+
+    Weiterleiten ist Adams alltäglichste Geste: Er schiebt mir eine Nachricht
+    herüber, damit ich sie ansehe. Das ist ein Auftrag zum **Lesen** — und nach
+    Adams eigenem Kopfsatz niemals einer zum Handeln nach dem Gelesenen.
+
+    Fail-closed: Im Zweifel `None`. Der Preis ist eine Rückfrage zu viel, der
+    Gegenwert ein Abruf zu wenig, den niemand gewollt hat.
+    """
+    msg = getattr(update, "message", None)
+    if msg is None:
+        return None
+    # PTB 22 kennt `forward_origin`. Ältere Felder werden mitgeprüft, damit ein
+    # Rückschritt der Bibliothek die Schranke nicht still öffnet.
+    for feld in ("forward_origin", "forward_from", "forward_from_chat",
+                 "forward_sender_name", "forward_date"):
+        if getattr(msg, feld, None) is not None:
+            return None
+    # Automatisch weitergeleitete Kanalbeiträge in verbundenen Gruppen.
+    if getattr(msg, "is_automatic_forward", None):
+        return None
+    return text
 
 
 def _text_ohne_links(text: str) -> str:
@@ -8487,7 +8534,10 @@ async def _link_ablegen(update: Update, urls: list[str]) -> None:
         try:
             eintraege.append(await asyncio.to_thread(
                 linkinbox.ablegen, u, update.effective_chat.id,
-                update.message.message_id))
+                update.message.message_id,
+                # J: Herkunft JETZT festhalten — nach dem Ablegen ist nicht
+                # mehr zu sehen, ob die Adresse aus Adams Satz kam.
+                _adam_anteil(update, u) is not None))
         except Exception:
             log.exception("Link nicht ablegbar: %s", u)
     if not eintraege:
@@ -8590,8 +8640,14 @@ async def on_link_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None
     # Ein Fehlerfang an dieser Stelle finge nur das Einreihen und sähe aus wie
     # ein Riegel, ohne einer zu sein. Die Nachbedingung muss deshalb am
     # **Auftrag** hängen (`links_abhaken`), wo der Ausgang bekannt wird.
+    # J (23.08.): Nur die Adressen, die Adam SELBST geschrieben hat, duerfen
+    # die Vertrauensliste speisen. Weitergeleitete Links liegen in derselben
+    # Ablage und saehen hier sonst genauso aus wie seine eigenen Funde — eine
+    # fremde Seite haette sich ueber die Ablage den eigenen Abruf freigeschaltet.
+    _eigene = " ".join(e.url for e in bezug if getattr(e, "eigenes_wort", False))
     await process_user_text(update, f"{auftrag}\n{liste}",
-                            links_abhaken=[e.url for e in bezug])
+                            links_abhaken=[e.url for e in bezug],
+                            adam_anteil=_eigene or None)
 
 
 async def cmd_links(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -8735,8 +8791,12 @@ async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     _dur = getattr(voice, "duration", None)
     _note = (f"🎙️ Sprachnachricht ({_dur // 60}:{_dur % 60:02d})"
              if isinstance(_dur, int) else "🎙️ Sprachnachricht")
+    # J (23.08.): Gesprochenes ist Adams eigenes Wort — aber eine
+    # WEITERGELEITETE Sprachnachricht ist es nicht, und der Unterschied ist
+    # nach der Abschrift nicht mehr zu sehen. `_adam_anteil` entscheidet.
     await process_user_text(update, prefix + text, reply_to_override=reply_override,
-                            log_note=_note)
+                            log_note=_note,
+                            adam_anteil=_adam_anteil(update, text))
 
 
 # 5.2-Erweiterung (Befund 25.07., Nachtrag VI): Medien-Eingangsschutz.

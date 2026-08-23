@@ -29,7 +29,32 @@ from pathlib import Path
 _TMP = Path(tempfile.mkdtemp(prefix="schranken-"))
 os.environ["TELEGRAM_BOT_TOKEN"] = "1:test"
 os.environ["ALLOWED_USER_IDS"] = "4711"
-os.environ["USER_PREFS_FILE"] = str(_TMP / "prefs.json")
+
+# **Jede Betriebsablage in die Prüfablage umbiegen — hermetisch, mit `=`, nie
+# `setdefault`.** Befund L (Engywuck, 23.08.) traf `USER_PREFS_FILE`; die
+# Geschwister-Regel verlangt, die anderen Pfade derselben Art im selben Zug zu
+# prüfen. Es sind acht, und die Suite setzte genau einen davon. Was hier fehlt,
+# schreibt in den echten Betrieb — auf dem VPS als `claudebot`, still.
+#
+# Die Liste ist zugleich der Prüfgegenstand weiter unten: dort wird GEMESSEN,
+# dass die geladenen Module wirklich hierher zeigen. Eine Variable zu setzen,
+# die niemand liest, sieht genauso aus wie eine, die wirkt — das war der ganze
+# Befund L.
+_ABLAGEN = {
+    "USER_PREFS_FILE":   _TMP / "prefs.json",
+    "PENDING_DIR":       _TMP / "pending",
+    "LINK_INBOX_DIR":    _TMP / "links",
+    "AUFTRAGSBUCH_DIR":  _TMP / "auftragsbuch",
+    "POSTFACH_DIR":      _TMP / "postfach",
+    "FREIGABE_DIR":      _TMP / "freigaben",
+    "QUESTIONS_FILE":    _TMP / "fragen.json",
+    "CLAUDE_MEMORY_DIR": _TMP / "memory",
+    "LIMIT_MARKE_FILE":  _TMP / "limit.marke",
+    "LIMIT_STAND_FILE":  _TMP / "limit.stand",
+}
+for _name, _pfad in _ABLAGEN.items():
+    os.environ[_name] = str(_pfad)
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import bot  # noqa: E402
 
@@ -832,8 +857,94 @@ def _adams_eigener_text_speist_sie_weiterhin():
         "zitierter Fremdtext ist mitgewandert - der Reply-Kontext ist nicht getrennt"
 
 
+def _eine_weiterleitung_ist_nicht_adams_wort():
+    """**Befund A (Engywuck, 23.08.) — und die Lehre über diese ganze Suite.**
+
+    Die H3-Zeile darüber baute den `QueuedJob` SELBST und prüfte, dass sein
+    Vorgabewert `None` ist. Damit maß sie eine Feldvorbelegung — nicht, was der
+    echte Handler einträgt. **Deshalb ist Befund A durchgekommen:** Der
+    Texthandler setzte `adam_anteil=text` ohne jede Prüfung, `bot.py` enthielt
+    null Vorkommen von `forward_origin`, und eine weitergeleitete Nachricht mit
+    „Details unter shop-boese.tld" trug den Host in die Vertrauensliste ein.
+
+    Jetzt wird die Entscheidungsfunktion AUSGEFÜHRT, in beide Richtungen.
+    """
+    class _Msg:
+        forward_origin = None
+        forward_from = None
+        forward_from_chat = None
+        forward_sender_name = None
+        forward_date = None
+        is_automatic_forward = False
+
+    class _Upd:
+        message = _Msg()
+
+    eigen = _Upd()
+    assert bot._adam_anteil(eigen, "schau auf de.wikipedia.org") == \
+        "schau auf de.wikipedia.org", \
+        "Adams eigener Text gilt nicht mehr als seiner - jeder Abruf braeuchte einen Dialog"
+
+    # Jede Spielart der Weiterleitung muss das Vertrauen kappen.
+    for feld in ("forward_origin", "forward_from", "forward_from_chat",
+                 "forward_sender_name", "forward_date", "is_automatic_forward"):
+        weiter = _Upd()
+        setattr(weiter.message, feld, object())
+        gemessen = bot._adam_anteil(weiter, "Details unter shop-boese.tld")
+        assert gemessen is None, \
+            f"eine Weiterleitung ueber {feld} gilt als Adams Wort: {gemessen!r}"
+        # Und der ganze Weg bis zur Vertrauensliste, nicht nur die Vorstufe:
+        hosts = bot._extract_hosts(gemessen or "", fuer_vertrauen=True)
+        assert not hosts, f"Fremdtext hat die Vertrauensliste gespeist: {sorted(hosts)}"
+        setattr(weiter.message, feld, None if feld != "is_automatic_forward" else False)
+
+
+def _der_adam_anteil_ueberlebt_einen_neustart():
+    """**Befund J (23.08.):** dieselbe Nachricht, zweimal verschieden.
+
+    `pending.record` trug das Feld nicht, also konnte die Wiederaufnahme es
+    nicht herstellen. Vor einem Neustart vertraute der Bot Adams eigener
+    Adresse, danach nicht mehr — ein Unterschied, den niemand sieht und
+    niemand erklaeren kann.
+
+    **Ausgefuehrt, nicht gelesen:** Die erste Fassung dieser Zeile suchte
+    `"adam_anteil"` im Quelltext von `process_user_text` — dieselbe Schwaeche,
+    die Engywuck an sechs anderen Zeilen gefunden hat. Jetzt wird abgelegt und
+    zurueckgelesen: Was durch die Ablage geht, muss auf der anderen Seite
+    wieder herauskommen.
+    """
+    import pending
+    schluessel = pending.make_key(4711, 424242)
+    try:
+        pending.record(schluessel, {
+            "user_id": 4711, "chat_id": 4711, "message_id": 424242,
+            "text": "schau auf de.wikipedia.org",
+            "adam_anteil": "schau auf de.wikipedia.org",
+            "status": pending.STATUS_OPEN,
+        })
+        zurueck = [r for r in pending.load_all()
+                   if r.get("message_id") == 424242]
+        assert zurueck, "der Auftrag wurde beim Empfang gar nicht gesichert"
+        gelesen = zurueck[0].get("adam_anteil")
+        assert gelesen == "schau auf de.wikipedia.org", (
+            "der Adam-Anteil ueberlebt die Ablage nicht - nach einem Neustart "
+            f"verhaelt sich dieselbe Nachricht anders: {gelesen!r}")
+        # Und die Wiederaufnahme muss ihn auch WIEDER EINSETZEN, nicht nur
+        # ablegen koennen: der QueuedJob traegt das Feld.
+        job = bot.QueuedJob(update=None, text=zurueck[0]["text"], user_id=4711,
+                            chat_id=4711, message_id=424242,
+                            adam_anteil=zurueck[0].get("adam_anteil"))
+        hosts = bot._extract_hosts(job.adam_anteil or "", fuer_vertrauen=True)
+        assert "de.wikipedia.org" in hosts, \
+            "nach der Wiederaufnahme traegt der Auftrag kein Vertrauen mehr"
+    finally:
+        pending.resolve(schluessel)
+
+
 check("Fremdtext speist die Vertrauensliste nicht", _fremdtext_speist_die_vertrauensliste_nicht)
 check("Adams eigener Text speist sie weiterhin", _adams_eigener_text_speist_sie_weiterhin)
+check("eine Weiterleitung ist nicht Adams Wort", _eine_weiterleitung_ist_nicht_adams_wort)
+check("der Adam-Anteil ueberlebt einen Neustart", _der_adam_anteil_ueberlebt_einen_neustart)
 
 
 # --------------------------------------------------------------------------
@@ -1146,8 +1257,47 @@ def _der_pruefstand_schreibt_nicht_in_die_echten_vorlieben():
          "den diese Zeile verhindern soll")
 
 
+def _keine_betriebsablage_wird_angefasst():
+    """**Die Geschwister von Befund L — gemessen, nicht angenommen.**
+
+    `USER_PREFS_FILE` war nur einer von acht umbiegbaren Pfaden; die Suite
+    setzte genau diesen einen. Die uebrigen sieben zeigten weiter in den
+    Betrieb: die Auftragsablage, die Link-Ablage, das Auftragsbuch, das
+    Postfach, die Freigaben, die offenen Fragen, das Gedaechtnis.
+
+    Gemessen wird der Zustand der GELADENEN Module, nicht der Umgebung: Eine
+    Variable zu setzen, die niemand liest, sieht genauso aus wie eine, die
+    wirkt. Genau daran ist L drei Wochen lang unbemerkt geblieben.
+    """
+    import auftragsbuch, botenpost, freigaben, linkinbox, pending, reactions
+
+    gemessen = {
+        "PENDING_DIR":      pending._DIR,
+        "LINK_INBOX_DIR":   linkinbox.ABLAGE,
+        "AUFTRAGSBUCH_DIR": auftragsbuch.BUCH,
+        "POSTFACH_DIR":     botenpost.POSTFACH,
+        "FREIGABE_DIR":     freigaben.WURZEL,
+        "QUESTIONS_FILE":   reactions.QUESTIONS_FILE,
+        "CLAUDE_MEMORY_DIR": bot._MEMORY_DIR,
+        "USER_PREFS_FILE":  bot._PREFS_FILE,
+    }
+    # Geprueft wird „liegt UNTERHALB der Pruefablage", nicht „ist gleich": Ein
+    # Modul darf sich Unterordner anlegen (botenpost tut das mit `outbox`).
+    # Entscheidend ist allein, dass nichts nach draussen zeigt.
+    wurzel = _TMP.resolve()
+    daneben = {}
+    for name, ist in gemessen.items():
+        pfad = Path(ist).resolve()
+        if wurzel not in pfad.parents and pfad != wurzel:
+            daneben[name] = str(pfad)
+    assert not daneben, (
+        "diese Ablagen zeigen in den BETRIEB statt in die Pruefablage - ein Lauf "
+        f"wuerde echten Zustand veraendern: {daneben}")
+
+
 check("der Pruefstand fasst die echten Vorlieben nicht an",
       _der_pruefstand_schreibt_nicht_in_die_echten_vorlieben)
+check("keine Betriebsablage wird angefasst", _keine_betriebsablage_wird_angefasst)
 
 print()
 if fails:

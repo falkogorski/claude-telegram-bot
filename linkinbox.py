@@ -64,6 +64,17 @@ class Eintrag:
     message_id: int | None = None
     erledigt: bool = False
     notiz: str = ""
+    # J (Engywuck, 23.08.): Stammt die Adresse aus Adams eigenem Satz oder aus
+    # einer WEITERGELEITETEN Nachricht? Nach dem Ablegen ist das nicht mehr zu
+    # sehen — eine weitergeleitete Werbenachricht, die nur aus Links besteht,
+    # landet hier genauso wie Adams eigener Fund. Spaeter speist `/links` die
+    # Vertrauensliste; ohne dieses Feld haette eine fremde Adresse sich damit
+    # den eigenen Abruf freigeschaltet.
+    #
+    # Vorgabe FALSE, und das ist Absicht: Altbestand ohne Feld erbt kein
+    # Vertrauen. Der Preis ist eine Rueckfrage bei alten Links, der Gegenwert
+    # ist, dass kein einziger davon faelschlich als Adams Wort gilt.
+    eigenes_wort: bool = False
 
     def lesbar(self) -> str:
         art_wort = {"video": "Video", "beitrag": "Beitrag", "artikel": "Artikel",
@@ -149,13 +160,15 @@ def _speichern(liste: list[dict]) -> None:
 
 
 def ablegen(url: str, chat_id: int | None = None,
-            message_id: int | None = None) -> Eintrag:
+            message_id: int | None = None,
+            eigenes_wort: bool = False) -> Eintrag:
     """Legt einen Link ab — ohne ihn abzurufen."""
     quelle, art = einordnen(url)
     e = Eintrag(url=url, quelle=quelle, art=art,
                 titel=_titel_aus_adresse(url),
                 empfangen=time.strftime("%Y-%m-%d %H:%M"),
-                chat_id=chat_id, message_id=message_id)
+                chat_id=chat_id, message_id=message_id,
+                eigenes_wort=eigenes_wort)
     liste = _laden()
     # Denselben Link nicht doppelt führen — Adam schickt gern nach.
     liste = [x for x in liste if x.get("url") != url]

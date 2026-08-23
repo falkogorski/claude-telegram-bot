@@ -51,8 +51,28 @@ export BLUMEN_DIR="$PRUEFHEIM/blumen"
 # an denen ein Test schreiben kann.
 export AUFTRAGSBUCH_DIR="$PRUEFHEIM/auftragsbuch"
 export PENDING_DIR="$PRUEFHEIM/pending"
+# `[NEU 2026-08-23]` Und die Liste war weiter unvollstaendig — genau so, wie es
+# der Absatz darueber vorhergesagt hat. Engywucks Befund L: `USER_PREFS_FILE`
+# fehlte hier, zwoelf Testdateien setzten es einzeln, und `bot.py` LAS es gar
+# nicht. Jeder Lauf beschrieb die echte `prefs.json`; auf dem VPS standen
+# danach alle drei Kanal-Kennungen auf der Test-Attrappe. Ein Bruch, der wie
+# Ruhe aussieht, weil ein unbekannter Kanal nichts wirft, das auffaellt.
+#
+# Die uebrigen vier hatten dasselbe Loch, nur ohne Vorfall. Ab jetzt meldet
+# `scripts/test_hermetik.py` jede Ablage, die hier fehlt — die Liste soll nicht
+# wieder langsamer wachsen als die Orte, an denen ein Test schreiben kann.
+export USER_PREFS_FILE="$PRUEFHEIM/prefs.json"
+export LINK_INBOX_DIR="$PRUEFHEIM/links"
+export QUESTIONS_FILE="$PRUEFHEIM/open_questions.json"
+export LIMIT_MARKE_FILE="$PRUEFHEIM/limit.marke"
+export LIMIT_STAND_FILE="$PRUEFHEIM/limit.stand"
+# Vom Hermetik-Pruefer beim ERSTEN Lauf gefunden — beide schreiben in Ablagen,
+# die ein Mensch spaeter liest: Gespraechsprotokolle und hochgeladene Dateien.
+export CONVERSATION_LOG_DIR="$PRUEFHEIM/claude-logs"
+export UPLOAD_DIR="$PRUEFHEIM/uploads"
 mkdir -p "$POSTFACH_DIR/outbox" "$FREIGABE_DIR" "$HORA_DIR" "$BLUMEN_DIR" \
-         "$AUFTRAGSBUCH_DIR" "$PENDING_DIR"
+         "$AUFTRAGSBUCH_DIR" "$PENDING_DIR" "$LINK_INBOX_DIR" \
+         "$CONVERSATION_LOG_DIR" "$UPLOAD_DIR"
 trap 'rm -rf "$PRUEFHEIM"' EXIT
 
 # Stand des ECHTEN Postfachs VOR dem Lauf — der Nachweis am Ende vergleicht.
@@ -142,6 +162,7 @@ run "Kontingent-Stand (A2)"            "$PY" scripts/test_kontingent_a2.py
 run "Kanal-Links 6.2/6.4"              "$PY" scripts/test_kanal_links_6_2.py
 run "Pin-Bezug 5.13"                   "$PY" scripts/test_pin_bezug_5_13.py
 run "Eingangsschranken (1)(2)"        "$PY" scripts/test_eingangsschranken.py
+run "Hermetik der Pruefläufe (L)"       "$PY" scripts/test_hermetik.py
 run "Zielumgebung (bash -n + env -i)"  bash scripts/test_zielumgebung.sh
 run "Sendepfad-Rauchtest (Pflicht 1)"  "$PY" scripts/test_sendepfad_rauch.py
 run "Gruendlich-Umschalter (B3)"        "$PY" scripts/test_gruendlich_b3.py

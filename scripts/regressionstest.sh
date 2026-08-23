@@ -187,6 +187,7 @@ run "Kontingent-Stand (A2)"            "$PY" scripts/test_kontingent_a2.py
 run "Kanal-Links 6.2/6.4"              "$PY" scripts/test_kanal_links_6_2.py
 run "Pin-Bezug 5.13"                   "$PY" scripts/test_pin_bezug_5_13.py
 run "Eingangsschranken (1)(2)"        "$PY" scripts/test_eingangsschranken.py
+run "Mail-Angriffskorpus (Stufe B)"    "$PY" scripts/test_mailkorpus.py
 run "Hermetik der Pruefläufe (L)"       "$PY" scripts/test_hermetik.py
 run "Zielumgebung (bash -n + env -i)"  bash scripts/test_zielumgebung.sh
 run "Sendepfad-Rauchtest (Pflicht 1)"  "$PY" scripts/test_sendepfad_rauch.py

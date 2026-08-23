@@ -596,3 +596,33 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   **eckigen Klammern** von vornherein für Meldungen zu nehmen — `[{konto}]`
   statt Anführungszeichen. Die Regel zu kennen genügt offenbar nicht; man
   braucht die Ausweichform im Finger.
+
+## Mail-Abruf Stufe B4 + Angriffskorpus (23.08.2026)
+
+- **Entfernen ist eine stille Lüge, Markieren ist die Information · B4 ·
+  universell** — Engywuck ließ die Wahl: verstecktes HTML mitlesen und
+  markieren, **oder** entfernen. *Die Nebenwirkung des Entfernens ist der
+  Grund gegen es:* Eine Mail, deren versteckter Teil spurlos verschwindet,
+  sieht **harmlos aus**. Adam erführe nie, dass jemand etwas zu verbergen
+  versuchte — und **genau das ist die Information, die er braucht.** Ein
+  Absender, der weiße Schrift benutzt, hat sich damit erklärt.
+
+  Dazu der billigere Maßstab: Ob ein versteckter Satz eine *Anweisung* ist,
+  kann niemand zuverlässig entscheiden. Ob er **versteckt war**, ist eine
+  strukturelle Tatsache im Auszeichnungstext. **Wir messen, was messbar ist.**
+
+- **Der Kommentar versprach mehr, als der Prüfer maß · eigene Gegenprobe ·
+  universell** — *Nebenwirkung, und sie hat sich selbst gezeigt:* Meine
+  Gegenprobe „Zeichen entfernen statt ersetzen" ließ die Prüfzeile **grün**.
+  Sie maß „kein unsichtbares Zeichen im Text" — was Entfernen ebenso erfüllt.
+  Der Kommentar daneben schloss Entfernen ausdrücklich aus.
+
+  **Ohne Engywucks Handgriff** (vorher hinschreiben, welche Zeile rot werden
+  soll) hätte ich die grüne Gegenprobe als bestanden verbucht. So fiel auf,
+  dass sie die falsche Sache misst — und eine neue Zeile schließt die Lücke.
+
+- **Zwei von fünf eigenen Gegenproben waren falsch konstruiert · Verfahren ·
+  universell** — sie trafen schlicht nicht, weil der Patch-Anker nicht passte
+  oder der Eingriff die Prüfung gar nicht berührte. **Beides sah aus wie „der
+  Schutz hält".** Der Handgriff verwandelt genau diesen Fall von einem
+  beruhigenden Ergebnis in einen sichtbaren Fehlschlag.

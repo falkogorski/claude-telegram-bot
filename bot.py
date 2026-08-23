@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json as _json
 import re
+import shlex
 import logging
 import os
 import socket
@@ -2242,22 +2243,47 @@ def _extract_hosts(text: str, fuer_vertrauen: bool = False) -> set[str]:
 # 5.25 (b) Geheimnis-Schutz: Verweise auf diese Muster werden NIE automatisch
 # freigegeben — sie fallen immer in den normalen Freigabe-Dialog (Adam sieht
 # und entscheidet). Kein Token darf je in Sitzungskontext oder Chat geraten.
-_SENSITIVE_MARKERS = (".env", "credentials", "token", "secret", "_key", "key.",
-                      "keys.", "id_ed25519", "id_rsa", "/etc/claude-telegram-bot",
-                      # H7 (Engywuck 22.08.): Pfade, die ueber die SITZUNG
-                      # HINAUS wirken. Ein Schreibzugriff hierhin ist keine
-                      # einmalige Handlung, sondern eine dauerhafte
-                      # Einfluesterung: Der Gedaechtnis-Ordner geht in den
-                      # System-Prompt JEDER kuenftigen Sitzung, und eine
-                      # hooks-Sektion in den Einstellungen fuehrt Befehle aus,
-                      # ganz ohne das Werkzeug Bash. Gemessen waren alle drei
-                      # nicht einmal dialogpflichtig.
-                      "/.claude/settings", "/.claude/projects", "/memory/",
-                      "claude.md", "/.claude/hooks",
-                      # 5.34: Der eigene Bot-API-Server braucht Zugangsdaten —
-                      # der Token lebt damit an einer ZWEITEN Stelle. Vor dem
-                      # Bau eingetragen, nicht danach (Conni-Bedingung).
-                      "/etc/telegram-bot-api")
+# **Befund G (Engywuck, 23.08.): Eine Liste, zwei verschiedene Gefahren.**
+#
+# Ein Geheimnis ist gefährlich, wenn man es LIEST. Ein Pfad mit Dauerwirkung ist
+# gefährlich, wenn man ihn SCHREIBT. Beides in einem Topf hieß: Der
+# Gedächtnis-Ordner und `CLAUDE.md` fielen auch beim bloßen Lesen in den Dialog
+# — gegen den 8.7-Entscheid „Lesen ja" und gegen den System-Prompt, der dem
+# Agenten genau dieses Lesen als frei zusagt. **Der Doku-Spiegel war gebrochen:
+# Der Bot versprach etwas, das seine eigene Schranke verweigerte.**
+_GEHEIMNIS_MARKER = (".env", "credentials", "token", "secret", "_key", "key.",
+                     "keys.", "id_ed25519", "id_rsa", "/etc/claude-telegram-bot",
+                     # 5.34: Der eigene Bot-API-Server braucht Zugangsdaten —
+                     # der Token lebt damit an einer ZWEITEN Stelle. Vor dem
+                     # Bau eingetragen, nicht danach (Conni-Bedingung).
+                     "/etc/telegram-bot-api",
+                     # **Die andere Richtung von G:** Diese Ziele waren NICHT
+                     # dialogpflichtig — und es sind genau die aus Befund E.
+                     # Die Prozessumgebung enthält den Bot-Token und das
+                     # Abo-Token; als Datei ist sie für `claudebot` nicht
+                     # lesbar, im eigenen Prozess aber vollständig da.
+                     #
+                     # `/environ` statt `environ`: „environmental" in einer
+                     # Recherche darf nicht anschlagen. Ein Filter, der
+                     # grundlos anspringt, wird abgeschaltet — und prüft dann
+                     # gar nichts mehr.
+                     "/proc/", "/environ",
+                     ".bash_history", ".zsh_history", ".python_history",
+                     ".sh_history", "authorized_keys", ".netrc", ".pgpass")
+
+# Nur beim SCHREIBEN dialogpflichtig — beim Lesen ausdrücklich frei (8.7).
+#
+# H7 (Engywuck 22.08.): Pfade, die über die SITZUNG HINAUS wirken. Ein
+# Schreibzugriff hierhin ist keine einmalige Handlung, sondern eine dauerhafte
+# Einflüsterung: Der Gedächtnis-Ordner geht in den System-Prompt JEDER
+# künftigen Sitzung, und eine hooks-Sektion in den Einstellungen führt Befehle
+# aus, ganz ohne das Werkzeug Bash.
+_DAUERWIRKUNG_MARKER = ("/.claude/settings", "/.claude/projects", "/memory/",
+                        "claude.md", "/.claude/hooks")
+
+# Rückwärtskompatibler Gesamtblick — wer nichts angibt, bekommt beide Listen
+# (fail-closed).
+_SENSITIVE_MARKERS = _GEHEIMNIS_MARKER + _DAUERWIRKUNG_MARKER
 
 
 # ⑥ Befehle, die die **Prozessumgebung** ausgeben. Dort liegen Token und
@@ -2268,15 +2294,54 @@ _SENSITIVE_MARKERS = (".env", "credentials", "token", "secret", "_key", "key.",
 # „env" schlüge bei „Adventskalender", „Inventar" und „eventuell" an — und ein
 # Filter, der dreimal täglich grundlos anspringt, wird binnen einer Woche
 # abgeschaltet. Dann prüft er nichts mehr.
-_UMGEBUNGS_BEFEHLE = frozenset({"env", "printenv", "set", "export", "declare"})
+#
+# **Befund H (23.08.): am BEFEHLSANFANG, nicht irgendwo im Satz.** Die wortweise
+# Prüfung schlug bei „python telegram bot **set** webhook" und „wie kann ich in
+# python ein **set** benutzen" an — beides harmlose Recherchefragen. Genau die
+# Erosion, die der Kommentar oben benennt: Ein Filter, der grundlos anspringt,
+# wird abgeschaltet. `set` ist ein Befehl, wenn er einer ist — also am Anfang
+# einer Befehlszeile oder hinter einer Verkettung.
+_UMGEBUNGS_BEFEHL_RE = re.compile(
+    r"(?:^|[;|&\n]\s*)(?:env|printenv|set|export|declare)\b")
 
-# Glob- und Klammerformen, mit denen sich ein Name buchstabieren lässt, ohne
-# ihn zu schreiben: `.e*`, `.[e]nv`, `.?nv`. Gemessen am 22.08. — alle drei
-# liefen an der reinen Zeichenketten-Prüfung vorbei.
-_GLOB_NACH_PUNKT = re.compile(r"\.\s*[\w\[\]?*]*[\[\]?*]")
+# Klammerformen wie `.[e]nv` fängt die Entkernung. Für Platzhalter braucht es
+# einen Mustervergleich — siehe `_glob_zielt_auf_geheimnis`.
+_GLOB_ZEICHEN = ("*", "?", "[")
 
 
-def _is_sensitive_ref(raw: str) -> bool:
+def _glob_zielt_auf_geheimnis(s: str) -> bool:
+    """Buchstabiert dieses Glob-Muster einen Geheimnis-Namen?
+
+    **Befund H (Engywuck, 23.08.): Die alte Fassung war ein Streuschuss.** Sie
+    suchte „irgendein Platzhalter hinter einem Punkt" (`\\.\\s*[\\w\\[\\]?*]*[\\[\\]?*]`)
+    und traf damit selbst gemessen:
+
+        def .*_run_job · logs/*.log* · Was ist neu in Version 2.7?
+
+    Alles harmlos, alles dialogpflichtig. Der Kommentar zwei Zeilen darüber
+    benannte diese Erosion bereits — nur maß sie niemand.
+
+    **Jetzt wird das Muster als Muster behandelt.** `fnmatch` beantwortet die
+    Frage, um die es wirklich geht: *Könnte dieser Ausdruck einen der
+    Geheimnis-Namen treffen?* `.e*` und `.?nv` treffen `.env`; `.*_run_job`
+    und `2.7?` treffen nichts. Das ist keine schärfere Heuristik, sondern die
+    richtige Frage.
+    """
+    import fnmatch
+    for token in re.findall(r"[^\s'\"]+", s):
+        if not any(z in token for z in _GLOB_ZEICHEN):
+            continue
+        # Auch der Basisname: `/home/claudebot/.e*` zielt auf `.env`, aber als
+        # ganzer Pfad trifft das Muster den Marker nicht.
+        kandidaten = {token, token.rsplit("/", 1)[-1]}
+        for marker in _GEHEIMNIS_MARKER:
+            m = marker.strip("/")
+            if any(fnmatch.fnmatch(m, k) for k in kandidaten if k):
+                return True
+    return False
+
+
+def _is_sensitive_ref(raw: str, *, schreibend: bool = True) -> bool:
     """Ob ein Verweis in den Freigabe-Dialog gehört.
 
     **Drei Prüfungen statt einer** (⑥ aus dem Bauauftrag vom 22.08.). Die
@@ -2284,25 +2349,32 @@ def _is_sensitive_ref(raw: str) -> bool:
     aber gemessen liefen fünf von acht Wegen vorbei: `.e*`, `.[e]nv`, `env`,
     `printenv` und `set | grep MAIL`. Dass `os.environ` gefangen wurde, war
     **Zufall**: `.env` steckt zufällig als Teilfolge darin.
+
+    **`schreibend` (Befund G, 23.08.):** Ein Geheimnis ist gefährlich, wenn man
+    es LIEST; ein Pfad mit Dauerwirkung, wenn man ihn SCHREIBT. Beim Lesen
+    entfallen deshalb die Dauerwirkungs-Marker — sonst fiele der
+    Gedächtnis-Ordner auch beim bloßen Nachschlagen in den Dialog, obwohl 8.7
+    und der System-Prompt ihn ausdrücklich freigeben.
+
+    Vorgabe `True` und damit fail-closed: Wer nichts angibt, bekommt beide
+    Listen. Nur die Lese-Wege sagen ausdrücklich das Gegenteil.
     """
     s = (raw or "").lower()
-    if any(m in s for m in _SENSITIVE_MARKERS):
+    marker = _SENSITIVE_MARKERS if schreibend else _GEHEIMNIS_MARKER
+    if any(m in s for m in marker):
         return True
     # Entkernt: Klammern entfernen, dann erneut vergleichen — so wird aus
     # `.[e]nv` wieder `.env`, ohne dass die Marker-Liste wachsen muss.
     entkernt = s.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
-    if entkernt != s and any(m in entkernt for m in _SENSITIVE_MARKERS):
+    if entkernt != s and any(m in entkernt for m in marker):
         return True
-    # Ein Platzhalter direkt hinter einem Punkt buchstabiert einen versteckten
-    # Namen, ohne ihn zu schreiben. Was dahinter steht, kann die Textprüfung
-    # nicht mehr wissen — also entscheidet Adam.
-    if _GLOB_NACH_PUNKT.search(s):
+    # Ein Platzhalter, der einen Geheimnis-Namen buchstabieren kann, ohne ihn
+    # zu schreiben. Was er trifft, kann die Textprüfung nicht wissen — also
+    # entscheidet Adam.
+    if _glob_zielt_auf_geheimnis(s):
         return True
-    # Umgebungs-Ausgabe: wortweise, damit „Adventskalender" nicht anschlägt.
-    for wort in re.findall(r"[a-z_]+", s):
-        if wort in _UMGEBUNGS_BEFEHLE:
-            return True
-    return False
+    # Umgebungs-Ausgabe: nur, wo ein Befehl steht.
+    return bool(_UMGEBUNGS_BEFEHL_RE.search(s))
 
 
 # 8.7 Governance-Härtung: Der Bot editiert sein eigenes Repo NIE — auch nicht
@@ -2396,7 +2468,7 @@ def _repo_read_grund(cmd: str) -> str:
                 "sind erlaubt; alles andere bitte in einzelne Befehle teilen")
     if _is_repo_write_cmd(c):
         return "ein Schreibmuster"
-    if _is_sensitive_ref(c):
+    if _is_sensitive_ref(c, schreibend=False):
         return "ein Geheimnis-Pfad — der bleibt auch fürs Lesen zu"
     if not _REPO_READ_VERBS.match(c):
         return "kein bekanntes Lese-Verb am Anfang"
@@ -2449,7 +2521,10 @@ def _is_repo_read_cmd(cmd: str) -> bool:
         return False               # find -exec/-delete & Co. sind kein Lesen
     if _is_repo_write_cmd(c):
         return False               # doppelter Boden gegen Schreiben
-    if _is_sensitive_ref(c):
+    # G (23.08.): `schreibend=False` — Geheimnisse bleiben zu, aber der
+    # Gedaechtnis-Ordner und CLAUDE.md sind ausdruecklich LESBAR (8.7). Vorher
+    # widersprach diese Zeile dem System-Prompt, der genau das zusagt.
+    if _is_sensitive_ref(c, schreibend=False):
         return False               # Geheimnis-Pfade bleiben auch fürs Lesen zu
     # **ALLE** Pfade müssen ins Repo zeigen, nicht nur einer. Ein zweiter,
     # fremder Pfad daneben war der bequemste Weg nach draußen.
@@ -2460,11 +2535,71 @@ def _is_repo_read_cmd(cmd: str) -> bool:
     # mit dreizehn Beobachtungen belegt hat — der Regressionslauf hat es sofort
     # gefangen. **Das ist der Grund, warum ein Sicherheitsfix nie ohne den
     # vollen Lauf committet wird; ich hatte hier zu früh committet.**
-    for treffer in _PFAD_ARTIG.findall(_ohne_harmlose_umleitung(c)):
-        pfad = treffer[0] if isinstance(treffer, tuple) else treffer
-        if "claude-telegram-bot" not in pfad:
-            return False
+    if not _alle_pfade_im_repo(_ohne_harmlose_umleitung(c)):
+        return False
     return bool(_REPO_READ_VERBS.match(c))
+
+
+def _alle_pfade_im_repo(cmd: str) -> bool:
+    """Zeigen **alle** Pfad-Argumente ins Repo? — aufgelöst, nicht verglichen.
+
+    **Befund D und E (Engywuck, 23.08.) — eine Ursache, zwei Erscheinungen.**
+
+    Die alte Fassung verglich ZEICHENKETTEN: Sie verlangte, dass in jedem
+    pfadartigen Fund `claude-telegram-bot` vorkommt. Beides lief damit ohne
+    Dialog durch, selbst gemessen:
+
+        cat <repo>/../../../etc/passwd
+        cat <repo>/../notizen/privat.md
+        tail -100 <repo>/../../var/log/auth.log
+
+    Ein `..` hebt die Zusage auf, ohne die Zeichenkette anzutasten. **H6 hatte
+    die zwei Beispiele aus dem eigenen Docstring geschlossen und die Klasse
+    darüber verfehlt** — der genaue Fehlertyp, den dieses Projekt inzwischen
+    mehrfach aktenkundig hat.
+
+    Und E: `$VAR/` machte Pfade für die Mustersuche unsichtbar. Der Lookbehind
+    griff nach dem Buchstaben einer Variablen nicht, und bares `$` steht nicht
+    in `_SHELL_META_RE`:
+
+        cat $X/proc/self/environ <repo>/README.md
+        cat $HOME/.bash_history <repo>/README.md
+
+    Das erste gibt `TELEGRAM_BOT_TOKEN` und das Abo-Token aus.
+
+    **Deshalb keine Muster mehr, sondern Auflösung.** `shlex.split` zerlegt so,
+    wie die Shell es täte; `resolve()` löst `..` und Symlinks auf. Verglichen
+    wird danach, was übrig bleibt — nicht, wie es geschrieben war.
+
+    Drei fail-closed-Entscheidungen, jede mit Grund:
+
+    * **Unbalancierte Anführungszeichen** → abgewiesen. Wenn nicht einmal die
+      Zerlegung eindeutig ist, ist es die Bedeutung auch nicht.
+    * **Jedes `$`** → abgewiesen. Den Wert einer Variablen kennt diese Funktion
+      nicht, und genau darauf beruhte E. Ein Dialog kostet einen Klick.
+    * **Argumente ohne `/` und ohne `~`** werden übersprungen: Suchmuster,
+      Verben, Zahlen. Ein Ausbruch braucht einen Pfad, und ein Pfad hat einen
+      Schrägstrich; ein bloßer Dateiname wird gegen das Arbeitsverzeichnis
+      aufgelöst, das wir selbst setzen.
+    """
+    try:
+        teile = shlex.split(cmd)
+    except ValueError:
+        return False
+    for teil in teile[1:]:
+        if teil.startswith("-"):
+            continue
+        if "$" in teil:
+            return False
+        if "/" not in teil and not teil.startswith("~"):
+            continue
+        try:
+            pfad = Path(teil).expanduser().resolve()
+        except Exception:
+            return False
+        if pfad != _REPO_DIR and _REPO_DIR not in pfad.parents:
+            return False
+    return True
 
 
 def _trace_off(user_id: int) -> bool:
@@ -2610,13 +2745,33 @@ def make_permission_callback(user_id: int):
 
         # 5.25 (b) Geheimnis-Schutz: Verweise auf Secrets fallen IMMER in den
         # Dialog — vor jeder Auto-Freigabe geprüft, auch vor Always-Allow.
-        _ref = str(tool_input.get("file_path") or tool_input.get("path")
-                   or tool_input.get("pattern") or tool_input.get("command")
-                   or tool_input.get("url")
+        # **Befund F (Engywuck, 23.08.): Die or-Kette nahm nur das ERSTE Feld.**
+        #
+        # Sie las `file_path or path or pattern or command or url or query`.
+        # Bei `Glob(pattern=".env*", path="/home/claudebot")` gewinnt `path` —
+        # ein harmloser Wert. `_ref` war damit harmlos, `sensitive` blieb False,
+        # und die Geheimnis-Aufzählung lief ohne Dialog.
+        #
+        # Das Muster ist heimtückisch, weil die Kette **aussieht** wie „alle
+        # Felder": Jeder Name steht da. Nur bindet `or` an den ersten wahren
+        # Wert, und ein Angriff braucht bloß ein unverdächtiges Feld davor.
+        #
+        # Jetzt werden alle Felder VERBUNDEN. Das kann höchstens einen Dialog
+        # zu viel kosten; die andere Richtung kostete die Schranke.
+        _felder = ("file_path", "path", "pattern", "command", "url",
                    # (4) Auch die SUCHANFRAGE ist ein Verweis. Sie stand
                    # vorher gar nicht in dieser Ermittlung, weil das
                    # Suchwerkzeug schon oben freigegeben war.
-                   or tool_input.get("query") or tool_input.get("q") or "")
+                   "query", "q",
+                   # Aus demselben Grund wie oben mitgenommen: Werkzeuge, die
+                   # mehrere Ziele tragen, dürfen ihr heikles nicht hinter
+                   # einem harmlosen verstecken.
+                   "glob", "file", "notebook_path", "prompt")
+        # Mit ZEILENUMBRUCH verbunden, nicht mit Leerzeichen: Die
+        # Umgebungs-Pruefung (H) sucht Befehle am Zeilenanfang. Ein
+        # `command="env"` hinter einem `path` stuende sonst mitten im Satz und
+        # entkaeme ihr — der Feld-Fix von F haette den H-Fix ausgehebelt.
+        _ref = "\n".join(str(tool_input.get(f) or "") for f in _felder).strip()
         sensitive = _is_sensitive_ref(_ref)
 
         # (4) Lokale private Websuche (SearxNG, 2.7): kostenfrei + lokal, aber
@@ -2666,7 +2821,21 @@ def make_permission_callback(user_id: int):
             # rückfragepflichtig zu machen. Eine Zeichen- oder Längenprüfung
             # wäre hier Schein: Ein Zugangsschlüssel besteht aus genau den
             # Zeichen, die auch normale Pfade tragen — im Befund gemessen.
-            hat_nutzdaten = "?" in roh_url or "#" in roh_url
+            #
+            # **Befund I (Engywuck, 23.08.): Die `#`-Hälfte kostete Dialoge und
+            # brachte nichts.** Ein Fragment wird vom Browser ausgewertet und
+            # **nie an den Server gesendet** — als Ausgangskanal taugt es
+            # deshalb nicht. Gemessen: elf von sechzehn normalen
+            # Rechercheadressen fielen dadurch in den Dialog, YouTube und
+            # Instagram zu hundert Prozent (deren Adressen tragen fast immer ein
+            # Fragment).
+            #
+            # Das ist dieselbe Erosion wie bei H, nur an einer anderen Stelle:
+            # Wer für jede zweite Recherche einen Dialog bekommt, klickt
+            # irgendwann auf „immer erlauben" — und dann ist die Schranke durch
+            # Ermüdung geweitet statt durch eine Lücke. **Ein zu scharfer
+            # Riegel ist kein sicherer Riegel.**
+            hat_nutzdaten = "?" in roh_url
             if (host and not hat_nutzdaten
                     and (host in sess.task_origins or host in trusted)):
                 return PermissionResultAllow()
@@ -7030,7 +7199,17 @@ def run_self_check() -> tuple[bool, list[str]]:
     def _c_repo_readonly() -> None:
         import inspect as _insp
         src = _insp.getsource(make_permission_callback)
-        repo = "/home/claudebot/claude-telegram-bot"
+        # **`[KORRIGIERT 23.08.]`** Hier stand der VPS-Pfad fest verdrahtet.
+        # Solange die Lese-Pruefung nur ZEICHENKETTEN verglich, war das
+        # gleichgueltig — sie war pfadunabhaengig gruen. Seit Befund D/E loest
+        # sie Pfade auf und vergleicht gegen die echte Repo-Wurzel; ein fester
+        # Pfad haette den Selbstcheck am Mac rot und auf dem VPS gruen gemacht.
+        #
+        # Genau die Klasse „am Mac lief alles", die am 29.07. einen taeglichen
+        # Waechter einundzwanzig Tage lang tot liegen liess. Der Regressionslauf
+        # hat es hier sofort gefangen — das ist der Grund, warum ein
+        # Sicherheitsfix nie ohne den vollen Lauf committet wird.
+        repo = str(_REPO_DIR)
         # Schreibmuster werden erkannt, Lesen bleibt frei.
         for bad in (f"cd {repo} && git commit -am x", f"git -C {repo} push",
                     f"echo x > {repo}/bot.py", f"sed -i s/a/b/ {repo}/bot.py",
@@ -7056,7 +7235,20 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert "_is_repo_read_cmd" in src, "Repo-Lese-Freigabe nicht im Callback"
         assert "_REPO_DIR" in src, "Repo-Dir nicht als Read-Basis im Callback"
         # Auf dem VPS zusätzlich: Klon hat keine lokalen Veränderungen.
-        if Path(repo).is_dir():
+        #
+        # **`[KORRIGIERT 23.08.]` Der Ortstest war implizit — und das fiel erst
+        # auf, als er wegfiel.** Vorher stand hier der VPS-Pfad fest verdrahtet;
+        # `Path(repo).is_dir()` war am Mac schlicht falsch, und die Prüfung
+        # übersprang sich selbst. Als `repo` auf die echte Repo-Wurzel umgestellt
+        # wurde (Befund D/E), existierte der Pfad plötzlich immer — und der
+        # Governance-Test schlug am BAU-Ort an, wo ein unsauberer Baum der
+        # Normalzustand ist.
+        #
+        # Eine Prüfung, deren Geltungsbereich an einem Nebeneffekt hängt, ist
+        # keine Prüfung mit Geltungsbereich. Jetzt wird der Ort BENANNT: Die
+        # systemd-Umgebungsdatei gibt es nur auf dem Server.
+        _auf_dem_vps = Path("/etc/claude-telegram-bot.env").exists()
+        if _auf_dem_vps and Path(repo).is_dir():
             import subprocess
             out = subprocess.run(["git", "-C", repo, "status", "--porcelain"],
                                  capture_output=True, text=True, timeout=20)

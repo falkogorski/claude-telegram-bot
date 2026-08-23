@@ -746,7 +746,13 @@ check("gespeicherte Bash-Freigabe wird geraeumt",
 # H6 - die staerkste Auto-Freigabe des Systems stand IM CODE
 # --------------------------------------------------------------------------
 
-_REPO = "/home/claudebot/claude-telegram-bot"
+# **`[KORRIGIERT 23.08.]`** Hier stand der VPS-Pfad fest verdrahtet. Solange die
+# Prüfung Zeichenketten verglich, war das gleichgültig — jetzt löst sie Pfade
+# auf und vergleicht gegen die ECHTE Repo-Wurzel. Ein fester Pfad hätte den
+# Prüfer am Mac grün und auf dem VPS blind gemacht (oder umgekehrt): genau die
+# Klasse „am Mac lief alles", die am 29.07. einen Wächter einundzwanzig Tage
+# lang tot liegen ließ.
+_REPO = str(bot._REPO_DIR)
 
 # Engywucks Probelauf 22.08., alle ausgefuehrt gemessen: Diese Befehle liefen
 # OHNE Dialog durch. Sie sind maechtiger als jede Dauerfreigabe, weil sie im
@@ -806,7 +812,189 @@ def _der_alltag_laeuft_weiter_ohne_dialog():
         f"Alltagsbefehle brauchen jetzt einen Dialog: {blockiert}"
 
 
+def _punkt_punkt_hebelt_die_pfadpruefung_nicht_aus():
+    """**Befund D (Engywuck, 23.08.) — H6 schloss die Beispiele, nicht die Klasse.**
+
+    Die alte Fassung verglich ZEICHENKETTEN: Sie verlangte, dass in jedem
+    Pfad-Fund `claude-telegram-bot` vorkommt. Ein `..` erfüllt das und hebt die
+    Zusage trotzdem auf. Alle drei liefen selbst gemessen als `auto-frei=True`:
+    """
+    offen = [c for c in (
+        f"cat {_REPO}/../../../etc/passwd",
+        f"cat {_REPO}/../notizen/privat.md",
+        f"tail -100 {_REPO}/../../var/log/auth.log",
+        f"ls -la {_REPO}/../../root/.ssh",
+        f"head {_REPO}/../.env",
+    ) if bot._is_repo_read_cmd(c)]
+    assert not offen, f"laeuft ohne Dialog durch: {offen}"
+
+
+def _eine_variable_macht_keinen_pfad_unsichtbar():
+    """**Befund E — dieselbe Ursache, andere Erscheinung.**
+
+    Der Lookbehind `(?<![\\w=])` griff nach dem Buchstaben einer Variablen
+    nicht, und bares `$` stand nicht in `_SHELL_META_RE`. Der Pfad war fuer die
+    Mustersuche schlicht unsichtbar. Das erste Beispiel gibt
+    `TELEGRAM_BOT_TOKEN` und das Abo-Token aus.
+    """
+    offen = [c for c in (
+        f"cat $X/proc/self/environ {_REPO}/README.md",
+        f"cat $HOME/.bash_history {_REPO}/README.md",
+        f"cat ${{HOME}}/.ssh/id_rsa {_REPO}/README.md",
+        f"tail $PWD/../.env {_REPO}/README.md",
+    ) if bot._is_repo_read_cmd(c)]
+    assert not offen, f"eine Variable hat den Pfad unsichtbar gemacht: {offen}"
+
+
+def _unbalancierte_anfuehrungszeichen_fallen_in_den_dialog():
+    """Fail-closed: Wenn nicht einmal die Zerlegung eindeutig ist, ist es die
+    Bedeutung auch nicht."""
+    assert not bot._is_repo_read_cmd(f'cat "{_REPO}/README.md'), \
+        "ein Befehl mit offener Anfuehrung wurde auto-freigegeben"
+
+
+def _die_or_kette_versteckt_nichts_mehr():
+    """**Befund F — die Kette sah aus wie „alle Felder" und nahm das erste.**
+
+    `file_path or path or pattern or …` bindet an den ersten wahren Wert. Bei
+    `Glob(pattern=".env*", path="/home/claudebot")` gewinnt `path`, `_ref` war
+    harmlos, `sensitive` blieb False — Geheimnis-Aufzaehlung ohne Dialog.
+
+    Gemessen wird ueber den echten Rueckruf, nicht ueber die Feldliste.
+    """
+    from claude_agent_sdk import PermissionResultAllow
+    sess = _sitzung()
+    rueckruf = bot.make_permission_callback(4711)
+
+    class _Ctx:
+        suggestions = None
+
+    def frage(werkzeug, eingabe):
+        return asyncio.run(rueckruf(werkzeug, eingabe, _Ctx()))
+
+    versteckt = frage("Glob", {"pattern": ".env*", "path": "/home/claudebot"})
+    assert not isinstance(versteckt, PermissionResultAllow), \
+        ("ein Geheimnis-Muster hinter einem harmlosen Feld wurde ohne Dialog "
+         "freigegeben - die Aufzaehlung lief durch")
+    assert sess.bot.dialoge, "niemand wurde gefragt - das Deny kam aus einem Fehlschlag"
+
+
+def _harmlose_werkzeugaufrufe_bleiben_ohne_dialog():
+    """Gegenrichtung zu F: Alle Felder zu verbinden darf keinen Fehlalarm
+    erzeugen - sonst klickt Adam aus Ermuedung auf 'immer erlauben', und die
+    Schranke ist geweitet statt geschlossen."""
+    for eingabe in ({"pattern": "*.py", "path": _REPO},
+                    {"file_path": f"{_REPO}/README.md"},
+                    {"pattern": "def .*_run_job", "path": _REPO}):
+        felder = ("file_path", "path", "pattern", "command", "url",
+                  "query", "q", "glob", "file", "notebook_path", "prompt")
+        ref = " ".join(str(eingabe.get(f) or "") for f in felder).strip()
+        assert not bot._is_sensitive_ref(ref), \
+            f"harmloser Aufruf gilt als heikel: {eingabe}"
+
+
 check("find -exec/-delete sind kein Lesen", _find_exec_und_delete_sind_kein_lesen)
+check("`..` hebelt die Pfadpruefung nicht aus", _punkt_punkt_hebelt_die_pfadpruefung_nicht_aus)
+check("eine Variable macht keinen Pfad unsichtbar", _eine_variable_macht_keinen_pfad_unsichtbar)
+check("offene Anfuehrung faellt in den Dialog", _unbalancierte_anfuehrungszeichen_fallen_in_den_dialog)
+def _die_marker_treffen_das_richtige():
+    """**Befund G (Engywuck, 23.08.) — die Liste traf in BEIDE Richtungen falsch.**
+
+    Sie warf zwei verschiedene Gefahren in einen Topf: Ein Geheimnis ist
+    gefährlich, wenn man es LIEST; ein Pfad mit Dauerwirkung, wenn man ihn
+    SCHREIBT. Folge in der einen Richtung: Der Gedächtnis-Ordner und
+    `CLAUDE.md` fielen auch beim bloßen Lesen in den Dialog — gegen den
+    8.7-Entscheid und gegen den System-Prompt, der genau dieses Lesen zusagt.
+    **Der Bot versprach etwas, das seine eigene Schranke verweigerte.**
+
+    In der anderen Richtung fehlten ausgerechnet die Ziele aus Befund E.
+    """
+    lesbar = (f"{_REPO}/CLAUDE.md",
+              "/home/claudebot/.claude/memory/pending-items.md")
+    for pfad in lesbar:
+        assert not bot._is_sensitive_ref(pfad, schreibend=False), \
+            f"{pfad} ist beim LESEN dialogpflichtig - gegen 8.7 und den System-Prompt"
+        assert bot._is_sensitive_ref(pfad), \
+            f"{pfad} ist beim SCHREIBEN nicht mehr dialogpflichtig - H7 waere zurueck"
+
+    # Die Ziele aus E, die gar nicht erst erkannt wurden:
+    for geheim in ("/proc/self/environ", "/home/claudebot/.bash_history",
+                   "~/.zsh_history", "~/.ssh/authorized_keys", "~/.netrc"):
+        assert bot._is_sensitive_ref(geheim, schreibend=False), \
+            f"{geheim} ist nicht dialogpflichtig - genau das Ziel aus Befund E"
+
+
+def _der_alltag_loest_keinen_fehlalarm_aus():
+    """**Befund H — der Filter sprang bei harmlosen Recherchefragen an.**
+
+    Selbst gemessen waren alle fünf dialogpflichtig. Der Kommentar im Code
+    benannte diese Erosion bereits („dreimal täglich grundlos") — nur maß sie
+    niemand. Ein Filter, der grundlos anspringt, wird abgeschaltet; dann prüft
+    er gar nichts mehr. **Ein zu scharfer Riegel ist kein sicherer Riegel.**
+    """
+    alarm = [f for f in (
+        "def .*_run_job",
+        "logs/*.log*",
+        "python telegram bot set webhook",
+        "wie kann ich in python ein set benutzen",
+        "Was ist neu in Version 2.7?",
+        "*.py",
+        "grep -rn TODO scripts/*.sh",
+    ) if bot._is_sensitive_ref(f)]
+    assert not alarm, f"harmlose Anfragen sind dialogpflichtig: {alarm}"
+
+
+def _die_verschleierten_namen_bleiben_zu():
+    """Gegenrichtung zu H: Die Praezisierung darf nichts oeffnen, was ⑥
+    geschlossen hat."""
+    offen = [f for f in (
+        "cat .e*", "cat .?nv", "cat .[e]nv", "cat /home/claudebot/.e*",
+        "ls ~/.ssh/id_*", "cat *token*", "grep -r secret* /etc",
+        "env", "printenv", "set | grep MAIL", "cat x; env", "os.environ",
+        ".env", "id_rsa", "/etc/claude-telegram-bot.env",
+    ) if not bot._is_sensitive_ref(f)]
+    assert not offen, f"verschleierte Geheimnis-Namen laufen wieder durch: {offen}"
+
+
+def _ein_fragment_ist_kein_ausgangskanal():
+    """**Befund I:** Die `#`-Haelfte kostete Dialoge und brachte nichts.
+
+    Ein Fragment wird vom Browser ausgewertet und NIE an den Server gesendet —
+    als Weg nach draussen taugt es nicht. Elf von sechzehn normalen
+    Rechercheadressen fielen dadurch in den Dialog, YouTube und Instagram zu
+    hundert Prozent.
+
+    Die Frageteil-Haelfte bleibt: DIE geht an den Server.
+    """
+    from claude_agent_sdk import PermissionResultAllow
+    sess = _sitzung(task_origins={"youtube.com", "wikipedia.org"})
+    rueckruf = bot.make_permission_callback(4711)
+
+    class _Ctx:
+        suggestions = None
+
+    def frage(url):
+        return asyncio.run(rueckruf("WebFetch", {"url": url}, _Ctx()))
+
+    mit_fragment = frage("https://youtube.com/watch?vx=1#t=42")
+    # Achtung: Diese Adresse traegt AUCH einen Frageteil - deshalb hier eine
+    # ohne, sonst misst die Zeile den falschen Grund.
+    nur_fragment = frage("https://wikipedia.org/wiki/Koeln#Geschichte")
+    assert isinstance(nur_fragment, PermissionResultAllow), \
+        "eine Adresse mit blossem Fragment loest immer noch einen Dialog aus"
+
+    mit_frageteil = frage("https://wikipedia.org/?x=sk-geheim")
+    assert not isinstance(mit_frageteil, PermissionResultAllow), \
+        "der Frageteil wurde mitgelockert - DER geht an den Server"
+    assert mit_fragment is not None
+
+
+check("die or-Kette versteckt nichts mehr", _die_or_kette_versteckt_nichts_mehr)
+check("harmlose Werkzeugaufrufe ohne Dialog", _harmlose_werkzeugaufrufe_bleiben_ohne_dialog)
+check("die Marker treffen das Richtige", _die_marker_treffen_das_richtige)
+check("der Alltag loest keinen Fehlalarm aus", _der_alltag_loest_keinen_fehlalarm_aus)
+check("verschleierte Namen bleiben zu", _die_verschleierten_namen_bleiben_zu)
+check("ein Fragment ist kein Ausgangskanal", _ein_fragment_ist_kein_ausgangskanal)
 check("ein fremder Pfad daneben reicht nicht", _ein_fremder_pfad_daneben_reicht_nicht)
 check("der Alltag laeuft weiter ohne Dialog", _der_alltag_laeuft_weiter_ohne_dialog)
 

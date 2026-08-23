@@ -212,9 +212,14 @@ def _fehlerumleitung_ist_kein_repo_schreiben():
 
     Eine Fehlerumleitung schreibt nichts ins Repo — sie unterdrückt Rauschen.
     """
-    for frei in ("git -C ~/claude-telegram-bot log -1 2>&1",
-                 "git -C ~/claude-telegram-bot log -1 2>/dev/null",
-                 "cat ~/claude-telegram-bot/README.md 2>/dev/null"):
+    # **`[KORRIGIERT 23.08.]`** Hier stand `~/claude-telegram-bot` — auf dem VPS
+    # richtig, am Mac nicht. Solange die Pruefung Zeichenketten verglich, war
+    # das gleichgueltig; seit Befund D/E loest sie Pfade auf. Ein fester Pfad
+    # macht einen Pruefer hier gruen und dort blind.
+    _R = str(bot._REPO_DIR)
+    for frei in (f"git -C {_R} log -1 2>&1",
+                 f"git -C {_R} log -1 2>/dev/null",
+                 f"cat {_R}/README.md 2>/dev/null"):
         assert bot._is_repo_read_cmd(frei), \
             f"eine Fehlerumleitung faellt in den Dialog: {frei}"
 
@@ -222,12 +227,16 @@ def _fehlerumleitung_ist_kein_repo_schreiben():
 def _die_riegel_halten_trotzdem():
     """**Die wichtigere Haelfte.** Eine Lockerung ist erst geprueft, wenn
     belegt ist, dass sie nicht zu weit geht."""
-    for zu in ("git -C ~/claude-telegram-bot log > /tmp/x",   # echte Umleitung
-               "cat ~/claude-telegram-bot/x && rm -rf /",      # Verkettung
-               "cat ~/claude-telegram-bot/x | sh",             # Rohr
-               "cat ~/claude-telegram-bot/.env",               # Geheimnis
-               "git -C ~/claude-telegram-bot commit -m x",     # Schreiben
-               "sed -i s/a/b/ ~/claude-telegram-bot/bot.py"):
+    _R = str(bot._REPO_DIR)
+    for zu in (f"git -C {_R} log > /tmp/x",       # echte Umleitung
+               f"cat {_R}/x && rm -rf /",          # Verkettung
+               f"cat {_R}/x | sh",                 # Rohr
+               f"cat {_R}/.env",                   # Geheimnis
+               f"git -C {_R} commit -m x",         # Schreiben
+               f"sed -i s/a/b/ {_R}/bot.py",
+               # Neu seit Befund D/E: derselbe Riegel, anders geschrieben.
+               f"cat {_R}/../../etc/passwd",
+               f"cat $HOME/.bash_history {_R}/README.md"):
         assert not bot._is_repo_read_cmd(zu), f"Lese-Freigabe zu weit: {zu}"
 
 

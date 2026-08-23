@@ -771,3 +771,19 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   ERZEUGER sein, keine Handauswahl.** Fuer den Mail-Korpus heisst das: echte
   Nachrichten aus einem Postfach-Export, ein MIME-Baukasten. Eine Handauswahl
   misst die Vorstellungskraft ihres Erbauers, die Schranke nur nebenbei.
+
+- **Ablegen entschaerft keine Befehle · Kostenregel 24.08. · universell**
+  — **Engywucks Lehre**, gefunden beim Messen der API-Schluessel-Anweisungen:
+  Gemeldet waren vier README-Stellen, gemessen wurden **zehn** — und die
+  schwerste stand in `MIGRATION-DREHBUCH-ARCHIV.md`: **sechs Zeilen
+  ausfuehrbare Shell**, die einen kostenpflichtigen Schluessel in die
+  Umgebungsdatei schreiben.
+
+  **Ein Befehlsblock im Archiv ist genauso kopierbar wie einer im gueltigen
+  Drehbuch.** Der Grund, warum niemand hinsah, steht im Dateinamen — [Archiv]
+  liest sich wie [erledigt], ist aber nur [nicht mehr gepflegt]. Ungepflegt und
+  unwirksam sind zwei verschiedene Dinge.
+
+  **Der Griff:** Beim Archivieren pruefen, ob die Datei **ausfuehrbare Bloecke**
+  enthaelt. Wenn ja, gehoeren sie entschaerft oder mit einem Warnkopf versehen —
+  **im selben Zug wie das Archivieren**, weil danach niemand mehr hinsieht.

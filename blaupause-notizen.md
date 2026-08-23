@@ -744,3 +744,30 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   an, ein Betriebsskript arbeitet im echten Zustand. **Zwei Messwerkzeuge auf
   der einen Seite, elf Betriebsskripte auf der anderen** — die Tabelle stand in
   zehn Sekunden, das Raten hätte länger gedauert und wäre falsch geblieben.
+
+- **Jede Pruefung laeuft ueber eine Menge — und es ist immer die, die dem
+  Erbauer am Bautag einfiel · Mail-Schranken 9.5 · universell**
+  — **Engywucks Verallgemeinerung von drei Messungen binnen zwei Tagen**, und
+  sie loest die drei Faelle in einen auf:
+
+  | Stelle | die Menge | wie gross sie wirklich war |
+  |---|---|---|
+  | Namensliste im Pruefer | `glob("test_*.py")` | eine von dreizehn |
+  | Idiom-Erkenner | `os.environ.get(...)` | eine von sechs |
+  | Mail-Korpus | [was uns einfiel] | kein echtes Mailformat |
+
+  **In KEINEM der drei stand eine Liste da.** Die Menge steckte in einem
+  **Namensmuster**, einem **Erkenner**, einem **Korpus** — unsichtbar, und
+  darum nicht mitgewachsen. Damit ist auch die Fassung vom 23.08. („wer eine
+  Menge bildet, muss auch die Menge der Schreibweisen bilden") als **Sonderfall**
+  eingeordnet, nicht als eigene Regel.
+
+  **Der Griff, und er ist der ganze Ertrag:** Bei jeder Pruefung fragen
+  **[was ist ihre Menge, und woher kommt die?]** — nicht [steht hier eine
+  Liste?]. Die zweite Frage findet genau die Faelle, die ohnehin sichtbar sind.
+
+  **Steht ein Korpus oder Pruefstand an, lautet die Frage nicht [welche Faelle
+  nehmen wir auf], sondern [woher kommt die Menge] — und die Antwort sollte ein
+  ERZEUGER sein, keine Handauswahl.** Fuer den Mail-Korpus heisst das: echte
+  Nachrichten aus einem Postfach-Export, ein MIME-Baukasten. Eine Handauswahl
+  misst die Vorstellungskraft ihres Erbauers, die Schranke nur nebenbei.

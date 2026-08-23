@@ -1,8 +1,10 @@
 <!-- ROLLE: f-befunde-reihenfolge -->
 # F-Befunde der Gegenprüfung — Reihenfolge und Stand
 
-**Stichtag:** 2026-08-20 · **Stand: ALLE SECHS ERLEDIGT** · **überholt
-durch:** — · **maßgeblich ist diese Datei** (Volltext der Befunde: `docs/gegenpruefung-2026-08-18.md`)
+**Stichtag:** 2026-08-23 · **Stand: F-1 bis F-6 erledigt · F-7 bis F-11 offen**
+· **überholt durch:** — · **maßgeblich ist diese Datei** (Volltext der Befunde:
+`docs/gegenpruefung-2026-08-18.md`; die neuen aus
+`BEFUND ULTRACODE 9456f16..d596269`, Engywuck 23.08.)
 
 ## Warum diese Datei existiert
 
@@ -214,6 +216,43 @@ Ergänzt, dazu `PENDING_DIR` und ein zweiter Nachweis am Laufende.
 **Der Prüf-Eintrag wurde NICHT gelöscht:** Er ist inhaltlich richtig — die
 Sichtung für den 20.08. steht ohnehin an. Ein gültiger Eintrag wird nicht
 entfernt, weil sein Entstehungsweg unsauber war.
+
+### F-7 bis F-10 · Rang 5 aus Engywucks Ultracode-Befund `[offen, 23.08.2026]`
+
+Aus `BEFUND ULTRACODE 9456f16..d596269` (Engywuck, 23.08., 02:10). Er hat sie
+selbst als „nicht in dieser Runde" eingestuft; Rang 1 bis 4 ist geschlossen und
+committet. **Keiner davon ist deploy-blockierend.**
+
+**F-7 · `ABHAENGIGKEITEN.md:134` sagt „17 Zeilen", es sind 40** (von ihm
+gemessen). Eine Zahl, die von Hand nachgepflegt werden muss, wird irgendwann
+nicht nachgepflegt — dieselbe Lehre wie beim `GESAMT`-Zähler des
+Regressionsläufers, der deshalb zählt statt zu behaupten. **Der Fix ist nicht
+„40 eintragen", sondern die Zahl zählen lassen oder streichen.**
+
+**F-8 · `_repo_read_grund` hat keinen Aufrufer** und widerspricht dem Tor, das
+es erklären soll. Ein Erklärtext, den niemand liest, altert unbemerkt — und
+dieser hier erklärt ausgerechnet eine Sicherheitsschranke. Entweder verdrahten
+(er gehört in die Ablehnungsmeldung) oder entfernen.
+
+**F-9 · `_ist_suchwerkzeug` an 1 von 3 Stellen benutzt** — Vertrauen und
+Anzeige widersprechen sich. Dieselbe Klasse wie H5 am 22.08.: Die Funktion war
+richtig, ihre Verdrahtung nicht. **Gemessen wird die Funktion, nicht ihre
+Verdrahtung** — der Satz, der über dieser ganzen Runde steht.
+
+**F-10 · `presend.py`: `_SCHARFE_MUSTER` `rm` trifft 94 von 173 Dateinamen
+falsch**, und `_RE_CODEBLOCK` übersieht CRLF- und Einzeilen-Blöcke. Ein Filter
+mit über fünfzig Prozent Fehlalarm ist bereits abgeschaltet, auch wenn er noch
+läuft — die Erosion aus Befund H, eine Datei weiter.
+
+**Aus dieser Runde hinzugekommen (nicht von Engywuck):**
+
+**F-11 · Der Dokument-Weg für `.docx` und `.html` ist jetzt zu.** Befund C hat
+den Ausweichpfad in die Hauptsitzung geschlossen; damit verliert Adam die
+Zusammenfassung von Word-Dateien. `.docx` ist ein ZIP mit XML darin und ließe
+sich **ohne Fremdbibliothek** werkzeugfrei lesen (`zipfile` + `re`). Das wäre
+kein Ausweichen, sondern der geschützte Weg für ein weiteres Format. Bewusst
+nicht in derselben Runde gebaut: Ein Sicherheitsfix und eine Formaterweiterung
+gehören nicht in denselben Commit.
 
 ## Erledigt
 - **Zeitgeber-Wache** (Befund B1/B4/B5): gelöschte Timer werden erfasst,

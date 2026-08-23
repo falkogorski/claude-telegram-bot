@@ -7166,7 +7166,7 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert _extract_hosts("Punkt 5.9 gilt, Version 2.7 auch.") == set(), \
             "Zahlen-Artefakte werden fälschlich zu Hosts"
         # Geheimnis-Schutz: sensible Verweise dürfen NIE als harmlos gelten.
-        for bad in ("/home/claudebot/claude-telegram-bot/.env",
+        for bad in (f"{_REPO_DIR}/.env",
                     "/etc/claude-telegram-bot.env",
                     "/home/claudebot/.claude/.credentials.json",
                     "cat ~/.ssh/id_ed25519_logsync",

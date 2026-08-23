@@ -83,8 +83,111 @@ def main() -> int:
                    for _ in _MUSTER.findall(d.read_text(encoding="utf-8")))
     print()
     print(f"✓ alle {gezaehlt} umbiegbaren Ablagen sind im Läufer verriegelt")
+
+    fehler = pfade_fest_verdrahtet()
+    if fehler:
+        print()
+        for datei, zeile, text in fehler:
+            print(f"✗ {datei}:{zeile} — fest verdrahteter Betriebspfad: {text}")
+        print()
+        print(f"❌ {len(fehler)} fest verdrahtete(r) Pfad(e). Solche Prüfer sind "
+              f"ortsabhängig blind: grün an einem Rechner, wirkungslos am anderen. "
+              f"Stattdessen bot._REPO_DIR / bot.WORKDIR verwenden.")
+        return 1
+    print("✓ kein Prüfer trägt einen fest verdrahteten Betriebspfad")
     print("== Hermetik: bestanden ==")
     return 0
+
+
+def _ist_ortsabhaengig(wert: str) -> bool:
+    """Nur die zwei Formen, die tatsächlich gebrochen sind — nicht jeder Pfad.
+
+    **Warum so eng:** Der erste Entwurf dieses Prüfers schlug bei sieben
+    Stellen an, von denen **sechs berechtigt** waren: Textmuster-Werte für
+    `_is_sensitive_ref`, wo ein fester Pfad genau der Testgegenstand ist. Eine
+    davon war sogar ein **Docstring** — der Prüfer stolperte über die
+    Beschreibung seines eigenen Gegenstands, exakt der Fehler, den die Regel
+    vom 22.08. benennt. Ein Prüfer, der sechsmal grundlos anschlägt, wird
+    binnen einer Woche abgeschaltet und prüft dann gar nichts mehr.
+
+    Übrig bleiben die zwei Formen, bei denen der Pfad gegen **ortsabhängige**
+    Logik läuft:
+
+    * **Die Repo-Wurzel** (`…/claude-telegram-bot`, `~/claude-telegram-bot`) —
+      sie wird seit Befund D/E aufgelöst und mit `_REPO_DIR` verglichen.
+    * **Das nackte Heimverzeichnis** (`/home/claudebot` exakt) — es dient als
+      Stellvertreter für `WORKDIR`. Genau daran blieb meine eigene F-Zeile bei
+      entferntem Schutz grün: Am Mac ist es nicht das Arbeitsverzeichnis, auf
+      dem VPS ist es genau das.
+
+    Unterpfade wie `/home/claudebot/.bash_history` sind Textmuster und bleiben
+    zu Recht draußen.
+    """
+    w = wert.rstrip("/")
+    # `"~"` allein war im ersten Entwurf mit drin — und traf sofort drei
+    # harmlose Stellen. Ein Prüfer, der bei einer Tilde anschlägt, ist Lärm.
+    if w == "/home/claudebot":
+        return True
+    return "claude-telegram-bot" in w and (
+        w.startswith("/home/claudebot") or w.startswith("~/"))
+
+
+def pfade_fest_verdrahtet() -> list[tuple[str, int, str]]:
+    """Trägt ein Prüfer einen Betriebspfad fest ein? — **viermal an einem Tag.**
+
+    Am 23.08. sind bei der Abarbeitung von Engywucks Befund **vier** Prüfer
+    aufgefallen, die `/home/claudebot/claude-telegram-bot` oder
+    `~/claude-telegram-bot` fest eingetragen hatten: die Eingangsschranken, der
+    Selbstcheck, der E4-Prüfer — und eine Zeile, die ich am selben Tag **selbst
+    neu geschrieben** hatte.
+
+    **Warum das lange unsichtbar blieb:** Solange die geprüfte Logik nur
+    Zeichenketten verglich, war der Pfad gleichgültig; die Prüfer waren
+    pfadunabhängig grün. Seit Befund D/E löst die Logik Pfade auf — und
+    plötzlich misst ein fester Pfad am Bau-Ort etwas anderes als im Betrieb.
+
+    Die schlimmere Richtung ist nicht „rot am Mac", sondern **„grün aus dem
+    falschen Grund"**: Meine eigene F-Zeile blieb bei entferntem Schutz grün,
+    weil `/home/claudebot` am Mac nicht das Arbeitsverzeichnis ist. Auf dem VPS
+    ist es genau das — dort wäre das Loch offen gewesen und der Prüfer still.
+
+    Dieselbe Klasse wie der 29.07., als ein `$HOME` in einem root-Dienst einen
+    täglichen Wächter einundzwanzig Tage lang tötete. **Am Mac lief alles.**
+
+    Gemessen wird über den **Syntaxbaum**, nicht über den Text: Kommentare gibt
+    es dort nicht, und Docstrings lassen sich gezielt ausnehmen. Genau daran
+    ist der erste Entwurf gescheitert — er las Zeilen und schlug in der eigenen
+    Erklärung an.
+    """
+    import ast
+    raus = []
+    # Die eigene Datei ausgenommen: Sie TRÄGT die Muster als Gegenstand. Ein
+    # Prüfer, der über die Beschreibung seines eigenen Gegenstands stolpert,
+    # wird binnen einer Woche abgeschaltet (Regel vom 22.08.) — beim ersten
+    # Lauf hat er genau das getan.
+    dateien = [d for d in sorted(WURZEL.glob("scripts/test_*.py"))
+               if d.name != "test_hermetik.py"] + [WURZEL / "bot.py"]
+    for datei in dateien:
+        try:
+            baum = ast.parse(datei.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        docstrings = set()
+        for knoten in ast.walk(baum):
+            if isinstance(knoten, (ast.Module, ast.FunctionDef,
+                                   ast.AsyncFunctionDef, ast.ClassDef)):
+                erste = (knoten.body or [None])[0]
+                if (isinstance(erste, ast.Expr)
+                        and isinstance(erste.value, ast.Constant)
+                        and isinstance(erste.value.value, str)):
+                    docstrings.add(id(erste.value))
+        for knoten in ast.walk(baum):
+            if (isinstance(knoten, ast.Constant)
+                    and isinstance(knoten.value, str)
+                    and id(knoten) not in docstrings
+                    and _ist_ortsabhaengig(knoten.value)):
+                raus.append((datei.name, knoten.lineno, knoten.value))
+    return raus
 
 
 if __name__ == "__main__":

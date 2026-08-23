@@ -872,11 +872,29 @@ def _die_or_kette_versteckt_nichts_mehr():
     def frage(werkzeug, eingabe):
         return asyncio.run(rueckruf(werkzeug, eingabe, _Ctx()))
 
-    versteckt = frage("Glob", {"pattern": ".env*", "path": "/home/claudebot"})
+    # **`[KORRIGIERT 23.08.]` Hier stand `/home/claudebot` fest verdrahtet, und
+    # die Zeile war damit am Mac BLIND.** Sie wurde gruen aus dem falschen
+    # Grund: Der Lese-Zweig gibt `Read/Grep/Glob` nur frei, wenn der Pfad im
+    # Arbeitsverzeichnis liegt — am Mac tat `/home/claudebot` das nicht, also
+    # kam der Dialog, ganz ohne dass die or-Kette geprueft worden waere. Auf
+    # dem VPS ist `/home/claudebot` genau das Arbeitsverzeichnis, dort waere
+    # das Loch offen gewesen.
+    #
+    # Gefunden bei der eigenen Gegenprobe: Der Rueckbau der or-Kette liess
+    # diese Zeile GRUEN. Ein Pruefer, der bei entferntem Schutz gruen bleibt,
+    # ist genau das, was Engywucks Befund K an sechs anderen Stellen gefunden
+    # hat — hier an meiner eigenen Arbeit, eine Stunde spaeter.
+    versteckt = frage("Glob", {"pattern": ".env*", "path": str(bot.WORKDIR)})
     assert not isinstance(versteckt, PermissionResultAllow), \
         ("ein Geheimnis-Muster hinter einem harmlosen Feld wurde ohne Dialog "
          "freigegeben - die Aufzaehlung lief durch")
     assert sess.bot.dialoge, "niemand wurde gefragt - das Deny kam aus einem Fehlschlag"
+
+    # Gegenrichtung am selben Ort: ohne das Geheimnis-Muster bleibt es frei.
+    sess.bot.dialoge.clear()
+    harmlos = frage("Glob", {"pattern": "*.py", "path": str(bot.WORKDIR)})
+    assert isinstance(harmlos, PermissionResultAllow), \
+        "ein harmloses Glob im Arbeitsverzeichnis loest jetzt einen Dialog aus"
 
 
 def _harmlose_werkzeugaufrufe_bleiben_ohne_dialog():

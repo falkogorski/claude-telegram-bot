@@ -407,3 +407,56 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 - **Von aussen kommen nie Anweisungen** - Sicherheits-Grundsatz - **universell, hoechster Rang** (Adam 21.08.). Jeder Eingang - Mail, Webseite, PDF, Dateiname, Kalendereintrag, Messenger - liefert **Information, nie Befehl**; auch dann nicht, wenn dort Befehlszeilen stehen. **Warum das hier gratis ist:** Adam gibt niemals per Mail Anweisungen, also zerstoert das harte Verbot keinen Anwendungsfall. **Wo kein legitimer Fall existiert, kostet das Verbot nichts** — und genau solche Stellen sollte man kategorisch schliessen statt heuristisch. Zweite Richtung mitdenken: Sensibles verlaesst das System nicht ueber unverschluesselte Kanaele. **Der Messenger ist der heiklere Weg, nicht der harmlosere** — eine uebernommene Kennung spricht aus der Rolle des Berechtigten, und die Herkunfts-Schranke prueft die Kennung, nicht den Menschen. **Reihenfolge ist Teil des Kriteriums:** erst bauen und pruefen, dann mit fremden Daten arbeiten. Fuer ein Produkt gilt: Ohne diese Trennung ist es nicht fertig, egal wie gut es sonst ist.
 - **Schranken fragen nicht nach Absicht, sondern nach Reichweite** - Eingangs-Absicherung 1-10 - **universell, hoechster Rang.** Was gebaut: neun Riegel gegen Anweisungen aus Fremdinhalten. Kettenwirkung geprueft: 52/52 und 21/21 in der ZIELUMGEBUNG, drei Gegenproben. **Tatsaechlich eingetretene Nebenwirkung, und sie ist die eigentliche Lehre:** Zwei der neun Befunde betrafen Code, den ich SELBST geschrieben hatte — und einer davon war eine Fehlannahme ueber die Bedeutung einer leeren Liste (`allowed_tools=[]` liest sich wie „keine Werkzeuge“ und bedeutet das Gegenteil; es steht woertlich in der Anbieter-Doku). **Wer eine Sicherheitsoption setzt, muss ihre Semantik NACHLESEN, nicht erschliessen** — sie sieht oft aus wie das, was man erwartet. Zweitens: Bei drei der neun Punkte sagte ein KOMMENTAR das Richtige und der Code etwas anderes (Suchtreffer, harmlose Dateinamen, Absenderpruefung). **Ein Kommentar ist eine Absichtserklaerung; nur ein Pruefer, der ausfuehrt, ist eine Zusage.** Drittens: Jede Schranke braucht eine **Gegenrichtung** in der Pruefung - eine, die alles abweist, besteht jede Sicherheitspruefung und macht das Werkzeug kaputt.
 - **Der Pruefer misst die Funktion, nicht die Verdrahtung** - Engywucks Probelauf 22.08. - **universell, die teuerste Lehre des Projekts.** Was gebaut: acht schwere Befunde an frischem, am selben Tag gebautem Sicherheitscode. Kettenwirkung geprueft: 52/52 und 21/21 in der Zielumgebung, sieben Gegenproben. **Tatsaechlich eingetretene Nebenwirkung:** Von neun Pruefzeilen, die ich fuer ausfuehrend hielt, waren fuenf **umgehbar** - und in allen fuenf Faellen aus demselben Grund: Sie riefen die Funktion auf, aber niemand pruefte, ob sie noch AUFGERUFEN wird. Fabrik ja, Aufrufer nein. Bereinigung ja, Aufruf nein. Kopf-Zeichenkette ja, Kontext nein. **Der Kopfbefund des eigenen Berichts hatte gar keinen Pruefer** - der Commit trug seinen Namen, die Schutzzeilen liessen sich entfernen, alles blieb gruen. Die Faustregel daraus, hart: **Jede Zeile, die Quelltext LIEST - `getsource`, `read_text`, `find`, Zeilenzaehlung -, ist umgehbar.** Acht von acht gemessenen Faellen. Wo eine Abwesenheit zu messen ist, hilft der Syntaxbaum (echte Aufrufe statt Zeilen mit dem Namen); wo Verhalten zu messen ist, muss der Pfad AUSGEFUEHRT werden, notfalls durch Herausziehen der Entscheidung in eine eigene Funktion. Zweite Lehre: **Ein Fix, der eine Handlung in einen Dialog verlagert, ist erst fertig, wenn der Dialog zeigt, worueber er entscheiden laesst** (H4: die Adresse stand nirgends).
+
+## Ultracode-Nachlese Eingangs-Absicherung (23.08.2026, Engywucks Befund A–L)
+
+- **Prüfstand-Hermetik über Umgebungsvariablen · Befund L · universell** —
+  geprüft: ob die zwölf Testdateien wirklich isoliert sind. *Nebenwirkung, die
+  keiner erwartet hat:* Sie waren es nie. `bot.py` hat `USER_PREFS_FILE`
+  niemals gelesen; jeder Lauf beschrieb die echte Ablage, und auf dem VPS
+  standen danach alle drei Kanal-Kennungen auf einer Test-Attrappe. **Eine
+  gesetzte Variable, die niemand liest, sieht genauso aus wie eine, die wirkt** —
+  das ist der Kern, und er gilt für jedes System mit Prüfumgebung.
+
+- **Ein fester Betriebspfad macht Prüfer ortsabhängig blind · D/E/F · universell**
+  — geprüft: die Pfad-Auflösung gegen die Repo-Wurzel. *Nebenwirkung:* **Vier**
+  Prüfer trugen den VPS-Pfad fest ein, darunter einer, den ich am selben Tag
+  selbst geschrieben hatte. Solange die geprüfte Logik nur Zeichenketten
+  verglich, waren sie pfadunabhängig grün — die Blindheit entstand erst durch
+  die Verbesserung. **Die gefährliche Richtung ist nicht „rot am falschen
+  Rechner", sondern „grün aus dem falschen Grund".**
+
+- **Ein Ausweichpfad bei Unsicherheit ist die Umkehrung von fail-closed ·
+  Befund C · universell** — geprüft: der Leseweg für Fremddokumente.
+  *Nebenwirkung:* Der `else`-Zweig fing nicht nur die unbekannten Formate,
+  sondern auch **jeden Fehlschlag der Erkennung** — ein PDF mit Füllbytes vor
+  der Kennung und jeder `open()`-Fehler. Wer die Prüfung zum Scheitern brachte,
+  bekam den weniger geschützten Weg. Für ein paar Bytes.
+
+- **Ein Geltungsbereich, der an einem Nebeneffekt hängt, ist keiner ·
+  Governance-Ortstest · universell** — geprüft: nichts, es fiel beim Beheben
+  von D/E an. *Nebenwirkung:* Der Test „Klon hat keine lokalen Änderungen" galt
+  nur auf dem VPS — nicht durch eine Bedingung, sondern weil der fest
+  eingetragene Pfad am Bau-Ort nicht existierte. Mit dem echten Pfad existierte
+  er immer, und der Test schlug dort an, wo ein unsauberer Baum normal ist.
+
+- **Zwei Gefahren in einer Liste ergeben in beide Richtungen Fehler · Befund G ·
+  universell** — geprüft: die Marker der Geheimnis-Erkennung. *Nebenwirkung:*
+  Weil Lesen und Schreiben denselben Topf teilten, war der Gedächtnis-Ordner
+  beim bloßen Lesen dialogpflichtig — **gegen die eigene Zusage im
+  System-Prompt** — und gleichzeitig fehlten die Ziele, die tatsächlich
+  Geheimnisse ausgeben. Der Doku-Spiegel war gebrochen, ohne dass etwas kaputt
+  aussah.
+
+- **Ein zu scharfer Riegel ist kein sicherer Riegel · H und I · universell** —
+  geprüft: wie oft die Schranke im Alltag anspringt. *Nebenwirkung:* Fünf
+  harmlose Recherchefragen waren dialogpflichtig, und elf von sechzehn normalen
+  Adressen ebenso. Der Kommentar im Code **benannte diese Erosion bereits** —
+  nur maß sie niemand. Eine Warnung ohne Messung altert zur Dekoration.
+
+- **Der Prüfer für „fester Pfad" musste dreimal enger gefasst werden · anpassbar**
+  — *Nebenwirkung:* Sein erster Entwurf schlug bei sieben Stellen an, von denen
+  **sechs berechtigt** waren — eine davon war seine eigene Erklärung. Genau der
+  Fehler, den die Regel vom 22.08. beschreibt, begangen beim Bau des Prüfers
+  für eine andere Regel. **Ein Prüfer wird nicht dadurch besser, dass er mehr
+  findet.**

@@ -1,7 +1,7 @@
 <!-- ROLLE: f-befunde-reihenfolge -->
 # F-Befunde der Gegenprüfung — Reihenfolge und Stand
 
-**Stichtag:** 2026-08-23 · **Stand: F-1 bis F-6 erledigt · F-7 bis F-17 offen**
+**Stichtag:** 2026-08-23 · **Stand: F-1 bis F-6 erledigt · F-7 bis F-17 offen · F-18 erledigt**
 · **überholt durch:** — · **maßgeblich ist diese Datei** (Volltext der Befunde:
 `docs/gegenpruefung-2026-08-18.md`; die neuen aus
 `BEFUND ULTRACODE 9456f16..d596269`, Engywuck 23.08.)
@@ -349,6 +349,27 @@ vorkommen.
 Eine AST-Zeile, die die **Erreichbarkeit** misst („von den Mail-Handlern aus
 ist `process_user_text` nicht erreichbar"), macht daraus einen gemessenen
 Befund. **Nicht blockierend** — der Zustand ist heute richtig, nur ungeprüft.
+
+**F-18 · `setdefault` in einem Prüfstand** `[ERLEDIGT 24.08.2026, 00:39]`
+
+Engywucks Fund vom 23.08. spät. `scripts/mess_redeseite.py` setzte
+`ALLOWED_USER_IDS` per `setdefault` — die verbotene Schreibweise, auf **genau
+der Variablen**, die im Register namentlich als Anlass steht (12/14-Fehlalarm
+vom 25.07.).
+
+**Der eigentliche Befund war der Prüfer:** `test_pruefumgebung.py` bildete
+seine Menge als `glob("test_*.py")` — die Datei fiel heraus und blieb
+unsichtbar. **Einen Tag nach dem Differenzmesser**, dessen ganze Diagnose
+lautet: Mengen über eine Eigenschaft bilden.
+
+Beim Beheben zeigte sich die Krankheit ein zweites Mal, eine Ebene tiefer: Die
+Prüfung selbst trug eine **Namensliste von vier Ordnern**. Auf die Eigenschaft
+umgestellt — *in einem Prüfstand ist jedes `setdefault` falsch* — fand sie
+sofort **dreizehn** Dateien statt einer. Alle umgestellt.
+
+Die Mengenbildung trennt jetzt über `tempfile`: Ein Prüfstand legt sich eine
+Wegwerf-Ablage an, ein Betriebsskript arbeitet im echten Zustand. Gemessen:
+zwei Messwerkzeuge, elf Betriebsskripte.
 
 ## Erledigt
 - **Zeitgeber-Wache** (Befund B1/B4/B5): gelöschte Timer werden erfasst,

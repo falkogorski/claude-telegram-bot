@@ -4356,8 +4356,10 @@ _BEFEHLE: tuple[tuple[str, str | None, str], ...] = (
      "Abo-Kontingent: wie viel vom Fenster aufgebraucht ist (kostet nichts, Abfrage dauert etwa eine Minute)"),
     ("links", "Abgelegte Links zeigen",
      "abgelegte Links (ein Link allein wird abgelegt, nicht gleich verarbeitet)"),
-    ("mail", "E-Mail-Konten zeigen (9.5)",
-     "eingerichtete E-Mail-Konten; Versand nur über den Freigabe-Knopf"),
+    ("mail", "E-Mail: Konten, /mail <konto> zeigt den Posteingang",
+     "ohne Angabe die eingerichteten Konten, mit Kontonamen die jüngsten "
+     "Kopfzeilen des Posteingangs (nur lesend, kein Text, keine Anhänge). "
+     "Versand nur über den Freigabe-Knopf"),
     ("presend", "Pre-Send-Hook — Kennzahlen", "Pre-Send-Hook: Kennzahlen"),
     ("quiet", "Ruhiger Modus (Tipp-Indikator aus)",
      "Tipp-Indikator aus (🔧-Spur bleibt sichtbar)"),
@@ -9034,9 +9036,70 @@ async def cmd_mail(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """
     if not authorized(update):
         return
+    # **Stufe A (23.08.): `/mail <konto>` ruft den Posteingang.**
+    #
+    # Vorher war die Mail-Funktion **gebaut, aber nicht verdrahtet** — von
+    # neunzehn Funktionen in `email_kanal.py` rief `bot.py` genau eine, und
+    # `posteingang()` hatte keinen Aufrufer (Engywucks Messung). „Postfächer
+    # freischalten" hätte damit nichts bewirkt.
+    #
+    # **Kein Modell im Pfad, ausdrücklich.** Weder hier noch in
+    # `posteingang_lesbar` läuft ein Agent — Fremdtext kann bauartbedingt keine
+    # Handlung erreichen, weil es nichts gibt, das er anweisen könnte. Das ist
+    # das Rücklaufventil in Reinform, nicht ein Filter, der Inhalt beurteilt.
+    #
+    # **Kein Zeitgeber, ausdrücklich.** Der Abruf geschieht nur, wenn Adam ihn
+    # tippt oder einen Knopf drückt. Ein zeitgesteuerter Mail-Abruf wäre ein
+    # Modell-Lauf ohne sein Zutun und damit die AGB-Leitplanke.
+    argumente = (update.message.text or "").split()[1:]
+    bot_ = update.get_bot()
+    ziel = update.effective_chat.id
+    if argumente:
+        konto = argumente[0].strip().lower()
+        anzahl = 10
+        if len(argumente) > 1 and argumente[1].isdigit():
+            anzahl = int(argumente[1])
+        try:
+            text = await asyncio.to_thread(
+                email_kanal.posteingang_lesbar, konto, anzahl)
+        except email_kanal.Abgewiesen as e:
+            # Ehrlich scheitern mit benanntem Grund (A3) — nie stillschweigend
+            # eine leere Liste, die wie „keine Post" aussieht.
+            text = f"❌ {e}"
+        except Exception as e:
+            log.exception("Posteingang %s fehlgeschlagen", konto)
+            text = f"❌ Der Abruf von [{konto}] ist fehlgeschlagen: {e}"
+        # **Ohne `parse_mode`** — der erste von zwei Riegeln gegen Formatierung
+        # aus Fremdtext. Der zweite ist `_neutral()` im Modul. Zwei, weil eine
+        # Sendestelle irgendwann jemand ändert.
+        await send_chunked(bot_, ziel, text, reply_to=update.message.message_id,
+                           parse_mode=None)
+        return
+
     text = await asyncio.to_thread(email_kanal.uebersicht)
-    await send_chunked(update.get_bot(), update.effective_chat.id, text,
-                       reply_to=update.message.message_id)
+    knoepfe = [[InlineKeyboardButton(f"📬 {name}", callback_data=f"mail:{name}")]
+               for name in sorted(await asyncio.to_thread(email_kanal.konten))]
+    await send_chunked(bot_, ziel, text, reply_to=update.message.message_id,
+                       reply_markup=InlineKeyboardMarkup(knoepfe) if knoepfe else None)
+
+
+async def on_mail_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Der Posteingangs-Knopf aus `/mail` — derselbe Weg, ein Tipp weniger."""
+    query = update.callback_query
+    if not authorized(update):
+        await query.answer("Nicht berechtigt.", show_alert=True)
+        return
+    await query.answer()
+    konto = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+    try:
+        text = await asyncio.to_thread(email_kanal.posteingang_lesbar, konto, 10)
+    except email_kanal.Abgewiesen as e:
+        text = f"❌ {e}"
+    except Exception as e:
+        log.exception("Posteingang %s fehlgeschlagen", konto)
+        text = f"❌ Der Abruf von [{konto}] ist fehlgeschlagen: {e}"
+    await send_chunked(query.get_bot(), query.message.chat_id, text,
+                       parse_mode=None)
 
 
 async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -10994,6 +11057,7 @@ def main() -> None:
     app.add_handler(CommandHandler("aufgaben", cmd_aufgaben))
     app.add_handler(CommandHandler("links", cmd_links))
     app.add_handler(CommandHandler("mail", cmd_mail))
+    app.add_handler(CallbackQueryHandler(on_mail_knopf, pattern=r"^mail:"))
     app.add_handler(CallbackQueryHandler(on_freigabe_callback, pattern=r"^frg:"))
     app.add_handler(CallbackQueryHandler(on_link_callback, pattern=r"^lnk:"))
     app.add_handler(CallbackQueryHandler(on_option_callback, pattern=r"^opt:"))

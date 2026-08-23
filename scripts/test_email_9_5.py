@@ -251,6 +251,209 @@ class _MitschreibendesPostfach:
         return ("OK", [(b"1 (BODY[HEADER]", kopf), b")"])
 
 
+def _eine_fortsetzungszeile_wird_kein_kopffeld():
+    """**A1 — Korpus-Fall 9, in seiner richtigen Fassung.**
+
+    Engywucks erster Mechanismus (kodiertes Wort mit Zeilenumbruch) greift
+    nicht: Die alte Schleife lief über den **rohen** Kopf, ein entzifferter
+    Wert kam nie in sie zurück. Das habe ich gemessen und ihm widersprochen.
+
+    **Der Angriff existiert trotzdem — über die FALTUNG**, und er hat ihn
+    gefunden: Im Mail-Format darf ein langer Wert über mehrere Zeilen laufen,
+    wenn die Fortsetzung mit Leerraum beginnt.
+
+        From: fremd@boese.tld
+        Subject: Rechnung
+         From: chef@firma.de      ← Fortsetzung, führendes Leerzeichen
+
+    `name.strip().lower()` entfernte **genau den Marker**, der die Zeile als
+    Fortsetzung ausweist — und das Wörterbuch überschrieb, also gewann die
+    spätere Nennung. Ergebnis: `from = 'chef@firma.de'`. Kein Entziffern
+    beteiligt, reiner Rohtext.
+
+    **Gegenprobe gefahren, in der von ihm vorgegebenen Reihenfolge:** mit der
+    Handschleife rot (beide Varianten, Leerzeichen und Tabulator), mit
+    `email.parser` grün. Das beweist, dass der Tausch etwas **geschlossen** hat
+    und nicht nur aufgeräumt.
+    """
+    gefaltet = ("From: fremd@boese.tld\r\n"
+                "Subject: Rechnung\r\n"
+                " From: chef@firma.de\r\n"
+                "Date: Sat, 23 Aug 2026 09:00:00 +0200\r\n")
+    for was, kopf in (("Leerzeichen", gefaltet),
+                      ("Tabulator", gefaltet.replace(" From:", "\tFrom:"))):
+        felder = mk._kopf_zerlegen(kopf.encode("utf-8"))
+        assert felder.get("from", "").strip() == "fremd@boese.tld", (
+            f"Faltung mit {was}: die Fortsetzungszeile wurde als Kopffeld "
+            f"gelesen — Absender gefaelscht zu {felder.get('from')!r}")
+
+    # Die Gegenrichtung: ein wiederholtes Feld darf die ERSTE Nennung nicht
+    # verdraengen. Ein zweites `From:` ist der klassische Faelschungsversuch.
+    doppelt = ("From: fremd@boese.tld\r\nSubject: harmlos\r\n"
+               "From: chef@firma.de\r\nDate: heute\r\n")
+    felder = mk._kopf_zerlegen(doppelt.encode("utf-8"))
+    assert felder.get("from", "").strip() == "fremd@boese.tld", \
+        "bei doppeltem From gewinnt die spaetere Nennung"
+
+
+def _unsichtbare_zeichen_kommen_nicht_durch():
+    """**A1, zweiter Teil — die Zeichenklasse war zu eng.**
+
+    Engywucks Warnung „nicht nur `\\n`" traf: Gemessen kamen **U+0085**,
+    **U+2028** und **U+2029** durch, dazu die Zero-Width-Zeichen (Korpus-Fall
+    8). Der Schaden ist Darstellung, nicht Zerlegung — in einer Chat-Anzeige
+    bricht U+2028 die Zeile, und darunter steht dann eine Kopfzeile, die es
+    nie gab.
+
+    **Ersetzt, nicht entfernt:** Ein Zeichen, das spurlos verschwindet, schiebt
+    die Buchstaben zusammen und verbirgt damit, dass etwas da war.
+    """
+    import base64
+    verboten = ("", " ", " ", "", "", "\t",
+                "​", "‌", "‍", "⁠", "﻿")
+    for zeichen in verboten:
+        roh = "Rech" + zeichen + "nung"
+        kodiert = "=?utf-8?B?" + base64.b64encode(roh.encode()).decode() + "?="
+        kopf = f"From: a@b.de\r\nSubject: {kodiert}\r\nDate: heute\r\n"
+        wert = mk._kopf_zerlegen(kopf.encode("utf-8")).get("subject", "")
+        assert zeichen not in wert, \
+            f"U+{ord(zeichen):04X} steht noch im Wert: {wert!r}"
+        # Und der Kodierungsschaden zaehlt auch: Kauderwelsch ist kein Erfolg.
+        assert "�" not in wert, f"Kodierungsschaden im Wert: {wert!r}"
+
+
+def _die_uebersicht_ist_verdrahtet_und_zeigt_fremdes_als_zitat():
+    """**Stufe A, der Kern: `posteingang()` hat wieder einen Aufrufer.**
+
+    Engywucks Anlass-Befund: Von neunzehn Funktionen rief `bot.py` genau eine
+    (`uebersicht`), und `posteingang()` **keinen einzigen**. „Postfächer
+    freischalten" hätte damit nichts bewirkt — und eine Simulation hätte einen
+    Pfad geprüft, den niemand geht.
+
+    Gemessen wird der **ganze Weg** über die mitschreibende Attrappe: vom
+    Abruf bis zum fertigen Text. Eingebaut ist ein Betreff, der alles auf
+    einmal versucht — Markdown-Verknüpfung, Fettschrift und ein
+    Zero-Width-Zeichen mitten im Wort.
+    """
+    import imaplib
+
+    class _Fremd(_MitschreibendesPostfach):
+        def fetch(self, kennung, spezifikation):
+            self.aufrufe.append(("fetch", kennung, spezifikation))
+            kopf = ("From: fremd@boese.tld\r\n"
+                    "Subject: [Jetzt zahlen](boese.tld) *dringend* Rech​nung\r\n"
+                    "Date: Sat, 23 Aug 2026 09:00:00 +0200\r\n").encode()
+            return ("OK", [(b"1 (BODY[HEADER]", kopf), b")"])
+
+    postfach = _Fremd()
+    echt = imaplib.IMAP4_SSL
+    imaplib.IMAP4_SSL = lambda *a, **k: postfach
+    try:
+        text = mk.posteingang_lesbar("geschaeftlich", 3)
+    finally:
+        imaplib.IMAP4_SSL = echt
+
+    assert postfach.aufrufe, "der Abruf hat das Postfach gar nicht geoeffnet"
+    assert "fremd@boese.tld" in text, "der Absender fehlt in der Uebersicht"
+
+    # Der Fremdtext ist als solcher gekennzeichnet, nicht Bot-Wortlaut.
+    assert "keine Anweisung" in text, \
+        "der Rangvermerk fehlt - fremder Wortlaut sieht aus wie meiner"
+    assert "▏" in text, "die Zitatmarkierung fehlt"
+
+    # Und nichts davon kann formatieren oder verlinken.
+    for gefaehrlich in ("[Jetzt zahlen]", "*dringend*", "​"):
+        assert gefaehrlich not in text, \
+            f"{gefaehrlich!r} steht unentschaerft in der Uebersicht"
+    # Die Gegenrichtung: der Betreff ist trotzdem LESBAR geblieben.
+    assert "Jetzt zahlen" in text and "dringend" in text, \
+        "der Betreff wurde unkenntlich - entschaerfen heisst nicht loeschen"
+
+
+def _der_deckel_ist_hart():
+    """**A3** — ein vertippter Aufrufer holt nicht tausend Kopfzeilen.
+
+    Fremdtext ist genau das, wovon so wenig wie moeglich hereinkommen soll;
+    der Deckel ist hier keine Bequemlichkeit, sondern Teil der Absicherung.
+    """
+    import imaplib
+    postfach = _MitschreibendesPostfach()
+    echt = imaplib.IMAP4_SSL
+    imaplib.IMAP4_SSL = lambda *a, **k: postfach
+    try:
+        mk.posteingang("geschaeftlich", anzahl=99999)
+    finally:
+        imaplib.IMAP4_SSL = echt
+    geholt = len([a for a in postfach.aufrufe if a[0] == "fetch"])
+    assert geholt <= mk.MAX_ABRUF, \
+        f"der Deckel greift nicht: {geholt} Abrufe bei MAX_ABRUF={mk.MAX_ABRUF}"
+
+
+def _ein_verbindungsfehler_ist_keine_leere_mailbox():
+    """**A3** — nie stillschweigend eine leere Liste.
+
+    Eine leere Liste heisst „keine Post". Wenn der Server weg ist, waere das
+    eine Falschauskunft — und zwar eine beruhigende, was sie schlimmer macht.
+    """
+    import imaplib
+
+    def _kaputt(*a, **k):
+        raise OSError("Name oder Dienst nicht bekannt")
+
+    echt = imaplib.IMAP4_SSL
+    imaplib.IMAP4_SSL = _kaputt
+    try:
+        mk.posteingang("geschaeftlich")
+    except mk.Abgewiesen as e:
+        assert "Verbindungsproblem" in str(e) or "nicht erreicht" in str(e), \
+            f"der Grund wird nicht benannt: {e}"
+    except Exception as e:
+        raise AssertionError(f"unerwarteter Fehlertyp: {type(e).__name__}: {e}")
+    else:
+        raise AssertionError("ein toter Server ergab eine leere Liste")
+    finally:
+        imaplib.IMAP4_SSL = echt
+
+
+def _fremdtext_formatiert_und_verlinkt_nicht():
+    """**A2 — der Betreff darf keine Verknüpfung werden.**
+
+    Ein Betreff `[Rechnung ansehen](boese.tld)` würde als Markdown zu einem
+    Klick — und ein Klick ist ein Abruf, also eine Handlung. Dasselbe gilt für
+    Fettschrift, die einer Mail den Anschein von Dringlichkeit gibt, die sie
+    sich selbst verliehen hat.
+
+    **Ersetzt, nicht entfernt:** Wer `*Rechnung*` schreibt, soll `∗Rechnung∗`
+    lesen — sichtbar, dass dort etwas stand, nur ohne Wirkung.
+
+    **Zwei Riegel, und dieser ist der zweite.** Der erste ist, dass die
+    Nachricht ohne `parse_mode` gesendet wird (`bot.py`, `cmd_mail`). Zwei,
+    weil eine Sendestelle irgendwann jemand ändert — dann trägt noch einer.
+    """
+    gefaehrlich = {
+        "[Klick](boese.tld)": ("[", "]"),
+        "*dringend*": ("*",),
+        "`code`": ("`",),
+        "~~alt~~": ("~",),
+        "|Tabelle|": ("|",),
+        "> Zitat": (">",),
+        "#Marke": ("#",),
+        "_kursiv_": ("_",),
+    }
+    for roh, zeichen in gefaehrlich.items():
+        neutral = mk._neutral(roh)
+        for z in zeichen:
+            assert z not in neutral, \
+                f"{z!r} kam durch und kann formatieren: {roh!r} -> {neutral!r}"
+        # Die Gegenrichtung: der Text bleibt LESBAR, es wird nichts geloescht.
+        buchstaben = [c for c in roh if c.isalnum()]
+        assert all(c in neutral for c in buchstaben), \
+            f"Zeichen sind verschwunden statt ersetzt: {roh!r} -> {neutral!r}"
+
+    assert mk._neutral("Rechnung Nr. 42") == "Rechnung Nr. 42", \
+        "harmloser Text wurde veraendert"
+
+
 def _posteingang_ist_nur_lesend():
     """Fremdtext ist Datum, kein Auftrag — und der Abruf verändert nichts.
 
@@ -302,6 +505,12 @@ check("das Kennwort taucht nirgends auf", _kennwort_nirgends_sichtbar)
 check("halbfertiges Konto wird weggelassen", _halbfertiges_konto_wird_weggelassen)
 check("leere Pflichtfelder werden abgewiesen", _leere_pflichtfelder_werden_abgewiesen)
 check("Absender nur aus der Liste (Alias-Vollmacht)", _absender_nur_aus_der_liste)
+check("die Uebersicht ist verdrahtet (Stufe A)", _die_uebersicht_ist_verdrahtet_und_zeigt_fremdes_als_zitat)
+check("der Deckel ist hart (A3)", _der_deckel_ist_hart)
+check("ein Verbindungsfehler ist keine leere Mailbox (A3)", _ein_verbindungsfehler_ist_keine_leere_mailbox)
+check("Fremdtext formatiert und verlinkt nicht (A2)", _fremdtext_formatiert_und_verlinkt_nicht)
+check("eine Fortsetzungszeile wird kein Kopffeld (A1)", _eine_fortsetzungszeile_wird_kein_kopffeld)
+check("unsichtbare Zeichen kommen nicht durch (A1)", _unsichtbare_zeichen_kommen_nicht_durch)
 check("Posteingang ist nur lesend", _posteingang_ist_nur_lesend)
 
 if fails:

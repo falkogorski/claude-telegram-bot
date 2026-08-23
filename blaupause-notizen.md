@@ -562,3 +562,37 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   Wochen hätte ihn jemand als Präzedenz zitiert, und die Prüfstelle wäre still
   weggefallen. **Die zulässigen Gründe sind stattdessen: bereits bedient, oder
   Auslöser nicht eingetreten.**
+
+## Mail-Abruf Stufe A (23.08.2026)
+
+- **Eine Funktion ohne Aufrufer ist kein Feature · Anlass · universell** —
+  geprüft: ob „Postfächer freischalten" etwas bewirkt hätte. *Nebenwirkung:*
+  Nein. Von neunzehn Funktionen in `email_kanal.py` rief `bot.py` genau **eine**,
+  und `posteingang()` hatte **keinen** Aufrufer. Das Modul war vollständig
+  gebaut, getestet und dokumentiert — und tot. **Ein Prüfer, der die Funktion
+  misst, findet das nie**; nur die Frage „wer ruft das eigentlich" findet es.
+
+- **`name.strip()` entfernte den Marker, der die Zeile ausweist · A1 ·
+  universell** — *Nebenwirkung, und sie ist die elegante des Tages:* Im
+  Mail-Format weist ein **führendes Leerzeichen** eine Zeile als Fortsetzung
+  der vorherigen aus. Die Handschleife rief `name.strip().lower()` — und
+  entfernte damit genau das Zeichen, an dem man die Fortsetzung erkennt. Aus
+  ` From: chef@firma.de` wurde ein eigenes Feld, und das Wörterbuch überschrieb.
+
+  **Die Lehre über den Fall hinaus:** Normalisierung ist nicht neutral. Wer
+  einen Wert säubert, bevor er ihn deutet, kann genau das Merkmal löschen, das
+  die Deutung trägt.
+
+- **Fehlerbehandlung, die selbst einen Fehler wirft · A3 · anpassbar** —
+  *Nebenwirkung:* `log` war in `email_kanal.py` **nie definiert**. Die
+  Fehlerzweige riefen `log.warning`, und der Name sah richtig aus. **Der Zweig
+  läuft nur im Störfall** — also genau dann, wenn er tragen soll. Gefunden hat
+  es die Prüfzeile „ein Verbindungsfehler ist keine leere Mailbox" beim ersten
+  Lauf; kein Lesen hätte es gezeigt.
+
+- **Das gemischte Anführungspaar, zum sechsten Mal · anpassbar** — beim Bau von
+  A2 wieder `„…"` geschrieben, wieder SyntaxError. Der Prüfer aus `CLAUDE.md`
+  greift, aber erst nachträglich. *Was diesmal half:* die dort empfohlenen
+  **eckigen Klammern** von vornherein für Meldungen zu nehmen — `[{konto}]`
+  statt Anführungszeichen. Die Regel zu kennen genügt offenbar nicht; man
+  braucht die Ausweichform im Finger.

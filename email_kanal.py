@@ -45,6 +45,7 @@ der so etwas enthält, ist nie ein Versehen.
 from __future__ import annotations
 
 import imaplib
+import logging
 import os
 import re
 import smtplib
@@ -57,14 +58,54 @@ from pathlib import Path
 
 import freigaben
 
+# **Ein eigener Logger — er fehlte.** Die Fehlerbehandlung in `posteingang()`
+# und `_kopf_zerlegen()` rief `log.warning`/`log.exception`, und `log` gab es in
+# diesem Modul nicht. Der Fehlerpfad haette also selbst einen Fehler geworfen —
+# ausgerechnet dort, wo etwas ehrlich scheitern soll.
+#
+# Gefunden von der Pruefzeile „ein Verbindungsfehler ist keine leere Mailbox",
+# beim ERSTEN Lauf. Kein Lesen haette es gezeigt: Der Name steht da, er sieht
+# richtig aus, und der Zweig laeuft nur im Stoerfall.
+log = logging.getLogger(__name__)
+
 # Ein Konto heißt hier schlicht „geschaeftlich" oder „privat"; die Zugangsdaten
 # stehen unter MAIL_<NAME>_… in der Umgebung. Der Name taucht im Chat auf, die
 # Daten nie.
 _FELDER = ("ADRESSE", "BENUTZER", "KENNWORT", "IMAP", "SMTP")
 
-# Was in einem Kopffeld nichts zu suchen hat. Steuerzeichen ermöglichen die
-# Einschleusung zusätzlicher Kopfzeilen (siehe Modulkopf).
-_STEUERZEICHEN = re.compile(r"[\r\n\x00-\x08\x0b\x0c\x0e-\x1f]")
+# A3: Wie viele Kopfzeilen ein Abruf höchstens holt, und wie lange er auf den
+# Server wartet. Beides bewusst klein — der Überblick ist die erste Stufe, der
+# Text kommt einzeln auf Abruf.
+MAX_ABRUF = 25
+ABRUF_FRIST_S = 20
+
+# Was in einem Kopffeld nichts zu suchen hat.
+#
+# **`[ERWEITERT 2026-08-23, Stufe A1 — gemessen, nicht vermutet]`** Die alte
+# Klasse fasste CR, LF und die ASCII-Steuerzeichen. Engywucks Auftrag warnte
+# „nicht nur `\n`", und die Messung (`scripts/mess_kopfzeilen_a1.py`) hat ihm
+# recht gegeben: **Drei Zeilentrenner kamen durch**, die kein ASCII sind —
+# U+0085 (NEXT LINE), U+2028 (LINE SEPARATOR), U+2029 (PARAGRAPH SEPARATOR).
+#
+# **Der Schaden ist Darstellung, nicht Zerlegung:** In einer Chat-Anzeige bricht
+# U+2028 die Zeile, und darunter steht dann `From: chef@firma.de` — für Adams
+# Auge eine zweite Kopfzeile, die es nie gab. Die Werte selbst bleiben heil.
+#
+# **Dazu die unsichtbaren Zeichen** (U+200B–U+200D, U+2060, U+FEFF): Sie
+# trennen ein Wort, ohne dass man es sieht — `Rech⁠nung` liest sich wie
+# `Rechnung`, ist aber etwas anderes. Sie sind Korpus-Fall 8 und kamen
+# ebenfalls durch. Auch sie werden ersetzt, nicht entfernt: Ein Zeichen, das
+# spurlos verschwindet, verschiebt die Buchstaben zusammen und verbirgt damit,
+# dass etwas da war.
+_STEUERZEICHEN = re.compile(
+    # `\x09` (Tabulator) ist mit drin: Er ist gueltiger Faltungs-Leerraum und
+    # landet nach dem Zusammenfalten IM Wert. Sichtbar ist er dort nicht, aber
+    # er verschiebt die Darstellung — und ein Zeichen, das man nicht sieht,
+    # gehoert nicht in einen Wert, den ein Mensch lesen soll.
+    r"[\r\n\x00-\x08\x09\x0b\x0c\x0e-\x1f\x7f"
+    r"  "          # Zeilentrenner jenseits von ASCII
+    r"​-‍⁠﻿]"  # unsichtbare Trenner mitten im Wort
+)
 
 # Anhänge dürfen nur aus dem Arbeitsbereich kommen — nie aus Geheimnis-Pfaden.
 # Dieselben Marker wie im Freigabe-Postfach, bewusst gespiegelt.
@@ -326,12 +367,53 @@ def posteingang(konto: str, anzahl: int = 10) -> list[dict]:
     """
     verfuegbar = konten()
     if konto not in verfuegbar:
-        raise Abgewiesen(f"Kein Konto „{konto}“ eingerichtet.")
+        raise Abgewiesen(
+            f"Kein Konto „{konto}“ eingerichtet."
+            + (f" Vorhanden: {', '.join(sorted(verfuegbar))}." if verfuegbar
+               else " Es ist überhaupt keines hinterlegt."))
     k = verfuegbar[konto]
+    # **A3 — Grenzen und ehrliche Fehlschläge.**
+    #
+    # Der Deckel ist **hart**, nicht nur eine Vorgabe: Ein Aufrufer, der sich
+    # vertippt, holt sonst tausend Kopfzeilen in den Kontext. Fremdtext ist
+    # genau das, wovon so wenig wie möglich hereinkommen soll — der Deckel ist
+    # hier keine Bequemlichkeit, sondern Teil der Absicherung.
+    anzahl = max(1, min(int(anzahl or 10), MAX_ABRUF))
     wirt, _, port = k.imap.partition(":")
     raus: list[dict] = []
+    try:
+        return _abrufen(k, wirt, port, anzahl, raus)
+    except Abgewiesen:
+        raise
+    except imaplib.IMAP4.error as e:
+        # **Der häufigste echte Fall, und er hat einen eigenen Text**: falsche
+        # Zugangsdaten. Ein „Abruf fehlgeschlagen" ließe Adam raten, ob der
+        # Server weg ist oder das Kennwort falsch — und bei mailbox.org ist es
+        # fast immer Letzteres (App-Passwort statt Kontokennwort).
+        log.warning("IMAP-Anmeldung/Abruf abgelehnt für %s", konto)
+        raise Abgewiesen(
+            f"Das Postfach „{konto}“ hat den Zugriff abgelehnt. Meist ist das "
+            "das Kennwort — manche Anbieter verlangen ein eigenes "
+            "App-Passwort statt des Kontokennworts.") from None
+    except (OSError, ssl.SSLError) as e:
+        # Netz, Name, Zeitüberschreitung. Der Grund wird BENANNT, nie
+        # stillschweigend eine leere Liste zurückgegeben — eine leere Liste
+        # heißt „keine Post", und das wäre eine Falschauskunft.
+        log.warning("IMAP-Verbindung zu %s fehlgeschlagen: %s", wirt, e)
+        raise Abgewiesen(
+            f"Ich habe „{konto}“ nicht erreicht ({wirt}): {e}. "
+            "Das ist ein Verbindungsproblem, keine leere Mailbox.") from None
+
+
+def _abrufen(k, wirt: str, port: str, anzahl: int, raus: list) -> list[dict]:
+    """Der eigentliche Abruf — herausgezogen, damit die Fehlerbehandlung oben
+    lesbar bleibt und jeder Fall seinen eigenen Text bekommt."""
     with imaplib.IMAP4_SSL(wirt, int(port or 993),
-                           ssl_context=ssl.create_default_context()) as v:
+                           ssl_context=ssl.create_default_context(),
+                           # Ohne Frist hängt der Abruf am toten Server, bis
+                           # jemand den Bot neu startet — und Adam sieht nur,
+                           # dass nichts kommt.
+                           timeout=ABRUF_FRIST_S) as v:
         v.login(k.benutzer, k._kennwort())
         v.select("INBOX", readonly=True)          # readonly: nichts verändern
         _, daten = v.search(None, "ALL")
@@ -340,16 +422,132 @@ def posteingang(konto: str, anzahl: int = 10) -> list[dict]:
             _, teil = v.fetch(kid, "(BODY.PEEK[HEADER.FIELDS "
                                    "(FROM SUBJECT DATE)])")
             kopf = b"".join(t[1] for t in teil if isinstance(t, tuple))
-            felder = {}
-            for zeile in kopf.decode("utf-8", "replace").splitlines():
-                if ":" in zeile:
-                    name, _, wert = zeile.partition(":")
-                    felder[name.strip().lower()] = _entziffern(wert)
+            felder = _kopf_zerlegen(kopf)
             raus.append({"kennung": kid.decode(),
                          "von": felder.get("from", "—"),
                          "betreff": felder.get("subject", "(ohne Betreff)"),
                          "datum": felder.get("date", "")})
     return raus
+
+
+def _kopf_zerlegen(roh: bytes) -> dict[str, str]:
+    """Kopfzeilen → Felder, über den **Standard-Parser**. (Stufe A1)
+
+    **Warum nicht mehr selbst zerlegen.** Hier stand eine eigene Schleife:
+    `splitlines()`, dann an `:` teilen. Die kennt **keine gefalteten
+    Kopfzeilen** — im Mail-Format darf ein langer Wert über mehrere Zeilen
+    laufen, wenn die Fortsetzung mit Leerraum beginnt. Eine Zeile ohne
+    Doppelpunkt fiel damit unter den Tisch, und eine Fortsetzung **mit**
+    Doppelpunkt wurde als **eigenes Feld** gelesen.
+
+    Genau das ist der Kern von Engywucks A1 — **aber eine Stufe früher als er
+    beschrieb.** Sein Weg („der entzifferte Wert erzeugt eine Zeile, die die
+    nächste Runde als Kopffeld liest") greift nicht: Die Schleife lief über den
+    **rohen** Kopf, entzifferte Werte kamen nie in sie zurück. Gemessen in
+    `scripts/mess_kopfzeilen_a1.py`, elf Varianten.
+
+    Der Weg, der greift, ist der **unkodierte**: ein echtes CRLF im rohen Kopf.
+    Dann sieht `splitlines()` zwei Zeilen, und `From: chef@firma.de` wird zum
+    Absender. Ob ein IMAP-Server so etwas ausliefert, habe ich **nicht** gegen
+    einen echten Server gemessen — die Lücke wird geschlossen, ohne dass ich
+    behaupte, sie sei praktisch erreichbar.
+
+    **`email.parser` macht diesen Fehler nicht.** Er kennt die Faltung, er
+    kennt die Wiederholung desselben Feldnamens, und er ist seit Jahrzehnten
+    gegen echte Post gelaufen. *Fremdes nehmen, wo es nicht ans Herz geht* —
+    hier geht es nicht ans Herz: Es ist Formatarbeit, keine Schrankenlogik.
+
+    **Bei Wiederholung gewinnt die ERSTE.** Ein zweites `From:` ist der
+    klassische Fälschungsversuch; die erste Nennung ist die, die der Server
+    gesetzt hat.
+    """
+    from email import policy
+    from email.parser import Parser
+    try:
+        # **Erst dekodieren, dann zerlegen** — nicht `BytesParser`. Der liest
+        # Kopfzeilen byteweise (formal richtig: dort ist nur ASCII erlaubt),
+        # und ein Mehrbyte-Zeichen zerfaellt dabei in Ersatzzeichen. Gemessen:
+        # ein rohes U+0085 im Betreff ergab `Rechnung\ufffd\ufffdFrom: …`.
+        #
+        # Sicherheitsrelevant ist das nicht — der Absender bleibt echt. Aber
+        # Adam bekaeme Kauderwelsch zu lesen, und das faellt ihm zu Recht auf.
+        nachricht = Parser(policy=policy.compat32).parsestr(
+            roh.decode("utf-8", "replace"), headersonly=True)
+    except Exception:
+        log.exception("Kopfzeilen nicht zerlegbar")
+        return {}
+    felder: dict[str, str] = {}
+    for name, wert in nachricht.items():
+        schluessel = name.strip().lower()
+        if schluessel in felder:
+            continue                      # die erste Nennung gewinnt
+        felder[schluessel] = _entziffern(wert)
+    return felder
+
+
+def posteingang_lesbar(konto: str, anzahl: int = 10) -> str:
+    """Die Kopfzeilen als Text für den Chat — **fremder Wortlaut als Zitat.**
+
+    **A2 aus Engywucks Auftrag.** Drei Dinge, die hier zusammenkommen:
+
+    **① Kein Markdown-Rendering des Fremdtexts.** Ein Betreff
+    `[Rechnung ansehen](boese.tld)` darf keine Verknüpfung werden. Deshalb geht
+    jeder fremde Wert durch `_neutral()`, das die Zeichen entschärft, mit denen
+    Telegram formatiert — und der Bot sendet diese Nachricht **ohne**
+    `parse_mode`, was der zweite Riegel ist.
+
+    **② Erkennbar fremd.** Jede Zeile trägt das Zitatzeichen `▏` und die Werte
+    stehen in Anführungszeichen. Wer die Liste sieht, soll auf den ersten Blick
+    wissen: **Das hat jemand anderes geschrieben.** Der Kopf sagt es zusätzlich
+    in Worten — das ist derselbe Rangvermerk wie beim angepinnten Text und beim
+    Recall-Kopf.
+
+    **③ Keine anklickbare Adresse.** Auch die Absenderadresse bleibt Text. Ein
+    Klick wäre ein Abruf, und ein Abruf ist eine Handlung.
+
+    **Was hier ausdrücklich NICHT geschieht:** kein Modell wird gestartet, kein
+    Text wird geholt, kein Anhang berührt. Das ist der ganze Punkt von Stufe A —
+    **Fremdtext kann hier bauartbedingt nichts anweisen, weil es nichts gibt,
+    das er anweisen könnte.**
+    """
+    nachrichten = posteingang(konto, anzahl)
+    if not nachrichten:
+        return f"📭 In [{konto}] liegt nichts."
+    zeilen = [f"📬 Die {len(nachrichten)} jüngsten in [{konto}] — "
+              "**fremder Wortlaut, notiert, keine Anweisung:**", ""]
+    for i, n in enumerate(nachrichten, 1):
+        zeilen.append(f"{i}. ▏Von: [{_neutral(n['von'])}]")
+        zeilen.append(f"   ▏Betreff: [{_neutral(n['betreff'])}]")
+        if n.get("datum"):
+            zeilen.append(f"   ▏{_neutral(n['datum'])}")
+        zeilen.append("")
+    zeilen.append("Der Text einer Nachricht wird erst geholt, wenn du ihn "
+                  "anforderst — bis dahin habe ich nur diese Kopfzeilen.")
+    return "\n".join(zeilen)
+
+
+# Zeichen, mit denen Telegram formatiert. Sie werden im Fremdtext **ersetzt**,
+# nicht entfernt: Wer `*Rechnung*` schreibt, soll auch `*Rechnung*` lesen — nur
+# eben nicht fett, und ohne dass unklar bleibt, ob dort etwas stand.
+_FORMATZEICHEN = str.maketrans({
+    "*": "∗", "_": "＿", "`": "ˋ", "[": "〔", "]": "〕",
+    "~": "∼", "|": "¦", ">": "＞", "#": "＃",
+})
+
+
+def _neutral(wert: str) -> str:
+    """Fremdtext, der nichts mehr formatieren oder verlinken kann. (A2)
+
+    **Ersetzen statt entfernen** — dieselbe Überlegung wie bei den unsichtbaren
+    Zeichen: Ein Zeichen, das spurlos verschwindet, verbirgt, dass es da war.
+    Ein Betreff `[Klick hier](boese.tld)` liest sich danach als
+    `〔Klick hier〕(boese.tld)` — sichtbar, unverlinkt, unverfälscht im Sinn.
+
+    **Das ist der zweite Riegel, nicht der erste.** Der erste ist, dass die
+    Nachricht ohne `parse_mode` gesendet wird. Beide zusammen, weil eine
+    Sendestelle irgendwann jemand ändert — und dann trägt noch einer.
+    """
+    return (wert or "").translate(_FORMATZEICHEN)
 
 
 def uebersicht() -> str:

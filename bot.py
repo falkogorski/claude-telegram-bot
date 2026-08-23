@@ -93,7 +93,20 @@ WEBHOOK_URL_ERWARTET = (os.environ.get("WEBHOOK_URL") or "").strip().rstrip("/")
 
 # ---------- user prefs (überleben Session-Reset und Bot-Neustart) ----------
 
-_PREFS_FILE = Path.home() / ".config" / "claude-telegram-bot" / "prefs.json"
+# WARUM aus der Umgebung: Zwoelf Testdateien setzten USER_PREFS_FILE und
+# glaubten sich isoliert — bot.py hat die Variable nie gelesen (Engywuck,
+# Befund L, 23.08.). Folge: Jeder Regressionslauf beschrieb die ECHTE
+# prefs.json. Auf dem VPS standen danach output_channel_id, summary_channel_id
+# und tts_channel_id auf der Test-Attrappe -1001234567890 — der Bot haette
+# alle Ausgaben in einen Kanal gelenkt, den es nicht gibt, ohne Fehlermeldung.
+# Die Lehre dahinter ist aelter als dieser Befund und steht in CLAUDE.md:
+# Abhaengigkeiten, die kein Register kennen kann, werden GEMESSEN. Eine
+# Umgebungsvariable, die niemand liest, sieht im Test genauso aus wie eine,
+# die wirkt.
+_PREFS_FILE = Path(
+    os.environ.get("USER_PREFS_FILE")
+    or Path.home() / ".config" / "claude-telegram-bot" / "prefs.json"
+)
 
 
 def _load_prefs() -> dict:
@@ -3041,6 +3054,48 @@ def _herkunft_aus_ergebnissen(sess, msg, such_ids: set) -> None:
 _UNSET = object()  # Sentinel: effort=None ist ein gültiger Wert (Normal)
 
 
+def hauptsitzungs_optionen(*, user_id: int, model_full: str, effort,
+                           add_dirs: list, context, context_via_file: bool):
+    """Die Optionen der HAUPTsitzung — als eigene Funktion, damit sie prüfbar ist.
+
+    **Warum sie herausgezogen ist** (Engywuck, Befund K, 23.08.): Für die
+    Neben-Läufe misst die Suite die fertige Befehlszeile über
+    `SubprocessCLITransport._build_command()`. Die Hauptsitzung — die einzige
+    mit vollem Werkzeugsatz und damit die gefährlichere — hatte **gar keinen
+    ausführenden Prüfer** für `permission_mode`. Bewacht war sie nur durch
+    einen Textscan über `bot.py`, und der ließ sich durch Aufteilen der
+    Zeichenkette umgehen.
+
+    Solange die Optionen mitten in `ensure_session` standen, war das nicht zu
+    ändern: Ein Prüfer hätte eine echte Sitzung aufbauen müssen. Jetzt kann er
+    die Optionen bauen, ohne den Agenten zu starten.
+
+    `permission_mode="default"` ist hier richtig und **nicht** `dontAsk` wie
+    bei den Neben-Läufen: Die Hauptsitzung SOLL fragen dürfen — sie hat einen
+    Menschen am anderen Ende. Der Riegel ist `can_use_tool`, nicht der Modus.
+    """
+    return ClaudeAgentOptions(
+        cwd=str(WORKDIR),
+        permission_mode="default",
+        can_use_tool=make_permission_callback(user_id),
+        model=model_full,
+        effort=effort,
+        add_dirs=add_dirs,
+        max_buffer_size=SDK_MAX_BUFFER,   # H1 (c): erst Puffer, dann verkleinern
+        # Private, kostenfreie Websuche (2.7) als Standardweg. Anthropic-WebSearch
+        # ist seit 23.07. (Adam-Entscheid „Variante 2") NICHT mehr hart deaktiviert,
+        # sondern bewusste Notfall-Option: _COST_TOOLS erzwingt für JEDE Nutzung
+        # den 💰-Einzeldialog mit Kostenhinweis — nie Always-Allow, nie automatisch.
+        mcp_servers={"suche": _SEARCH_MCP},
+        setting_sources=["project"] if context_via_file else None,
+        system_prompt={
+            "type": "preset",
+            "preset": "claude_code",
+            "append": _fit_arg_bytes(context),
+        } if (context and not context_via_file) else {"type": "preset", "preset": "claude_code"},
+    )
+
+
 async def ensure_session(
     user_id: int,
     *,
@@ -3076,26 +3131,9 @@ async def ensure_session(
     # Memory-Ordner mitgeben, damit der Agent Detailwissen bei Bedarf nachlesen
     # kann (Session-Diät 5.23) — liegt außerhalb des WORKDIR.
     add_dirs = [str(_MEMORY_DIR)] if _MEMORY_DIR.exists() else []
-    options = ClaudeAgentOptions(
-        cwd=str(WORKDIR),
-        permission_mode="default",
-        can_use_tool=make_permission_callback(user_id),
-        model=model_full,
-        effort=effort,
-        add_dirs=add_dirs,
-        max_buffer_size=SDK_MAX_BUFFER,   # H1 (c): erst Puffer, dann verkleinern
-        # Private, kostenfreie Websuche (2.7) als Standardweg. Anthropic-WebSearch
-        # ist seit 23.07. (Adam-Entscheid „Variante 2") NICHT mehr hart deaktiviert,
-        # sondern bewusste Notfall-Option: _COST_TOOLS erzwingt für JEDE Nutzung
-        # den 💰-Einzeldialog mit Kostenhinweis — nie Always-Allow, nie automatisch.
-        mcp_servers={"suche": _SEARCH_MCP},
-        setting_sources=["project"] if context_via_file else None,
-        system_prompt={
-            "type": "preset",
-            "preset": "claude_code",
-            "append": _fit_arg_bytes(context),
-        } if (context and not context_via_file) else {"type": "preset", "preset": "claude_code"},
-    )
+    options = hauptsitzungs_optionen(
+        user_id=user_id, model_full=model_full, effort=effort,
+        add_dirs=add_dirs, context=context, context_via_file=context_via_file)
     client = ClaudeSDKClient(options=options)
     await client.connect()
     # 5.25 (c): dauerhaft gemerkte Freigaben laden — dabei SELBSTHEILUNG:
@@ -10381,6 +10419,29 @@ def _wait_for_network(host: str = "api.telegram.org", port: int = 443,
     log.warning("network not available after %ds — starting anyway", max_wait)
 
 
+def anwendungs_bauplan():
+    """Der Programm-Bauplan als eigene Funktion — damit ein Prüfer ihn ERREICHT.
+
+    **Warum sie herausgezogen ist** (Engywuck, Befund K, 23.08.): Die
+    Prüfzeile für die Link-Vorschau las `bot.py` als Text und suchte
+    `.defaults(Defaults(` samt einem Fenster dahinter. Eine Kommentarzeile mit
+    demselben Wortlaut hätte genügt, um sie grün zu halten — der Schutz selbst
+    hätte fehlen dürfen. Solange die Kette in `main()` steckte, ließ sie sich
+    nicht ausführen, ohne den Bot zu starten.
+
+    Das ist die eigene Regel vom 22.08., wörtlich angewandt: Was ein Prüfer
+    nicht ausführen kann, wird in eine Funktion gezogen, die er ausführen kann
+    — nicht zur Verschönerung, sondern damit überhaupt gemessen wird.
+    """
+    return (
+        Application.builder()
+        .token(TELEGRAM_BOT_TOKEN)
+        .post_init(post_init)
+        .concurrent_updates(True)
+        .defaults(Defaults(link_preview_options=LinkPreviewOptions(is_disabled=True)))
+    )
+
+
 def main() -> None:
     if not ALLOWED_USER_IDS:
         raise SystemExit("ALLOWED_USER_IDS env var is empty — refusing to start (open bot is dangerous).")
@@ -10405,13 +10466,7 @@ def main() -> None:
     #
     # Als Voreinstellung am Programm gilt es für jede Nachricht, auch für die,
     # die noch niemand geschrieben hat.
-    _builder = (
-        Application.builder()
-        .token(TELEGRAM_BOT_TOKEN)
-        .post_init(post_init)
-        .concurrent_updates(True)
-        .defaults(Defaults(link_preview_options=LinkPreviewOptions(is_disabled=True)))
-    )
+    _builder = anwendungs_bauplan()
     if LOKALER_API_SERVER:
         # 5.34: Beide Adressen umstellen — die zweite wird gern vergessen, und
         # ohne sie liefen Downloads weiter über Telegram, also weiter mit

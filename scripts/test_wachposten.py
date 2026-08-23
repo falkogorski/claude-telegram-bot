@@ -21,7 +21,7 @@ os.environ["POSTFACH_DIR"] = str(_TMP / "postfach")
 # Fuer die A5-Grenzpruefungen wird `bot` geladen — es braucht diese beiden.
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "1:test")
 os.environ.setdefault("ALLOWED_USER_IDS", "1")
-os.environ.setdefault("USER_PREFS_FILE", str(_TMP / "prefs.json"))
+os.environ["USER_PREFS_FILE"] = str(_TMP / "prefs.json")
 (_TMP / "logs" / "conversations").mkdir(parents=True)
 (_TMP / "postfach" / "outbox").mkdir(parents=True)
 sys.path.insert(0, str(ROOT))

@@ -460,3 +460,13 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   Fehler, den die Regel vom 22.08. beschreibt, begangen beim Bau des Prüfers
   für eine andere Regel. **Ein Prüfer wird nicht dadurch besser, dass er mehr
   findet.**
+
+- **Zustand bereinigen, während der Besitzer läuft, ist wirkungslos · Befund L,
+  Nachlese · universell** — geprüft: dass die gesäuberte `prefs.json` auf dem
+  VPS sauber bleibt. *Nebenwirkung, die tatsächlich eintrat:* Sie war es nach
+  dem Neustart wieder **voll mit Testwerten**. Der laufende Bot hatte die alten
+  Werte beim Start in den Speicher geladen und beim nächsten Speichern
+  zurückgeschrieben — meine Bereinigung lief an ihm vorbei. **Die richtige
+  Reihenfolge ist: anhalten, sichern, bereinigen, starten.** Ich hatte das
+  Risiko sogar im Laufplan notiert und trotzdem am laufenden Dienst gearbeitet;
+  eine notierte Gefahr ist keine abgewendete.

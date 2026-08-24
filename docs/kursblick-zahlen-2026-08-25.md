@@ -30,6 +30,57 @@ Erhebung, ist selbst ein Befund** — deshalb diese Zeile zuerst.
 | F-Reihe | 7 | **Innenarbeit** |
 | Differenzmesser + Mengen-Arbeit | 6 | **Innenarbeit** |
 
+## NEU AUFGETEILT nach deinem Pruefstein (24.08., 22:12)
+
+Dein Pruefstein: *Zahlt der Commit auf etwas ein, das Adam merken wuerde,
+wenn es fehlte — eine Faehigkeit oder deren Schutz? Oder aendert er nur,
+woher wir wissen, dass etwas stimmt?*
+
+**Angewandt sind es 33, nicht 30** — mein erster Wert war ein
+Stichwort-Treffer mit Ueberlappung; einzeln durchgegangen sind es 33.
+
+**17 · Schutz einer Faehigkeit → Alltag.** Die Schranke selbst: der Riegel,
+der die CLI nie erreichte (`2f5b3a8`) · Rueckweg und Werkzeugfalle
+(`e931305`) · die Vertrauensliste, die sich selbst freischaltete (`cd2a68d`)
+· die Suchanfrage als Ausgangskanal (`461bedd`) · die Rangfrage (`bd54617`)
+· fuenf von acht Wegen zum Geheimnis (`20248e9`) · der Freigabedialog als Weg
+nach draussen (`1c62f1e`) · **der Daumen soll sehen, was er drueckt**
+(`305a99b`) · Bash nicht mehr dauerfreigebbar (`3eecb6b`) · die staerkste
+Auto-Freigabe (`ab537d7` + `ee424ac`) · Fremdtext in der Vertrauensliste
+(`6280b0d`) · der Mechanismus, der den Werkzeugnamen nie traf (`5e87cfa`) ·
+die eine gedeckte Dateiendung (`8a11fda`) · der Bash-Entscheid an EINEM
+Namen (`ac99419`) · **der Dialog zeigte die Adresse nicht, ueber die er
+entscheiden liess** (`2ec8d05`) · der Kalender als Fremdeingang (`9456f16`).
+
+**16 · nur Wissen darueber → Innenarbeit.** Prueferarbeit (`f71df20`,
+`c8420b7`), Register und Blaupause (`d287e5f`), Drehbuch-Eintraege
+(`51af4f2`, `f167eef`, `74f71de`), Befund- und Berichtsablage (`bc6c719`,
+`14c186f`, `353eef8`), Verfahrensregeln (`4171ecd`, `868b0c4`,
+`4362482`), die Grundsatz-Zeilen (`d4879ff`, `03f1083`) sowie zwei
+Richtigstellungen ueber den eigenen Stand (`d89cb2e`, `050e80a`).
+
+**Zwei Grenzfaelle, die ich dir offenlege, weil sie kippen koennten:**
+`305a99b` und `2ec8d05` betreffen **Adams Bedienung unmittelbar** — was der
+Freigabedialog anzeigt. Ich habe sie zum Alltag gezaehlt, weil er das Fehlen
+sofort merken wuerde. Und die **Grundsatz-Zeilen** (`d4879ff`, `03f1083`)
+habe ich zur Innenarbeit gezaehlt, obwohl sie die Grundlage der Schranke
+sind: **Ein Dokument aendert keinen Schutz, es beschreibt ihn.**
+
+**Die uebrigen Straenge nach demselben Pruefstein** — hier bewusst je Strang,
+nicht je Commit, weil die Stichwortsuche ueberlappt: Kontingent-Anzeige (12)
+und Mail (8) → **Alltag**, Adam merkt beides unmittelbar. Wachposten,
+Tagescheck, Log-Abgleich (7), Differenzmesser (6), Status-Messungen (8),
+Drehbuch/Blaupause/Ablage (29) → **Innenarbeit**. Die **F-Reihe (7) ist
+gemischt** und nicht einzeln ausgewiesen: F-1 (falsche Vorlese-Auskuenfte)
+merkt Adam, F-3 und F-6 sind Prueferarbeit. Ohne Diff-Blick waere jede
+genauere Zahl geraten.
+
+**Was das grob ergibt:** rund **37 Alltag** zu **rund 66 Innenarbeit**, Rest
+gemischt. **Das Verhaeltnis bleibt schief — aber es ist etwa 1:2 und nicht
+1:5.**
+
+## Der urspruengliche Posten (ueberholt, steht als Weg zum Ergebnis)
+
 **Der strittige Posten sind die 30.** Die Eingangs-Absicherung ist
 Sicherheitsarbeit **an einem Alltags-Feature** (Mail-Abruf) — ohne sie kein
 Postfach. Zaehlt man sie zum Alltag, steht es grob **50 zu 78**; zaehlt man

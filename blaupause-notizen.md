@@ -835,3 +835,37 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   bestaetigt. **② Die Kontrolle muss den Bau nicht kennen** — frischer Kontext
   ist der Wirkstoff, nicht ein Mangel. **③ Eine Gegenpruefung, die nie etwas
   findet, ist selbst der Befund.**
+
+- **Eine Menge aus FUNKTIONSNAMEN ist keine Menge · Gestalten-Erzeuger 24.08.
+  · universell**
+  — **Mein eigener Fehler, im Werkzeug, das genau dagegen gebaut wird.** Die
+  Kodierungs-Achse zog ich aus `dir(email.encoders)` und schnitt das Praefix
+  ab: `7or8bit`, `base64`, `quopri`. Das sind die Namen der **Funktionen**;
+  die Werte heissen `7bit`, `8bit`, `quoted-printable`. **Zwei von drei
+  ungueltig, zwei Drittel des Achsenraums fielen weg.**
+
+  **Das Rettende war nicht Aufmerksamkeit, sondern eine Auflage:** Engywuck
+  hatte verlangt, **jede Baufehlschlagung zu zaehlen statt still zu
+  ueberspringen**. Der Lauf meldete 160 Fehlschlaege von 240 — sonst haette er
+  achtzig geprueste Gestalten gemeldet, und niemand haette bemerkt, dass er
+  nur **eine** Kodierung kennt. **Ein Prueferaum, der still schrumpft, sieht
+  aus wie ein Pruefer, der nichts findet.**
+
+  **Der Griff:** Eine Menge aus einer Bibliothek zu ziehen genuegt nicht — man
+  muss pruefen, ob man die **Werte** hat oder nur ihre **Bezeichner**. Wo eine
+  geschlossene Norm-Menge existiert (RFC 2045 kennt fuenf Kodierungen), ist
+  die Aufzaehlung legitim; **welche davon gelten, wird trotzdem gemessen**,
+  nicht behauptet.
+
+- **Ein Deckel, der eine Ecke des Raums zeigt, ist selbst eine Handauswahl ·
+  Gestalten-Erzeuger 24.08. · universell**
+  — Zweiter Selbstbefund im selben Bau: `itertools.product` laeuft die erste
+  Achse zuerst durch. Ein Abbruch nach n Stueck liefert deshalb **nur
+  Gestalten mit der ersten Aufbau-Art**. Beim ersten Lauf waren 199 von 200
+  Befunden derselbe Fall, und der halbe Achsenraum war ungesehen — **es sah
+  aus wie ein gruendlicher Lauf.**
+
+  **Der Griff:** Volle Kombinationsliste bilden, dann **gleichmaessige
+  Schrittprobe** ziehen (deterministisch, kein Zufall). Und im Bericht die
+  **Raumgroesse** neben der Stichprobengroesse nennen, damit sichtbar bleibt,
+  welcher Anteil ueberhaupt gesehen wurde.

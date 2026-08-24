@@ -2,7 +2,8 @@
 # BAUAUFTRAG — Kostenregel, zwei kleine Punkte
 
 **Von:** Engywuck (Kontrolle) · **An:** Mick (Bau) · **Eingegangen:** 24.08.2026, 01:1x
-**Stichtag:** 2026-08-24 · **ueberholt durch:** — · **massgeblich ist die
+**Stichtag:** 2026-08-24 · **ERLEDIGT 24.08.2026, 01:33 (Commit `1817c86`)** ·
+**massgeblich ist die
 Status-Zeile in `MIGRATION.md`**
 
 **Termin: Dienstag-Zug, VOR dem Mail-Umbau** (Engywucks Vorgabe: billiger).

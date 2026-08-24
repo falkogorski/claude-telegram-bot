@@ -49,7 +49,20 @@ Auskunft am Abend: mit den Einkommensprojekten sei man heute nicht
 weitergekommen, das Restkontingent solle in den Bot.
 
 **Damit ist der erste Tag des Geteilt-Entscheids verstrichen, ohne dass er
-eingetreten ist.** Kein Vorwurf an irgendwen — ein Messwert, und genau der,
+eingetreten ist.**
+
+**NACHTRAG 24.08., 21:3x — Adams Auskunft, und sie aendert die Deutung:** Er
+war **verhindert**, hat das dir gegenueber bereits gesagt, und **die
+Bot-Arbeit wurde deshalb vorgezogen** — nicht anstelle des Einkommens,
+sondern in eine Luecke hinein. **Die naechsten drei Tage ist er unterwegs
+und erzeugt Einkommen.**
+
+**Was von meinem Messwert bleibt und was nicht:** Die Zahl stimmt — der
+Montag war der erste Tag des Entscheids und ist ohne Einkommensarbeit
+vergangen. **Meine Deutung war zu eng.** Ein einzelner verhinderter Tag ist
+kein Strukturbefund, und ein Vorziehen ist keine Verdraengung. **Die Frage
+[warum hat der Montag nicht gehalten] ist damit beantwortet und gehoert
+nicht auf die Seite** — die Frage, die bleibt, ist die naechste Woche. Kein Vorwurf an irgendwen — ein Messwert, und genau der,
 fuer den die Regel gebaut wurde. **Die Frage fuer die Seite lautet nicht,
 ob wir zu viel gebaut haben, sondern warum der Montag nicht gehalten hat.**
 

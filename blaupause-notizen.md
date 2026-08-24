@@ -816,3 +816,22 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   der nichts liegt. Dieselbe Klasse wie [git commit nie an einen
   dateiaendernden Heredoc ketten]: **Der Rueckweg zerstoert, was er schuetzen
   soll**, wenn man ihn ohne Blick auf den Arbeitsstand geht.
+
+- **Das Vier-Augen-Prinzip traegt ueber das Projekt hinaus · Kurs-Blick 24.08.
+  · universell**
+  — **Adams eigene Uebertragung**, und sie ist der erste Beleg von aussen: Er
+  nimmt aus der Zusammenarbeit mit, **fuer die Businessprojekte ebenfalls eine
+  Kontrollsitzung einzurichten** — weil es sich hier bewaehrt hat.
+
+  **Damit ist die Bauform als solche bestaetigt, nicht nur ihr Ergebnis.**
+  Bemerkenswert ist, WAS sich bewaehrt hat: nicht [eine zweite Meinung], sondern
+  **die Trennung von Bauen und Pruefen bei getrenntem Kontext** — der Erbauer
+  bewertet den eigenen Bau ueber seine eigene Absicht, und keine Sorgfalt hebt
+  das auf.
+
+  **Die drei Stuecke, ohne die es Beruhigung statt Kontrolle wird** (aus
+  diesem Projekt gemessen, nicht erdacht): **① Der Auftrag lautet [finde, was
+  nicht traegt], nie [pruefe, ob es stimmt]** — wer bestaetigen soll,
+  bestaetigt. **② Die Kontrolle muss den Bau nicht kennen** — frischer Kontext
+  ist der Wirkstoff, nicht ein Mangel. **③ Eine Gegenpruefung, die nie etwas
+  findet, ist selbst der Befund.**

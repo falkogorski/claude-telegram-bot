@@ -928,3 +928,39 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   `test_mailkorpus.py` — sie legt zur Laufzeit einen Mechanismus in die Menge
   und prueft, dass er greift. **Ein Pruefstein als Vorsatz haelt bis zum
   ersten eiligen Tag.**
+
+- **Vor der Gegenprobe pruefen, ob der EINGRIFF ueberhaupt gegriffen hat ·
+  Rang B · universell — dritter Fall an einem Tag**
+  — **Dreimal am 25.08. blieb eine Gegenprobe gruen, und jedes Mal aus
+  demselben Grund: nicht der Schutz hielt, sondern der Eingriff fand nicht
+  statt.**
+
+  1. Vorfassung **nachgestellt** statt geladen (`pop()` statt Zaehler) — meine
+     Nachstellung war besser als das Original.
+  2. Ein Codec als [scheitert] gewaehlt, der in Wahrheit baut (`utf_16`).
+  3. Eine Zeile ersetzt, **die es so nicht gab**: `max(0.05, …)` statt
+     `max(1.0, …)`. `str.replace` meldet das nicht — es ersetzt schlicht
+     nichts und gibt den Text unveraendert zurueck.
+
+  **Alle drei sahen aus wie [der Schutz haelt].** Das ist die gefaehrlichste
+  Form eines gruenen Laufs, weil sie Sicherheit erzeugt, wo nichts geprueft
+  wurde.
+
+  **Der Griff, zwei Zeilen und billig:**
+  `assert alt in t, "ANKER FEHLT"` **vor** jeder Ersetzung — dann bricht die
+  Gegenprobe laut ab, statt still zu bestehen. Und wo es um eine Vorfassung
+  geht: `git show HEAD:datei` laden, nicht nachbauen.
+
+  **Der Zusatz aus Engywucks Entkernungs-Katalog, selbst gemessen noetig:**
+  `__pycache__` **vor jedem** Gegenprobe-Lauf loeschen. Sonst serviert Python
+  das Ergebnis des vorherigen Eingriffs (mtime-Sekunde und Groesse zufaellig
+  gleich), und man misst einen Geisterbefund.
+
+- **K3 gebaut, waehrend ich K3 reparierte · Rang B (b) · universell**
+  — Mein Ersatz fuer den Formatzwang pruefte, ob **irgendein** Schlaf-Aufruf
+  gedeckelt ist. Das ist woertlich die Krankheit K3 aus dem Befund, den ich
+  gerade abarbeitete: **Schwelle ueber die Datei statt Zuordnung je Pfad.**
+  Aufgefallen nur, weil die Gegenprobe (nach der Korrektur oben) rot wurde.
+  **Wer eine Fehlerklasse repariert, baut sie im selben Zug am ehesten neu ein**
+  — die Denkform, die den Fehler erzeugt hat, ist beim Reparieren am
+  praesentesten.

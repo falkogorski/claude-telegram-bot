@@ -89,12 +89,39 @@ def _der_worker_wartet_statt_aufzugeben():
 def _die_pause_wird_in_haeppchen_geschlafen():
     """Ein einziges langes `sleep` würde einen früher gesetzten Reset — oder
     einen Neustart — aussitzen. Gemessen an den ausführbaren Zeilen."""
+    import ast
     import inspect
-    quelle = inspect.getsource(bot._session_worker)
-    code = "\n".join(z for z in quelle.splitlines()
-                     if z.strip() and not z.strip().startswith("#"))
-    assert "min(30.0" in code, \
-        "die Kontingent-Pause wird nicht in Häppchen geschlafen"
+    import textwrap
+
+    # **Rang B (b), Engywucks Entkernungs-Befund vom 25.08.:** Hier stand
+    # `"min(30.0" in code` — ein **Formatzwang**. Eine benannte Konstante
+    # (`min(_HAEPPCHEN, …)`) haette den Pruefer rot gemacht, obwohl der Schutz
+    # intakt ist. **Ein Pruefer, der falsch anschlaegt, wird binnen einer
+    # Woche abgeschaltet** — und dann prueft er nie wieder etwas.
+    #
+    # Gemessen wird jetzt die **Struktur**: jeder echte `asyncio.sleep`-Aufruf
+    # im Worker muss sein Argument durch ein `min(...)` fuehren. Wie die
+    # Obergrenze geschrieben ist — Zahl, Konstante, Rechnung — ist gleich.
+    #
+    # **Ehrlich zur verbleibenden Grenze:** Das misst immer noch Struktur,
+    # nicht Verhalten. Wer die Deckelung eine Zeile vorher in eine Variable
+    # legt, faellt hier durch, obwohl der Schutz steht. Die tragfaehigere Form
+    # waere, den Worker mit einer Schlaf-Attrappe auszufuehren und die
+    # tatsaechlichen Pausen zu messen; das ist als F-Punkt vermerkt.
+    baum = ast.parse(textwrap.dedent(inspect.getsource(bot._session_worker)))
+    schlaefer = [k for k in ast.walk(baum)
+                 if isinstance(k, ast.Call)
+                 and isinstance(k.func, ast.Attribute)
+                 and k.func.attr == "sleep"]
+    assert schlaefer, "im Worker wird gar nicht geschlafen — misst dieser Pruefer noch den richtigen Code?"
+    gedeckelt = [k for k in schlaefer
+                 if k.args and isinstance(k.args[0], ast.Call)
+                 and isinstance(k.args[0].func, ast.Name)
+                 and k.args[0].func.id == "min"]
+    assert gedeckelt, (
+        "kein Schlaf-Aufruf fuehrt sein Argument durch min(...) — die "
+        "Kontingent-Pause wird nicht in Haeppchen geschlafen, ein frueher "
+        "gesetzter Reset wuerde ausgesessen")
 
 
 def _nur_vermerkte_nachrichten_werden_nachgeholt():

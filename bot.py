@@ -2429,9 +2429,20 @@ def _ist_repo_bezug(c: str) -> bool:
     **Rang B (a), Engywucks Entkernungs-Befund vom 25.08.:** Hier stand die
     feste Zeichenkette `claude-telegram-bot` — an drei Stellen. In einem
     Probelauf-Klon (`git worktree add ../probe-mail`, die R4-Regel dieses
-    Projekts) heisst der Ordner **anders**; der Pruefer schlug dort falsch an.
-    **Pruefer und R4-Regel widersprachen einander** — und von zwei Regeln, die
-    sich widersprechen, wird eine ignoriert.
+    Projekts) heisst der Ordner **anders**.
+
+    **Beide Richtungen sind gemessen, und sie haengen an der LAGE des Klons**
+    (Engywucks Gegenpruefung, 25.08.): Ein Klon **neben** dem Repo — so
+    schreibt es die R4-Regel vor — sperrte fuenf von fuenf Alltagsbefehlen,
+    weil `claude-telegram-bot` im Pfad fehlte. Ein Klon **unterhalb** eines
+    Pfades, der den Namen traegt, blieb frei; meinen ersten Probelauf hatte
+    ich unter `/tmp` angelegt und deshalb die andere Haelfte gemessen:
+    `cat <klon>/.env` galt dort **nicht** als Repo-Bezug, die 8.7-Governance
+    griff also gar nicht.
+
+    **Dieselbe harte Zeichenkette war damit zu scharf fuer den Alltag und zu
+    stumpf fuer die Governance.** Der abgeleitete Marker schliesst beide
+    Seiten.
 
     Der feste Name bleibt zusaetzlich in der Menge, weil ein Befehl auch auf
     den VPS-Pfad `/home/claudebot/claude-telegram-bot` zeigen kann, waehrend

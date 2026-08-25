@@ -163,6 +163,59 @@ ATTRIBUTFORM = ("mit_wert", "leer", "ohne_wert")
 PLATZIERUNG = ("vor", "im", "nach")
 
 
+# --------------------------------------------------------------------------
+# LADEBEDINGUNG — kein Pruefzeile, sondern ein Abbruch beim Import
+# --------------------------------------------------------------------------
+
+def _pruefe_achsen() -> None:
+    """**Ein ungueltiger Achsenwert toetet den Lauf, statt Faelle zu schlucken.**
+
+    Analog zur Gegenprobe-Pflicht in `scripts/differenz.py`: Was eine
+    Voraussetzung ist, wird beim **Laden** durchgesetzt, nicht von einer
+    Pruefzeile beobachtet. Eine Pruefzeile kann uebersprungen, abgeschaltet
+    oder schlicht nicht gefahren werden; eine Ladebedingung nicht.
+
+    **Der Anlass ist gemessen** (Engywuck, 25.08.): Von den vier Werten, die
+    ich aus `dir(email.encoders)` gezogen hatte, war nach dem Praefix-Schnitt
+    **genau einer** ein gueltiger CTE-Wert — `base64`. Die anderen drei
+    (`7or8bit`, `noop`, `quopri`) sind Funktionsnamen. Der Pruefstand hat
+    damit auf **einer** Kodierung gemessen und auf drei Attrappen, und die
+    Ergebnistabelle sah dabei vollstaendig plausibel aus.
+    """
+    fehler: list[str] = []
+
+    for w in CTE:
+        pruef = EmailMessage()
+        try:
+            pruef.set_content("Probe", cte=w)
+        except Exception:
+            fehler.append(f"Kodierung {w!r} ist kein gueltiger CTE-Wert "
+                          f"(womoeglich ein Funktionsname?)")
+
+    for e in LEER_STUMM:
+        if e not in ET.HTML_EMPTY:
+            fehler.append(f"Leerelement {e!r} steht nicht in ET.HTML_EMPTY")
+        if e not in mailtext._STUMM:
+            fehler.append(f"Leerelement {e!r} steht nicht in mailtext._STUMM")
+
+    bekannt = set(aliases.values()) | set(aliases)
+    for c in _ascii_taugliche_codecs():
+        if c not in bekannt:
+            fehler.append(f"Zeichensatz {c!r} steht nicht in encodings.aliases")
+
+    for a in AUFBAU:
+        if a not in ("plain", "alternative", "mixed", "related_in_alt"):
+            fehler.append(f"Aufbau {a!r} ist nicht vorgesehen")
+
+    if fehler:
+        raise RuntimeError(
+            "Achsenwerte sind ungueltig — der Pruefraum waere still "
+            "geschrumpft:\n  " + "\n  ".join(fehler))
+
+
+_pruefe_achsen()
+
+
 @dataclass
 class Gestalt:
     """Eine gebaute Nachricht plus die Wahrheit ueber ihre Marken."""
@@ -254,6 +307,7 @@ def gestalten(deckel: int | None = None):
 
     n = 0
     fehlschlaege = 0
+    gestalten.uebersprungen = []
     for aufbau, cte, codec, leer, verb, attr, platz, anhang in voll:
         s, v = f"S{n}", f"V{n}"
         html = _html(verb, attr, platz, leer, s, v)
@@ -261,8 +315,11 @@ def gestalten(deckel: int | None = None):
         try:
             msg = _baue(aufbau, cte, codec, html, klartext, anhang)
             roh = msg.as_bytes(policy=policy.SMTP)
-        except Exception:
-            # **Gezaehlt, nie still uebersprungen.**
+        except Exception as ex:
+            # **Gezaehlt MIT GRUND, nie still uebersprungen.** Eine blosse
+            # Zahl sagt, dass etwas fehlte; der Grund sagt, was.
+            gestalten.uebersprungen.append(
+                f"{aufbau}/{cte}/{codec}: {type(ex).__name__}: {ex}")
             fehlschlaege += 1
             continue
         kopf = roh.split(b"\r\n\r\n", 1)[0]
@@ -276,9 +333,15 @@ def gestalten(deckel: int | None = None):
             kopf_bytes=kopf)
         n += 1
     gestalten.fehlschlaege = fehlschlaege
+    gestalten.erwartet = len(voll)
+    gestalten.gebaut = n
 
 
 gestalten.fehlschlaege = 0
+gestalten.erwartet = 0
+gestalten.gebaut = 0
+gestalten.raumgroesse = 0
+gestalten.uebersprungen = []
 
 
 def entnehmen(msg: EmailMessage) -> tuple[str, list[str]]:
@@ -398,8 +461,19 @@ def main() -> int:
                 beispiele.append((g.name, befunde))
 
     gegen = gegenrichtung()
-    print(f"{gesamt} Gestalten gebaut, {gestalten.fehlschlaege} Baufehlschlaege "
-          f"(gezaehlt, nicht uebersprungen).")
+    # **Der Pruefraum meldet seine eigene Groesse — und eine Abweichung ist ROT.**
+    # Genau diese Zahl (160 von 240) hat den Achsenfehler sichtbar gemacht.
+    # Ein Lauf, der weniger baut als er erwartet, hat weniger geprueft als er
+    # meldet; das darf kein Kommentar sein, sondern muss der Befund sein.
+    erwartet = getattr(gestalten, "erwartet", 0)
+    raum_kaputt = gesamt != erwartet
+    print(f"Pruefraum: {erwartet} erwartet · {gesamt} gebaut · "
+          f"{gestalten.fehlschlaege} uebersprungen"
+          + ("   <<< ROT: der Raum ist geschrumpft" if raum_kaputt else ""))
+    for grund in gestalten.uebersprungen[:5]:
+        print(f"   uebersprungen: {grund}")
+    if len(gestalten.uebersprungen) > 5:
+        print(f"   ... und {len(gestalten.uebersprungen) - 5} weitere")
     print(f"{rot} von {gesamt} verletzen mindestens eine Orakelzeile.")
     print(f"Zeile d (Gegenrichtung): {'ROT - ' + gegen[0] if gegen else 'gruen'}")
     print()
@@ -430,6 +504,13 @@ def main() -> int:
     print("UNGEPRUEFT: ob BODY.PEEK[TEXT] eines echten Servers genau diesen")
     print("Ausschnitt liefert. Modelliert nach RFC 3501, gegen keinen Server")
     print("gehalten.")
+    if raum_kaputt:
+        print()
+        print("ABBRUCH: gebaut != erwartet. Der Lauf hat weniger geprueft, als")
+        print("er meldet. Erst den Achsenraum reparieren, dann messen.")
+        return 1
+    if gegen:
+        return 1
     return 0
 
 

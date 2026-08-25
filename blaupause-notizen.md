@@ -869,3 +869,31 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   Schrittprobe** ziehen (deterministisch, kein Zufall). Und im Bericht die
   **Raumgroesse** neben der Stichprobengroesse nennen, damit sichtbar bleibt,
   welcher Anteil ueberhaupt gesehen wurde.
+
+- **Eine Voraussetzung gehoert in die Ladebedingung, nicht in eine Pruefzeile ·
+  Rang 0.5 · universell**
+  — **Gebaut:** `scripts/mailgestalten._pruefe_achsen()` bricht den **Import**
+  ab, wenn ein Achsenwert nicht zu seiner Wertmenge gehoert; dazu meldet jeder
+  Lauf **erwartet · gebaut · uebersprungen mit Grund**, und eine Abweichung ist
+  **rot**, nicht kommentiert.
+
+  **Kettenwirkung geprueft:** zwei Gegenproben — ungueltiger Achsenwert
+  (`quopri`) muss den Import toeten · ein scheiternder Bau muss den Lauf rot
+  faerben und den Grund nennen.
+
+  **Tatsaechlich eingetretene Nebenwirkung — und sie ist die Lehre:** **Meine
+  zweite Gegenprobe war falsch konstruiert und traf nicht.** Ich hatte
+  `utf_16` als [Codec, der scheitert] eingesetzt — er ist gueltig und hat
+  anstandslos gebaut. Der Lauf blieb gruen, und **das sah aus wie [der Schutz
+  haelt]**. Dritter Fall dieser Klasse binnen drei Tagen.
+
+  **Der Griff dagegen ist Engywucks Handgriff, und er hat wieder getragen:**
+  **Vor der Gegenprobe hinschreiben, WELCHE Zeile rot werden soll** — dann ist
+  [die falsche wurde rot] ebenso ein Fehlschlag wie [gar keine wurde rot].
+  Ohne die vorher notierte Erwartung haette ich die gruene zweite Gegenprobe
+  als bestandene verbucht.
+
+  **Warum Ladebedingung und nicht Pruefzeile:** Eine Pruefzeile kann
+  uebersprungen, abgeschaltet oder schlicht nicht gefahren werden. Der Import
+  laeuft immer, wenn das Werkzeug laeuft. **Wo eine Voraussetzung erzwingbar
+  ist, ist Beobachten die schwaechere Wahl.**

@@ -13,6 +13,7 @@ versprochen hätte, wäre selbst der nächste blinde Fleck.
 import os
 import re
 import sys
+import tokenize
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -177,6 +178,27 @@ def _das_verfahren_ist_abgelegt():
         assert frage in t, f"die Frage [{frage}] fehlt im Verfahren"
 
 
+# **Welche Token-Arten Text tragen — und warum das eine Menge sein MUSS.**
+#
+# **Gemessen am 25.08., nachdem Engywuck 51/54 sah und ich 54/54:** Bis
+# Python 3.11 war ein f-String **ein** `STRING`-Token. Seit 3.12 (PEP 701)
+# zerlegt `tokenize` ihn — der Textinhalt landet in `FSTRING_MIDDLE`, und
+# nur die inneren Ausdruecke bleiben `STRING`. Ein Pruefer, der allein auf
+# `tokenize.STRING` sieht, ist auf 3.12 **blind fuer jeden f-String**.
+#
+# Damit sah dieselbe Pruefzeile auf zwei Maschinen zwei verschiedene Mengen:
+# vier Treffer auf 3.11, null auf 3.12. **Ein Pruefraum, der je nach Umgebung
+# still schrumpft** — genau die Krankheit, die dieses Projekt an anderer
+# Stelle [Achsenraum] genannt hat, hier eine Ebene hoeher.
+#
+# `getattr` statt fester Namen, weil die Konstante auf 3.11 nicht existiert.
+_TEXT_ARTEN = {tokenize.STRING}
+for _name in ("FSTRING_MIDDLE",):
+    _art = getattr(tokenize, _name, None)
+    if _art is not None:
+        _TEXT_ARTEN.add(_art)
+
+
 def _kein_gemischtes_anfuehrungspaar_in_zeichenketten():
     """Die Falle, die heute FÜNFMAL zugeschnappt ist — jetzt mit Prüfer.
 
@@ -213,7 +235,7 @@ def _kein_gemischtes_anfuehrungspaar_in_zeichenketten():
         except (tokenize.TokenError, IndentationError, SyntaxError):
             continue                       # zerbrochene Datei: Sache des Syntaxlaufs
         for mark in marken:
-            if mark.type != tokenize.STRING:
+            if mark.type not in _TEXT_ARTEN:
                 continue
             roh = mark.string
             if roh.lstrip("rbfuRBFU").startswith(('"""', "'''")):
@@ -224,7 +246,13 @@ def _kein_gemischtes_anfuehrungspaar_in_zeichenketten():
         "gemischtes Anfuehrungspaar in einer Zeichenkette - ein typographischer "
         "Oeffner ohne seinen Partner. Sobald der Schliesser ein gerades "
         "Anfuehrungszeichen ist, bricht die Datei. Paarweise setzen oder "
-        "eckige Klammern nehmen: " + ", ".join(treffer[:8]))
+        # **Die Gesamtzahl gehoert VOR die Liste** (Adam, 25.08.): Die Meldung
+        # zeigte acht Stellen und verschwieg, dass es siebzig waren — und weil
+        # `bot.py` hinten in der Dateiliste steht, waren die 52 Stellen dort
+        # nie zu sehen. **Eine stille Kappung liest sich wie Vollstaendigkeit.**
+        f"eckige Klammern nehmen. {len(treffer)} Stelle(n), davon "
+        + ", ".join(sorted({t.split(":")[0] for t in treffer}))
+        + " — die ersten acht: " + ", ".join(treffer[:8]))
 
 
 check("kein gemischtes Anfuehrungspaar in Zeichenketten (5x gebrochen)",

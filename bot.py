@@ -2417,6 +2417,29 @@ _REPO_WRITE_RE = re.compile(
 )
 
 
+# **Woran ein Repo-Pfad erkennbar ist — abgeleitet, nicht getippt.**
+# `_REPO_DIR` folgt `__file__`; in einem Probelauf-Klon heisst der Ordner
+# `probe-…`, und eine feste Zeichenkette wuerde dort nicht greifen.
+_REPO_MARKEN = (_REPO_DIR.name, "claude-telegram-bot")
+
+
+def _ist_repo_bezug(c: str) -> bool:
+    """Nennt der Befehl einen Pfad, der auf DIESES Repo zeigt?
+
+    **Rang B (a), Engywucks Entkernungs-Befund vom 25.08.:** Hier stand die
+    feste Zeichenkette `claude-telegram-bot` — an drei Stellen. In einem
+    Probelauf-Klon (`git worktree add ../probe-mail`, die R4-Regel dieses
+    Projekts) heisst der Ordner **anders**; der Pruefer schlug dort falsch an.
+    **Pruefer und R4-Regel widersprachen einander** — und von zwei Regeln, die
+    sich widersprechen, wird eine ignoriert.
+
+    Der feste Name bleibt zusaetzlich in der Menge, weil ein Befehl auch auf
+    den VPS-Pfad `/home/claudebot/claude-telegram-bot` zeigen kann, waehrend
+    die Sitzung anderswo laeuft.
+    """
+    return any(marke in c for marke in _REPO_MARKEN)
+
+
 def _is_repo_write_cmd(cmd: str) -> bool:
     """Schreibt dieser Befehl ins Repo?
 
@@ -2432,7 +2455,7 @@ def _is_repo_write_cmd(cmd: str) -> bool:
     zwei Stellen für eine Ursache.
     """
     c = _ohne_harmlose_umleitung(cmd or "")
-    return "claude-telegram-bot" in c and bool(_REPO_WRITE_RE.search(c))
+    return _ist_repo_bezug(c) and bool(_REPO_WRITE_RE.search(c))
 
 
 # 8.7 [GEÄNDERT 2026-07-24]: Lesen/Auflisten des Repos ist FREI (Governance
@@ -2459,7 +2482,7 @@ def _repo_read_grund(cmd: str) -> str:
     gehalten, der nur zufällig funktionierte.
     """
     c = cmd or ""
-    if "claude-telegram-bot" not in c:
+    if not _ist_repo_bezug(c):
         return "kein Repo-Pfad im Befehl"
     treffer = _SHELL_META_RE.search(_ohne_harmlose_umleitung(c))
     if treffer:
@@ -2513,7 +2536,7 @@ def _is_repo_read_cmd(cmd: str) -> bool:
     Kernzusage von ⑩ („eine Rückfrage je Bash-Befehl") war schlicht falsch.
     """
     c = cmd or ""
-    if "claude-telegram-bot" not in c:
+    if not _ist_repo_bezug(c):
         return False
     if _SHELL_META_RE.search(_ohne_harmlose_umleitung(c)):
         return False               # keine Verkettung/echte Umleitung

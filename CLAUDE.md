@@ -187,7 +187,35 @@ Vertrauen.
 
 ## 📋 AKTUELLE BETRIEBSLAGE
 
-**Stichtag:** 18.08.2026, 16:0x · **Lage:** NORMALBETRIEB
+**Stichtag:** 25.08.2026, 05:40 · **Lage:** RUHE
+**Gilt bis:** Adams Rueckkehr (~28.08.) — **an der Bedingung, nicht am Datum**;
+ausdruecklich auszutragen, nicht stillschweigend ablaufen zu lassen.
+
+**Eingefrorene Waechter-Fixes — die Pflichtzeile, und sie ist der Kern:**
+
+- **Rang A — acht sicherheitstragende Pruefzeilen sind blind GEMESSEN und
+  NICHT repariert:** Boten-Postfach-Geheimnisschranke · WebSearch-
+  Kostenschranke · Zustellnachweis · Waechter-Start · Medien-Eingangsschutz ·
+  Limit-Ruecklage · Start-Waechter im Detach-Betrieb · Kalender-Geheimnissuche.
+  Katalog: `docs/befund-entkernung.md`.
+  **In dieser Zeit deckt keiner dieser acht Pruefer einen stillen Bruch.**
+- **Rang B (c) und (d)** — offen, klein.
+- **Vier echte gemischte Anfuehrungspaare** (`bot.py:4777, 4808, 4870, 4878`)
+  — unrepariert. Harmlos, solange niemand diese Zeilen auf doppelte
+  Anfuehrungszeichen umschreibt.
+- **Erkennungsseite Rang 2** (MIME/BODYSTRUCTURE) — bewusst zu, braucht R1.
+
+**Tragbar ist das, weil nichts laeuft und niemand baut** — aber es soll
+**dastehen**, nicht stillschweigend gelten. Das ist die Lehre vom 29.07.:
+Damals lag ein fertiger Waechter-Fix ungedeployt, sein Waechter starb, und es
+fiel einundzwanzig Tage nicht auf — **weil ausgerechnet die Wache im
+Ruhemodus lag.**
+
+**Ausgetragen:** offen
+
+---
+
+**Vorheriger Eintrag — Stichtag:** 18.08.2026, 16:0x · **Lage:** NORMALBETRIEB
 
 Eingetragen 28.07.2026, 23:01 (Ruhemodus während Adams Abwesenheit) —
 **ausgetragen 18.08.2026** nach Rückkehr, Gegenprüfung und Reparatur.

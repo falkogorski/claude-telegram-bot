@@ -897,3 +897,34 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   uebersprungen, abgeschaltet oder schlicht nicht gefahren werden. Der Import
   laeuft immer, wenn das Werkzeug laeuft. **Wo eine Voraussetzung erzwingbar
   ist, ist Beobachten die schwaechere Wahl.**
+
+- **Eine Gegenprobe soll die Vorfassung LADEN, nicht NACHSTELLEN · Rang 1 ·
+  universell**
+  — **Gebaut:** Die Verstecktheit folgt in `mailtext.py` jetzt aus einer Menge
+  benannter Mechanismen (`_VERBERGENDE_STILE`, `_VERBERGENDE_ATTRIBUTE`), und
+  der Zerleger fragt nur `verbergungsgrund(attrs)`. Er weiss nicht mehr, WIE
+  verborgen wird, nur DASS.
+
+  **Kettenwirkung geprueft:** Der Gestalten-Erzeuger faerbt den alten Zerleger
+  **45 von 60 rot**, den neuen **0 von 60** — auf der HTML-Ebene, ueber alle
+  Kodierungen, Zeichensaetze, Verbergungsarten und Platzierungen.
+
+  **Tatsaechlich eingetretene Nebenwirkung, und sie ist die eigentliche
+  Lehre:** **Zwei meiner drei Gegenproben blieben gruen und prueften nichts.**
+  Ich hatte die Vorfassung **nachgestellt** — den Rahmensuch-Lauf durch `pop()`
+  ersetzt — aber `pop()` ist immer noch ein **Stapel**; der alte Fehler war ein
+  **Zaehler**. Meine Nachstellung war besser als das Original und fing deshalb
+  nichts. Dasselbe bei der Leerelement-Probe: Der Stapel repariert diesen Fall
+  **nebenbei mit**, weil `</head>` den ganzen Teilbaum schliesst.
+
+  **Der Griff:** `git show HEAD:datei` liefert die **echte** Vorfassung. Sie
+  laden und dagegen messen — nicht aus dem Gedaechtnis nachbauen. **Eine
+  nachgestellte Vorfassung traegt die Annahmen dessen, der sie nachstellt**,
+  und genau die sind beim Beheben gerade frisch korrigiert worden.
+
+  **Und der Pruefstein wurde zur Pruefzeile:** Engywucks Frage [kostet ein
+  fuenfter Mechanismus eine Zeile in der Menge oder einen Eingriff im
+  Zerleger?] steht jetzt als ausgefuehrte Messung in
+  `test_mailkorpus.py` — sie legt zur Laufzeit einen Mechanismus in die Menge
+  und prueft, dass er greift. **Ein Pruefstein als Vorsatz haelt bis zum
+  ersten eiligen Tag.**

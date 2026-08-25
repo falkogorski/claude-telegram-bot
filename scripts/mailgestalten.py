@@ -344,6 +344,30 @@ gestalten.raumgroesse = 0
 gestalten.uebersprungen = []
 
 
+def entnehmen_html(msg: EmailMessage) -> tuple[str, list[str]]:
+    """**Kontrollmessung, KEIN Vorbau der Reparatur.**
+
+    Nimmt den Textteil so, wie ihn ein korrekter MIME-Zerleger liefern wuerde:
+    dekodiert, mit dem Zeichensatz aus seinem eigenen Kopf. Damit laesst sich
+    die Frage beantworten, die sonst nur behauptet waere: **Sind die
+    verbleibenden roten Gestalten wirklich alle MIME — oder steckt noch
+    HTML-Bruch darin?**
+
+    Das ist eine Messung im Pruefwerkzeug. Der Betriebscode (`email_kanal`)
+    wird davon **nicht** angefasst; das ist Rang 2 und ein eigener Auftrag.
+    """
+    teil = msg.get_body(preferencelist=("html", "plain"))
+    if teil is None:
+        return "", []
+    roh = teil.get_payload(decode=True) or b""
+    zeichensatz = teil.get_content_charset() or "utf-8"
+    try:
+        text = roh.decode(zeichensatz, "replace")
+    except LookupError:
+        text = roh.decode("utf-8", "replace")
+    return mailtext.lesbar(text, teil.get_content_subtype() == "html")
+
+
 def entnehmen(msg: EmailMessage) -> tuple[str, list[str]]:
     """**Der Kern: genau das, was `BODY.PEEK[TEXT]` liefert.**
 
@@ -359,9 +383,9 @@ def entnehmen(msg: EmailMessage) -> tuple[str, list[str]]:
 # Die sechs Orakelzeilen
 # --------------------------------------------------------------------------
 
-def orakel(g: Gestalt) -> list[str]:
+def orakel(g: Gestalt, ebene=None) -> list[str]:
     """Gibt die Befunde einer Gestalt zurueck. Leer = diese Gestalt traegt."""
-    sichtbar, verborgen = entnehmen(g.msg)
+    sichtbar, verborgen = (ebene or entnehmen)(g.msg)
     v_text = " ".join(verborgen)
     schlecht = []
 
@@ -428,6 +452,9 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--deckel", type=int, default=400)
     p.add_argument("--zeige", type=int, default=5)
+    p.add_argument("--ebene", choices=("roh", "html"), default="roh",
+                   help="roh = BODY.PEEK[TEXT] wie im Betrieb; "
+                        "html = korrekt zerlegter Textteil (Kontrollmessung)")
     a = p.parse_args()
 
     stand = achsenstand()
@@ -448,7 +475,7 @@ def main() -> int:
     je_aufbau: dict[str, list[int]] = {}
     for g in gestalten(deckel=a.deckel):
         gesamt += 1
-        befunde = orakel(g)
+        befunde = orakel(g, entnehmen_html if a.ebene == 'html' else entnehmen)
         schluessel = g.name.split("/")[0] + "/" + g.name.split("/")[1]
         eintrag = je_aufbau.setdefault(schluessel, [0, 0])
         eintrag[1] += 1

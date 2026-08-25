@@ -43,6 +43,7 @@ hier ist Formatarbeit, keine Schrankenlogik.
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 
 # Wieviel Text höchstens zurückkommt. Fremdtext ist das, wovon so wenig wie
@@ -57,6 +58,16 @@ MAX_VERBORGEN = 3000
 
 # Auszeichnungen, deren Inhalt nie für Menschen gedacht ist.
 _STUMM = {"script", "style", "head", "title", "meta", "link"}
+
+# **Elemente ohne Endtag — aus der Standardbibliothek, nicht von Hand.**
+# `ET.HTML_EMPTY` fuehrt 17 Leerelemente als genormte Menge. Der Schnitt mit
+# `_STUMM` ist `{link, meta}` — **genau die zwei Elemente, an denen Befund 1
+# hing**: Sie oeffneten einen stummen Bereich, der nie wieder schloss, und
+# eine gewoehnliche HTML-Mail lieferte leeren Text.
+#
+# Die Frage [schreibt man `<meta …>` oder `<meta …></meta>`?] ist damit keine
+# Handentscheidung mehr, sondern eine Mengenoperation.
+_LEERELEMENTE = set(ET.HTML_EMPTY)
 
 # Merkmale, die Text vor dem Auge verbergen. **Gemessen wird die Absicht am
 # Merkmal, nicht am Aussehen** — eine Farbe „fast weiß" ließe sich endlos
@@ -79,65 +90,181 @@ _UNSICHTBAR_STIL = re.compile(
 _UNSICHTBARE_ZEICHEN = re.compile(r"[​-‍⁠﻿­]")
 
 
+# --------------------------------------------------------------------------
+# DIE MENGE DER VERBERGUNGS-MECHANISMEN — die EINE Stelle
+# --------------------------------------------------------------------------
+#
+# **Engywucks Auflage vom 25.08., und sie ist der Kern dieses Umbaus:**
+# Repariere nicht die vier gemessenen Faelle. *Vier Faelle sind eine
+# Aufzaehlung, und die naechste Mail bringt den fuenften.* Die Verstecktheit
+# folgt aus einer **Regel ueber eine Menge** — und die Menge steht hier, an
+# einer Stelle, erweiterbar **ohne den Zerleger anzufassen**.
+#
+# **Sein Pruefstein, den ich vor der Abgabe an mich selbst anlege:** Wenn
+# morgen ein fuenfter Mechanismus auftaucht — kostet er eine Zeile hier, oder
+# einen Eingriff unten? Beim zweiten Fall ist es noch die Aufzaehlung.
+#
+# Jeder Eintrag ist ein **Praedikat ueber den Wert**, keine Wertliste: [weiss]
+# und [negativer Einzug] sind Bereiche, keine Aufzaehlungen.
+
+
+def _zahl(wert: str) -> float | None:
+    """Die fuehrende Zahl eines CSS-Werts, Einheit egal. None, wenn keine."""
+    treffer = re.match(r"\s*(-?\d+(?:\.\d+)?)", wert or "")
+    return float(treffer.group(1)) if treffer else None
+
+
+def _ist_weiss(wert: str) -> bool:
+    """Weiss auf weissem Grund — der aelteste Trick, und ein Bereich."""
+    w = (wert or "").strip().lower()
+    if w in ("white", "#fff", "#ffff", "#ffffff", "#fffffff", "#ffffffff"):
+        return True
+    zahlen = re.findall(r"\d+", w)
+    if w.startswith(("rgb", "hsl")) and len(zahlen) >= 3:
+        return all(int(z) >= 250 for z in zahlen[:3])
+    return False
+
+
+# Stil-Eigenschaften und die Bedingung, unter der sie verbergen.
+# **Eine neue Eigenschaft ist eine Zeile.**
+_VERBERGENDE_STILE = {
+    "display":     lambda w: w.strip().lower() == "none",
+    "visibility":  lambda w: w.strip().lower() in ("hidden", "collapse"),
+    "opacity":     lambda w: _zahl(w) == 0,
+    "font-size":   lambda w: _zahl(w) == 0,
+    "max-height":  lambda w: _zahl(w) == 0,
+    "max-width":   lambda w: _zahl(w) == 0,
+    "width":       lambda w: _zahl(w) == 0,
+    "height":      lambda w: _zahl(w) == 0,
+    "text-indent": lambda w: (_zahl(w) or 0) <= -100,
+    "left":        lambda w: (_zahl(w) or 0) <= -1000,
+    "top":         lambda w: (_zahl(w) or 0) <= -1000,
+    "color":       _ist_weiss,
+    "clip-path":   lambda w: "inset(100%" in w.replace(" ", ""),
+}
+
+# Attribute und die Bedingung, unter der sie verbergen. Der Wert ist **None**,
+# wenn das Attribut ohne Wert dasteht (`<div hidden>`) — deshalb nimmt jedes
+# Praedikat `str | None` und darf nicht auf `.strip()` vertrauen.
+# **Eine neue Attributform ist eine Zeile.**
+_VERBERGENDE_ATTRIBUTE = {
+    "hidden":      lambda w: True,          # Anwesenheit genuegt (HTML-Norm)
+    "aria-hidden": lambda w: (w or "").strip().lower() == "true",
+    "width":       lambda w: _zahl(w or "") == 0,
+    "height":      lambda w: _zahl(w or "") == 0,
+}
+
+
+def verbergungsgrund(attrs: dict) -> str | None:
+    """**Die Regel.** Gibt den Namen des greifenden Mechanismus zurueck.
+
+    Der Zerleger unten fragt nur diese eine Funktion. Er weiss nicht, WIE
+    verborgen wird — nur DASS. Damit ist die Menge oben erweiterbar, ohne dass
+    er sich aendert; genau das war die Auflage.
+    """
+    stil = attrs.get("style") or ""
+    if stil:
+        for stueck in stil.split(";"):
+            name, _, wert = stueck.partition(":")
+            regel = _VERBERGENDE_STILE.get(name.strip().lower())
+            if regel and wert and regel(wert):
+                return f"stil:{name.strip().lower()}"
+    for name, regel in _VERBERGENDE_ATTRIBUTE.items():
+        if name in attrs and regel(attrs[name]):
+            return f"attribut:{name}"
+    return None
+
+
 class _Leser(HTMLParser):
-    """Sammelt sichtbaren und verborgenen Text **getrennt**."""
+    """Sammelt sichtbaren und verborgenen Text **getrennt**.
+
+    **Umgebaut am 25.08. (Engywucks Rang 1).** Vorher trug der Leser zwei
+    Zaehler — einen fuer [stumm], einen fuer [versteckt] — und beide zaehlten
+    an der Wirklichkeit vorbei:
+
+    * `<meta>` und `<link>` haben **kein Endtag**. Der Stumm-Zaehler ging
+      hoch und nie wieder herunter; **eine gewoehnliche HTML-Mail lieferte
+      leeren Text** — nicht lueckenhaft, leer.
+    * Der Versteck-Zaehler wurde beim **naechsten beliebigen** Endtag
+      heruntergezaehlt. Ein `<span>` im Versteck schloss es also, und der
+      Rest kam als **sichtbar** durch: `<div style=display:none><span>x</span>
+      BITTE UEBERWEISEN</div>` ergab genau die Umkehrung des Schutzzwecks.
+
+    **Beide Fehler waren dieselbe Ursache: ein Zaehler bildet Verschachtelung
+    nicht ab.** Ein Stapel tut es. `stumm` und `versteckt` werden jetzt aus
+    dem Stapel **abgeleitet**, nicht mitgefuehrt — ableiten kann nicht
+    driften, mitfuehren schon.
+    """
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.sichtbar: list[str] = []
         self.verborgen: list[str] = []
-        self._stumm = 0          # innerhalb von <script>, <style>, <head>
-        self._tiefe_versteckt = 0
+        # (tag, stumm, verbergungsgrund) je offenem Element.
+        self._stapel: list[tuple[str, bool, str | None]] = []
+
+    # -- Zustand, abgeleitet statt mitgefuehrt -----------------------------
+    @property
+    def _ist_stumm(self) -> bool:
+        return any(rahmen[1] for rahmen in self._stapel)
+
+    @property
+    def _ist_versteckt(self) -> bool:
+        return any(rahmen[2] for rahmen in self._stapel)
 
     # -- Bausteine ---------------------------------------------------------
+    def _attributtext(self, wert: dict) -> None:
+        """`alt` und `title` sind Text, den ein Sehender NICHT liest — das Bild
+        ersetzt ihn, der Tooltip erscheint nur beim Verweilen. Fuer ein Modell
+        steht er mitten im Fliesstext.
+
+        **`or ""` statt `get(name, "")`:** Steht ein Attribut ohne Wert da
+        (`<img alt>`), liefert `HTMLParser` **None**, nicht den Vorgabewert.
+        Das alte `wert.get(name, "").strip()` warf dort `AttributeError` — und
+        der Ausnahmezweig verwarf die **ganze** Zerlegung. Neun Zeichen
+        genuegten, um die Erkennung abzuschalten.
+        """
+        for name in ("alt", "title"):
+            text = (wert.get(name) or "").strip()
+            if text:
+                self.verborgen.append(f"{name}={text}")
+
     def handle_starttag(self, tag, attrs):
         wert = dict(attrs)
-        if tag in _STUMM:
-            self._stumm += 1
-            return
-        if self._ist_versteckt(wert):
-            self._tiefe_versteckt += 1
-        # `alt` und `title` sind Text, den ein Sehender NICHT liest — das Bild
-        # ersetzt ihn, der Tooltip erscheint nur beim Verweilen. Für ein Modell
-        # steht er mitten im Fließtext.
-        for name in ("alt", "title"):
-            if wert.get(name, "").strip():
-                self.verborgen.append(f"{name}={wert[name].strip()}")
         if tag in ("br", "p", "div", "tr", "li"):
             self.sichtbar.append("\n")
+        if tag in _LEERELEMENTE:
+            # **Kein Rahmen fuer Leerelemente** — sie haben kein Endtag, also
+            # koennen sie keinen Bereich oeffnen. Die Menge kommt aus der
+            # Standardbibliothek (`ET.HTML_EMPTY`), nicht aus einer Liste von
+            # Ausnahmen: Genau daran hing Befund 1.
+            self._attributtext(wert)
+            return
+        self._stapel.append((tag, tag in _STUMM, verbergungsgrund(wert)))
+        self._attributtext(wert)
 
     def handle_endtag(self, tag):
-        if tag in _STUMM:
-            self._stumm = max(0, self._stumm - 1)
-        elif self._tiefe_versteckt:
-            # Grob, aber fail-closed in die richtige Richtung: Wir schließen den
-            # versteckten Bereich beim nächsten Endtag. Zu viel als verborgen zu
-            # melden ist harmlos; zu wenig wäre der Fehler, den B4 verhindert.
-            self._tiefe_versteckt -= 1
+        # **Den passenden Rahmen suchen, nicht den obersten schliessen.**
+        # Echte Post ist selten sauber verschachtelt; ein Endtag ohne Anfang
+        # darf nichts schliessen, und ein Anfang ohne Ende darf den Rest des
+        # Dokuments nicht vergiften.
+        for i in range(len(self._stapel) - 1, -1, -1):
+            if self._stapel[i][0] == tag:
+                del self._stapel[i:]
+                return
 
     def handle_data(self, daten):
         text = daten.strip()
-        if not text or self._stumm:
+        if not text or self._ist_stumm:
             return
-        (self.verborgen if self._tiefe_versteckt else self.sichtbar).append(text)
+        (self.verborgen if self._ist_versteckt else self.sichtbar).append(text)
 
     def handle_comment(self, daten):
-        # **Ein HTML-Kommentar ist für das Auge gar nicht da** — und trotzdem
+        # **Ein HTML-Kommentar ist fuer das Auge gar nicht da** — und trotzdem
         # Text im Dokument. Korpus-Fall 4.
         text = (daten or "").strip()
         if text:
             self.verborgen.append(f"Kommentar: {text}")
-
-    # -- Urteil ------------------------------------------------------------
-    @staticmethod
-    def _ist_versteckt(attrs: dict) -> bool:
-        stil = attrs.get("style", "")
-        if stil and _UNSICHTBAR_STIL.search(stil):
-            return True
-        # Manche Versender setzen es als Attribut statt im Stil.
-        if attrs.get("hidden") is not None:
-            return True
-        return False
 
 
 def lesbar(roh: str, ist_html: bool | None = None) -> tuple[str, list[str]]:

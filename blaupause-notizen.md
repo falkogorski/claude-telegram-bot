@@ -964,3 +964,41 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   **Wer eine Fehlerklasse repariert, baut sie im selben Zug am ehesten neu ein**
   — die Denkform, die den Fehler erzeugt hat, ist beim Reparieren am
   praesentesten.
+
+- **Eine Zahl aus einem frisch reparierten Pruefer ist noch kein Befund ·
+  Anfuehrungs-Pruefer 25.08. · universell**
+  — **Dreimal in einer Nacht dieselbe Form** (Engywucks Beobachtung, und sie
+  ist der Ertrag der Nacht): Engywuck mass 51/54 — **richtig, aber nur weil
+  seine Umgebung zufaellig die sehende war** (Python 3.11). Ich mass danach 70
+  Stellen — **falsch, weil mein Fix eine neue Fehlerquelle mitbrachte**.
+  **Beide Male hat erst die Gegenmessung auf der ANDEREN Maschine die Wahrheit
+  gezeigt.**
+
+  **Die Sachlage:** Bis 3.11 ist ein f-String ein Token, ab 3.12 (PEP 701)
+  zerfaellt er. Wer nur `STRING` prueft, ist auf 3.12+ blind. Wer stattdessen
+  die Fragmente einzeln prueft, schwaerzt **korrekte** Paare an, weil
+  `f'Haus „{t}“ da'` in `'Haus „'` und `'“ da'` zerfaellt — beide Haelften
+  unausgewogen. So wurden aus vier echten Stellen siebzig gemeldete: **64
+  Fehlalarme auf 32 Zeilen, jede doppelt.**
+
+  **Das Doppel-Muster stand woertlich in der eigenen Ausgabe** —
+  `hora.py:628, hora.py:628` — **gesehen, nicht gedeutet.** Eine Wiederholung
+  in einer Trefferliste ist eine Signatur, kein Zufall.
+
+  **Der Griff ist derselbe wie im Zerleger, andere Stelle:** zwischen
+  `FSTRING_START` und `FSTRING_END` sammeln, verketten, **dann** pruefen — ein
+  **Stapel**, kein Flag, weil f-Strings ineinander stehen duerfen. *Ein
+  Fragment bildet Verschachtelung nicht ab.*
+
+  **Und die praktische Konsequenz, die den Schaden erklaert:** Wer die
+  [siebzig Stellen] repariert haette, haette **32 korrekte Paare zerstoert** —
+  einem Pruefer entlang, der sie faelschlich anschwaerzt. Ein Pruefer, der
+  falsch anschlaegt, wird nicht nur abgeschaltet; **er richtet vorher Schaden
+  an, weil jemand ihm glaubt.**
+
+- **Eine Kappung ohne Gesamtzahl ist eine Falschaussage mit Fussnote ·
+  Anfuehrungs-Pruefer 25.08. · universell**
+  — `", ".join(treffer[:8])` zeigte acht Stellen und verschwieg, wie viele es
+  waren. Weil `bot.py` **hinten** in der Dateiliste stand, waren die Stellen
+  dort nie zu sehen — die Meldung las sich vollstaendig und war es nicht.
+  **Die Gesamtzahl gehoert VOR die Liste**, nicht dahinter und nicht weggelassen.

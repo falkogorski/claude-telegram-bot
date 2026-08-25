@@ -192,11 +192,12 @@ def _das_verfahren_ist_abgelegt():
 # Stelle [Achsenraum] genannt hat, hier eine Ebene hoeher.
 #
 # `getattr` statt fester Namen, weil die Konstante auf 3.11 nicht existiert.
-_TEXT_ARTEN = {tokenize.STRING}
-for _name in ("FSTRING_MIDDLE",):
-    _art = getattr(tokenize, _name, None)
-    if _art is not None:
-        _TEXT_ARTEN.add(_art)
+# Auf 3.11 gibt es diese Arten nicht; dort ist ein f-String EIN STRING-Token
+# und der Zweig unten greift. `-1` trifft nie, weil Token-Arten nie negativ
+# sind — damit haelt derselbe Code auf beiden Versionen.
+_F_START = getattr(tokenize, "FSTRING_START", -1)
+_F_MITTE = getattr(tokenize, "FSTRING_MIDDLE", -1)
+_F_ENDE = getattr(tokenize, "FSTRING_END", -1)
 
 
 def _kein_gemischtes_anfuehrungspaar_in_zeichenketten():
@@ -234,8 +235,40 @@ def _kein_gemischtes_anfuehrungspaar_in_zeichenketten():
             marken = list(tokenize.generate_tokens(io.StringIO(quelle).readline))
         except (tokenize.TokenError, IndentationError, SyntaxError):
             continue                       # zerbrochene Datei: Sache des Syntaxlaufs
+        # **Ein f-String wird als GANZES geprueft, nicht je Fragment.**
+        #
+        # **Engywucks Gegenpruefung, 25.08., 05:31 — und sie widerlegt meine
+        # eigene Zahl von vor zwei Stunden:** Der erste Fix sah `FSTRING_MIDDLE`
+        # an und meldete siebzig Stellen. **Fuenf davon waren echt.** Denn wenn
+        # der f-String zerfaellt, zerfaellt auch ein **korrektes** Paar:
+        #
+        #     f'Haus „{titel}“ erkannt'
+        #       FSTRING_MIDDLE  'Haus „'     -> Oeffner ohne Schliesser
+        #       FSTRING_MIDDLE  '“ erkannt'  -> Schliesser ohne Oeffner
+        #
+        # Beide Haelften wurden angeschwaerzt: 64 Fehlalarme auf 32 Zeilen,
+        # **jede doppelt gemeldet**. Das Doppel-Muster stand woertlich in der
+        # eigenen Ausgabe (`hora.py:628, hora.py:628`) — gesehen, nicht gedeutet.
+        #
+        # **Dieselbe Lehre wie im Zerleger von mailtext.py, andere Stelle:
+        # ein Fragment bildet Verschachtelung nicht ab.** Deshalb hier
+        # derselbe Griff — ein Stapel, kein Flag: f-Strings duerfen ineinander
+        # stehen, und ein Flag koennte das nicht.
+        stapel: list[list] = []
         for mark in marken:
-            if mark.type not in _TEXT_ARTEN:
+            if mark.type == _F_START:
+                stapel.append([mark.start[0], []])
+                continue
+            if mark.type == _F_MITTE and stapel:
+                stapel[-1][1].append(mark.string)
+                continue
+            if mark.type == _F_ENDE and stapel:
+                zeile, stuecke = stapel.pop()
+                ganz = "".join(stuecke)
+                if ganz.count("„") != ganz.count("“"):
+                    treffer.append(f"{datei.name}:{zeile}")
+                continue
+            if mark.type != tokenize.STRING:
                 continue
             roh = mark.string
             if roh.lstrip("rbfuRBFU").startswith(('"""', "'''")):

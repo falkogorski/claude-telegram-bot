@@ -275,6 +275,56 @@ check("die Adresse fliegt trotzdem (Gegenrichtung)", _die_adresse_fliegt_trotzde
 check("der Quellenhinweis sitzt NICHT in der Reinigung",
       _der_quellenhinweis_steht_nicht_in_der_reinigung)
 
+
+def _die_bildunterschrift_reisst_keine_ueberschrift_ab():
+    """**Adam hat es viermal gemeldet.**
+
+    Bei eingeschalteter Sprachausgabe haengt der Antworttext als
+    Bildunterschrift an der ersten Sprachnachricht. Dort stand ein **harter
+    Zeichenindex** bei 1024 — ohne Ruecksicht auf Zeilen, Absaetze oder
+    Ueberschriften. `_find_safe_cut` lief erst danach, auf dem bereits falsch
+    abgetrennten Rest: **Der Schutz kam zu spaet.**
+
+    Fast jede inhaltliche Antwort ist laenger als 1024 Zeichen — der Schnitt
+    griff also praktisch immer, sobald die Sprachausgabe an war.
+    """
+    text = "A" * 990 + "\n\n**Der wichtige Teil:**\n\nDarum geht es wirklich."
+    schnitt = bot._find_safe_cut(text, 1024)
+    assert schnitt < 1024, "der Schnitt ist noch der harte Zeichenindex"
+    assert not bot._text_ends_with_heading(text[:schnitt]), \
+        "die Bildunterschrift endet mit einer Ueberschrift"
+    assert text[schnitt:].lstrip().startswith("**Der wichtige Teil:**"), \
+        "die Ueberschrift wandert nicht mit ihrem Inhalt weiter"
+
+
+def _der_ueberschriften_pruefer_ist_angeschlossen():
+    """**Gebaut, aber nicht angeschlossen — von aussen nicht von
+    [funktioniert] zu unterscheiden.**
+
+    `_text_ends_with_heading` kam bis zum 28.08. **genau einmal** im ganzen
+    Repo vor: in seiner eigenen Definition. Kein Aufruf, kein Test. Der
+    Docstring behauptete [wird beim Streamen genutzt]. Waehrenddessen trug
+    `_find_safe_cut` eine **eigene Kopie** derselben Muster — zwei Kopien
+    laufen frueher oder spaeter auseinander.
+
+    Gemessen ueber echte Aufrufknoten, nicht ueber Wortsuche.
+    """
+    import ast
+    import inspect
+    import textwrap
+    baum = ast.parse(textwrap.dedent(inspect.getsource(bot._find_safe_cut)))
+    gerufen = {getattr(k.func, "id", None) or getattr(k.func, "attr", None)
+               for k in ast.walk(baum) if isinstance(k, ast.Call)}
+    assert "_text_ends_with_heading" in gerufen, \
+        "_find_safe_cut ruft den Ueberschriften-Pruefer nicht - es gibt wieder " \
+        "zwei Kopien derselben Regel"
+
+
+check("die Bildunterschrift reisst keine Ueberschrift ab",
+      _die_bildunterschrift_reisst_keine_ueberschrift_ab)
+check("der Ueberschriften-Pruefer ist angeschlossen",
+      _der_ueberschriften_pruefer_ist_angeschlossen)
+
 if fails:
     print(f"❌ {len(fails)} B5-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)

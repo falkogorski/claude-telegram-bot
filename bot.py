@@ -2047,10 +2047,14 @@ def _find_safe_cut(text: str, limit: int) -> int:
     cut = text.rfind("\n", 0, limit)
     if cut <= 0:
         return limit
-    heading_patterns = (
-        r"^\s*#{1,6}\s+\S",                # Markdown-Heading: # Titel
-        r"^\s*\*\*[^*\n]+\*\*\s*:?\s*$",   # Fett-Section: **Titel** / **Titel:** allein
-    )
+    # **Die Muster stehen in `_text_ends_with_heading`, nicht hier.**
+    # Bis zum 28.08. trug diese Funktion eine eigene Kopie derselben zwei
+    # Ausdruecke — und `_text_ends_with_heading` wurde **nirgends im Repo
+    # aufgerufen**: gebaut, aber nicht angeschlossen. Zwei Kopien derselben
+    # Regel laufen frueher oder spaeter auseinander, und dann schuetzt die
+    # eine, waehrend die andere durchlaesst.
+    #
+    # *Wo Struktur und Pruefer beide moeglich sind, gewinnt die Struktur.*
     # Iterativ rückwärts: solange die Zeile direkt VOR dem Cut eine Heading
     # oder Leerzeile (die meist zur folgenden Heading gehört) ist, einen
     # Schnitt weiter nach oben rücken. Verhindert auch mehrere aufeinander-
@@ -2063,7 +2067,7 @@ def _find_safe_cut(text: str, limit: int) -> int:
         if not last_line.strip():
             cut = prev_nl
             continue
-        if any(re.match(p, last_line) for p in heading_patterns):
+        if _text_ends_with_heading(last_line):
             cut = prev_nl
             continue
         break
@@ -10984,9 +10988,25 @@ async def _send_tts(bot, chat_id: int, text: str, reply_to: int | None = None,
     caption_for_first: str | None = None
     rest_text = ""
     if coupled_text:
-        caption_for_first = coupled_text[:1024]
-        if len(coupled_text) > 1024:
-            rest_text = coupled_text[1024:].lstrip()
+        # **Derselbe Schutz wie beim 4000er-Schnitt** (Adam hat es viermal
+        # gemeldet). Hier stand ein harter Zeichenindex: Der Text wurde bei
+        # genau 1024 abgeschnitten, ohne Ruecksicht auf Zeilen, Absaetze oder
+        # Ueberschriften — mitten im Wort ebenso wie zwischen Ueberschrift und
+        # erstem Satz. `_find_safe_cut` lief erst DANACH, auf dem bereits
+        # falsch abgetrennten Rest; der Schutz kam zu spaet.
+        #
+        # **Warum es gerade jetzt auffiel:** Fast jede inhaltliche Antwort ist
+        # laenger als 1024 Zeichen, der Schnitt greift also praktisch immer,
+        # sobald die Sprachausgabe an ist. Der 4000er-Schnitt, fuer den der
+        # Schutz gebaut wurde, greift dagegen selten.
+        #
+        # Bei einem zusammenhaengenden Absatz ueber 1024 Zeichen bleibt es beim
+        # harten Schnitt — mitten im Absatz zu trennen stoert weit weniger, als
+        # eine Ueberschrift abzureissen.
+        _schnitt = _find_safe_cut(coupled_text, 1024)
+        caption_for_first = coupled_text[:_schnitt]
+        if len(coupled_text) > _schnitt:
+            rest_text = coupled_text[_schnitt:].lstrip()
     for i, chunk in enumerate(chunks):
         sent = await _send_tts_chunk(
             bot, chat_id, chunk,

@@ -191,6 +191,7 @@ run "Eingangsschranken (1)(2)"        "$PY" scripts/test_eingangsschranken.py
 run "Mail-Angriffskorpus (Stufe B)"    "$PY" scripts/test_mailkorpus.py
 run "Websuche meldet ihren Ausfall"   "$PY" scripts/test_websuche_ausfall.py
 run "Websuche-Waechter (Daempfung)"   "$PY" scripts/test_websuche_check.py
+run "Freigabedialog sagt es"          "$PY" scripts/test_freigabedialog.py
 run "Hermetik der Pruefläufe (L)"       "$PY" scripts/test_hermetik.py
 run "Zielumgebung (bash -n + env -i)"  bash scripts/test_zielumgebung.sh
 run "Sendepfad-Rauchtest (Pflicht 1)"  "$PY" scripts/test_sendepfad_rauch.py

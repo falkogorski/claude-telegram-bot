@@ -2685,15 +2685,146 @@ def _tool_trace_line(chat_id: int, name: str, tool_input: dict) -> str:
     return f"🔧 {name}"
 
 
-def format_tool_call(tool_name: str, tool_input: dict[str, Any]) -> str:
-    """Pretty-print a tool call for the permission prompt (plain text only)."""
+# Einstufung je Werkzeug — **aus dem Werkzeugnamen, nie aus der Beschreibung.**
+# Claudias Auflage 2: Die Beschreibung stammt von der Instanz, die die Freigabe
+# HABEN WILL. Eine Einstufung, die daraus folgte, haette denselben Makel wie
+# eine Selbstauskunft. Der Werkzeugname wird von der CLI gesetzt.
+_EINSTUFUNG = {
+    "Read": ("liest nur", "file_path"),
+    "Grep": ("liest nur", "path"),
+    "Glob": ("liest nur", "path"),
+    "NotebookRead": ("liest nur", "notebook_path"),
+    "Edit": ("VERAENDERT eine Datei", "file_path"),
+    "Write": ("VERAENDERT eine Datei", "file_path"),
+    "NotebookEdit": ("VERAENDERT eine Datei", "notebook_path"),
+    "WebFetch": ("geht nach AUSSEN", "url"),
+    "WebSearch": ("geht nach AUSSEN · 💰 kostet Geld", "query"),
+    "Bash": ("Shell-Befehl — Wirkung nicht maschinell bestimmbar", None),
+}
+
+
+def einstufung(tool_name: str, tool_input: dict) -> tuple[str, str]:
+    """Was das Werkzeug tut und woran — `(Einstufung, Ziel)`.
+
+    **Eigene Funktion, damit ein Pruefer sie ausfuehren kann** statt ihren
+    Quelltext zu lesen (Claudias Auflage 5, die Hauskrankheit K1).
+
+    **Der Sammelzweig sagt ausdruecklich, dass er nichts weiss.** Ein
+    unbekanntes Werkzeug fiele sonst stumm durch und saehe aus wie
+    eingestuft — das waere ein Bruch, der wie Ruhe aussieht. Kommt morgen ein
+    Werkzeug hinzu, meldet der Dialog es, statt es zu verschweigen.
+    """
+    if tool_name in _EINSTUFUNG:
+        stufe, feld = _EINSTUFUNG[tool_name]
+        ziel = str(tool_input.get(feld) or "") if feld else ""
+        return (stufe, ziel[:200])
+    return ("unbekanntes Werkzeug — Wirkung nicht eingestuft",
+            ", ".join(list(tool_input.keys())[:5]))
+
+
+def _entschaerfen(text: str, deckel: int = 200) -> str:
+    """Fremdtext, der in den Dialog geht, darf ihn nicht optisch umbauen.
+
+    Steuerzeichen und Zeilenumbrueche raus, Auszeichnungszeichen entwertet,
+    Laenge begrenzt. **Gekuerzt wird die Beschreibung, nie der Befehl**
+    (Claudias Auflage 1): Die Rohform ist die Wahrheit, der Satz ist
+    Erlaeuterung.
+    """
+    sauber = " ".join(str(text or "").split())
+    sauber = re.sub(r"[\x00-\x1f\x7f  ]", " ", sauber)
+    sauber = sauber.replace("*", "").replace("_", "").replace("`", "")
+    return sauber[:deckel] + (" […]" if len(sauber) > deckel else "")
+
+
+def kontext_angaben(context) -> list[str]:
+    """Was die Claude-Code-CLI selbst ueber diesen Aufruf sagt.
+
+    **Engywucks Befund vom 28.08. hat den Auftrag halbiert:** Diese Felder
+    kommen im `ToolPermissionContext` bereits an — der Bot nahm ihn entgegen
+    und las **kein einziges** aus. Der Auftrag schrumpfte damit von [einen
+    Kanal bauen] auf [vier Felder auslesen], und er braucht kein SDK-Update.
+
+    **Der Rang dieser Angaben ist ein anderer als der der Beschreibung:** Sie
+    stammen von der CLI, nicht vom Modell, das die Freigabe will. Deshalb
+    stehen sie im Dialog getrennt und heissen dort **Maschine**.
+
+    `blocked_path` ist die wertvollste: **Die CLI sagt selbst, welcher Pfad
+    den Riegel ausgeloest hat** — genau Adams [ich muss wissen, worauf
+    zugegriffen wird].
+    """
+    raus = []
+    for feld, beschriftung in (("decision_reason", "Grund"),
+                               ("blocked_path", "gesperrter Pfad"),
+                               ("title", "Titel"),
+                               ("display_name", "Werkzeug")):
+        wert = getattr(context, feld, None)
+        if wert:
+            raus.append(f"{beschriftung}: {_entschaerfen(str(wert), 160)}")
+    return raus
+
+
+def format_tool_call(tool_name: str, tool_input: dict[str, Any],
+                     context: Any = None) -> str:
+    """Der Text des Freigabedialogs — **er sagt, worueber er entscheiden laesst.**
+
+    **Adams Anlass, 25.08.2026:** *[Ich brauche eigentlich immer eine genaue
+    Beschreibung, was ich da freigebe. … Wenn ich gar nicht weiss, was ich da
+    freigebe, wenn ich keine Erklaerung dazu habe.]* Am selben Morgen hat er
+    von Dauer- auf Einzelfreigabe umgestellt — der Mangel wirkt seither
+    haeufiger.
+
+    **Der Rang der Sache:** Hier findet das Vier-Augen-Prinzip tatsaechlich
+    statt. Alle Waechter des Projekts arbeiten zu, aber sie entscheiden nicht.
+    Entscheidet Adam ohne Grundlage, ist das zweite Augenpaar formal vorhanden
+    und praktisch blind.
+
+    **Der Aufbau, und die Reihenfolge ist eine Entscheidung:**
+
+    1. **Angabe der Sitzung** — was die antragstellende Instanz behauptet zu
+       tun. Ausdruecklich als ihre Angabe gekennzeichnet: Engywucks Antwort
+       auf Claudias Frage war, dass nicht die Reihenfolge das Problem ist,
+       sondern die fehlende **Herkunft**. Fehlt die Angabe, entfaellt die
+       Zeile **ersatzlos** — ein Platzhalter [keine Beschreibung] wuerde als
+       [unbedenklich] gelesen.
+    2. **Einstufung und Ziel** — aus dem Werkzeugnamen abgeleitet, nicht aus
+       der Beschreibung.
+    3. **Maschine** — was die CLI selbst sagt (`decision_reason`,
+       `blocked_path`, `title`). Gemessen, nicht behauptet.
+    4. **Rohform** — unveraendert, vollstaendig, an derselben Stelle wie bisher.
+
+    **Die Rohform ist die Wahrheit, der Satz ist Erlaeuterung.** Koennte die
+    Beschreibung den Befehl verdraengen, waere sie ein Weg, Adam etwas anderes
+    zu zeigen als das, was ausgefuehrt wird — der klassische Pfad fuer
+    eingeschleusten Fremdtext. **Gekuerzt wird deshalb die Beschreibung, nie
+    der Befehl.**
+    """
+    kopf: list[str] = []
+    # Bei Bash traegt der Werkzeug-Eingang selbst eine deutsche Taetigkeits-
+    # angabe der aufrufenden Sitzung; bei den uebrigen Werkzeugen liefert der
+    # Kontext sie. Beide stammen vom Modell — deshalb dieselbe Kennzeichnung.
+    behauptet = tool_input.get("description") or getattr(context, "description", None)
+    if behauptet:
+        # **In Anfuehrung, damit das ENDE der fremden Angabe sichtbar ist.**
+        # Gemessen beim Bauen: Eine Beschreibung, die selbst [Angabe der
+        # Sitzung:] enthaelt, ahmt sonst die Kennzeichnung nach. Eine zweite
+        # ZEILE kann sie nicht erzeugen — Zeilenumbrueche sind entfernt —,
+        # aber eine zweite Kennzeichnung innerhalb der Zeile schon.
+        # Die Anfuehrung loest das ohne Wortliste: Was zwischen den Zeichen
+        # steht, ist fremd; wo sie schliessen, endet das Fremde.
+        kopf.append(f"Angabe der Sitzung: \u201e{_entschaerfen(behauptet)}\u201c")
+    stufe, ziel = einstufung(tool_name, tool_input)
+    kopf.append(f"[{stufe}]" + (f" · {_entschaerfen(ziel, 200)}" if ziel else ""))
+    for zeile in kontext_angaben(context):
+        kopf.append(f"Maschine — {zeile}")
+    vorspann = "\n".join(kopf) + "\n\n" if kopf else ""
+
     if tool_name == "Bash":
         cmd = tool_input.get("command", "")
         preview = cmd if len(cmd) < 800 else cmd[:800] + "…"
-        return f"Bash\n\n{preview}"
+        return f"{vorspann}Bash\n\n{preview}"
     if tool_name in ("Read", "Edit", "Write"):
         path = tool_input.get("file_path", "")
-        return f"{tool_name}: {path}"
+        return f"{vorspann}{tool_name}: {path}"
     # H4 (Engywuck 22.08.): Bei WebFetch stand hier der generische Zweig —
     # „WebFetch / args: url, prompt". **Die Adresse selbst stand nirgends.**
     #
@@ -2710,9 +2841,10 @@ def format_tool_call(tool_name: str, tool_input: dict[str, Any]) -> str:
         # Vollständig, aber begrenzt: Ein Anhang kann beliebig lang sein, und
         # eine Nachricht, die im Bildschirm nicht endet, wird nicht gelesen.
         gekuerzt = url if len(url) <= 300 else url[:300] + " […]"
-        return f"WebFetch\n{gekuerzt}" if url else "WebFetch\n(ohne Adresse)"
+        return (f"{vorspann}WebFetch\n{gekuerzt}" if url
+                else f"{vorspann}WebFetch\n(ohne Adresse)")
     keys = ", ".join(list(tool_input.keys())[:5])
-    return f"{tool_name}\nargs: {keys}"
+    return f"{vorspann}{tool_name}\nargs: {keys}"
 
 
 # ---------- permission callback ----------
@@ -2910,10 +3042,20 @@ def make_permission_callback(user_id: int):
         sess.pending_permissions[request_id] = (loop, fut)
         log.info("permission requested: user=%s req=%s tool=%s",
                  user_id, request_id, tool_name)
+        # **Engywucks erster Handgriff (28.08.): messen, was real ankommt.**
+        # Belegt ist, dass die Felder im ToolPermissionContext EXISTIEREN und
+        # durchgereicht werden — nicht, dass die CLI sie ueberall befuellt.
+        # Diese Zeile schreibt je Freigabe mit, welche Felder tatsaechlich
+        # Inhalt hatten. Ohne sie waere [der Dialog zeigt jetzt mehr] eine
+        # Hoffnung; mit ihr steht es im Protokoll.
+        log.info("permission context: tool=%s befuellt=%s", tool_name,
+                 [f for f in ("decision_reason", "title", "display_name",
+                              "description", "blocked_path")
+                  if getattr(context, f, None)] or "keine")
 
         # 5.25 (d): Klartext zuerst, technische Details darunter.
         body = (f"{_tool_trace_line(user_id, tool_name, tool_input)}\n\n"
-                f"{format_tool_call(tool_name, tool_input)}")
+                f"{format_tool_call(tool_name, tool_input, context)}")
         if tool_name in _COST_TOOLS:
             body = f"💰 {_COST_TOOLS[tool_name]}\n\n{body}"
         rows = [

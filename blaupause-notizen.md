@@ -1047,3 +1047,28 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   [schuetzt Modul Nummer neunzehn] eingetragen. Hier war es Ablage Nummer
   soundso, fuenf Tage spaeter. **Der Ertrag eines Riegels faellt nie am Tag
   seines Baus an.**
+
+- **Herkunft kennzeichnen schlaegt Reihenfolge aendern · Rang 3, Freigabedialog
+  · universell**
+  — Claudia hatte gefragt, ob der Klartextsatz **ueber** oder **unter** die
+  Rohform gehoert: oben liest es sich besser, unten waere misstrauischer.
+  **Engywucks Antwort: Die Frage ist falsch gestellt.** In beiden Anordnungen
+  bleibt offen, **woher** der Satz stammt.
+
+  Gebaut ist deshalb die Trennung, nicht die Umsortierung: **[Angabe der
+  Sitzung]** fuer das, was die antragstellende Instanz behauptet — in
+  Anfuehrung, damit ihr Ende sichtbar ist — und **[Maschine —]** fuer das, was
+  die CLI misst.
+
+  **Tatsaechlich eingetretene Nebenwirkung:** Eine Beschreibung, die selbst
+  `Angabe der Sitzung:` enthaelt, ahmte die Kennzeichnung nach. Eine zweite
+  **Zeile** konnte sie nie erzeugen (Zeilenumbrueche sind entfernt), aber eine
+  zweite **Kennzeichnung** innerhalb der Zeile schon. Die Anfuehrung loest das
+  **ohne Wortliste** — was zwischen den Zeichen steht, ist fremd; wo sie
+  schliessen, endet das Fremde.
+
+  **Und der Auftrag schrumpfte durch Messen:** Engywuck hat belegt, dass die
+  CLI-Felder im `ToolPermissionContext` **bereits ankamen** — der Bot nahm ihn
+  entgegen und las kein einziges Feld aus. Aus [einen Kanal bauen] wurde
+  [vier Felder auslesen]. **Bevor man einen Weg baut, nachsehen, ob er schon
+  da ist.**

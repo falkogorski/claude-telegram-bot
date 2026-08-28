@@ -3185,6 +3185,85 @@ def _write_context_claude_md(context: str) -> bool:
 SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888")
 
 
+# --------------------------------------------------------------------------
+# Die Lage der Suche — [nichts gefunden] und [gar nicht gesucht] sind ZWEI Dinge
+# --------------------------------------------------------------------------
+
+_WEBSUCHE_GESAMT: int | None = None      # Zwischenspeicher, einmal je Lauf
+
+
+def _such_ausfaelle(data: dict) -> list[tuple[str, str]]:
+    """Die ausgefallenen Zulieferer als (Name, Grund).
+
+    SearxNG liefert `unresponsive_engines` in **jeder** Antwort mit. Bis zum
+    28.08.2026 hat es niemand ausgewertet — und genau daran lag der Vorfall
+    vom 27.08.: Zwoelf von fuenfzehn Anfragen meldeten [Keine Treffer], waehrend
+    in Wahrheit **alle vier** allgemeinen Zulieferer tot waren. Claudia hielt
+    es fuer [nichts gefunden] und hat Adam vier Stunden lang auf dieser
+    Grundlage geantwortet.
+    """
+    roh = data.get("unresponsive_engines") or []
+    aus = []
+    for eintrag in roh:
+        if isinstance(eintrag, (list, tuple)) and eintrag:
+            name = str(eintrag[0])
+            grund = str(eintrag[1]) if len(eintrag) > 1 else "ohne Angabe"
+        else:
+            name, grund = str(eintrag), "ohne Angabe"
+        aus.append((name, grund))
+    return aus
+
+
+def suchlage(data: dict, gesamt: int | None = None) -> tuple[str, str]:
+    """Die Lage einer Suchantwort — **ausfuehrbar pruefbar, deshalb eigene Funktion.**
+
+    Gibt `(lage, hinweis)` zurueck; `lage` ist eines von `ausgefallen`,
+    `duenn`, `ok`.
+
+    **Engywucks Auflage vom 28.08. ist die Klasse, nicht der Anlass:**
+    *[Gesucht, nichts gefunden] und [gar nicht gesucht] duerfen nicht denselben
+    Rueckgabewert haben.* Deshalb entscheidet hier nicht eine Namensliste,
+    sondern die **Struktur der Antwort**: Treffer ja/nein gegen Ausfaelle
+    ja/nein. Das traegt auch, wenn morgen andere Zulieferer eingetragen sind.
+
+    `gesamt` ist die Zahl der aktiven Zulieferer der Kategorie [general] —
+    vom Dienst selbst erfragt, nicht getippt. Fehlt sie, wird der duenne Fall
+    konservativ gemeldet, sobald ueberhaupt jemand ausgefallen ist.
+    """
+    treffer = data.get("results") or []
+    aus = _such_ausfaelle(data)
+    if not aus:
+        return ("ok", "")
+
+    liste = ", ".join(f"{n} ({g})" for n, g in aus)
+    if not treffer:
+        # **Der Kern.** Keine Treffer UND Ausfaelle: Es hat nicht [nichts
+        # gegeben], es hat womoeglich niemand gesucht. Der Wortlaut muss auch
+        # fuer ein Modell eindeutig sein, das ihn liest — deshalb steht der
+        # Unterschied ausdruecklich im Text und nicht zwischen den Zeilen.
+        return ("ausgefallen",
+                "Die Suche konnte nicht ausgefuehrt werden — es haben "
+                f"Zulieferer nicht geantwortet: {liste}. "
+                "Das ist KEIN [nichts gefunden]: Es liegt kein Suchergebnis "
+                "vor, weder ein leeres noch ein volles. Die Frage ist damit "
+                "unbeantwortet, nicht verneint.")
+
+    # **Die Zahl gehoert immer dazu, wenn sie bekannt ist.** [Einige sind
+    # ausgefallen] laesst offen, ob elf oder zwei geantwortet haben — und
+    # genau diese Offenheit war der Vorfall: Eine Angabe, die plausibel klingt
+    # und nichts sagt, wird als Entwarnung gelesen.
+    geantwortet = (gesamt - len(aus)) if gesamt else None
+    if geantwortet is not None:
+        knapp = " Diese Treffer sind schmaler, als sie aussehen." if geantwortet < 2 else ""
+        return ("duenn",
+                f"Hinweis: {geantwortet} von {gesamt} Zulieferern haben "
+                f"geantwortet — ausgefallen sind {liste}.{knapp}")
+    return ("duenn",
+            f"Hinweis: Einige Zulieferer sind ausgefallen ({liste}); die "
+            "Trefferliste ist dadurch schmaler als ueblich. Wie viele "
+            "geantwortet haben, war nicht zu ermitteln.")
+
+
 @tool(
     "web_search",
     "Durchsucht das Web über die lokale, private Metasuche (SearxNG) — KOSTENFREI. "
@@ -3209,9 +3288,52 @@ async def _searxng_search_tool(args: dict) -> dict:
         return {"content": [{"type": "text",
                              "text": f"Suche fehlgeschlagen: {e}"}]}
     results = (data.get("results") or [])[:8]
+    lage, hinweis = suchlage(data, await _websuche_gesamt())
+    if lage == "ausgefallen":
+        # **Nicht [keine Treffer].** Der Aufrufer muss unterscheiden koennen,
+        # ob nichts da war oder ob niemand nachgesehen hat.
+        log.warning("Websuche ausgefallen: %s", hinweis)
+        return {"content": [{"type": "text", "text": hinweis}]}
     if not results:
-        return {"content": [{"type": "text", "text": f"Keine Treffer für „{q}“."}]}
-    return {"content": [{"type": "text", "text": _treffer_text(q, results)}]}
+        return {"content": [{"type": "text",
+                             "text": f"Keine Treffer für „{q}“. "
+                                     "Alle Zulieferer haben geantwortet — es "
+                                     "gibt zu dieser Anfrage nichts."}]}
+    text = _treffer_text(q, results)
+    if hinweis:
+        text = f"{text}\n\n{hinweis}"
+    return {"content": [{"type": "text", "text": text}]}
+
+
+async def _websuche_gesamt() -> int | None:
+    """Wie viele Zulieferer der Kategorie [general] aktiv sind — **vom Dienst
+    erfragt, nicht getippt.**
+
+    Eine Namensliste waere hier genau die Aufzaehlung, gegen die dieses Projekt
+    seit dem 23.08. arbeitet: Sie altert still, sobald jemand die Konfiguration
+    aendert. Gemessen am 28.08. waren `mojeek`, `mwmbl` und `yep` bereits
+    aktiv, obwohl der Bauauftrag sie als [nicht aktiviert] fuehrte — eine
+    getippte Liste haette daneben gelegen.
+
+    Einmal je Lauf abgefragt und behalten; faellt die Abfrage aus, wird `None`
+    zurueckgegeben und die Lage konservativ ohne Zahl gemeldet.
+    """
+    global _WEBSUCHE_GESAMT
+    if _WEBSUCHE_GESAMT is not None:
+        return _WEBSUCHE_GESAMT
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{SEARXNG_URL}/config")
+            r.raise_for_status()
+            engines = r.json().get("engines") or []
+        _WEBSUCHE_GESAMT = sum(
+            1 for e in engines
+            if e.get("enabled") and "general" in (e.get("categories") or []))
+    except Exception:
+        log.debug("Zulieferer-Zahl nicht ermittelbar", exc_info=True)
+        return None
+    return _WEBSUCHE_GESAMT
 
 
 def _treffer_text(q: str, results: list) -> str:

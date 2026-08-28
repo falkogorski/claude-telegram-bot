@@ -1002,3 +1002,26 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   waren. Weil `bot.py` **hinten** in der Dateiliste stand, waren die Stellen
   dort nie zu sehen — die Meldung las sich vollstaendig und war es nicht.
   **Die Gesamtzahl gehoert VOR die Liste**, nicht dahinter und nicht weggelassen.
+
+- **[Gar nicht gesucht] und [nichts gefunden] duerfen nicht denselben Wert
+  haben · Rang 2, Websuche · universell**
+  — **Gebaut:** `bot.suchlage()` als eigene Funktion (damit ein Pruefer sie
+  ausfuehren kann) plus `_websuche_gesamt()`, das die Zahl der Zulieferer beim
+  **Dienst selbst erfragt** statt sie zu tippen.
+
+  **Kettenwirkung geprueft:** sieben Pruefzeilen, beide Richtungen — Ausfall
+  meldet, gesunde Suche schweigt. Gegenprobe mit verifiziertem Eingriff.
+
+  **Tatsaechlich eingetretene Nebenwirkung:** Beim Messen zeigte sich, dass
+  `mojeek`, `mwmbl` und `yep` **bereits aktiv** sind, obwohl der Bauauftrag sie
+  als [nicht aktiviert] fuehrt. Haette ich die Zulieferer-Namen aus dem Auftrag
+  abgeschrieben, waere die Liste vom ersten Tag an falsch gewesen. **Ein
+  Auftrag ist eine Momentaufnahme des Systems, kein Abbild davon.**
+
+  **Und die Lehre ueber die Fehlerklasse hinaus:** Der Vorfall bestand nicht
+  darin, dass die Suche ausfiel — sondern dass **Ausfall und Leerergebnis
+  denselben Rueckgabewert hatten**. Wo ein Aufrufer zwei Lagen nicht
+  unterscheiden kann, waehlt er die plausiblere; Claudia hat vier Stunden lang
+  die falsche Auskunft weitergegeben, **weil sie hoeflich klang**. Deshalb
+  steht der Unterschied jetzt ausdruecklich im Text — fuer einen Leser, der
+  ein Modell ist.

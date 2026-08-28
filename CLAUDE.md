@@ -108,6 +108,39 @@ ersten fehlgeschlagenen Versuch.
 Tagescheck bleibt modellfrei, der Erinnerungs-Läufer wird modellfrei. Diese
 Präzisierung deckt **einen** Fall ab und weitet sich nicht auf andere aus.
 
+## 🛑 KEINE ARBEIT OHNE GRUNDLAGE (Adam 2026-08-28, gilt vor der Durchlauf-Regel)
+
+**Wenn ein Auftrag nicht vollstaendig vorliegt, wird NICHT ersatzweise
+abgeleitet.** Kein Rekonstruieren aus Zusammenfassungen, Nachsaetzen, aelterem
+Kontext oder plausibler Vermutung. **Melden und warten.**
+
+**Anlass, gemessen:** Am 28.08. war Adams Arbeitspaket fuer meine Werkzeuge
+nicht lesbar — der iCloud-Ordner ist per macOS-Datenschutz gesperrt, schon `ls`
+scheitert dort. Statt zu warten, begann ich aus seinem Chat-Nachsatz und einem
+aelteren Befund eine Reihenfolge abzuleiten. **Sie war falsch:** [Rang A]
+bedeutete in seinem Paket etwas anderes als in dem Befund, aus dem ich es
+entnommen hatte. Adam hat gestoppt, bevor Code entstand.
+
+**Warum die Rolle den Ausschlag gibt** (seine Begruendung): Die Bau-Sitzung ist
+die Stelle, die tatsaechlich schreibt. **Ein abgeleiteter Auftrag wird hier zu
+echtem Code** — und ein Selbstlaeufer, den niemand mehr aufhaelt. Die
+Sicherheitskriterien verhindern den grossen Schaden; sie verhindern nicht, dass
+tagelang am Ziel vorbei gebaut wird.
+
+**Drei Griffe:**
+- **Vor jedem Bau:** Habe ich den Auftrag **im Wortlaut**, oder nur etwas
+  darueber? Nur etwas darueber → melden, nicht anfangen.
+- **Ein Nachsatz ersetzt das Dokument nicht.** Er enthaelt oft Streichungen —
+  eine gute Rekonstruktion haenge dann an der falschen Fassung.
+- **Gleiche Woerter, andere Bedeutung** ist die konkrete Gefahr: Rang-, Punkt-
+  und Phasennummern wiederholen sich zwischen Dokumenten.
+
+**Abgrenzung zur Durchlauf-Regel unten, und sie ist noetig, weil beide sonst
+kollidieren:** Durchlauf gilt **innerhalb** eines Auftrags, den ich habe.
+**Fehlt der Auftrag selbst, ist Warten richtig** — auch wenn Zeit ungenutzt
+bleibt und Adam unterwegs ist. **Ungenutzte Zeit kostet Stunden; ein falsch
+abgeleiteter Bau kostet Vertrauen.**
+
 ## ▶️ ARBEITSMODUS — Durchlauf ist der Normalfall (Adam 2026-07-25)
 
 **Geprüft, bevor diese Regel entstand:** „Nächte arbeiten, Tage entscheiden"

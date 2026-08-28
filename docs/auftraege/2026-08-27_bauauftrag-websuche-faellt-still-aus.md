@@ -158,3 +158,37 @@ aufeinanderfolgenden Tagen auftritt oder alle vier gleichzeitig ausfallen.
 **Die Rangfolge, falls nur eines gebaut wird:** Auftrag 1. Eine breitere Basis
 ohne Ausfallmeldung verschiebt das Problem nur nach hinten; eine Ausfallmeldung
 ohne breitere Basis macht es wenigstens sichtbar.
+
+---
+
+## `[NACHTRAG 28.08.2026, Mick]` Stand bei der Umsetzung — drei Abweichungen
+
+**Auftrag 1 gebaut** (`c3c25e0`), **Auftrag 4 gebaut** (`254aa10`), in der
+Zielumgebung gemessen: `✅ Websuche: 10 von 15 Zulieferer antworten, 30 Treffer`.
+
+**Der beschriebene Zustand hat sich seit dem 27.08. veraendert.** Gemessen am
+28.08. gegen den laufenden Dienst:
+
+| Behauptung im Auftrag | gemessen am 28.08. |
+|---|---|
+| `google cse` stuerzt ab | **bereits deaktiviert** (`enabled=false`) — Auftrag 3 insoweit erledigt |
+| `startpage` stuerzt ab (`unexpected crash`) | aktiv, faellt nur zeitweise mit **CAPTCHA** aus — Drosselung, kein Absturz |
+| `bing`, `mojeek`, `marginalia`, `mwmbl`, `yep` nicht aktiviert | **`mojeek`, `mwmbl` und `yep` sind aktiv** |
+| vier Zulieferer der Kategorie allgemein | **fuenfzehn** aktiv (die Zahl kommt jetzt aus `/config`, nicht aus einer Liste) |
+
+**Die Lehre daraus steht im Blaupausen-Heft:** Ein Auftrag ist eine
+**Momentaufnahme** des Systems, kein Abbild davon. Haette ich die
+Zulieferer-Namen aus diesem Papier abgeschrieben, waere die Pruefliste vom
+ersten Tag an falsch gewesen — deshalb erfragt `_websuche_gesamt()` die Menge
+beim Dienst.
+
+**Auftrag 3 verbleibend:** Nichts stuerzt mehr ab; die verbliebenen Ausfaelle
+sind CAPTCHA-Drosselungen bei `duckduckgo`, `qwant`, `startpage` und ein
+`access denied` bei `yep`. Das ist der voruebergehende Zustand, fuer den die
+Zwei-Tage-Daempfung gebaut wurde — **kein Handlungsbedarf, aber im Protokoll
+vermerkt**, damit in einem halben Jahr niemand raetselt.
+
+**Auftrag 2 bleibt offen und ist Adams Entscheidung** (roter Punkt: jeder
+zusaetzliche Zulieferer sieht unsere Suchanfragen). Er ist heute **weniger
+dringend** als am 27.08., weil bereits fuenfzehn statt vier Zulieferer
+antworten.

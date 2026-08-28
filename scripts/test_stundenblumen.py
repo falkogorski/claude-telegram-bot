@@ -225,12 +225,38 @@ def _speicher_wache_misst_das_richtige():
     b = sb.speicher_pruefen()
     assert b and b[0][1].startswith("🔴"), f"die enge Lage wurde nicht erkannt: {b}"
 
-    # Swap in Benutzung → eigene Beobachtung, unabhängig von der Speicherlage.
+    # **Auslagerung wird nach AKTIVITAET gemessen, nicht nach Bestand**
+    # (Auftrag 1 vom 27.08.). Der alte Fall verlangte hier das Gegenteil:
+    # [benutzter Swap wird nicht bemerkt] — er schlug an, sobald etwas LAG.
+    # Gemessen auf dem VPS lagen 594 MiB drin und `pswpin` stand bei null:
+    # in sechs Wochen nichts zurueckgeholt. Der Bereich leert sich ohne
+    # Neustart nicht, also haette dieser Befund vierundzwanzigmal am Tag
+    # gemeldet, ohne dass je etwas zu tun ist.
+    echt_seiten = sb._swap_seiten_je_minute
+
+    # (a) Auslagerung laeuft, aber Speicher ist reichlich -> Hausarbeit, still.
+    sb._swap_seiten_je_minute = lambda: 5000.0
     sb._meminfo = lambda: {"MemTotal": 7940, "MemAvailable": 3000,
                            "SwapTotal": 4096, "SwapFree": 1000}
-    b = sb.speicher_pruefen()
-    assert any("Auslagerungsbereich" in t for _, t in b), \
-        "benutzter Swap wird nicht bemerkt"
+    assert not [k for k, _ in sb.speicher_pruefen() if k == "swap-aktiv"], \
+        "Auslagerung bei reichlich Speicher wurde gemeldet - das ist Hausarbeit"
+
+    # (b) Auslagerung UND Enge -> das Vorzeichen des Kippens, melden.
+    sb._meminfo = lambda: {"MemTotal": 7940, "MemAvailable": 600,
+                           "SwapTotal": 4096, "SwapFree": 1000}
+    assert [k for k, _ in sb.speicher_pruefen() if k == "swap-aktiv"], \
+        "Auslagerung bei knappem Speicher wurde NICHT gemeldet"
+
+    # (c) Erster Lauf / Zaehlerruecksprung / kein Linux -> None, also still.
+    sb._swap_seiten_je_minute = lambda: None
+    assert not [k for k, _ in sb.speicher_pruefen() if k == "swap-aktiv"], \
+        "ohne Messwert wurde eine Auslagerung behauptet"
+
+    # (d) Aktivitaet knapp unter der Schwelle -> still.
+    sb._swap_seiten_je_minute = lambda: float(sb.SWAP_SEITEN_SCHWELLE)
+    assert not [k for k, _ in sb.speicher_pruefen() if k == "swap-aktiv"], \
+        "die Schwelle wird nicht eingehalten"
+    sb._swap_seiten_je_minute = echt_seiten
 
     # Kein Linux (leeres meminfo) → keine Aussage statt Raterei.
     sb._meminfo = lambda: {}

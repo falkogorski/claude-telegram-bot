@@ -317,6 +317,16 @@ def zustellung_pruefen() -> list[str]:
 # Bewusst nicht in Prozent — bei einer kleinen Maschine sind zehn Prozent von
 # fast nichts immer noch fast nichts.
 SPEICHER_HINWEIS_MIB = int(os.environ.get("BLUMEN_SPEICHER_HINWEIS") or 800)
+# **Eine Setzung, kein Messwert** — und das steht hier, damit es niemand fuer
+# eine Messung haelt. Belegt ist nur, dass sie im Normalbetrieb dieser Maschine
+# nicht anschlaegt: Der gemessene Mittelwert lag rund dreihundertfach darunter
+# (drei Seiten je Minute gegen tausend). Als Umgebungsgroesse, damit sie ohne
+# Codeaenderung nachgezogen werden kann.
+SWAP_SEITEN_SCHWELLE = int(os.environ.get("BLUMEN_SWAP_SEITEN") or 1000)
+# Schreibfehler werden gesammelt statt verschluckt: Eine Blume, die ihren
+# Vorwert nie ablegen kann, schwiege fuer immer — ein Ausbleiben, das wie Ruhe
+# aussieht.
+_SCHREIBFEHLER: list[str] = []
 SPEICHER_ENG_MIB = int(os.environ.get("BLUMEN_SPEICHER_ENG") or 400)
 
 
@@ -370,16 +380,97 @@ def speicher_pruefen() -> list[str]:
             f"🟡 Der Arbeitsspeicher wird knapp: {verfuegbar} MiB verfügbar von "
             f"{gesamt} MiB. Noch kein Grund zur Eile, aber der Zeitpunkt, "
             "hinzusehen — bevor es einer werden muss."))
-    swap_gesamt = m.get("SwapTotal", 0)
-    swap_frei = m.get("SwapFree", 0)
-    if swap_gesamt and (swap_gesamt - swap_frei) > 256:
+    # **Gemessen wird die AKTIVITAET, nicht der Bestand** (Auftrag 1 vom
+    # 27.08., Adam freigegeben 18:04).
+    #
+    # Der alte Befund schlug an, sobald mehr als 256 MiB im
+    # Auslagerungsbereich **lagen**. Der eigene Kommentar nannte die richtige
+    # Absicht und das falsche Mass im selben Satz: *[Wird er im Alltag
+    # ANGEFASST…]* — angefasst ist eine Handlung, gemessen wurde ein Bestand.
+    #
+    # **Gemessen am 27.08. auf dem VPS:** 594 MiB lagen drin, `pswpin` stand
+    # bei **null** — in sechs Wochen wurde **nichts zurueckgeholt**. Das ist
+    # kein Notfall, sondern Hausarbeit des Kernels. Der Bereich leert sich ohne
+    # Neustart nicht, also haette dieser Befund **vierundzwanzigmal am Tag bis
+    # in alle Ewigkeit** gemeldet, ohne dass je etwas zu tun ist. **Ein
+    # Waechter, der taeglich meldet und nie etwas zu tun gibt, ist binnen zwei
+    # Tagen abgeschaltet.**
+    #
+    # Der Befund entsteht jetzt nur, wenn **beides zugleich** zutrifft:
+    # Auslagerung laeuft UND der Speicher ist knapp. Auslagerung bei reichlich
+    # Speicher ist Hausarbeit; Auslagerung bei Enge ist das Vorzeichen des
+    # Kippens. **Nur der zweite Fall verdient einen Waechter.**
+    seiten = _swap_seiten_je_minute()
+    if seiten is not None and seiten > SWAP_SEITEN_SCHWELLE \
+            and verfuegbar < SPEICHER_HINWEIS_MIB:
         raus.append((
-            "swap-benutzt",
-            f"↔️ Es liegen {swap_gesamt - swap_frei} MiB im Auslagerungsbereich. "
-            "Der soll das Netz für den Notfall sein, keine Ausweichfläche im "
-            "Alltag — wird er regelmäßig angefasst, passt die Auslegung nicht "
-            "mehr."))
+            "swap-aktiv",
+            f"↔️ Der Kernel lagert gerade aus: rund {int(seiten)} Seiten je "
+            f"Minute, bei nur {verfuegbar} MiB verfügbarem Arbeitsspeicher. "
+            "Auslagerung bei reichlich Speicher wäre Hausarbeit — bei Enge "
+            "ist sie das Vorzeichen des Kippens."))
     return raus
+
+
+def _swap_seiten_je_minute(jetzt: float | None = None) -> float | None:
+    """Wie viele Seiten je Minute gerade ausgelagert werden — oder `None`.
+
+    `/proc/vmstat` fuehrt `pswpout` als **kumulativen** Zaehler. Die Blume legt
+    den zuletzt gesehenen Stand ab und bildet beim naechsten Lauf die
+    Differenz; der minuetliche Takt ist das Fenster, es muss nichts gewartet
+    werden.
+
+    **Drei Faelle schweigen ausdruecklich** — keine Aussage ist besser als
+    Raterei:
+
+    * **Erster Lauf** (kein Vorwert): merken, nichts melden.
+    * **Zaehlerruecksprung** (kleiner als zuletzt): Die Maschine wurde neu
+      gestartet. Merken, nichts melden.
+    * **`/proc/vmstat` nicht lesbar** (kein Linux, kein Recht): `None`.
+
+    **Ein Schreibfehler wird NICHT verschluckt.** Liesse sich der Vorwert nie
+    ablegen, schwiege die Blume fuer immer — ein Ausbleiben, das wie Ruhe
+    aussieht. Deshalb wird er als eigener Befund gemeldet.
+    """
+    jetzt = time.time() if jetzt is None else jetzt
+    try:
+        roh = Path("/proc/vmstat").read_text(encoding="utf-8")
+    except Exception:
+        return None
+    aktuell = None
+    for zeile in roh.splitlines():
+        if zeile.startswith("pswpout "):
+            try:
+                aktuell = int(zeile.split()[1])
+            except (IndexError, ValueError):
+                return None
+            break
+    if aktuell is None:
+        return None
+
+    merker = ZUSTAND / "swap-zaehler.json"
+    vorher = {}
+    try:
+        vorher = json.loads(merker.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    try:
+        ZUSTAND.mkdir(parents=True, exist_ok=True)
+        merker.write_text(json.dumps({"pswpout": aktuell, "zeit": jetzt}),
+                          encoding="utf-8")
+    except Exception:
+        _SCHREIBFEHLER.append("swap-zaehler.json nicht schreibbar")
+
+    alt_wert = vorher.get("pswpout")
+    alt_zeit = float(vorher.get("zeit") or 0)
+    if alt_wert is None or alt_zeit <= 0:
+        return None                       # erster Lauf
+    if aktuell < alt_wert:
+        return None                       # Neustart: Zaehler zurueckgesprungen
+    minuten = (jetzt - alt_zeit) / 60.0
+    if minuten <= 0:
+        return None
+    return (aktuell - alt_wert) / minuten
 
 
 # --------------------------------------------------------------- C2 Anmeldung --

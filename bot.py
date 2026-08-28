@@ -5058,7 +5058,7 @@ async def _provision_house(bot, chat, house_key: str) -> None:
             try:
                 await bot.send_message(
                     chat_id=uid,
-                    text=(f'{spec["emoji"]} Haus „{spec["title"]}" erkannt — '
+                    text=(f'{spec["emoji"]} Haus „{spec["title"]}“ erkannt — '
                           "alle Zimmer sind bereits angelegt."))
             except Exception:
                 log.exception("house-provision notify failed for %s", uid)
@@ -5089,7 +5089,7 @@ async def _provision_house(bot, chat, house_key: str) -> None:
 
     done = channels.house_overview(_USER_PREFS)
     hinfo = next((h for h in done if h["key"] == house_key), None)
-    lines = [f'{spec["emoji"]} Haus „{spec["title"]}" eingerichtet.']
+    lines = [f'{spec["emoji"]} Haus „{spec["title"]}“ eingerichtet.']
     if created:
         lines.append("Neu angelegte Zimmer:\n• " + "\n• ".join(created))
     if failed:
@@ -5151,7 +5151,7 @@ async def on_my_chat_member(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
             await _provision_house(bot, chat, house_key)
             return
         lines = [
-            f'Gruppe „{chat.title or chat.id}" erkannt.',
+            f'Gruppe „{chat.title or chat.id}“ erkannt.',
             f"Gruppen-ID: {chat.id}",
         ]
         if str(chat.id).startswith("-100"):
@@ -5159,7 +5159,7 @@ async def on_my_chat_member(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
         if house_key and not is_forum:
             spec = channels.HOUSES[house_key]
             lines.append(
-                f'Das sieht nach dem Haus {spec["emoji"]} „{spec["title"]}" aus — '
+                f'Das sieht nach dem Haus {spec["emoji"]} „{spec["title"]}“ aus — '
                 "aber der Forum-Modus (Themen) ist noch aus. Aktiviere ihn in den "
                 "Gruppen-Einstellungen, dann lege ich die Zimmer automatisch an.")
         elif is_forum:

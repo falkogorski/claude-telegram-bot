@@ -1072,3 +1072,19 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   entgegen und las kein einziges Feld aus. Aus [einen Kanal bauen] wurde
   [vier Felder auslesen]. **Bevor man einen Weg baut, nachsehen, ob er schon
   da ist.**
+
+- **Regressionslauf und `git commit` gehoeren in getrennte Befehle · Rang 4 ·
+  universell**
+  — Selbst gemacht am 28.08.: `bash scripts/regressionstest.sh | tail -1` und
+  `git commit` in **einem** Aufruf. Der Commit laeuft dann, **egal was der Lauf
+  sagt** — die Ausgabe erscheint, aber niemand wartet auf sie.
+
+  **Das ist wortgleich das Muster, das `CLAUDE.md` fuer Heredocs verbietet**
+  (*[git commit wird NIE an einen dateiaendernden Heredoc gekettet]*), nur mit
+  einem anderen ersten Glied. Die Regel benennt dort den Heredoc, weil er der
+  Anlass war — **die Klasse ist [Commit haengt an einem Vorgang, dessen
+  Ergebnis niemand prueft]**.
+
+  **Der Griff:** erst laufen lassen, Ergebnis **ansehen**, dann in einem
+  eigenen Aufruf committen. Kostet einen Befehl mehr und macht den Unterschied
+  zwischen [gepruefft] und [gehofft].

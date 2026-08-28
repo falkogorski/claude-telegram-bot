@@ -2179,6 +2179,23 @@ _COST_TOOLS = {
 _NO_ALWAYS_TOOLS = ({"WebFetch", "Bash", "Write", "Edit", "MultiEdit",
                      "NotebookEdit"} | set(_COST_TOOLS))
 
+
+def darf_dauerfreigabe(tool_name: str) -> bool:
+    """Darf dieses Werkzeug pauschal dauerfreigegeben werden?
+
+    **Rang A, Stelle 2 des Entkernungs-Befunds (28.08.).** Der Pruefer verlangte
+    hier `src.count("_NO_ALWAYS_TOOLS") >= 3` — eine **Zaehlschwelle ueber den
+    Quelltext**. Drei Kommentarzeilen erfuellen sie. Wer die Sperre aus dem
+    Always-Zweig entfernte und den Namen im Kommentar stehen liess, bekam einen
+    gruenen Pruefer und eine **pauschal dauerfreigebbare WebSearch** — die
+    Kostenschranke der 💰-Regel.
+
+    **Jetzt ist es eine Funktion, die ein Pruefer aufrufen kann.** Und weil alle
+    drei Stellen sie benutzen, gibt es keine Zaehlschwelle mehr, sondern eine
+    Quelle: Wer sie umgeht, umgeht sichtbar.
+    """
+    return tool_name not in _NO_ALWAYS_TOOLS
+
 # ---------- 5.25: Herkunfts-Schranke + Geheimnis-Schutz ----------
 
 _URL_RE = re.compile(r"(?:https?://|www\.)([^\s/<>\")\]]+)", re.IGNORECASE)
@@ -2994,7 +3011,7 @@ def make_permission_callback(user_id: int):
         # (_NO_ALWAYS_TOOLS): 💰 wegen der Kostenregel, WebFetch wegen der
         # Herkunfts-Schranke. Alt-Einträge werden beim Session-Aufbau gefiltert.
         if (tool_name in sess.always_allowed_tools
-                and tool_name not in _NO_ALWAYS_TOOLS and not sensitive):
+                and darf_dauerfreigabe(tool_name) and not sensitive):
             return PermissionResultAllow()
 
         # 5.25 (a) WebFetch mit Herkunfts-Schranke: kostenfrei + lesend, aber nur
@@ -3099,7 +3116,7 @@ def make_permission_callback(user_id: int):
                         callback_data=f"p:{request_id}:domain:{_host}",
                     ),
                 ])
-        elif tool_name not in _NO_ALWAYS_TOOLS:
+        elif darf_dauerfreigabe(tool_name):
             rows.append([
                 InlineKeyboardButton(
                     f"🔓 Always allow {tool_name}",
@@ -3146,7 +3163,7 @@ def make_permission_callback(user_id: int):
             tname = decision.split(":", 1)[1]
             # Doppelter Boden: _NO_ALWAYS_TOOLS (WebFetch, 💰) sind nie pauschal
             # dauerfreigebbar — auch nicht über einen manipulierten Callback.
-            if tname in _NO_ALWAYS_TOOLS:
+            if not darf_dauerfreigabe(tname):
                 return PermissionResultAllow()  # gilt nur für DIESE eine Anfrage
             sess.always_allowed_tools.add(tname)
             # 5.25 (c): dauerhaft merken — überlebt Reset/Neustart.
@@ -7605,9 +7622,40 @@ def run_self_check() -> tuple[bool, list[str]]:
         # WebFetch darf NIE pauschal dauerfreigebbar sein (23.07.): die Menge
         # ist verdrahtet im Always-Zweig, im Knopf-Angebot UND in der
         # Selbstheilung beim Session-Aufbau; Vertrauen läuft pro Domain.
-        assert "WebFetch" in _NO_ALWAYS_TOOLS and "WebSearch" in _NO_ALWAYS_TOOLS
-        assert src.count("_NO_ALWAYS_TOOLS") >= 3, \
-            "_NO_ALWAYS_TOOLS nicht überall verdrahtet (Always-Zweig/Knopf/Callback)"
+        # **Ausgefuehrt statt gezaehlt** (Rang A, Stelle 2). Hier stand
+        # `src.count("_NO_ALWAYS_TOOLS") >= 3` — eine Zaehlschwelle ueber den
+        # Quelltext, die **drei Kommentarzeilen erfuellen**. Wer die Sperre aus
+        # dem Always-Zweig nahm und den Namen im Kommentar liess, bekam einen
+        # gruenen Pruefer und eine pauschal dauerfreigebbare WebSearch.
+        for teuer in ("WebSearch", "WebFetch", "Bash", "Write", "Edit"):
+            assert not darf_dauerfreigabe(teuer), \
+                f"{teuer} waere pauschal dauerfreigebbar — die Kostenschranke faellt"
+        # Gegenrichtung: harmlose Werkzeuge duerfen es, sonst waere die Sperre
+        # kein Riegel, sondern eine Mauer.
+        assert darf_dauerfreigabe("Read"), "Read ist nicht mehr dauerfreigebbar"
+        # **Die STELLE pruefen, nicht die Anzahl.** Mein erster Versuch zaehlte
+        # die Aufrufe (`>= 2`) — und blieb bei der Gegenprobe gruen, weil nach
+        # dem Entfernen aus dem Always-Zweig zwei andere Aufrufe uebrig
+        # blieben. **Das ist K3 aus dem Entkernungs-Befund, gebaut beim
+        # Reparieren von K3:** eine Schwelle zaehlt, sie ordnet nicht zu.
+        #
+        # Gesucht wird deshalb die Verknuepfung selbst: Der Zweig, der ueber
+        # `always_allowed_tools` entscheidet, MUSS `darf_dauerfreigabe` in
+        # derselben Bedingung fuehren.
+        import ast as _ast
+        _baum = _ast.parse(_insp.getsource(make_permission_callback))
+        _verknuepft = False
+        for _k in _ast.walk(_baum):
+            if not isinstance(_k, _ast.BoolOp):
+                continue
+            _text = _ast.dump(_k)
+            if "always_allowed_tools" in _text and "darf_dauerfreigabe" in _text:
+                _verknuepft = True
+                break
+        assert _verknuepft, (
+            "der Always-Zweig fragt nicht mehr darf_dauerfreigabe — WebSearch "
+            "und WebFetch waeren pauschal dauerfreigebbar, und die "
+            "Kostenschranke faellt")
         assert "trusted_domains" in src, "Domain-Merkliste nicht im Callback"
         assert "_NO_ALWAYS_TOOLS" in _insp.getsource(ensure_session), \
             "Selbstheilung alter Always-Einträge fehlt im Session-Aufbau"

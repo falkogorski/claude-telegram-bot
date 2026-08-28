@@ -1117,3 +1117,26 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   Erinnerung; gezaehlt wurden Nachrichten, gemeint war ein Befund.
   **Auf den Befundtext zaehlen, nicht auf Nachrichten** — sonst misst man den
   Nebeneffekt der eigenen Zeitreise.
+
+- **Beim Reparieren einer Fehlerklasse baut man sie am ehesten neu ein · Rang 6
+  · universell — ZWEITER Fall an einem Tag**
+  — Ich habe an einem Nachmittag **zweimal K3 gebaut, waehrend ich K3
+  reparierte**: eine Schwelle, die zaehlt statt zuzuordnen.
+
+  Erst beim Schlaf-Pruefer (*[irgendein `sleep` ist gedeckelt]*), dann bei der
+  Dauerfreigabe (*[mindestens zwei Aufrufe von `darf_dauerfreigabe`]*). Der
+  zweite blieb bei der Gegenprobe gruen, weil nach dem Entfernen aus dem
+  Always-Zweig **zwei andere Aufrufe uebrig blieben** — die Schwelle war
+  erfuellt, die Schranke weg.
+
+  **Warum das kein Ausrutscher ist:** Die Denkform, die den Fehler erzeugt hat,
+  ist beim Reparieren am **praesentesten**. Man liest den kaputten Pruefer,
+  versteht ihn, und schreibt unwillkuerlich etwas in derselben Gestalt.
+
+  **Der Griff:** Nicht die **Anzahl** pruefen, sondern die **Stelle**. Statt
+  [wie oft wird X gerufen] die Frage [ruft GENAU DIESER Zweig X?] — im
+  Syntaxbaum ueber die Verknuepfung: derselbe `BoolOp`, der ueber
+  `always_allowed_tools` entscheidet, muss `darf_dauerfreigabe` fuehren.
+
+  **Und die Gegenprobe ist die einzige Instanz, die das faengt.** Beide Male
+  war der Pruefer gruen und sah richtig aus.

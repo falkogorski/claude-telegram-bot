@@ -1088,3 +1088,32 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   **Der Griff:** erst laufen lassen, Ergebnis **ansehen**, dann in einem
   eigenen Aufruf committen. Kostet einen Befehl mehr und macht den Unterschied
   zwischen [gepruefft] und [gehofft].
+
+- **Entprellung trifft Zustaende, nicht Ereignisse · Rang 4, Auftrag 4 ·
+  universell**
+  — **Beim Bauen gefunden, nicht im Auftrag vorgesehen.** Die Entprellung
+  verlangt, dass ein Befund in drei Laeufen in Folge steht, bevor er als
+  aufgetreten gilt. Das trifft **Zustaende** richtig (Speicher knapp, Bot weg)
+  — aber ein **Ereignis** tritt genau einmal auf.
+
+  Konkret: Die **Kettenluecke** haette es nie wieder ueber die Schwelle
+  geschafft. Sie ist der Kern-Alarm dieser Wache — *[in dieser Zeit hat
+  niemand belegt, dass das System lebt]* —, und sie waere **still
+  verschwunden**, waehrend alle Pruefzeilen gruen geblieben waeren. Gefangen
+  hat es der bestehende Test [die Luecke ist der Alarm].
+
+  **Der Griff, in derselben Bauform wie das Protokoll-Praefix:** ein Praefix
+  `!` am Befund selbst. Die Einstufung steht dort, wo der Befund entsteht, und
+  laesst sich nicht vergessen — eine Liste an anderer Stelle waechst nicht mit.
+
+  **Die allgemeine Frage vor jeder Entprellung:** *Kann dieser Befund
+  ueberhaupt zweimal hintereinander auftreten?* Wenn nein, ist jede Verzoegerung
+  ein Loeschen.
+
+- **Ein Zeitsprung im Test erzeugt selbst einen Befund · Rang 4 · anpassbar**
+  — Mein Pruefer fuer die Zwoelf-Stunden-Erinnerung sprang zwoelf Stunden
+  vorwaerts — und **erzeugte damit eine Kettenluecke**, die seit demselben Bau
+  sofort gemeldet wird. Die zweite Nachricht war die Luecke, nicht die
+  Erinnerung; gezaehlt wurden Nachrichten, gemeint war ein Befund.
+  **Auf den Befundtext zaehlen, nicht auf Nachrichten** — sonst misst man den
+  Nebeneffekt der eigenen Zeitreise.

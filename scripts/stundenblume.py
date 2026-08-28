@@ -667,7 +667,8 @@ def bluehen(jetzt: float | None = None) -> dict:
     if not ruhegrund:
         gruende = [(k, t) for k, t in befunde]
         if luecke is not None and luecke > TOLERANZ_S:
-            gruende.insert(0, ("kette-luecke",
+            # **Ein Ereignis, kein Zustand** — deshalb ohne Entprellung.
+            gruende.insert(0, (SOFORT + "kette-luecke",
                                f"Die Kette hatte eine Lücke von "
                                f"{luecke / 60:.0f} Minuten — in dieser Zeit hat "
                                "niemand belegt, dass das System lebt."))
@@ -721,6 +722,54 @@ def bluehen(jetzt: float | None = None) -> dict:
 # vergessen.
 NUR_PROTOKOLL = "p:"
 
+# **Kennungen mit diesem Praefix werden SOFORT gemeldet, ohne Entprellung.**
+#
+# **Beim Bauen der Entprellung gefunden (28.08.):** Der Auftrag verlangt, dass
+# ein Befund erst nach drei Laeufen in Folge als aufgetreten gilt. Das trifft
+# **Zustands**-Befunde richtig (Speicher knapp, Bot weg) — aber eine
+# **Kettenluecke ist ein Ereignis**: Sie tritt genau einmal auf und ist danach
+# vergangen. Mit Entprellung waere sie **nie wieder gemeldet worden**, und sie
+# ist der Kern-Alarm dieser Wache: *[in dieser Zeit hat niemand belegt, dass
+# das System lebt.]*
+#
+# Dieselbe Bauform wie beim Protokoll-Praefix, aus demselben Grund: **Die
+# Einstufung gehoert an den Befund selbst.** Eine Liste an anderer Stelle
+# waechst nicht mit — wer kuenftig ein Ereignis anlegt, sieht sie nicht.
+SOFORT = "!"
+
+# **Der Melde-Ausloeser ist die AENDERUNG, nicht die Zeit** (Auftrag 3 vom
+# 28.08.). Bis dahin schwieg der Daempfer eine Stunde und wertete den Befund
+# danach wieder als neu. Das galt im Juli als Fortschritt — davor meldete die
+# Blume minuetlich —, war aber an einem **Dauerzustand** zu Ende gedacht: Er
+# endet nie von selbst. Gemessen: zwanzig wortgleiche Meldungen in zwanzig
+# Stunden, dreizehn davon voellig unveraendert.
+#
+# `WIEDERVORLAGE_S` bleibt als Groesse erhalten, hat aber die neue Bedeutung
+# einer **Sperrfrist nach Entwarnung** und heisst danach.
+ERNEUT_SPERRE_S = int(os.environ.get("BLUMEN_ERNEUT_SPERRE") or 1800)
+
+# **Entprellung — die Begriffe sind Handwerk, nicht Erfindung.** Prometheus
+# kennt beides seit Jahren: `for` wartet ab, ob eine Bedingung anhaelt, bevor
+# ein Alarm zaehlt; `keep_firing_for` haelt ihn nach dem Wegfall noch eine
+# Weile, ausdruecklich gegen flatternde Alarme. **Wir uebernehmen das
+# Verfahren, nicht das Werkzeug.**
+#
+# **Als Zaehler, nicht als Zeitstempel** — dann traegt die Regel auch, wenn der
+# Takt einmal geaendert wird.
+MELDE_LAEUFE = int(os.environ.get("BLUMEN_MELDE_LAEUFE") or 3)
+ENTWARN_LAEUFE = int(os.environ.get("BLUMEN_ENTWARN_LAEUFE") or 5)
+
+# **Eine Erinnerung nach zwoelf Stunden, nur bei Rot** (Adams Entscheidung 2,
+# Engywucks Empfehlung A). Rot heisst *Warten auf Adams Daumen*; ein rotes
+# Ereignis um 05:00 Uhr, das bis zum naechsten Morgen schweigt, ist der stille
+# Bruch. Bei Gelb und Beobachtung gilt das nicht.
+ERINNERUNG_S = int(os.environ.get("BLUMEN_ERINNERUNG") or 12 * 3600)
+
+# Entwarnte Kennungen bleiben im Gedaechtnis, damit die Sperrfrist greift —
+# aber nicht ewig. Die Zahl der Kennungen ist zweistellig; die Grenze ist
+# Vorsorge, keine Not.
+VERFALL_S = 7 * 24 * 3600
+
 WIEDERVORLAGE_S = int(os.environ.get("BLUMEN_WIEDERVORLAGE") or 3600)
 _GEDAECHTNIS = ZUSTAND / "gemeldet.json"
 # Naht-Speicher fuer das Rollen: haelt den Abdruck des letzten Glieds der
@@ -767,29 +816,69 @@ def _daempfen(gruende: list[tuple[str, str]],
     if not isinstance(bekannt, dict):
         bekannt = {}
 
-    def _zeit(e) -> float:
-        return float((e or {}).get("zeit", e or 0) or 0) if isinstance(e, dict) \
-            else float(e or 0)
-
-    def _text(k: str) -> str:
+    def _eintrag(k: str) -> dict:
         e = bekannt.get(k)
-        return (e or {}).get("text", k) if isinstance(e, dict) else k
+        if isinstance(e, dict):
+            return dict(e)
+        # Alte Form (Zeitstempel oder {zeit,text}) vertraeglich einlesen:
+        # nach dem Einspielen steht das Gedaechtnis noch in der Vorform.
+        return {"text": k, "gesehen": 0, "gefehlt": 0,
+                "gemeldet_seit": None, "entwarnt_um": None}
 
-    neu = [text for kennung, text in gruende
-           if jetzt - _zeit(bekannt.get(kennung)) >= WIEDERVORLAGE_S]
-    aktuell = {kennung for kennung, _ in gruende}
-    # **Entwarnt wird mit dem TEXT, nicht mit der Kennung.** `[LIVE-FUND 28.07.]`
-    # Der erste echte Lauf nach dem Umbau meldete Adam wörtlich „erledigt —
-    # kette-luecke". Technisch richtig, für einen Menschen unbrauchbar: Die
-    # Kennung ist das Werkzeug des Dämpfers, nicht seine Sprache. Deshalb legt
-    # das Gedächtnis neben dem Zeitpunkt auch den zuletzt gemeldeten Wortlaut
-    # ab — sonst wäre er beim Entwarnen nicht mehr da.
-    entwarnt = [_text(k) for k in bekannt if k not in aktuell]
+    aktuell = {k: tx for k, tx in gruende}
+    stand: dict[str, dict] = {}
+    neu: list[str] = []
+    entwarnt: list[str] = []
 
-    stand = {kennung: {"zeit": (jetzt if text in neu
-                               else _zeit(bekannt.get(kennung)) or jetzt),
-                       "text": text}
-             for kennung, text in gruende}
+    for kennung, text in gruende:
+        e = _eintrag(kennung)
+        e["text"] = text
+        e["gesehen"] = int(e.get("gesehen") or 0) + 1
+        e["gefehlt"] = 0
+        if not e.get("gemeldet_seit"):
+            # **Verzoegerte Meldung:** Erst nach MELDE_LAEUFE Laeufen in Folge
+            # gilt ein Befund als aufgetreten. Kurze Zuckungen bleiben still,
+            # ein echter Ausfall meldet drei Minuten spaeter.
+            if e["gesehen"] >= MELDE_LAEUFE or kennung.startswith(SOFORT):
+                seit_entwarnung = jetzt - float(e.get("entwarnt_um") or 0)
+                if e.get("entwarnt_um") and seit_entwarnung < ERNEUT_SPERRE_S:
+                    pass          # **Sperrfrist** — kommt wieder, schweigt noch
+                else:
+                    neu.append(text)
+                    e["gemeldet_seit"] = jetzt
+                    e["entwarnt_um"] = None
+        elif text.startswith("🔴") and \
+                jetzt - float(e["gemeldet_seit"]) >= ERINNERUNG_S:
+            # Erinnerung, nur bei Rot.
+            neu.append(text)
+            e["gemeldet_seit"] = jetzt
+        stand[kennung] = e
+
+    for kennung, roh in bekannt.items():
+        if kennung in aktuell:
+            continue
+        e = _eintrag(kennung)
+        e["gefehlt"] = int(e.get("gefehlt") or 0) + 1
+        e["gesehen"] = 0
+        if e.get("gemeldet_seit") and e["gefehlt"] >= ENTWARN_LAEUFE:
+            # **Verzoegerte Entwarnung:** Ein kurzes Aussetzen erzeugt kein
+            # [erledigt]. Und entwarnt wird mit dem TEXT, nicht mit der
+            # Kennung — der Live-Fund vom 28.07.: [erledigt — kette-luecke]
+            # war technisch richtig und fuer einen Menschen unbrauchbar.
+            entwarnt.append(e.get("text") or kennung)
+            e["gemeldet_seit"] = None
+            e["entwarnt_um"] = jetzt
+        # **Entwarnte bleiben im Gedaechtnis** — sonst greift die Sperrfrist
+        # nicht. Genau das war der Fehler bis zum 28.08.: Der Stand wurde nur
+        # aus den AKTUELLEN Gruenden gebaut, eine entwarnte Kennung fiel heraus
+        # und war beim naechsten Auftreten unbekannt. `jetzt − 0 >= 3600` traf
+        # dann immer zu. Belegt am 16.08.: sechsundzwanzig Wechsel in fuenfzig
+        # Minuten, dreizehn Alarme und dreizehn Entwarnungen — der Daempfer war
+        # wirkungslos, weil jede Entwarnung sein Gedaechtnis leerte.
+        if e.get("entwarnt_um") and jetzt - float(e["entwarnt_um"]) > VERFALL_S:
+            continue              # verfallen, nicht uebernehmen
+        stand[kennung] = e
+
     try:
         ZUSTAND.mkdir(parents=True, exist_ok=True)
         tmp = _GEDAECHTNIS.with_suffix(".tmp")

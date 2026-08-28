@@ -50,6 +50,21 @@ def _leeren():
     sb._befunde = lambda: []
 
 
+def _bis_gemeldet(start: float = 0.0) -> float:
+    """MELDE_LAEUFE Laeufe fahren, damit die Entprellung durch ist.
+
+    **Seit dem 28.08. gilt ein Befund erst nach drei Laeufen in Folge als
+    aufgetreten** (Auftrag 4). Tests, die eine andere Zusage pruefen — die
+    Kettenluecke, den Entwarnungstext, den `p:`-Filter —, muessen die
+    Entprellung durchlaufen, ohne dass sie ihr Gegenstand waere.
+
+    Gibt den naechsten freien Zeitpunkt zurueck.
+    """
+    for i in range(sb.MELDE_LAEUFE):
+        sb.bluehen(_t(start + i * 60))
+    return start + sb.MELDE_LAEUFE * 60
+
+
 def _meldungen():
     out = Path(os.environ["POSTFACH_DIR"]) / "outbox"
     if not out.exists():
@@ -79,7 +94,7 @@ def _kette_waechst_verkettet():
 def _luecke_ist_der_alarm():
     """Der Kern: Nicht der Befund meldet sich, sondern die Lücke."""
     _leeren()
-    sb.bluehen(_t(0))
+    _bis_gemeldet()
     sb.bluehen(_t(sb.TOLERANZ_S + 600))     # zehn Minuten zu spät
     m = _meldungen()
     assert m, "die Lücke hat keinen Alarm ausgelöst"
@@ -126,7 +141,7 @@ def _stillstand_faellt_auf():
 def _manipulation_wird_sichtbar():
     """Manipulations-SICHTBAR, nicht -sicher — genau das wird geprüft."""
     _leeren()
-    sb.bluehen(_t(0))
+    _bis_gemeldet()
     sb.bluehen(_t(60))
     sb.bluehen(_t(120))
     zeilen = sb.KETTE.read_text(encoding="utf-8").splitlines()
@@ -144,7 +159,7 @@ def _manipulation_wird_sichtbar():
 def _befunde_melden_sich():
     _leeren()
     sb._befunde = lambda: [("bot-prozess", "Bot-Prozess nicht vorhanden")]
-    sb.bluehen(_t(0))
+    _bis_gemeldet()
     m = _meldungen()
     assert m and "Bot-Prozess" in m[0], f"Befund nicht gemeldet: {m}"
 
@@ -423,28 +438,131 @@ def _kein_geheimniswert_in_der_marke():
     authmarke.loeschen()
 
 
-def _daempfer_wiederholt_nicht_minuetlich():
-    """G4: 60 Meldungen je Stunde wären das Ende der Glaubwürdigkeit."""
+def _daempfer_meldet_nur_bei_aenderung():
+    """**Auftrag 3 vom 28.08.: gemeldet wird die AENDERUNG, nicht die Zeit.**
+
+    Der alte Fall verlangte hier das Gegenteil — *[nach einer Stunde meldet er
+    sich nicht wieder]*. Das galt im Juli als Fortschritt (davor: minuetlich),
+    war aber an einem **Dauerzustand** zu Ende gedacht: Er endet nie von
+    selbst. Gemessen bei Adam: **zwanzig wortgleiche Meldungen in zwanzig
+    Stunden**, dreizehn davon voellig unveraendert.
+    """
     _leeren()
     sb._befunde = lambda: [("bot-prozess", "Bot-Prozess nicht vorhanden")]
-    for i in range(5):
+    # Entprellung: die ersten Laeufe schweigen noch.
+    for i in range(sb.MELDE_LAEUFE - 1):
+        sb.bluehen(_t(i * 60))
+    assert not _meldungen(), "vor der Entprellung wurde schon gemeldet"
+    sb.bluehen(_t(sb.MELDE_LAEUFE * 60))
+    assert len(_meldungen()) == 1, "nach der Entprellung kam keine Meldung"
+    # **Und dann Ruhe — ueber zwei Stunden hinweg.**
+    for i in range(1, 130):
+        sb.bluehen(_t(sb.MELDE_LAEUFE * 60 + i * 60))
+    m = _meldungen()
+    assert len(m) == 1, \
+        f"ein unveraenderter Befund wurde {len(m)}x gemeldet statt einmal"
+
+
+def _flattern_wird_entprellt():
+    """**Auftrag 4: ohne Entprellung waere Flattern Dauerfeuer.**
+
+    Belegt am 16.08.2026: Zwischen 01:28 und 02:17 Uhr wechselten [Bot-Prozess
+    nicht vorhanden] und [erledigt] **sechsundzwanzigmal** — dreizehn Alarme,
+    dreizehn Entwarnungen, in fuenfzig Minuten. Der Daempfer war wirkungslos,
+    weil jede Entwarnung sein Gedaechtnis leerte.
+    """
+    _leeren()
+    an = lambda: [("flatter", "🔴 kommt und geht")]
+    aus = lambda: []
+    for i in range(26):
+        sb._befunde = an if i % 2 == 0 else aus
         sb.bluehen(_t(i * 60))
     m = _meldungen()
-    assert len(m) == 1, f"derselbe Befund wurde {len(m)}× gemeldet"
-    # Nach der Wiedervorlage-Frist darf er sich erinnern.
-    sb.bluehen(_t(sb.WIEDERVORLAGE_S + 120))
-    assert len(_meldungen()) == 2, "nach einer Stunde meldet er sich nicht wieder"
+    assert len(m) == 0, \
+        f"ein flatternder Befund erzeugte {len(m)} Nachrichten: {m}"
 
 
-def _daempfer_entwarnt():
-    """Was wegfällt, wird gesagt — sonst weiß niemand, ob es behoben ist."""
+def _daempfer_entwarnt_verzoegert():
+    """Was wegfällt, wird gesagt — aber erst, wenn es wirklich weg ist.
+
+    Ein kurzes Aussetzen darf kein [erledigt] erzeugen.
+    """
     _leeren()
     sb._befunde = lambda: [("platte-knapp", "nur noch 2.0 GiB Plattenplatz frei")]
-    sb.bluehen(_t(0))
+    for i in range(sb.MELDE_LAEUFE):
+        sb.bluehen(_t(i * 60))
+    assert len(_meldungen()) == 1, "der Befund wurde nicht gemeldet"
     sb._befunde = lambda: []
-    sb.bluehen(_t(60))
+    for i in range(sb.ENTWARN_LAEUFE - 1):
+        sb.bluehen(_t((sb.MELDE_LAEUFE + i + 1) * 60))
+    assert len(_meldungen()) == 1, "zu frueh entwarnt - ein Aussetzen genuegte"
+    sb.bluehen(_t((sb.MELDE_LAEUFE + sb.ENTWARN_LAEUFE + 1) * 60))
     m = _meldungen()
     assert len(m) == 2 and "erledigt" in m[1], f"keine Entwarnung: {m}"
+
+
+def _sperrfrist_nach_entwarnung():
+    """**Nach einer Entwarnung schweigt dieselbe Kennung eine Weile.**
+
+    Das ist zugleich der Fix fuer den Fehler, der das Gedaechtnis leerte: Der
+    Stand wurde nur aus den AKTUELLEN Gruenden gebaut, eine entwarnte Kennung
+    fiel heraus und war beim naechsten Auftreten unbekannt.
+    """
+    _leeren()
+    G = [("wieder", "🔴 kommt zurueck")]
+    sb._befunde = lambda: G
+    for i in range(sb.MELDE_LAEUFE):
+        sb.bluehen(_t(i * 60))
+    sb._befunde = lambda: []
+    for i in range(sb.ENTWARN_LAEUFE + 1):
+        sb.bluehen(_t((sb.MELDE_LAEUFE + i + 1) * 60))
+    vorher = len(_meldungen())
+    # Kommt sofort wieder: die Sperrfrist haelt.
+    sb._befunde = lambda: G
+    basis = (sb.MELDE_LAEUFE + sb.ENTWARN_LAEUFE + 2) * 60
+    for i in range(sb.MELDE_LAEUFE + 2):
+        sb.bluehen(_t(basis + i * 60))
+    assert len(_meldungen()) == vorher, \
+        "die Sperrfrist haelt nicht - ein flatternder Befund meldet sofort wieder"
+    # Nach der Sperrfrist meldet er wieder.
+    for i in range(sb.MELDE_LAEUFE):
+        sb.bluehen(_t(basis + sb.ERNEUT_SPERRE_S + 120 + i * 60))
+    assert len(_meldungen()) == vorher + 1, \
+        "nach der Sperrfrist meldet der Befund nicht wieder"
+
+
+def _rot_erinnert_nach_zwoelf_stunden():
+    """**Adams Entscheidung 2 (Engywucks Empfehlung A).**
+
+    Rot heisst *Warten auf Adams Daumen*. Ein rotes Ereignis um 05:00 Uhr, das
+    bis zum naechsten Morgen schweigt, ist der stille Bruch. Bei Gelb und
+    Beobachtung gilt das ausdruecklich nicht.
+    """
+    def _wie_oft(text: str, marke: str) -> int:
+        # **Auf den BEFUNDTEXT zaehlen, nicht auf Nachrichten.** Der Sprung
+        # ueber zwoelf Stunden erzeugt selbst eine Kettenluecke, und die wird
+        # seit heute sofort gemeldet — beim ersten Anlauf hat dieser Test
+        # deshalb die Luecke fuer die Erinnerung gehalten.
+        return sum(1 for m in _meldungen() if marke in m)
+
+    _leeren()
+    sb._befunde = lambda: [("rot-dauer", "🔴 etwas ist ernsthaft kaputt")]
+    for i in range(sb.MELDE_LAEUFE):
+        sb.bluehen(_t(i * 60))
+    assert _wie_oft("", "ernsthaft kaputt") == 1, "der rote Befund kam nicht"
+    sb.bluehen(_t(sb.MELDE_LAEUFE * 60 + sb.ERINNERUNG_S + 60))
+    assert _wie_oft("", "ernsthaft kaputt") == 2, \
+        "ein roter Dauerbefund erinnert nicht nach zwoelf Stunden"
+
+    # **Gegenrichtung: Gelb erinnert NICHT.** Sonst waere die Sonderregel
+    # keine Sonderregel, sondern die alte Wiedervorlage unter neuem Namen.
+    _leeren()
+    sb._befunde = lambda: [("gelb-dauer", "🟡 nur ein Hinweis")]
+    for i in range(sb.MELDE_LAEUFE):
+        sb.bluehen(_t(i * 60))
+    sb.bluehen(_t(sb.MELDE_LAEUFE * 60 + sb.ERINNERUNG_S + 60))
+    assert _wie_oft("", "nur ein Hinweis") == 1, \
+        "ein gelber Befund erinnert - das war nicht gewollt"
 
 
 def _kein_modellaufruf_im_modul():
@@ -489,7 +607,7 @@ def _zwei_kennungen_kommen_beide_durch():
     sb._befunde = lambda: [
         ("speicher-eng", "🔴 Nur noch 200 MiB verfügbar"),
         ("platte-knapp", "nur noch 2.0 GiB Plattenplatz frei")]
-    sb.bluehen(_t(0))
+    _bis_gemeldet()
     m = _meldungen()
     assert len(m) == 1, "die Befunde kamen nicht in EINER Meldung"
     assert "200 MiB" in m[0] and "2.0 GiB" in m[0], \
@@ -521,9 +639,13 @@ check("Lagebericht führt nur Zustand (G3)", _lagebericht_nur_zustand)
 check("EINE Wortliste für Bot und Blume (G1)", _eine_wortliste_fuer_beide)
 check("die Marke schlägt das Journal (G1)", _marke_schlaegt_journal)
 check("kein Geheimniswert in der Marke (G1)", _kein_geheimniswert_in_der_marke)
-check("Dämpfer: kein minütliches Wiederholen (G4)",
-      _daempfer_wiederholt_nicht_minuetlich)
-check("Dämpfer entwarnt, wenn ein Befund wegfällt (G4)", _daempfer_entwarnt)
+check("Daempfer meldet nur bei Aenderung (Auftrag 3)",
+      _daempfer_meldet_nur_bei_aenderung)
+check("Flattern wird entprellt (der Fall vom 16.08.)", _flattern_wird_entprellt)
+check("Entwarnung erst nach mehreren Laeufen", _daempfer_entwarnt_verzoegert)
+check("Sperrfrist nach Entwarnung", _sperrfrist_nach_entwarnung)
+check("Rot erinnert nach zwoelf Stunden, Gelb nicht",
+      _rot_erinnert_nach_zwoelf_stunden)
 check("kein Modell- und kein Netzaufruf im Modul", _kein_modellaufruf_im_modul)
 check("fortlaufende Zahl meldet nur EINMAL (Sturm 28.07.)",
       _fortlaufende_zahl_meldet_nur_einmal)
@@ -541,9 +663,12 @@ def _entwarnung_nennt_den_text_nicht_die_kennung():
     """
     _leeren()
     sb._befunde = lambda: [("kette-luecke", "Die Kette hatte eine Lücke von 179 Minuten")]
-    sb.bluehen(_t(0))
+    naechste = _bis_gemeldet()
     sb._befunde = lambda: []
-    sb.bluehen(_t(60))
+    # **Entwarnung erst nach ENTWARN_LAEUFE Laeufen** (Auftrag 4): Ein kurzes
+    # Aussetzen darf kein [erledigt] erzeugen.
+    for i in range(sb.ENTWARN_LAEUFE):
+        sb.bluehen(_t(naechste + i * 60))
     m = _meldungen()
     entwarnung = [x for x in m if "erledigt" in x]
     assert entwarnung, "es wurde nicht entwarnt"
@@ -733,7 +858,8 @@ def _technische_befunde_erreichen_adam_nicht():
     sb._befunde = lambda: [(sb.NUR_PROTOKOLL + "technisch", "nur fuers Protokoll"),
                            ("echt-sichtbar", "das soll Adam sehen")]
     try:
-        eintrag = sb.bluehen(_t())
+        _bis_gemeldet()
+        eintrag = sb.bluehen(_t(sb.MELDE_LAEUFE * 60))
         gesendet = " ".join(_meldungen())
         assert "das soll Adam sehen" in gesendet, "der sichtbare Befund kam nicht an"
         assert "nur fuers Protokoll" not in gesendet, \
@@ -746,7 +872,8 @@ def _technische_befunde_erreichen_adam_nicht():
         # Und jetzt faellt er weg: Es darf KEINE Entwarnung geben.
         _leeren()
         sb._befunde = lambda: [("echt-sichtbar", "das soll Adam sehen")]
-        sb.bluehen(_t(120))
+        for i in range(sb.ENTWARN_LAEUFE + 1):
+            sb.bluehen(_t(120 + i * 60))
         nachher = " ".join(_meldungen())
         assert "erledigt" not in nachher or "Protokoll" not in nachher, \
             f"ein p:-Befund wurde entwarnt, ohne je gemeldet worden zu sein: {nachher}"

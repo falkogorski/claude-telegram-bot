@@ -187,7 +187,18 @@ Vertrauen.
 
 ## 📋 AKTUELLE BETRIEBSLAGE
 
-**Stichtag:** 25.08.2026, 05:40 · **Lage:** RUHE
+**Stichtag:** 28.08.2026, 17:50 · **Lage:** NORMALBETRIEB
+**Gilt bis:** auf Weiteres · **Ausgetragen:** —
+
+Adam ist zurueck; die Bedingung des Ruhemodus ist eingetreten und er wird
+**ausdruecklich ausgetragen**, nicht stillschweigend ablaufen gelassen. Die
+unten benannten eingefrorenen Fixes sind damit **wieder Arbeitsvorrat**, nicht
+mehr hingenommene Blindstellen — allen voran die acht Rang-A-Pruefzeilen.
+
+---
+
+**Ausgetragener Eintrag — Stichtag:** 25.08.2026, 05:40 · **Lage:** RUHE
+**Ausgetragen:** 28.08.2026, 17:50 (Adams Rueckkehr)
 **Gilt bis:** Adams Rueckkehr (~28.08.) — **an der Bedingung, nicht am Datum**;
 ausdruecklich auszutragen, nicht stillschweigend ablaufen zu lassen.
 

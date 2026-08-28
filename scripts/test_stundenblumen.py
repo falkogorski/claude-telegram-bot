@@ -884,6 +884,65 @@ def _technische_befunde_erreichen_adam_nicht():
 check("technische Befunde erreichen Adam nicht (p:)",
       _technische_befunde_erreichen_adam_nicht)
 
+
+def _lage_zeigt_was_ansteht():
+    """**Auftrag 5: der Bestand einmal taeglich.**
+
+    Seit der Umstellung meldet ein Befund genau einmal. Ohne diese Ausgabe
+    wuesste Adam am naechsten Tag nicht mehr, was offen ist — **die Meldung
+    ist vergangen, der Zustand nicht.**
+
+    Gemessen wird ueber die Ausgabe, nicht ueber den Quelltext.
+    """
+    import io
+    import contextlib
+    _leeren()
+    sb._befunde = lambda: [("bot-weg", "🔴 Bot-Prozess nicht vorhanden")]
+    for i in range(sb.MELDE_LAEUFE):
+        sb.bluehen(_t(i * 60))
+
+    puffer = io.StringIO()
+    with contextlib.redirect_stdout(puffer):
+        sb._lage_ausgeben()
+    aus = puffer.getvalue()
+    assert "Bot-Prozess nicht vorhanden" in aus, \
+        f"ein anstehender Befund fehlt in der Lage: {aus!r}"
+    assert "steht an seit" in aus, "der Zeitpunkt des Auftretens fehlt"
+
+    # **Still an ruhigen Tagen** (Adams Entscheidung 1): Faellt der Befund weg
+    # und ist entwarnt, steht nichts mehr an — und dann sagt die Lage nichts.
+    sb._befunde = lambda: []
+    for i in range(sb.ENTWARN_LAEUFE + 1):
+        sb.bluehen(_t((sb.MELDE_LAEUFE + i + 1) * 60))
+    puffer = io.StringIO()
+    with contextlib.redirect_stdout(puffer):
+        sb._lage_ausgeben()
+    assert puffer.getvalue().strip() == "", \
+        f"die Lage redet, obwohl nichts ansteht: {puffer.getvalue()!r}"
+
+
+def _lage_liest_dieselbe_datei_wie_der_daempfer():
+    """**Kein zweiter Zustand, keine zweite Wahrheit.**
+
+    Liefe die Lage aus einer eigenen Ablage, koennte sie etwas anderes sagen
+    als gemeldet wurde — und niemand merkte es.
+    """
+    import ast
+    quelle = Path(sb.__file__).read_text(encoding="utf-8")
+    baum = ast.parse(quelle)
+    for k in ast.walk(baum):
+        if isinstance(k, ast.FunctionDef) and k.name == "_lage_ausgeben":
+            namen = {n.id for n in ast.walk(k) if isinstance(n, ast.Name)}
+            assert "_GEDAECHTNIS" in namen, \
+                "die Lage liest nicht die Datei des Daempfers"
+            return
+    raise AssertionError("_lage_ausgeben nicht gefunden")
+
+
+check("die Lage zeigt, was ansteht - und schweigt sonst", _lage_zeigt_was_ansteht)
+check("die Lage liest dieselbe Datei wie der Daempfer",
+      _lage_liest_dieselbe_datei_wie_der_daempfer)
+
 if fails:
     print(f"\n❌ {len(fails)} Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)

@@ -546,6 +546,21 @@ else
   add "✅ Zustellung: keine Stoerung vermerkt"
 fi
 
+# --- 9i. STUNDENBLUME: was steht derzeit an? -------------------------------
+# Seit dem 28.08. meldet ein Befund genau einmal und schweigt danach (Auftrag 3).
+# Ohne diese Zeilen wuesste Adam am naechsten Tag nicht mehr, was offen ist -
+# die Meldung ist vergangen, der Zustand nicht.
+# Still an ruhigen Tagen: steht nichts an, gibt --lage nichts aus.
+if [ -f "$(dirname "$0")/stundenblume.py" ]; then
+  lage=$("${BOTENV[@]}" "$VENVPY" "$(dirname "$0")/stundenblume.py" --lage 2>/dev/null)
+  if [ -n "$lage" ]; then
+    while IFS= read -r zeile; do
+      add "$zeile"
+      problems+=("$zeile")
+    done <<< "$lage"
+  fi
+fi
+
 # --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
 # Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete
 # hoeflich "Keine Treffer" - vier Stunden lang, in Adams Richtung. Ein Ausfall,

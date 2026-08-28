@@ -979,6 +979,41 @@ def lagebericht_schreiben(eintrag: dict) -> None:
         pass
 
 
+def _lage_ausgeben() -> int:
+    """Was derzeit ansteht — je Befund eine Zeile, mit dem ersten Auftreten.
+
+    **Auftrag 5 vom 28.08.** Seit der Umstellung meldet ein Befund genau
+    einmal und schweigt danach. Ohne diese Ausgabe wuesste Adam am naechsten
+    Tag nicht mehr, **was noch offen ist** — die Meldung ist vergangen, der
+    Zustand nicht.
+
+    **Damit hat jede Klasse einen Weg:** Ein Befund, der auftritt oder
+    wegfaellt, geht sofort und einmal nach Telegram. Einer, der unveraendert
+    ansteht, erscheint hier — einmal taeglich. Und `p:`-Befunde bleiben in
+    Kette und Protokoll.
+
+    **Gelesen wird DIESELBE Datei, die der Daempfer schreibt.** Kein zweiter
+    Zustand, keine zweite Wahrheit — sonst koennte die Lage etwas anderes
+    sagen als gemeldet wurde.
+    """
+    try:
+        bekannt = json.loads(_GEDAECHTNIS.read_text(encoding="utf-8"))
+    except Exception:
+        bekannt = {}
+    offen = [(k, e) for k, e in (bekannt or {}).items()
+             if isinstance(e, dict) and e.get("gemeldet_seit")]
+    if not offen:
+        # **Still an ruhigen Tagen** (Adams Entscheidung 1, Empfehlung A):
+        # [nichts zu tun] ist genau das Rauschen, das weg soll. Der Nachweis
+        # bleibt in Kette und Protokoll lesbar.
+        return 0
+    for kennung, e in sorted(offen, key=lambda x: float(x[1]["gemeldet_seit"])):
+        seit = time.strftime("%d.%m. %H:%M",
+                             time.localtime(float(e["gemeldet_seit"])))
+        print(f"↳ steht an seit {seit}: {e.get('text') or kennung}")
+    return 0
+
+
 def melden(text: str) -> None:
     """Meldet über die gemeinsame Botenpost — mit Absender.
 
@@ -993,11 +1028,15 @@ def melden(text: str) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Stundenblumen — Belegkette")
     ap.add_argument("--pruefen", action="store_true", help="Kette bewerten")
+    ap.add_argument("--lage", action="store_true",
+                    help="was derzeit ansteht, je Befund eine Zeile")
     ap.add_argument("--rollen", action="store_true",
                     help="Kette beiseitelegen, wenn sie zu lang ist")
     ap.add_argument("--ruhe", type=int, metavar="MINUTEN",
                     help="Ruhefenster setzen (kein Alarm)")
     a = ap.parse_args()
+    if a.lage:
+        return _lage_ausgeben()
     if a.ruhe:
         ruhe_setzen(a.ruhe)
         print(f"Ruhe für {a.ruhe} Minuten gesetzt.")

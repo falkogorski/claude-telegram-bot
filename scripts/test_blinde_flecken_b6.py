@@ -301,6 +301,57 @@ check("Kostenzahl nie ohne das Wort Nennwert (Conni 28.07.)",
 check("das Verfahren ist abgelegt und trägt den Gültigkeits-Kopf",
       _das_verfahren_ist_abgelegt)
 
+
+
+def _die_rueckstellung_liest_kein_pflichtfeld():
+    """**Die Rueckstellung darf nicht an einem fehlenden Feld scheitern.**
+
+    Gemessen am 28.08.: **23 Auftraege** lagen im Endlager mit dem Vermerk
+    *[Zurueckstellen fehlgeschlagen nach: gedrosselt]* — vom 24.07. bis
+    heute 19:45. Darunter Stundenblumen-Warnungen, die Adam nie erreicht haben.
+
+    **Die Ursache war ein Zugriff mit eckigen Klammern:** Die Protokollzeile
+    las `daten["versuche"]`, aber bei `zaehlt=False` — dem Drosselungsfall —
+    wird dieses Feld **nie gesetzt**. Ein frisch abgelegter Auftrag hat es
+    nicht, es folgte ein `KeyError`, und der fiel in den Ausnahmezweig, der ins
+    Endlager schiebt.
+
+    **Die Rueckstellung, die Auftraege retten sollte, hat sie weggeworfen —
+    genau in dem Fall, fuer den sie gebaut wurde.**
+
+    Gemessen ueber den Syntaxbaum (echte `Subscript`-Knoten), nicht ueber
+    Textsuche: Ein Zugriff mit eckigen Klammern auf ein Feld, das nur in einem
+    Zweig gesetzt wird, ist die Form des Fehlers — nicht seine Schreibweise.
+
+    **Ehrliche Grenze:** Das misst die Struktur, nicht das Verhalten.
+    `_zurueckstellen` ist eine innere Funktion des Postfach-Laeufers und ohne
+    Ablage-Attrappe nicht einzeln ausfuehrbar. Ein Verhaltenstest waere besser
+    und ist als F-Punkt vermerkt.
+    """
+    import ast
+    quelle = (ROOT / "bot.py").read_text(encoding="utf-8")
+    baum = ast.parse(quelle)
+    for knoten in ast.walk(baum):
+        if not (isinstance(knoten, ast.FunctionDef)
+                and knoten.name == "_zurueckstellen"):
+            continue
+        for k in ast.walk(knoten):
+            if (isinstance(k, ast.Subscript)
+                    and isinstance(k.value, ast.Name) and k.value.id == "daten"
+                    and isinstance(k.slice, ast.Constant)
+                    and k.slice.value in ("versuche", "drossel_runden")
+                    and isinstance(k.ctx, ast.Load)):
+                raise AssertionError(
+                    f"_zurueckstellen liest daten[{k.slice.value!r}] mit eckigen "
+                    "Klammern - das Feld wird nur in EINEM Zweig gesetzt, und "
+                    "der KeyError schiebt den Auftrag ins Endlager")
+        return
+    raise AssertionError("_zurueckstellen nicht gefunden - misst dieser Pruefer noch?")
+
+
+check("die Rueckstellung liest kein Pflichtfeld",
+      _die_rueckstellung_liest_kein_pflichtfeld)
+
 print()
 if fails:
     print(f"❌ {len(fails)} B6-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")

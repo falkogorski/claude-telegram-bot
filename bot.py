@@ -6489,8 +6489,19 @@ async def _postfach_send_one(app: Application, claimed: Path,
                            encoding="utf-8")
             tmp.rename(outbox / orig)
             claimed.unlink(missing_ok=True)
-            log.info("Postfach: %s zurückgestellt (Versuch %d, %.0f s) — %s",
-                     orig, daten["versuche"], wartezeit, grund[:120])
+            # **`get`, nicht `[]`** — und das ist kein Schoenheitsfehler.
+            # Bei `zaehlt=False` (der Drosselungsfall) wird `versuche` NIE
+            # gesetzt; ein frisch abgelegter Auftrag hat das Feld nicht. Der
+            # `KeyError` fiel in den Ausnahmezweig darunter, und der schiebt
+            # ins **Endlager**. Belegt am 27.08. um 20:46: drei Auftraege mit
+            # dem Vermerk [Zurueckstellen fehlgeschlagen nach: gedrosselt].
+            #
+            # **Die Rueckstellung, die Auftraege retten sollte, hat sie
+            # weggeworfen — genau in dem Fall, fuer den sie gebaut wurde.**
+            log.info("Postfach: %s zurückgestellt (Versuch %d, Drossel %d, "
+                     "%.0f s) — %s",
+                     orig, daten.get("versuche", 0),
+                     daten.get("drossel_runden", 0), wartezeit, grund[:120])
         except Exception:
             # Wenn selbst das Zurückstellen scheitert, ist das Endlager
             # immer noch besser als ein verlorener Auftrag.
@@ -6542,7 +6553,7 @@ async def _postfach_send_one(app: Application, claimed: Path,
         log.warning("Postfach gedrosselt (%s): %s", herkunft,
                     str(data.get("text", ""))[:200])
         _zurueckstellen(data,
-                        f"gedrosselt (mehr als {POSTFACH_GRENZE}/h von {herkunft})",
+                        f"gedrosselt (mehr als {_postfach_grenze_fuer(herkunft)}/h von {herkunft})",
                         _postfach_fenster_rest(herkunft), zaehlt=False)
         return
     sammel = _postfach_sammelmeldung(herkunft)
@@ -6623,6 +6634,47 @@ async def _postfach_send_one(app: Application, claimed: Path,
 # einer Sammelmeldung genannt. Ein Wächter, der Nachrichten verliert, wäre
 # schlimmer als einer, der zu viele schickt.
 POSTFACH_GRENZE = int(os.environ.get("POSTFACH_GRENZE") or 5)
+
+# **Wer MEHR darf — und die Richtung dieser Liste ist der entscheidende Teil.**
+#
+# Der Riegel am Ausgang ist richtig gebaut: Am 28.07. schickten zwei fehlerhafte
+# Waechter zusammen sechsundzwanzig Nachrichten, zwei je Minute, und nichts
+# konnte sie stoppen. **Er trifft aber zwei verschiedene Dinge mit demselben
+# Mass:** Eine Waechter-Meldung entsteht von selbst — kommen fuenf in einer
+# Stunde, stimmt etwas nicht. Eine **Lieferung, die Adam angefordert hat**,
+# entsteht auf seinen Wunsch; dass davon nur fuenf durchkommen, ist keine
+# Sicherung, sondern eine Behinderung.
+#
+# Belegt am 27.08.: Vier Ankuendigungen am Nachmittag verbrauchten die Plaetze,
+# die das angeforderte PDF gebraucht haette. Drei Sendungen warteten bis 18:35
+# in der Ausgangsablage, darunter zwei Fassungen eines Bauauftrags, den Adam
+# selbst freigegeben hatte. Sein Mass, woertlich: *[Wenn ich 20 pro Stunde
+# brauche oder 100, die sollte da durchkommen.]*
+#
+# **Eingetragen wird, wer MEHR darf, nie wer weniger darf.** Ein Waechter, der
+# morgen dazukommt, steht nicht in der Liste und bekommt damit von selbst die
+# strenge Vorgabe. Andersherum waere der neue Melder ungebremst, und **niemand
+# wuerde es bemerken, bis er flutet.**
+#
+# **Was das NICHT leistet:** Es schuetzt gegen Fehler, nicht gegen Absicht. Das
+# Feld `herkunft` waehlt frei, wer den Auftrag ablegt. Das war schon vorher so —
+# wer in die Ausgangsablage schreiben darf, hat ohnehin Zugriff. Und es faengt
+# keinen Fehllauf unter Claudias eigenem Namen: Hundert Sendungen je Stunde sind
+# immer noch hundert.
+POSTFACH_GRENZEN = {
+    "claudia": int(os.environ.get("POSTFACH_GRENZE_CLAUDIA") or 100),
+}
+
+
+def _postfach_grenze_fuer(herkunft: str) -> int:
+    """Die Grenze dieses Absenders — **kleingeschrieben nachgeschlagen.**
+
+    Die Auftraege tragen `[herkunft]: [Claudia]`, die Melder legen `blume` und
+    `hora` ab. Ein Nachschlagen auf den kleingeschriebenen Namen faengt beides;
+    sonst haette [Claudia] die strenge Vorgabe bekommen und der Fehler waere
+    genau so still geblieben wie vorher.
+    """
+    return POSTFACH_GRENZEN.get((herkunft or "").strip().lower(), POSTFACH_GRENZE)
 POSTFACH_FENSTER_S = int(os.environ.get("POSTFACH_FENSTER_S") or 3600)
 _postfach_zaehler: dict[str, list[float]] = {}
 _postfach_zurueckgehalten: dict[str, int] = {}
@@ -6638,7 +6690,7 @@ def _postfach_drosseln(herkunft: str, jetzt: float | None = None) -> bool:
     now = jetzt or time.time()
     fenster = _postfach_zaehler.setdefault(herkunft, [])
     fenster[:] = [t for t in fenster if now - t < POSTFACH_FENSTER_S]
-    if len(fenster) >= POSTFACH_GRENZE:
+    if len(fenster) >= _postfach_grenze_fuer(herkunft):
         _postfach_zurueckgehalten[herkunft] = \
             _postfach_zurueckgehalten.get(herkunft, 0) + 1
         return True
@@ -6691,7 +6743,7 @@ def _postfach_sammelmeldung(herkunft: str) -> str | None:
     if not n:
         return None
     return (f"🔇 {n} weitere Meldung(en) von {herkunft} wurden "
-            f"zurückgehalten — mehr als {POSTFACH_GRENZE} in einer Stunde. "
+            f"zurückgehalten — mehr als {_postfach_grenze_fuer(herkunft)} in einer Stunde. "
             "Sie sind nicht verloren; sie stehen im Protokoll des Servers. "
             "Wenn dieser Absender so viel zu sagen hat, stimmt bei ihm etwas "
             "nicht.")

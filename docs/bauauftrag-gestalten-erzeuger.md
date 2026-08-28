@@ -1,6 +1,6 @@
 <!-- ROLLE: bauauftrag-gestalten-erzeuger -->
 **Stichtag:** 2026-08-24 · **ueberholt durch:** — · **massgeblich ist die
-Status-Zeile in `MIGRATION.md`** · **Status: OFFEN, Bau am 25.08.**
+Status-Zeile in `MIGRATION.md`** · **Status: GEBAUT 25.08.2026** (`756f673`, Gegenpruefung `bf94ac9`) — Erzeuger steht, Auflagen 1-3 erfuellt, von Engywuck gegengeprueft.
 
 # BAUAUFTRAG — Der Gestalten-Erzeuger (Rang 0 des Mail-Umbaus)
 

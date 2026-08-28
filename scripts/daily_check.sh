@@ -546,6 +546,21 @@ else
   add "✅ Zustellung: keine Stoerung vermerkt"
 fi
 
+# --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
+# Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete
+# hoeflich "Keine Treffer" - vier Stunden lang, in Adams Richtung. Ein Ausfall,
+# der wie Ruhe aussieht, braucht eine Wache, die ihn sieht.
+# Modellfrei (AGB-Leitplanke fuer zeitgesteuerte Laeufe); gedaempft, damit
+# voruebergehende Drosselung keinen Dauer-Alarm erzeugt.
+if [ -f "$(dirname "$0")/websuche_check.py" ]; then
+  if wsz=$("${BOTENV[@]}" "$VENVPY" "$(dirname "$0")/websuche_check.py" 2>&1); then
+    add "$wsz"
+  else
+    add "$wsz"
+    problems+=("$wsz")
+  fi
+fi
+
 # --- 10. Vorraete: Speicher, Platte, Auslagerung ---------------------------
 # Werte-Charta 7a: "Was vorhersehbar knapp wird, wird beobachtet, BEVOR es
 # knapp ist." Der Unterschied zu den Stundenblumen ist die Absicht — die Blume

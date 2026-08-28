@@ -35,6 +35,7 @@ if [ -x ".venv/bin/python3" ]; then PY=".venv/bin/python3"; fi
 # nicht entstehen.)
 PRUEFHEIM="$(mktemp -d "${TMPDIR:-/tmp}/regress-XXXXXX")"
 export POSTFACH_DIR="$PRUEFHEIM/postfach"
+export WEBSUCHE_VERLAUF="$PRUEFHEIM/websuche-verlauf.json"
 export FREIGABE_DIR="$PRUEFHEIM/freigaben"
 export HORA_DIR="$PRUEFHEIM/hora"
 export BLUMEN_DIR="$PRUEFHEIM/blumen"
@@ -189,6 +190,7 @@ run "Pin-Bezug 5.13"                   "$PY" scripts/test_pin_bezug_5_13.py
 run "Eingangsschranken (1)(2)"        "$PY" scripts/test_eingangsschranken.py
 run "Mail-Angriffskorpus (Stufe B)"    "$PY" scripts/test_mailkorpus.py
 run "Websuche meldet ihren Ausfall"   "$PY" scripts/test_websuche_ausfall.py
+run "Websuche-Waechter (Daempfung)"   "$PY" scripts/test_websuche_check.py
 run "Hermetik der Pruefläufe (L)"       "$PY" scripts/test_hermetik.py
 run "Zielumgebung (bash -n + env -i)"  bash scripts/test_zielumgebung.sh
 run "Sendepfad-Rauchtest (Pflicht 1)"  "$PY" scripts/test_sendepfad_rauch.py

@@ -1025,3 +1025,25 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
   die falsche Auskunft weitergegeben, **weil sie hoeflich klang**. Deshalb
   steht der Unterschied jetzt ausdruecklich im Text — fuer einen Leser, der
   ein Modell ist.
+
+- **Der Differenzmesser hat den ersten fremden Fehler gefangen — meinen ·
+  Rang 2, Websuche · universell**
+  — Beim Bau des Websuche-Waechters legte ich eine Zustandsablage an
+  (`WEBSUCHE_VERLAUF`, ein Verlauf fuer die Zwei-Tage-Daempfung) und **vergass
+  den Riegel im Regressionslauf**. Der Prueflauf haette damit in den echten
+  Betriebszustand geschrieben — lautlos, wie es die Klasse verlangt.
+
+  **Gefangen hat es die `ablagen_differenz` vom 23.08.**, gebaut auf Engywucks
+  Auftrag, und zwar **beim ersten Lauf nach der Aenderung**: *[Zustandsablagen
+  ohne Riegel: WEBSUCHE_VERLAUF]*. Das ist der erste Fall, in dem eine dieser
+  Arten einen Fehler fing, den **nicht ihr Erbauer gerade suchte**.
+
+  **Zwei Beobachtungen, die ueber den Einzelfall hinausgehen:**
+  **①** Der Fehler faerbte **zwei** Pruefzeilen rot, nicht eine — der
+  Selbstcheck ruft den Differenzmesser selbst auf. Eine Ursache, zwei
+  Erscheinungen; wer nur die erste repariert, sucht die zweite vergeblich.
+  **②** Eine Art, die am Bautag nichts findet, ist **kein untaugliches
+  Werkzeug**. `module_differenz` fand am 23.08. nichts und wurde als
+  [schuetzt Modul Nummer neunzehn] eingetragen. Hier war es Ablage Nummer
+  soundso, fuenf Tage spaeter. **Der Ertrag eines Riegels faellt nie am Tag
+  seines Baus an.**

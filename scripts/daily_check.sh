@@ -321,13 +321,20 @@ except Exception as e:
     print(f"FEHLER Auftragsbuch nicht ladbar: {type(e).__name__}")
     raise SystemExit(0)
 heute = time.strftime("%Y-%m-%d")
-marke = f"sichtung:{heute}"
+# **Die Marke traegt kein Tagesdatum mehr** (Auftrag 2b vom 26.08., Adams
+# Weg C). Mit Datum entstand taeglich eine NEUE Marke, die Doppelungssperre
+# griff nie, und der Stapel wuchs um einen Eintrag je Tag - acht lagen da.
+# Ohne Datum ist der Eintrag ein echtes Faelligkeitszeichen: Liegt eine
+# Sichtung im Eingang, ist sie offen. Ist keine da, ist sie erledigt, und der
+# Tagescheck legt am naechsten Morgen eine neue an.
+marke = "sichtung"
 try:
     if any(a.get("marke") == marke for a in ab.eingang()):
         print("SCHON-DA")
         raise SystemExit(0)
     ab.legen({
-        "titel": f"Taegliche Sichtung der Ablagen ({heute})",
+        # Ohne Datum im Titel - wann sie angelegt wurde, steht in `eingang_am`.
+        "titel": "Sichtung der Ablagen",
         "art": "sichtung",
         "marke": marke,
         "beschreibung": (
@@ -344,7 +351,7 @@ PYEND
   case "$sicht" in
     TROCKEN) add "🧪 Sichtungs-Vermerk: im Trockenlauf uebersprungen" ;;
     GELEGT)   add "🔎 Sichtungs-Vermerk fuer die Kontrolle ins Auftragsbuch gelegt" ;;
-    SCHON-DA) add "✅ Sichtungs-Vermerk liegt bereits (einer je Tag)" ;;
+    SCHON-DA) add "✅ eine offene Sichtung liegt bereits" ;;
     *)        red "Sichtungs-Vermerk NICHT gelegt: $sicht" ;;
   esac
 fi

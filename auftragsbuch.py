@@ -280,6 +280,62 @@ def uebersicht() -> str:
 
 
 # --------------------------------------------------------------- Übergeben --
+def erledigen(marke_oder_titel: str, ergebnis: str,
+              wer: str = "unbekannt") -> tuple[bool, str]:
+    """Die fehlende Tuer: einen Auftrag als erledigt ablegen. `(ok, Meldung)`
+
+    **Der zweite Befund vom 26.08., und ohne ihn waere Adams Weg C nur halb:**
+    Das Auftragsbuch kannte **keinen Weg, einen gelben Auftrag zu erledigen.**
+    `uebernehmen` verschiebt ausschliesslich **gruene** Auftraege; fuer einen
+    gelben gab es keine Tuer nach draussen. Er lag, bis ihn jemand von Hand
+    wegraeumte — acht Stueck waren es.
+
+    **Die Tagesmarke sorgte dafuer, dass taeglich einer dazukam; die fehlende
+    Tuer dafuer, dass keiner je ging.** Ohne diese Funktion laege auch nach der
+    Marken-Aenderung derselbe eine Eintrag bis in alle Ewigkeit — nur eben
+    still.
+
+    **Mit der Tuer wird der Eintrag zum echten Faelligkeitszeichen:** Liegt
+    eine Sichtung im Eingang, ist sie offen. Ist keine da, ist sie erledigt,
+    und der Tagescheck legt am naechsten Morgen eine neue an. Das ist besser
+    als der Zustand vor allen Aenderungen — ein Stapel sagt weder etwas ueber
+    Faelligkeit noch ueber Erledigung.
+
+    **Gebaut wie `uebernehmen`: erst schreiben, dann wegraeumen.** Der Befund
+    der Gegenpruefung vom 18.08. gilt hier genauso — braeche das Schreiben ab,
+    laege der Auftrag im Abgelegten und der Vermerk waere nirgends.
+
+    **Findet sie nichts, sagt sie das.** Eine Funktion, die still tut, als sei
+    etwas geschehen, ist schlimmer als eine, die scheitert.
+    """
+    treffer = [a for a in eingang()
+               if a.get("marke") == marke_oder_titel
+               or a.get("titel") == marke_oder_titel]
+    if not treffer:
+        return (False, f"nichts im Eingang unter [{marke_oder_titel}] — "
+                       "nichts erledigt")
+
+    ABGELEGT.mkdir(parents=True, exist_ok=True)
+    geraeumt = 0
+    for a in treffer:
+        quelle = Path(a["_datei"])
+        satz = {k: v for k, v in a.items() if not k.startswith("_")}
+        satz["erledigt_am"] = _dt.datetime.now().isoformat(timespec="seconds")
+        satz["erledigt_von"] = wer
+        satz["ergebnis"] = ergebnis
+        ziel = ABGELEGT / quelle.name
+        # Erst der vollstaendige Vermerk am Zielort, dann die Quelle weg.
+        tmp = ziel.with_suffix(".tmp")
+        tmp.write_text(json.dumps(satz, ensure_ascii=False, indent=2),
+                       encoding="utf-8")
+        tmp.replace(ziel)
+        if quelle.exists():
+            quelle.unlink()
+        geraeumt += 1
+    return (True, f"{geraeumt} Auftrag/Auftraege unter [{marke_oder_titel}] "
+                  f"abgelegt: {ergebnis}")
+
+
 def uebernehmen(hora_liste: Path | None = None) -> tuple[int, str]:
     """Reicht **grüne** Aufträge an Horas Liste weiter. (Anzahl, Meldung)
 

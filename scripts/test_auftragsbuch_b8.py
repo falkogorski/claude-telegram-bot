@@ -181,6 +181,61 @@ check("die Übersicht ist eine Zeile je Auftrag", _uebersicht_ist_eine_zeile_je_
 check("scharf übergäbe nur Grün (Gegenprobe)", _scharf_uebergibt_nur_gruen)
 
 print()
+
+def _eingang_leeren() -> None:
+    """Wegwerf-Zustand vor jeder Pruefzeile — Eingang und Abgelegtes."""
+    for ordner in (ab.EINGANG, ab.ABGELEGT):
+        if ordner.exists():
+            for f in ordner.glob("*.json"):
+                f.unlink()
+
+
+def _gelbe_auftraege_haben_eine_tuer():
+    """**Der zweite Befund vom 26.08.: es gab keine.**
+
+    `uebernehmen` verschiebt ausschliesslich **gruene** Auftraege. Fuer einen
+    gelben gab es keinen Weg nach draussen — er lag, bis ihn jemand von Hand
+    wegraeumte. Acht Stueck waren es. **Die Tagesmarke sorgte dafuer, dass
+    taeglich einer dazukam; die fehlende Tuer dafuer, dass keiner je ging.**
+    """
+    _eingang_leeren()
+    ab.legen({"titel": "Sichtung der Ablagen", "art": "sichtung",
+              "marke": "sichtung", "beschreibung": "Durchgang"}, "claudia")
+    assert ab.eingang(), "Vorbedingung: der Auftrag liegt im Eingang"
+    ok, meldung = ab.erledigen("sichtung", "durchgesehen", "Mick")
+    assert ok, f"die Tuer hat nicht geoeffnet: {meldung}"
+    assert not ab.eingang(), "der Auftrag liegt noch im Eingang"
+
+
+def _erledigen_schreibt_einen_ergebnisvermerk():
+    """Wer, wann, was dabei herauskam — sonst ist [abgelegt] nur [verschwunden]."""
+    import json
+    _eingang_leeren()
+    ab.legen({"titel": "Sichtung der Ablagen", "art": "sichtung",
+              "marke": "sichtung", "beschreibung": "Durchgang"}, "claudia")
+    ab.erledigen("sichtung", "nichts Neues gefunden", "Mick")
+    dateien = list(ab.ABGELEGT.glob("*.json"))
+    assert dateien, "nichts im Abgelegten"
+    d = json.loads(dateien[0].read_text(encoding="utf-8"))
+    assert d.get("erledigt_von") == "Mick", "der Vermerk nennt nicht, wer"
+    assert d.get("ergebnis") == "nichts Neues gefunden", "das Ergebnis fehlt"
+    assert d.get("erledigt_am"), "der Zeitpunkt fehlt"
+
+
+def _erledigen_meldet_wenn_nichts_da_ist():
+    """**Eine Funktion, die still tut, als sei etwas geschehen, ist schlimmer
+    als eine, die scheitert.**"""
+    _eingang_leeren()
+    ok, meldung = ab.erledigen("gibt-es-nicht", "x")
+    assert not ok, "erledigen behauptet Erfolg, obwohl nichts da war"
+    assert "nichts" in meldung.lower(), f"die Meldung sagt es nicht: {meldung}"
+
+
+check("gelbe Auftraege haben eine Tuer", _gelbe_auftraege_haben_eine_tuer)
+check("erledigen schreibt einen Ergebnisvermerk",
+      _erledigen_schreibt_einen_ergebnisvermerk)
+check("erledigen meldet, wenn nichts da ist", _erledigen_meldet_wenn_nichts_da_ist)
+
 if fails:
     print(f"❌ {len(fails)} B8-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)

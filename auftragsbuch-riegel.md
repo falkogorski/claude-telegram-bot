@@ -4,9 +4,27 @@
 **Stichtag:** 2026-08-18 · **überholt durch:** — · **maßgeblich ist diese Datei**
 
 SCHARF: ja
-GILT-BIS: 2026-08-25
+GILT-BIS: 2026-09-09
 
 ## Was dieser Zettel bewirkt
+
+**[AUSWERTUNG der ersten Probewoche, 18.–25.08.2026 — nachgeholt am 28.08.]**
+
+**In der ganzen Woche ist kein einziger gruener Auftrag uebergeben worden.** Im
+Eingang lagen acht Eintraege — sieben taegliche Sichtungen und ein
+Wachposten-Befund —, jeder gelb, die Sichtungen alle mit derselben Begruendung:
+*[Art (sichtung) steht nicht auf der Gruen-Liste]*. Einen Ordner fuer Abgelegtes
+gab es nicht einmal, weil nie etwas abzulegen war.
+
+**Die Probewoche konnte ihre eigene Frage nicht beantworten.** Sie sollte
+zeigen, ob die Gruen-Automatik traegt — beobachtet werden konnte nichts, weil
+sie **nie ausgeloest hat**. Die offengehaltene Frage nach der Art `doku` ist
+damit gegenstandslos: Es gab keinen einzigen `doku`-Auftrag.
+
+**Deshalb zwei Wochen statt einer** (neu bis 09.09.): Eine Woche war zu kurz,
+um ueberhaupt etwas zu sehen. **Ohne diesen Vermerk laese sich die naechste
+Auswertung wie die erste** — als haette die Automatik versagt, statt nie
+angesprungen zu sein.
 
 Steht hier `SCHARF: ja` **und** ist `GILT-BIS` nicht überschritten, übergibt das
 Auftragsbuch grün eingestufte Aufträge an Hora. Sonst nicht — und zwar mit

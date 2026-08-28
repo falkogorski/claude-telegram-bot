@@ -238,23 +238,23 @@ def _speicher_wache_misst_das_richtige():
     sb._swap_seiten_je_minute = lambda: 5000.0
     sb._meminfo = lambda: {"MemTotal": 7940, "MemAvailable": 3000,
                            "SwapTotal": 4096, "SwapFree": 1000}
-    assert not [k for k, _ in sb.speicher_pruefen() if k == "swap-aktiv"], \
+    assert not [k for k, _ in sb.speicher_pruefen() if k.endswith("swap-aktiv")], \
         "Auslagerung bei reichlich Speicher wurde gemeldet - das ist Hausarbeit"
 
     # (b) Auslagerung UND Enge -> das Vorzeichen des Kippens, melden.
     sb._meminfo = lambda: {"MemTotal": 7940, "MemAvailable": 600,
                            "SwapTotal": 4096, "SwapFree": 1000}
-    assert [k for k, _ in sb.speicher_pruefen() if k == "swap-aktiv"], \
+    assert [k for k, _ in sb.speicher_pruefen() if k.endswith("swap-aktiv")], \
         "Auslagerung bei knappem Speicher wurde NICHT gemeldet"
 
     # (c) Erster Lauf / Zaehlerruecksprung / kein Linux -> None, also still.
     sb._swap_seiten_je_minute = lambda: None
-    assert not [k for k, _ in sb.speicher_pruefen() if k == "swap-aktiv"], \
+    assert not [k for k, _ in sb.speicher_pruefen() if k.endswith("swap-aktiv")], \
         "ohne Messwert wurde eine Auslagerung behauptet"
 
     # (d) Aktivitaet knapp unter der Schwelle -> still.
     sb._swap_seiten_je_minute = lambda: float(sb.SWAP_SEITEN_SCHWELLE)
-    assert not [k for k, _ in sb.speicher_pruefen() if k == "swap-aktiv"], \
+    assert not [k for k, _ in sb.speicher_pruefen() if k.endswith("swap-aktiv")], \
         "die Schwelle wird nicht eingehalten"
     sb._swap_seiten_je_minute = echt_seiten
 
@@ -718,6 +718,44 @@ check("saubere Abo-Anmeldung schweigt (Gegenrichtung)",
       _gesunde_anmeldung_schweigt)
 check("fehlende Anmeldung faellt weiter auf",
       _fehlende_anmeldung_faellt_weiter_auf)
+
+
+def _technische_befunde_erreichen_adam_nicht():
+    """**Auftrag 2 vom 27.08.: `p:`-Kennungen werden geschrieben, nicht gesendet.**
+
+    Die gefaehrliche Bruchstelle ist nicht die Meldung, sondern die
+    **Entwarnung**: Filterte man nur `neu`, bekaeme Adam ein [erledigt], ohne
+    je die Warnung gesehen zu haben. Deshalb wird VOR dem Daempfer getrennt —
+    und deshalb prueft diese Zeile beide Richtungen.
+    """
+    _leeren()
+    echt = sb._befunde
+    sb._befunde = lambda: [(sb.NUR_PROTOKOLL + "technisch", "nur fuers Protokoll"),
+                           ("echt-sichtbar", "das soll Adam sehen")]
+    try:
+        eintrag = sb.bluehen(_t())
+        gesendet = " ".join(_meldungen())
+        assert "das soll Adam sehen" in gesendet, "der sichtbare Befund kam nicht an"
+        assert "nur fuers Protokoll" not in gesendet, \
+            "ein p:-Befund wurde an Adam gesendet"
+        # **Die Kette schreibt ihn trotzdem mit** - der Nachweis wird still,
+        # nicht geloescht.
+        assert any("Protokoll" in b for b in eintrag.get("befunde", [])), \
+            "der p:-Befund fehlt in der Kette - der Nachweis ging verloren"
+
+        # Und jetzt faellt er weg: Es darf KEINE Entwarnung geben.
+        _leeren()
+        sb._befunde = lambda: [("echt-sichtbar", "das soll Adam sehen")]
+        sb.bluehen(_t(120))
+        nachher = " ".join(_meldungen())
+        assert "erledigt" not in nachher or "Protokoll" not in nachher, \
+            f"ein p:-Befund wurde entwarnt, ohne je gemeldet worden zu sein: {nachher}"
+    finally:
+        sb._befunde = echt
+
+
+check("technische Befunde erreichen Adam nicht (p:)",
+      _technische_befunde_erreichen_adam_nicht)
 
 if fails:
     print(f"\n❌ {len(fails)} Prüfung(en) fehlgeschlagen: {', '.join(fails)}")

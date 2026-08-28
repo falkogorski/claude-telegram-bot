@@ -404,7 +404,7 @@ def speicher_pruefen() -> list[str]:
     if seiten is not None and seiten > SWAP_SEITEN_SCHWELLE \
             and verfuegbar < SPEICHER_HINWEIS_MIB:
         raus.append((
-            "swap-aktiv",
+            NUR_PROTOKOLL + "swap-aktiv",
             f"↔️ Der Kernel lagert gerade aus: rund {int(seiten)} Seiten je "
             f"Minute, bei nur {verfuegbar} MiB verfügbarem Arbeitsspeicher. "
             "Auslagerung bei reichlich Speicher wäre Hausarbeit — bei Enge "
@@ -671,6 +671,22 @@ def bluehen(jetzt: float | None = None) -> dict:
                                f"Die Kette hatte eine Lücke von "
                                f"{luecke / 60:.0f} Minuten — in dieser Zeit hat "
                                "niemand belegt, dass das System lebt."))
+        # **Der Filter greift VOR dem Daempfer, nicht danach** (Auftrag 2 vom
+        # 27.08.). Filterte man nur die Meldungen, kaeme die Warnung nicht an,
+        # die **Entwarnung aber schon** — Adam bekaeme ein [erledigt], ohne je
+        # die Warnung gesehen zu haben. Das ist derselbe Fehler wie am 28.07.,
+        # nur seitenverkehrt. Vor dem Daempfer getrennt, kann keine Entwarnung
+        # entstehen, die es nicht geben darf.
+        #
+        # **Die Kette schreibt weiter alles mit** — `p:`-Befunde stehen
+        # vollstaendig im Protokoll und in `kette.jsonl`. Nur der Weg zu Adam
+        # entfaellt. **Der Nachweis geht nicht verloren, er wird still.**
+        still = [(k, tx) for k, tx in gruende if k.startswith(NUR_PROTOKOLL)]
+        gruende = [(k, tx) for k, tx in gruende if not k.startswith(NUR_PROTOKOLL)]
+        # Ins Protokoll, nicht in den Chat. Die Blume hat keinen Logger —
+        # sie schreibt ihren Nachweis in die Kette; `eintrag` traegt die
+        # Befunde ohnehin vollstaendig, `p:`-Kennungen eingeschlossen.
+        # **Kein zweiter Ort, keine zweite Wahrheit.**
         neu, entwarnt = _daempfen(gruende, jetzt)
         # 🪷 Lotus für den neuen Befund, 🌺 Hibiskus für die Entwarnung
         # (Adams Festlegung, 28.07.): die beginnende gegen die vollendete Blüte.
@@ -686,6 +702,25 @@ def bluehen(jetzt: float | None = None) -> dict:
 
 # ------------------------------------------------------------------ Dämpfer --
 # Wie lange ein bereits gemeldeter Befund schweigt, bevor er sich wiederholt.
+# **Kennungen mit diesem Praefix werden geschrieben, aber nicht gesendet.**
+#
+# Nach der Meldungs-Einteilung vom 21.08. gibt es drei Klassen: was Adam
+# betrifft, was technisch ist und ohnehin bearbeitet wird, und was reiner
+# Nachweis ist. Die zweite Klasse gehoert ins Protokoll und an die
+# Kontrollsitzung — **nicht in Adams Chat.**
+#
+# **Warum ein Praefix und kein drittes Feld:** Die Befundlisten sind heute
+# uneinheitlich getippt (als `list[str]` deklariert, Tupel zurueckgegeben). Ein
+# drittes Feld zwaenge jede entpackende Stelle zur Aenderung und braeche
+# stillschweigend jede, die uebersehen wird.
+#
+# **Warum keine zentrale Ausschlussliste:** Eine Liste an anderer Stelle waechst
+# nicht mit. Wer kuenftig einen Befund anlegt, sieht sie nicht und meldet an
+# Adam, ohne es zu wollen. **Die Einstufung gehoert an den Befund selbst** —
+# das Praefix steht dort, wo der Befund entsteht, und laesst sich nicht
+# vergessen.
+NUR_PROTOKOLL = "p:"
+
 WIEDERVORLAGE_S = int(os.environ.get("BLUMEN_WIEDERVORLAGE") or 3600)
 _GEDAECHTNIS = ZUSTAND / "gemeldet.json"
 # Naht-Speicher fuer das Rollen: haelt den Abdruck des letzten Glieds der

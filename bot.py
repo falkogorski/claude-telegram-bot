@@ -2798,6 +2798,35 @@ def format_tool_call(tool_name: str, tool_input: dict[str, Any],
     eingeschleusten Fremdtext. **Gekuerzt wird deshalb die Beschreibung, nie
     der Befehl.**
     """
+    roh = ""
+    if not roh and tool_name == "Bash":
+        cmd = tool_input.get("command", "")
+        preview = cmd if len(cmd) < 800 else cmd[:800] + "…"
+        roh = f"Bash\n\n{preview}"
+    if not roh and tool_name in ("Read", "Edit", "Write"):
+        path = tool_input.get("file_path", "")
+        roh = f"{tool_name}: {path}"
+    # H4 (Engywuck 22.08.): Bei WebFetch stand hier der generische Zweig —
+    # „WebFetch / args: url, prompt". **Die Adresse selbst stand nirgends.**
+    #
+    # Das machte den Fix aus ③ nur formal: Eine vertraute Domain mit Anhang
+    # (`wikipedia.org/?x=<Geheimnis>`) fällt jetzt in den Dialog — aber der
+    # Dialog zeigte allein den Hostnamen. Aus „niemand wird gefragt" wurde
+    # damit „Adam wird gefragt, ohne etwas zu sehen", und das ist keine
+    # Verbesserung, sondern eine Verlagerung der Verantwortung auf jemanden,
+    # dem die Entscheidungsgrundlage fehlt.
+    #
+    # Adams Regel dazu ist eindeutig: **der Daumen soll sehen, was er drückt.**
+    if not roh and tool_name == "WebFetch":
+        url = str(tool_input.get("url") or "")
+        # Vollständig, aber begrenzt: Ein Anhang kann beliebig lang sein, und
+        # eine Nachricht, die im Bildschirm nicht endet, wird nicht gelesen.
+        gekuerzt = url if len(url) <= 300 else url[:300] + " […]"
+        roh = f"WebFetch\n{gekuerzt}" if url else "WebFetch\n(ohne Adresse)"
+    keys = ", ".join(list(tool_input.keys())[:5])
+    if not roh:
+        roh = f"{tool_name}\nargs: {keys}"
+
     kopf: list[str] = []
     # Bei Bash traegt der Werkzeug-Eingang selbst eine deutsche Taetigkeits-
     # angabe der aufrufenden Sitzung; bei den uebrigen Werkzeugen liefert der
@@ -2813,38 +2842,29 @@ def format_tool_call(tool_name: str, tool_input: dict[str, Any],
         # steht, ist fremd; wo sie schliessen, endet das Fremde.
         kopf.append(f"Angabe der Sitzung: \u201e{_entschaerfen(behauptet)}\u201c")
     stufe, ziel = einstufung(tool_name, tool_input)
-    kopf.append(f"[{stufe}]" + (f" · {_entschaerfen(ziel, 200)}" if ziel else ""))
+    # **Das Ziel wird kurz gehalten, weil die Rohform es ohnehin vollstaendig
+    # zeigt.** Beim ersten Bau stand hier die volle Laenge — bei einer langen
+    # Adresse ergab das eine 536 Zeichen lange Zeile, in der dieselbe Adresse
+    # zweimal stand. Gefangen hat es der Pruefer [sehr lange Adressen werden
+    # gekuerzt] aus den Eingangsschranken, und er hat recht: **Ein Dialog, der
+    # nicht mehr gelesen wird, ist schlimmer als der alte** — er erzeugt
+    # gedankenloses Zustimmen (Claudias Bruchstelle 3).
+    # **Das Ziel entfaellt, wenn die Rohform es ohnehin zeigt.** Beim ersten
+    # Bau stand die Adresse zweimal im Dialog und die Zeile wuchs auf 536
+    # Zeichen. Gefangen hat es der Pruefer [sehr lange Adressen werden
+    # gekuerzt]; er hat recht, denn **ein Dialog, der nicht mehr gelesen wird,
+    # ist schlimmer als der alte** — er erzeugt gedankenloses Zustimmen.
+    #
+    # Gemessen statt aufgezaehlt: Es gibt keine Liste von Werkzeugen, deren
+    # Rohform das Ziel traegt — es wird schlicht nachgesehen. Kommt morgen ein
+    # Werkzeug hinzu, stimmt die Entscheidung ohne Pflege.
+    zeigt_die_rohform_das_ziel = bool(ziel) and ziel[:80] in roh
+    kopf.append(f"[{stufe}]" + (f" · {_entschaerfen(ziel, 80)}"
+                                if ziel and not zeigt_die_rohform_das_ziel else ""))
     for zeile in kontext_angaben(context):
         kopf.append(f"Maschine — {zeile}")
     vorspann = "\n".join(kopf) + "\n\n" if kopf else ""
-
-    if tool_name == "Bash":
-        cmd = tool_input.get("command", "")
-        preview = cmd if len(cmd) < 800 else cmd[:800] + "…"
-        return f"{vorspann}Bash\n\n{preview}"
-    if tool_name in ("Read", "Edit", "Write"):
-        path = tool_input.get("file_path", "")
-        return f"{vorspann}{tool_name}: {path}"
-    # H4 (Engywuck 22.08.): Bei WebFetch stand hier der generische Zweig —
-    # „WebFetch / args: url, prompt". **Die Adresse selbst stand nirgends.**
-    #
-    # Das machte den Fix aus ③ nur formal: Eine vertraute Domain mit Anhang
-    # (`wikipedia.org/?x=<Geheimnis>`) fällt jetzt in den Dialog — aber der
-    # Dialog zeigte allein den Hostnamen. Aus „niemand wird gefragt" wurde
-    # damit „Adam wird gefragt, ohne etwas zu sehen", und das ist keine
-    # Verbesserung, sondern eine Verlagerung der Verantwortung auf jemanden,
-    # dem die Entscheidungsgrundlage fehlt.
-    #
-    # Adams Regel dazu ist eindeutig: **der Daumen soll sehen, was er drückt.**
-    if tool_name == "WebFetch":
-        url = str(tool_input.get("url") or "")
-        # Vollständig, aber begrenzt: Ein Anhang kann beliebig lang sein, und
-        # eine Nachricht, die im Bildschirm nicht endet, wird nicht gelesen.
-        gekuerzt = url if len(url) <= 300 else url[:300] + " […]"
-        return (f"{vorspann}WebFetch\n{gekuerzt}" if url
-                else f"{vorspann}WebFetch\n(ohne Adresse)")
-    keys = ", ".join(list(tool_input.keys())[:5])
-    return f"{vorspann}{tool_name}\nargs: {keys}"
+    return (("\n".join(kopf) + "\n\n" + roh) if kopf else roh)
 
 
 # ---------- permission callback ----------

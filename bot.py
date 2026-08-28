@@ -6446,6 +6446,41 @@ def _ist_voruebergehend(fehler: str) -> bool:
     return any(m in t for m in _VORUEBERGEHEND)
 
 
+def postfach_darf_senden(daten: dict) -> tuple[bool, str]:
+    """Darf dieser Auftrag hinaus? `(ok, Grund)` — **die Ausfuhr-Schranke.**
+
+    **Herausgezogen am 28.08. (Rang A, Stelle 1 des Entkernungs-Befunds).**
+    Vorher stand die Entscheidung mitten im Sendepfad, und der Selbstcheck
+    pruefte sie mit `getsource` auf das **Vorkommen der Namen**
+    `_is_sensitive_ref` und `_postfach_target_ok`. Wer die Schranke zur blossen
+    Warnung machte — `log.warning(...)` statt `return` —, liess den Namen
+    stehen: **Der Pruefer blieb gruen, und eine `.env` waere hinausgegangen.**
+
+    Das ist die Ausfuhr-Richtung des Grundsatzes vom 21.08.: *Sensible Daten
+    verlassen das System nicht ueber Telegram.* Sie hing an einer Zeichenkette.
+
+    **Jetzt ist sie eine Funktion, die ein Pruefer AUFRUFEN kann** — und der
+    Selbstcheck tut genau das, mit einem echten Geheimnis-Pfad und einem
+    fremden Ziel.
+    """
+    ziel = daten.get("target_chat_id")
+    try:
+        ziel = int(ziel)
+    except (TypeError, ValueError):
+        return (False, f"kein gueltiges Ziel: {ziel!r}")
+    if not _postfach_target_ok(ziel):
+        return (False, f"Ziel {ziel} steht nicht auf der Allowlist")
+
+    filep = daten.get("file")
+    if filep and _is_sensitive_ref(str(filep)):
+        return (False, f"Datei ist ein Geheimnis-Pfad — Versand verweigert: {filep}")
+    if filep and not Path(filep).is_file():
+        return (False, f"Datei nicht gefunden: {filep}")
+    if not filep and not daten.get("text"):
+        return (False, "Auftrag ohne text UND ohne file.")
+    return (True, "")
+
+
 async def _postfach_send_one(app: Application, claimed: Path,
                              sent_dir: Path, failed_dir: Path) -> None:
     orig = claimed.name[:-len(".processing")] if claimed.name.endswith(".processing") else claimed.name
@@ -6563,15 +6598,12 @@ async def _postfach_send_one(app: Application, claimed: Path,
     filep = data.get("file")
     caption = data.get("caption")
 
-    # Geheimnis-Schutz: keine sensiblen Dateien über das Postfach versenden.
-    if filep and _is_sensitive_ref(str(filep)):
-        _move(failed_dir, f"Datei ist ein Geheimnis-Pfad — Versand verweigert: {filep}")
-        return
-    if filep and not Path(filep).is_file():
-        _move(failed_dir, f"Datei nicht gefunden: {filep}")
-        return
-    if not filep and not text:
-        _move(failed_dir, "Auftrag ohne text UND ohne file.")
+    # **Eine Stelle entscheidet, hier wird nur ausgefuehrt.** Die Schranke
+    # steht in `postfach_darf_senden` — damit ein Pruefer sie AUFRUFEN kann,
+    # statt ihren Quelltext zu lesen.
+    darf, grund = postfach_darf_senden(data)
+    if not darf:
+        _move(failed_dir, grund)
         return
 
     try:
@@ -7647,14 +7679,37 @@ def run_self_check() -> tuple[bool, list[str]]:
     # 18. Boten-Postfach (B): Ziel-Allowlist greift + Geheimnis-Dateien werden
     # nicht versendet (Verdrahtung im Sende-Pfad).
     def _c_postfach() -> None:
-        import inspect as _insp
+        """**Rang A, Stelle 1 — ausgefuehrt statt gelesen.**
+
+        Hier stand `getsource` plus Namenssuche: Wer die Schranke zur blossen
+        Warnung machte, liess den Namen stehen — **der Pruefer blieb gruen, und
+        eine `.env` waere hinausgegangen.** Die Ausfuhr-Richtung des
+        Grundsatzes vom 21.08. hing an einer Zeichenkette.
+
+        Jetzt wird `postfach_darf_senden` **aufgerufen**, mit einem echten
+        Geheimnis-Pfad und einem fremden Ziel.
+        """
         assert ALLOWED_USER_IDS, "ALLOWED_USER_IDS leer"
         any_uid = next(iter(ALLOWED_USER_IDS))
         assert _postfach_target_ok(any_uid), "Adam nicht in Postfach-Allowlist"
         assert not _postfach_target_ok(999999999), "Postfach-Allowlist zu offen"
-        s = _insp.getsource(_postfach_send_one)
-        assert "_is_sensitive_ref" in s, "Postfach sendet Geheimnis-Dateien ungeprüft"
-        assert "_postfach_target_ok" in s, "Postfach prüft Ziel nicht"
+
+        # Ein Geheimnis geht NICHT hinaus - auch nicht an ein erlaubtes Ziel.
+        darf, grund = postfach_darf_senden(
+            {"target_chat_id": any_uid, "file": "/etc/claude-telegram-bot.env"})
+        assert not darf, "das Postfach wuerde eine Geheimnis-Datei versenden"
+        assert "Geheimnis" in grund, f"falscher Grund: {grund}"
+
+        # Und der zweite Weg: ein fremdes Ziel bleibt zu.
+        darf2, grund2 = postfach_darf_senden(
+            {"target_chat_id": 999999999, "text": "hallo"})
+        assert not darf2, "das Postfach wuerde an ein fremdes Ziel senden"
+
+        # **Gegenrichtung** - eine harmlose Nachricht muss durchkommen, sonst
+        # ist die Schranke nicht scharf, sondern kaputt.
+        darf3, _ = postfach_darf_senden(
+            {"target_chat_id": any_uid, "text": "eine gewoehnliche Meldung"})
+        assert darf3, "eine harmlose Nachricht wird nicht durchgelassen"
     check("Boten-Postfach (B)", _c_postfach)
 
     def _c_waechter_werden_gestartet() -> None:

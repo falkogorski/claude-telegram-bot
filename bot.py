@@ -7189,7 +7189,7 @@ def run_self_check() -> tuple[bool, list[str]]:
         # Markdown-Links: URL UND Label raus (Quellen-Labels stören Sprachfluss)
         link = _strip_markdown_for_tts("Siehe [heise online](https://www.heise.de/news/x-123) dazu")
         assert "http" not in link and "heise.de" not in link, "URL blieb"
-        assert "heise online" not in link, "Link-Label wurde nicht entfernt"
+        assert "heise online" in link, "Linktext wurde verschluckt — er traegt oft den Satz"
         assert "Siehe" in link and "dazu" in link, "umgebender Text verloren"
         assert "http" not in _strip_markdown_for_tts("Quelle: https://example.com/a/b/c?d=1"), "nackte URL blieb"
         # Wikilinks (interne Memory-Verweise) raus, Slug nicht vorlesen
@@ -10460,7 +10460,13 @@ def _strip_markdown_for_tts(text: str) -> str:
     # Markdown-Links [Titel](url) komplett raus — Titel sind meist Quellen-/
     # Linkverweise (Adam: "Internet-Links, die nun nicht vorliegen") und stören
     # den Sprachfluss. Runde Klammern mit erklärendem Inhalt bleiben unberührt.
-    text = re.sub(r"\[[^\]]+\]\([^)]*\)", "", text)
+    # Markdown-Links [Titel](url): **Die Adresse fliegt, der Titel bleibt.**
+    # Die alte Fassung loeschte den ganzen Link samt Text — die Annahme war,
+    # ein Linktext sei immer nur ein Quellenverweis am Satzrand. Er ist
+    # haeufig **satztragend**: ein Subjekt, ein Objekt, ein Eigenname.
+    # Adam am 27.08. beim Hoeren: aus [Im Pruefraster der Basisfaehigkeiten
+    # steht eine echte Luecke] wurde **[Im steht eine echte Luecke]**.
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
     # Nackte URLs vor der Pfad-Regel entfernen — sonst frisst die Pfad-Regex den
     # Mittelteil (etwa "//example.com/a/b/c") und lässt das Schema "https:" plus
     # eventuelle Query-Reste ("?d=1") als Müll stehen.
@@ -11340,6 +11346,17 @@ async def send_answer_to_user(
     delivered = False
     last_sent_id: int | None = None
     rest = text
+    # **Der Quellenhinweis, genau einmal je Nachricht** (Adams Variante 1 vom
+    # 27.08.). Seit die Adresse fliegt und der Linktext bleibt, hoert Adam den
+    # Titel — aber nicht, dass dahinter eine Quelle steht. Ein Marker je Stelle
+    # waere bei fuenf Quellen eine Litanei; einer am Ende genuegt.
+    #
+    # **Warum hier und NICHT in `_strip_markdown_for_tts`:** Die Funktion
+    # laeuft zweimal ueber denselben Text — einmal je Teilstueck und noch
+    # einmal in `_send_tts_chunk` auf dem bereits gereinigten. Solange sie nur
+    # entfernt, ist die Doppelung harmlos. Sobald sie etwas **anhaengt**, kaeme
+    # der Satz doppelt und nach jedem Teilstueck.
+    _linkzahl = len(re.findall(r"\[[^\]]+\]\([^)]*\)", text or ""))
     while rest:
         if len(rest) <= TTS_SYNC_CHUNK:
             chunk, rest = rest, ""
@@ -11355,6 +11372,13 @@ async def send_answer_to_user(
         if not chunk:
             continue
         tts_clean = _strip_markdown_for_tts(chunk)
+        # **Nur am letzten Teilstueck, und nur an `tts_clean`** — niemals an
+        # `chunk`: Der geht als Bildunterschrift mit. **Der Satz gehoert ins
+        # Ohr, nicht ins Auge.**
+        if _linkzahl and not rest and tts_clean:
+            tts_clean += ("\nDie Quelle ist im Text verlinkt."
+                          if _linkzahl == 1
+                          else "\nDie Quellen sind im Text verlinkt.")
         sent = None
         if tts_clean:
             sent = await _send_tts_chunk(

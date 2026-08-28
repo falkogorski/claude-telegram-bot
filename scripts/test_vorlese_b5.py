@@ -232,6 +232,49 @@ check("die bestehenden Regeln greifen weiter (Geschwister)",
       _bestehende_regeln_stehen_noch)
 
 print()
+
+def _linktext_bleibt_stehen():
+    """**Der Linktext ist oft satztragend** (Adam, 27.08. beim Hoeren).
+
+    Aus *[Im Pruefraster der Basisfaehigkeiten steht eine echte Luecke]* wurde
+    **[Im steht eine echte Luecke]** — die alte Fassung loeschte den ganzen
+    Link samt Text. Die Annahme war, ein Linktext sei immer nur ein
+    Quellenverweis am Satzrand. Er ist haeufig ein Subjekt, ein Objekt, ein
+    Eigenname.
+    """
+    aus = bot._strip_markdown_for_tts(
+        "Im [Prüfraster der Basisfähigkeiten](https://x.tld/a) steht eine Lücke")
+    assert "Prüfraster der Basisfähigkeiten" in aus, \
+        f"der Linktext wurde verschluckt: {aus!r}"
+    assert "http" not in aus and "x.tld" not in aus, f"die Adresse blieb: {aus!r}"
+    assert aus.startswith("Im Prüfraster"), f"der Satz ist zerbrochen: {aus!r}"
+
+
+def _die_adresse_fliegt_trotzdem():
+    """**Gegenrichtung:** Es sollte der Text bleiben, nicht die Adresse."""
+    aus = bot._strip_markdown_for_tts("Siehe [heise](https://www.heise.de/a?b=1) dazu")
+    assert "heise.de" not in aus and "?" not in aus, \
+        f"die Adresse wurde mitgesprochen: {aus!r}"
+    assert "Siehe heise dazu" in aus, f"Satz unvollstaendig: {aus!r}"
+
+
+def _der_quellenhinweis_steht_nicht_in_der_reinigung():
+    """**Er darf NICHT in `_strip_markdown_for_tts` sitzen.**
+
+    Die Funktion laeuft zweimal ueber denselben Text — je Teilstueck und noch
+    einmal in `_send_tts_chunk`. Solange sie nur entfernt, ist das harmlos.
+    Sobald sie **anhaengt**, kaeme der Satz doppelt und nach jedem Teilstueck.
+    """
+    aus = bot._strip_markdown_for_tts("Siehe [heise](https://www.heise.de/a) dazu")
+    assert "verlinkt" not in aus, \
+        f"der Quellenhinweis sitzt in der Reinigung - er kaeme mehrfach: {aus!r}"
+
+
+check("Linktext bleibt stehen (Adam 27.08.)", _linktext_bleibt_stehen)
+check("die Adresse fliegt trotzdem (Gegenrichtung)", _die_adresse_fliegt_trotzdem)
+check("der Quellenhinweis sitzt NICHT in der Reinigung",
+      _der_quellenhinweis_steht_nicht_in_der_reinigung)
+
 if fails:
     print(f"❌ {len(fails)} B5-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)

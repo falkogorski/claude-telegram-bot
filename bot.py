@@ -7471,8 +7471,35 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert sig.return_annotation in (bool, "bool"), \
             "send_answer_to_user liefert keinen Zustellnachweis (bool) mehr"
         src = inspect.getsource(send_answer_to_user)
-        assert "delivered" in src and "send_chunked" in src, \
-            "Text-Fallback bei TTS-Ausfall fehlt"
+        assert "send_chunked" in src, "Text-Fallback bei TTS-Ausfall fehlt"
+        # **Rang A, Stelle 3 — der Name genuegt nicht.** Hier stand
+        # `"delivered" in src`: Wer `delivered = True` hart setzt, laesst den
+        # Namen stehen, und `_run_job` haelt danach **jeden Sendefehler fuer
+        # Erfolg** und hakt die Nachricht ab. Das ist der Verlust vom 19.07.
+        #
+        # Gemessen wird deshalb ueber den Syntaxbaum: **Der Nachweis darf nie
+        # aus einem Literal stammen.** `delivered = True` ist genau die
+        # Entkernung; `delivered = await ...` oder `delivered = sent is not
+        # None` sind die zulaessigen Formen.
+        #
+        # **Ehrliche Grenze:** Das misst die Herkunft des Werts, nicht den
+        # Sendeversuch selbst. Ein Verhaltenstest mit Bot-Attrappe waere
+        # staerker; er existiert als [Sendepfad-Rauchtest] daneben und deckt
+        # den Weg ab.
+        import ast as _ast
+        import textwrap as _tw
+        _baum = _ast.parse(_tw.dedent(src))
+        for _k in _ast.walk(_baum):
+            if not isinstance(_k, _ast.Assign):
+                continue
+            _ziele = {getattr(z, "id", None) for z in _k.targets}
+            if "delivered" not in _ziele:
+                continue
+            assert not (isinstance(_k.value, _ast.Constant)
+                        and _k.value.value is True), \
+                ("delivered wird hart auf True gesetzt — jeder Sendefehler "
+                 "gaelte als Erfolg, und die Nachricht waere still verloren "
+                 "(der 19.07. zurueck)")
         # Die Sendemarke entscheidet, ob eine unterbrochene Nachricht automatisch
         # nachgeholt werden darf. Fehlt sie, landet wieder ALLES Angefangene im
         # „nur melden"-Topf — auch das, was gefahrlos wiederholbar wäre.
@@ -7780,8 +7807,25 @@ def run_self_check() -> tuple[bool, list[str]]:
         # `_session_worker` gehört nicht dazu: Er wird je Nutzer bei Bedarf
         # angeworfen, nicht einmalig beim Start.
         gebaut -= {"_session_worker"}
-        vergessen = sorted(n for n in gebaut if f"{n}(app)" not in start
-                           and f"{n}()" not in start)
+        # **Rang A, Stelle 4 — ueber den Syntaxbaum, nicht ueber den Text.**
+        # Hier stand `f"{n}(app)" not in start`: Eine **auskommentierte**
+        # Zeile `# create_task(zustell_worker(app))` erfuellt diese Suche, und
+        # der Pruefer meldete [✓], waehrend der Waechter tot war. Genau der
+        # Zustand vom 23.06.
+        #
+        # **Kommentare gibt es im Syntaxbaum nicht** — deshalb wird dort
+        # gezaehlt, und zwar echte Aufrufknoten.
+        import ast as _ast
+        import textwrap as _tw
+        _baum = _ast.parse(_tw.dedent(start))
+        _gerufen = set()
+        for _k in _ast.walk(_baum):
+            if isinstance(_k, _ast.Call):
+                _name = (getattr(_k.func, "id", None)
+                         or getattr(_k.func, "attr", None))
+                if _name:
+                    _gerufen.add(_name)
+        vergessen = sorted(n for n in gebaut if n not in _gerufen)
         assert not vergessen, (
             "gebaut, aber beim Start nie angeworfen: " + ", ".join(vergessen)
             + " — der Code steht vollständig da und wacht trotzdem nicht")

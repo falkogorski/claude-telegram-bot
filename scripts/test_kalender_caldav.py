@@ -90,14 +90,112 @@ def _falscher_name_wird_benannt():
         raise AssertionError("unbekannter Name wurde stillschweigend ersetzt!")
 
 
+# **[RANG A, Stelle 8 — 29.08.]** Zwei Fehler in vier Zeilen, und beide sind
+# Musterfaelle aus dem Entkernungs-Befund.
+#
+# **(1) Sie verlangte eine Schreibweise.** Gesucht wurde `passwort="` — ohne
+# Leerzeichen. Ein hartkodiertes `PASSWORT = "abcd-efgh-ijkl-mnop"`, also die
+# Form, die jeder Mensch tippt, ging durch. Ein Prüfer, der Formatierung
+# verlangt statt Bedeutung zu messen, ist umgehbar, ohne dass jemand ihn
+# umgehen wollte.
+#
+# **(2) Sie las EINE Datei.** `kalender.py` war die Datei, an die man beim
+# Schreiben dachte; jedes andere Modul blieb ungeprüft. Das ist die
+# Mengen-Lehre dieses Projekts: *Jede Prüfung läuft über eine Menge — und es
+# ist immer die, die dem Erbauer am Bautag einfiel.*
+#
+# Jetzt: die **Form des Geheimnisses** statt der Schreibweise der Zuweisung,
+# über **alle Produktivmodule** statt über eine Datei.
+import re as _re
+
+# Vier Vierergruppen — die Form eines Apple-App-Kennworts. Sie ist
+# charakteristisch genug, um ohne Schlüsselwort davor zu erkennen.
+_APP_KENNWORT = _re.compile(r"""["'][a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}["']""")
+# Zuweisung eines Geheimnisses mit BELIEBIGEM Abstand und beliebigem
+# Trennzeichen — der eine Punkt, an dem die alte Fassung scheiterte.
+_ZUWEISUNG = _re.compile(
+    r"""(?:password|passwort|kennwort|secret|api_?key|token)\s*[:=]\s*["'][^"'\n]{6,}["']""",
+    _re.IGNORECASE)
+# Erkennbare Platzhalter — sonst schlägt der Prüfer auf jedem Beispiel an und
+# wird binnen einer Woche abgeschaltet.
+_PLATZHALTER = _re.compile(
+    r"(dein|your|hier|xxx|\.\.\.|<|\$\{|os\.environ|getenv|example|dummy|"
+    r"attrappe|probe|test)", _re.IGNORECASE)
+
+
+def _produktivmodule() -> list[Path]:
+    """Alle Module, die im Betrieb laufen — als MENGE über eine Eigenschaft.
+
+    Nicht über eine Namensliste (die altert) und nicht über eine Endung im
+    Ordner (die verfehlt Unterordner). Prüfdateien sind ausgenommen: Sie
+    enthalten notwendigerweise Beispielwerte, und ein Prüfer, der die eigenen
+    Prüfstände anschlägt, wird abgeschaltet.
+    """
+    wurzel = Path(__file__).resolve().parent.parent
+    dateien = list(wurzel.glob("*.py"))
+    dateien += [d for d in (wurzel / "scripts").glob("*.py")
+                if not d.name.startswith("test_")]
+    return dateien
+
+
 def _keine_zugangsdaten_im_quelltext():
-    """Geheimnis-Regel: nichts Verräterisches im Modul."""
+    """Geheimnis-Regel — über alle Produktivmodule, an der Form gemessen."""
+    module = _produktivmodule()
+    assert len(module) >= 10, \
+        f"die Modul-Menge ist verdaechtig klein ({len(module)}) — Pruefung waere bedeutungslos"
+
+    for datei in module:
+        roh = datei.read_text(encoding="utf-8", errors="replace")
+        for zeilennr, zeile in enumerate(roh.splitlines(), 1):
+            if zeile.lstrip().startswith("#") or _PLATZHALTER.search(zeile):
+                continue
+            treffer = _APP_KENNWORT.search(zeile) or _ZUWEISUNG.search(zeile)
+            assert not treffer, (
+                f"moegliches Zugangsdaten-Geheimnis in {datei.name}:{zeilennr} "
+                f"— Form [{treffer.group(0)[:20]}…]. Zugaenge gehoeren in die "
+                f"Umgebung, nie in den Quelltext.")
+        # Adressen, die auf ein persoenliches Konto zeigen.
+        for verdacht in ("@icloud.com", "@me.com"):
+            assert verdacht not in roh.lower(), \
+                f"moeglicher Zugangsdaten-Rest in {datei.name}: {verdacht}"
+
     quelle = (Path(__file__).resolve().parent.parent / "kalender.py").read_text(
         encoding="utf-8").lower()
-    for verdacht in ("@icloud.com", "@me.com", 'password="', 'passwort="'):
-        assert verdacht not in quelle, \
-            f"möglicher Zugangsdaten-Rest im Quelltext: {verdacht}"
     assert "os.environ" in quelle, "Zugang kommt nicht aus der Umgebung"
+
+
+def _die_geheimnis_suche_findet_wirklich():
+    """**Die Gegenprobe im Pruefer selbst** — sonst belegt die Zeile oben nur,
+    dass nichts gefunden wurde, nicht dass etwas gefunden WERDEN kann.
+
+    Genau die Unterscheidung, an der Stelle 8 gescheitert ist: Die alte
+    Fassung war jahrelang gruen, weil sie nichts finden KONNTE.
+    """
+    faelle = [
+        ('PASSWORT = "abcd-efgh-ijkl-mnop"', "App-Kennwort mit Leerzeichen"),
+        ('passwort="abcd-efgh-ijkl-mnop"', "App-Kennwort ohne Leerzeichen"),
+        ("PASSWORT: 'abcd-efgh-ijkl-mnop'", "Doppelpunkt statt Gleichheit"),
+        ('CALDAV_PASSWORT   =   "gehe1mnis123"', "viele Leerzeichen"),
+        ('api_key = "sk-ant-abcdefghijklmnop"', "Schluessel"),
+        ('TOKEN = "1234567890abcdef"', "Token"),
+    ]
+    for zeile, was in faelle:
+        assert _APP_KENNWORT.search(zeile) or _ZUWEISUNG.search(zeile), \
+            f"die Geheimnis-Suche findet [{was}] nicht: {zeile}"
+
+    # Und die Gegenrichtung: was NICHT anschlagen darf.
+    harmlos = [
+        'PASSWORT = os.environ["CALDAV_PASSWORT"]',
+        'passwort = getenv("X")',
+        '# passwort="beispiel-aus-der-doku"',
+        'PASSWORT = "dein-app-kennwort-hier"',
+        'text = "Das Passwort steht in der Umgebung."',
+    ]
+    for zeile in harmlos:
+        if zeile.lstrip().startswith("#") or _PLATZHALTER.search(zeile):
+            continue
+        assert not (_APP_KENNWORT.search(zeile) or _ZUWEISUNG.search(zeile)), \
+            f"Fehlalarm auf harmloser Zeile: {zeile}"
 
 
 def _zugangslink_haengt_am_termin():
@@ -176,6 +274,7 @@ check("ganztägig nennt keine Uhrzeit", _ganztags_sagt_ganztaegig)
 check("Aufgabe ohne Frist bleibt schlicht", _aufgabe_ohne_frist_bleibt_schlicht)
 check("unbekannte Sammlung wird benannt, nicht ersetzt", _falscher_name_wird_benannt)
 check("keine Zugangsdaten im Quelltext", _keine_zugangsdaten_im_quelltext)
+check("die Geheimnis-Suche findet wirklich", _die_geheimnis_suche_findet_wirklich)
 check("7.4: der Zugangslink haengt am Termin", _zugangslink_haengt_am_termin)
 check("7.4: ohne Link keine leere Zeile (Gegenprobe)", _ohne_link_keine_leere_zeile)
 check("7.4: der Zugang gewinnt gegen Beiwerk", _der_zugang_gewinnt_gegen_beiwerk)

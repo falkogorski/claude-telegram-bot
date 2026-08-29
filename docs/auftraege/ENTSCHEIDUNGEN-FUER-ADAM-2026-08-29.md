@@ -15,7 +15,13 @@ Entscheidbare steht hier statt in einer Rückfrage.
 > **`[STAND 29.08., 17:3x]` ③ und ⑥ sind entschieden:** Sprung auf 0.2.148,
 > aber **im Fenster nach Node**, und `mcp` + `anyio` werden mitgepinnt. Die
 > abgelesenen Werte und alle Schritte stehen in `PRUEFLISTE-sdk-sprung.md`.
-> **Offen bleiben: ② Ultracode · ⑦ Node-Termin · ⑧ Container-Probelauf ·
+> **`[STAND 29.08., 18:0x]` ② und ⑧ sind ebenfalls entschieden bzw. erledigt:**
+> Ultracode läuft **nach** Rang 2 der Erkennungsseite und **vor** dem ersten
+> Postfach (Kette: Node → SDK → Erkennungsseite → Ultracode → Postfach). Der
+> Container-Probelauf entfällt — er wurde **ohne root und ohne Docker**
+> gefahren (Archiv entpackt, PATH nur in einer Subshell), voller
+> Regressionslauf 62/62 unter Node 24.
+> **Offen bleiben: ⑦ Node-Termin (heute Abend?) ·
 > ⑨ die drei Gegenleser-Handgriffe · ⑩ der Postfach-Nachweis.**
 
 ## ~~① Der Deploy der Bash-Positivliste~~ — ERLEDIGT 29.08., 11:31

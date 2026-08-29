@@ -71,8 +71,25 @@ nur `claude --version`.
 | Skripte, die node/npm anfassen | `scripts/version_monitor.py`, `scripts/updater.py` (+ deren Prüfer) |
 | Platte | 218 GB frei von 251 GB |
 
-**`pandoc` als Rückabhängigkeit ist zu beachten** — es erzeugt Adams PDFs.
-Bricht die Paketauflösung beim Sprung, kann es mitgerissen werden.
+~~**`pandoc` als Rückabhängigkeit ist zu beachten**~~
+
+**`[BERICHTIGT 29.08., 17:4x — meine eigene Falschaussage]` Die
+Rückabhängigkeit existiert nicht.** Ich hatte sie aus
+`apt-cache rdepends --installed nodejs` gelesen; das war zu grob
+interpretiert. Nachgemessen:
+
+```
+apt-cache show pandoc  ->  Depends: pandoc-data, libc6, libffi8, libgmp10,
+                                    liblua5.4-0, libnuma1, libyaml-0-2, zlib1g
+apt-get -s remove nodejs  ->  Remv nodejs   (und sonst NICHTS)
+```
+
+**Kein nodejs in den Abhängigkeiten von `pandoc`, und der Trockenlauf entfernt
+nur nodejs selbst.** `nsolid` aus derselben Liste ist gar nicht installiert.
+
+Damit fällt der schwerste Risikopunkt dieses Zettels weg — und es bleibt die
+Lehre, dass `rdepends` alle Beziehungsarten zeigt, nicht nur die harten.
+**Wer es als Abhängigkeitsliste liest, liest es falsch.**
 
 ---
 
@@ -105,9 +122,34 @@ apt-get install -y --allow-downgrades nodejs=22.23.1-1nodesource1
 
 ---
 
-## Was NICHT geprüft ist — die ehrliche Grenze
+## Der Probelauf — gefahren, ohne root, am 29.08. gegen 17:50
 
-**Der Probelauf im Klon mit Node 24 wurde NICHT gefahren.** Der Auftrag nennt
+**Engywucks Weg brauchte weder Docker noch root:** Node-24-Archiv nach
+`~/node24-probe` entpackt, `PATH` **nur in einer Subshell** davorgesetzt,
+darin gemessen, Ordner danach gelöscht.
+
+| Messung unter Node 24 | Ergebnis |
+|---|---|
+| `node` / `npm` | v24.19.0 / 11.17.0 |
+| `claude --version` | **2.1.209 — unverändert** (Binary ohne Node-Bindung) |
+| `scripts/test_version_monitor.py` | grün |
+| `cur_npm("@anthropic-ai/claude-code")` | `'2.1.209'` — liest weiterhin richtig |
+| `scripts/updater.py` | importiert sauber |
+| **voller Regressionslauf** | **62/62** |
+| produktives Node danach | v22.23.1, Dienst `active` — unberührt |
+
+**Damit ist die einzige ehrliche Lücke dieses Zettels geschlossen.** Was
+bleibt, ist der Unterschied zwischen einem entpackten Archiv und einem
+Paketwechsel: Der Sprung ersetzt zusätzlich `corepack` und `npm` unter
+`/usr/lib/node_modules` — gemessen gehören **nur diese beiden** zum
+dpkg-Paket, beide `claude-code`-Installationen nicht.
+
+**Und die sechs Prüfschritte sind jetzt ein Skript**, nicht mehr Prosa:
+`scripts/node_vollzug_pruefen.sh vorher` / `… nachher`.
+
+## Was weiterhin NICHT geprüft ist
+
+~~**Der Probelauf im Klon mit Node 24 wurde NICHT gefahren.**~~ Der Auftrag nennt
 ihn als dritten Punkt, und er fehlt. Der Grund ist keine Bequemlichkeit:
 
 - Auf dem **Mac** wäre er wertlos — dort ist Node über Homebrew installiert,

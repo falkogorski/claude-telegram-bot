@@ -5,6 +5,27 @@
 **Gilt für:** Update-Auftrag `2026-08-29_bauauftrag-offene-updates-einspielen.md`, Schritt 2
 **Belege:** `BEFUND-klonlauf-sdk-0.2.148.md` (Messungen), `BEFUND-sdk-aenderungsnotizen-0.2.127-0.2.148.md` (Notizen)
 
+> **`[ERWEITERT 29.08., Adam über Engywuck]` Die ganze Kette, verbindlich:**
+>
+> **Node → SDK-Fenster → Rang 2 der Erkennungsseite → Ultracode → erstes Postfach.**
+>
+> Damit ist auch Adams Frage *[wann ist Ultracode dran?]* beantwortet: **nach**
+> Rang 2 der Erkennungsseite und **vor** dem ersten Postfach — genau an der
+> Stelle, die `CLAUDE.md` als Prüfstelle benennt (*nach dem Bau der
+> Eingangs-Absicherung, bevor das erste fremde Postfach hinterlegt wird*).
+>
+> **Der Grund für diese Position, und er ist der eigentliche Punkt:** Ultracode
+> misst in die Breite. Eine Breitenmessung auf einem Stand, der sich in den
+> nächsten Tagen noch zweimal ändert (Node, SDK), ist verlorenes Kontingent —
+> vierte Ultracode-Bedingung: *Der Code ist stabil genug, dass das Ergebnis
+> nicht binnen Tagen veraltet.* Und sie muss **nach** der Erkennungsseite
+> laufen, weil erst dann der Gegenstand vollständig ist.
+>
+> **Ausgelöst wird er von der Kontroll-Rolle, nicht von der Bau-Rolle** — der
+> Befund ginge sonst zuerst an den Erbauer, der ihn über die eigene Arbeit
+> bewertet. Micks Anteil ist, den zu prüfenden Commit zu benennen und gepusht
+> zu haben.
+
 > **Reihenfolge, verbindlich: Node zuerst, SDK danach — in GETRENNTEN
 > Fenstern.** Gehen beide in einem Zug und danach ist etwas rot, weiß niemand,
 > welche Hälfte es war. Node ist der riskantere Sprung (root, Paketquelle,

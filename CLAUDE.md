@@ -1142,6 +1142,23 @@ weniger heikle Begriffe okay, für das Heikelste den Button-Weg nutzen.
   (`„…“`) oder gar nicht** — eckige Klammern (`[{wert}]`) tun in Meldungen
   denselben Dienst. In Docstrings und Kommentaren ist alles erlaubt.
 
+  **`[ERWEITERT 2026-08-29]` Dieselbe Familie, anderes Zeichen: das
+  Rückwärts-Anführungszeichen in einer `-m`-Nachricht.** Ein Commit mit
+  `git commit -m "… \`npm update -g\` …"` **führt den Inhalt aus** — gemessen
+  in der Nacht zum 29.08.: Der Aufruf hing zwei Minuten und endete mit
+  `command not found: npm`; der Commit kam nicht zustande.
+
+  Harmlos war das nur, weil nichts daran gekettet war. **Der gefährliche Fall
+  ist derselbe wie oben:** Ein Backtick-Inhalt, der etwas *tut* statt zu
+  scheitern, läuft unbemerkt mit einer Commit-Nachricht mit.
+
+  **Die Regel, die beide Fälle deckt: Commit-Nachrichten mit Sonderzeichen
+  gehen über ein Heredoc mit gequotetem Begrenzer** (`git commit -F - <<'EOF'`),
+  nie über `-m`. Dort wird nichts ersetzt und nichts ausgeführt. Das ist
+  billiger als jede Abwägung darüber, welches Zeichen gerade gefährlich ist —
+  und es ist dieselbe Lehre wie beim Regressionslauf vor jedem Commit: **Wer
+  die Ausnahme begründen muss, begründet sie irgendwann falsch.**
+
   **Der Prüfer dazu** (`scripts/test_blinde_flecken_b6.py`, Zeile
   „kein gemischtes Anfuehrungspaar") meldet genau das Ungleichgewicht — ein
   breiterer schlüge dreimal täglich grundlos an und wäre binnen einer Woche

@@ -103,3 +103,66 @@ steht), der **Node-Vollzugstermin**, der **Gegenleser-Schlüssel**.
   umgestellt und eine Gegenprobe danebengestellt, damit die Änderung nicht
   als Aufweichung durchgeht. Das ist die Stelle, die eine Gegenprüfung am
   ehesten verdient.
+
+---
+
+# Nachtrag, 04:3x — was in der zweiten Hälfte der Nacht dazukam
+
+## ⑥ Der SDK-Sprung ist geprüft, aber nicht übernommen
+
+Klon-Lauf mit 0.2.148: **58/59**, und die eine rote Zeile ist die
+Pin-Divergenz — der Wächter, der genau das melden soll. Befund:
+`BEFUND-klonlauf-sdk-0.2.148.md`.
+
+**Der Pin ist bewusst nicht nachgezogen**, weil `.148` statt `.144` deine
+Entscheidung ist (Punkt ③ oben). Der eigentliche Fund daraus liegt bereits im
+Hauptbaum und wirkt **mit beiden Fassungen**: Ein Zugangsfehler wäre unerkannt
+geblieben, wenn der Anbietertext nur in der Nutzlast steht.
+
+**Was noch bei dir liegt:** die globale CLI auf dem VPS
+(`@anthropic-ai/claude-code` 2.1.209 → 2.1.24x). Das ist ein npm-Eingriff mit
+root — deine Hand, nicht meine.
+
+## ⑦ Node: die Begründung im Auftrag stimmte nicht
+
+Der Auftrag sagt, Node trage die Claude-CLI. **Gemessen trifft das nicht zu** —
+die CLI ist eine eigenständige Binärdatei und läuft nachweislich ohne Node im
+Pfad. Der Sprung ist damit deutlich harmloser als angenommen.
+
+**Zwei Dinge bleiben trotzdem:** Er braucht root auf der Maschine, die den Bot
+trägt — und die CLI ist **doppelt installiert**, was eine globale
+npm-Aktualisierung stillschweigend halbieren kann. Alles im Zettel
+`ZETTEL-node-22-auf-24.md`, samt Rückweg und sechs Prüfschritten.
+
+**Zu entscheiden:** wann. Der Vollzug dauert mit dem Zettel eine
+Viertelstunde.
+
+## ⑧ Der Probelauf im Container fehlt
+
+Rang 9 verlangt einen Probelauf mit Node 24 im Klon. Der fehlt, und der Grund
+steht im Zettel: Auf dem Mac wäre er wertlos (andere Architektur, andere
+Binärdatei), auf dem VPS wäre er ein Eingriff statt eines Klons.
+
+**Der saubere Weg ist ein Container** — das ist ein eigener kleiner
+Bauschritt und braucht Docker auf dem VPS, das dort heute nicht liegt.
+**Zu entscheiden:** ob wir das aufsetzen oder ohne Probelauf springen.
+
+## ⑨ Der Gegenleser wartet auf genau drei Handgriffe von dir
+
+Gebaut ist alles, was ohne Zugang baubar ist. Was fehlt, ist ausdrücklich
+deine Handlung — und in dieser Reihenfolge:
+
+1. **Ausgabenlimit beim Anbieter setzen**, bevor ein Schlüssel im System liegt
+   (10 € Mistral, 10 € OVHcloud, 5 € xAI — Deckel 30 €, dein Entscheid).
+2. **Datenlöschung**: bei Mistral beantragen, bei xAI in der Konsole
+   einschalten, falls verfügbar. Ist sie es nicht, liegen die Vorlagen dort
+   dreißig Tage — das solltest du vorher wissen.
+3. **Schlüssel anlegen.** Erst danach ein Rauchtest, erst danach einhängen.
+
+## ⑩ Der Postfach-Nachweis für pymupdf
+
+Der Update-Auftrag verlangt ausdrücklich mehr als einen grünen Lauf: ein PDF
+über das Postfach zustellen, den Weg, den du täglich nutzt. **Der PDF-Pfad
+selbst ist ausgeführt geprüft** (erzeugt, ausgelesen, Umlaute erhalten); die
+Zustellung hätte dir um vier Uhr morgens eine Nachricht geschickt. Ein Wort
+von dir, und ich löse sie aus.

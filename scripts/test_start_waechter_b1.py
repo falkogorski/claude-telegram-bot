@@ -173,6 +173,135 @@ def _eigener_prozess_zaehlt_nicht():
         w.NACHFRIST = 1
 
 
+# --- Stelle 7: der abgekoppelte Start meldet nur, was er belegen kann ------
+def _detach_ohne_lebensnachweis_meldet_es():
+    """**[RANG A, Stelle 7 — 29.08.] Ausgefuehrt, nicht gelesen.**
+
+    Der `--detach`-Zweig meldete Erfolg, sobald der Kindprozess GESTARTET war.
+    Stirbt er sofort — fehlendes venv, unlesbare Freeze-Datei, Tippfehler im
+    Pfad —, sieht der Aufrufer [abgekoppelt gestartet] und spielt beruhigt
+    sein Update ein. **Es wacht dann niemand**, und weil beide Ausgabekanaele
+    nach /dev/null gehen, bleibt auch die Fehlermeldung ungesehen.
+
+    Hier wird ein echter abgekoppelter Start gefahren, mit einem Interpreter,
+    der garantiert scheitert. Erwartet: Rueckgabewert ungleich null und eine
+    Meldung, die es ausspricht.
+    """
+    import subprocess as sp
+    import sys as _sys
+    echt_popen = sp.Popen
+    echt_argv = _sys.argv[:]
+
+    class _ToterKindprozess:
+        pid = 99999
+        def poll(self):
+            return 1                      # sofort gestorben
+
+    gedruckt: list[str] = []
+    echt_print = __builtins__.print if hasattr(__builtins__, "print") else print
+    try:
+        w.LEBENSMARKE.unlink(missing_ok=True)
+        w.DETACH_NACHWEIS_S = 0.3         # der Test soll nicht warten
+        sp.Popen = lambda *a, **k: _ToterKindprozess()
+        _sys.argv = ["start_waechter.py", "--freeze", str(FREEZE), "--detach"]
+        import io, contextlib
+        puffer = io.StringIO()
+        with contextlib.redirect_stdout(puffer):
+            rc = w.main()
+        ausgabe = puffer.getvalue()
+    finally:
+        sp.Popen = echt_popen
+        _sys.argv = echt_argv
+        w.DETACH_NACHWEIS_S = 5.0
+
+    assert rc != 0, ("der abgekoppelte Start meldete Erfolg ueber einem toten "
+                     f"Waechter (rc={rc}) — genau der Befund von Stelle 7")
+    assert "NICHT gestartet" in ausgabe and "wacht niemand" in ausgabe, \
+        f"die Meldung sagt nicht, dass niemand wacht: {ausgabe!r}"
+
+
+def _detach_mit_lebensnachweis_meldet_erfolg():
+    """Die Gegenrichtung — sonst waere die Zeile oben mit einem harten
+    `return 3` zu erfuellen, und der Wachdienst waere nie startbar."""
+    import subprocess as sp
+    import sys as _sys
+    echt_popen, echt_argv = sp.Popen, _sys.argv[:]
+
+    class _LebendigerKindprozess:
+        pid = 12345
+        def poll(self):
+            # Er lebt — und hat, wie das echte Kind, seine Marke geschrieben.
+            w.LEBENSMARKE.parent.mkdir(parents=True, exist_ok=True)
+            w.LEBENSMARKE.write_text("12345", encoding="utf-8")
+            return None
+
+    try:
+        w.LEBENSMARKE.unlink(missing_ok=True)
+        w.DETACH_NACHWEIS_S = 1.0
+        sp.Popen = lambda *a, **k: _LebendigerKindprozess()
+        _sys.argv = ["start_waechter.py", "--freeze", str(FREEZE), "--detach"]
+        import io, contextlib
+        puffer = io.StringIO()
+        with contextlib.redirect_stdout(puffer):
+            rc = w.main()
+        ausgabe = puffer.getvalue()
+    finally:
+        sp.Popen = echt_popen
+        _sys.argv = echt_argv
+        w.DETACH_NACHWEIS_S = 5.0
+        w.LEBENSMARKE.unlink(missing_ok=True)
+
+    assert rc == 0, f"ein lebender Waechter wird als Fehlschlag gemeldet (rc={rc})"
+    assert "bei der Arbeit" in ausgabe, \
+        f"die Erfolgsmeldung nennt den Lebensnachweis nicht: {ausgabe!r}"
+
+
+def _die_marke_entsteht_waehrend_der_bewachung():
+    """**Die Gegenprobe hat gezeigt, dass diese Zeile fehlte.**
+
+    `_detach_mit_lebensnachweis_meldet_erfolg` benutzt eine Attrappe, die die
+    Marke SELBST schreibt — sie belegt also nur, dass der Elternprozess auf
+    eine vorhandene Marke richtig reagiert. Entfernte man das Schreiben in
+    `bewachen()`, blieb der Pruefer gruen: **K2 in Reinform, der Pruefer misst
+    seine eigene Nachbildung.**
+
+    Hier wird die Marke MITTEN im echten Lauf beobachtet — sichtbar ist sie
+    nur dort, denn am Ende raeumt `bewachen()` sie wieder weg.
+    """
+    _leeren()
+    w.LEBENSMARKE.unlink(missing_ok=True)
+    gesehen: list[bool] = []
+    _patch()
+    echt_warten = w.warte_auf_hochlauf
+    try:
+        def _beobachten(venv, frist):
+            gesehen.append(w.LEBENSMARKE.exists())
+            return echt_warten(venv, frist)
+        w.warte_auf_hochlauf = _beobachten
+        w.zurueckrollen = lambda v, f: (True, "")
+        w.bewachen(Path("/tmp/venv"), FREEZE, frist=1, grund_text="einem Test")
+    finally:
+        w.warte_auf_hochlauf = echt_warten
+
+    assert gesehen, "der Beobachter wurde nie gerufen — Pruefung bedeutungslos"
+    assert gesehen[0], ("waehrend der Bewachung liegt KEIN Lebensnachweis vor — "
+                        "der abgekoppelte Start koennte ihn nie sehen")
+
+
+def _die_marke_wird_geraeumt():
+    """Eine Marke, die liegen bleibt, behauptet morgen, es wache jemand."""
+    _leeren()
+    _patch()
+    w.zurueckrollen = lambda v, f: (True, "")
+    w.bewachen(Path("/tmp/venv"), FREEZE, frist=1, grund_text="einem Test")
+    assert not w.LEBENSMARKE.exists(), \
+        "der Lebensnachweis liegt nach der Bewachung noch da"
+
+
+check("abgekoppelt ohne Lebensnachweis → laut", _detach_ohne_lebensnachweis_meldet_es)
+check("abgekoppelt mit Lebensnachweis → Erfolg", _detach_mit_lebensnachweis_meldet_erfolg)
+check("der Lebensnachweis entsteht im Lauf", _die_marke_entsteht_waehrend_der_bewachung)
+check("der Lebensnachweis wird geräumt", _die_marke_wird_geraeumt)
 check("sauberer Hochlauf → nichts anfassen", _sauber)
 check("kein Prozess → Rollback auf den eingefrorenen Stand + Neustart", _kein_prozess_rettet)
 check("Prozess lebt, Selbstcheck rot → trotzdem Rettung", _lebt_aber_kaputt)

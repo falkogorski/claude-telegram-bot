@@ -51,6 +51,11 @@ REPO = Path(__file__).resolve().parent.parent
 STATE_DIR = Path(os.environ.get("UPDATER_STATE_DIR")
                  or (Path.home() / ".claude" / "updater"))
 BERICHT = STATE_DIR / "startwaechter.json"
+# Lebensnachweis des abgekoppelten Wächters (Rang A, Stelle 7). Bewusst eine
+# eigene Datei und nicht der Bericht: Der Bericht entsteht erst am ENDE der
+# Bewachung — als Startnachweis wäre er nutzlos.
+LEBENSMARKE = STATE_DIR / "startwaechter.laeuft"
+DETACH_NACHWEIS_S = float(os.environ.get("WAECHTER_NACHWEIS_S") or 5.0)
 POSTFACH = Path(os.environ.get("POSTFACH_DIR")
                 or (Path.home() / "postfach")) / "outbox"
 UNIT = os.environ.get("BOT_UNIT") or "claude-telegram-bot"
@@ -231,6 +236,27 @@ def warte_auf_hochlauf(venv: Path, frist: int) -> tuple[bool, str]:
 
 
 def bewachen(venv: Path, freeze: Path, frist: int, grund_text: str) -> int:
+    # Lebensnachweis SOFORT — er belegt dem Aufrufer, dass wirklich gewacht
+    # wird. Ein Fehlschlag hier darf die Bewachung nicht verhindern: Lieber
+    # ungesehen wachen als gar nicht.
+    try:
+        LEBENSMARKE.parent.mkdir(parents=True, exist_ok=True)
+        LEBENSMARKE.write_text(str(os.getpid()), encoding="utf-8")
+    except Exception:
+        pass
+    try:
+        return _bewachen(venv, freeze, frist, grund_text)
+    finally:
+        # Die Marke gehört geräumt — sonst behauptet sie morgen, es wache
+        # jemand. Dieselbe Lehre wie bei der Anmelde-Marke: Die Entwarnung
+        # gehört an dieselbe Stelle wie der Alarm.
+        try:
+            LEBENSMARKE.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def _bewachen(venv: Path, freeze: Path, frist: int, grund_text: str) -> int:
     ok, grund = warte_auf_hochlauf(venv, frist)
     if ok:
         melden(f"✅ Start-Wächter: Der Bot ist nach „{grund_text}“ sauber "
@@ -285,12 +311,45 @@ def main() -> int:
     if a.detach:
         # Abkoppeln, damit der Wächter den Tod des Bots (und der aufrufenden
         # Sitzung) überlebt — genau das ist seine Daseinsberechtigung.
+        #
+        # **[RANG A, Stelle 7 — 29.08.] Hier wurde Erfolg gemeldet, sobald der
+        # Kindprozess GESTARTET war — nicht, ob er lebt.** Stirbt er sofort
+        # (fehlendes venv, unlesbare Freeze-Datei, Tippfehler im Pfad), sieht
+        # der Aufrufer „abgekoppelt gestartet" und spielt beruhigt sein Update
+        # ein. **Es wacht dann niemand.** Und weil `stdout` und `stderr` nach
+        # `/dev/null` gehen, bleibt auch die Fehlermeldung ungesehen.
+        #
+        # Das ist genau der Fall, für den dieser Wächter da ist: Er soll den
+        # SDK-Sprung absichern — und wäre dabei selbst die Blindstelle
+        # gewesen. Der Update-Auftrag sagt es: *Ein Netz mit bekannter Masche
+        # darf nicht gespannt werden, während man darüber läuft.*
         argumente = [x for x in sys.argv[1:] if x != "--detach"]
-        subprocess.Popen([sys.executable, str(Path(__file__).resolve()), *argumente],
-                         start_new_session=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print("Start-Wächter abgekoppelt gestartet.")
-        return 0
+        LEBENSMARKE.unlink(missing_ok=True)
+        kind = subprocess.Popen(
+            [sys.executable, str(Path(__file__).resolve()), *argumente],
+            start_new_session=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        # Auf den Lebensnachweis warten, nicht auf die bloße Existenz des
+        # Prozesses: Ein Prozess, der gerade beim Importieren scheitert, lebt
+        # eine Zehntelsekunde lang. Die Marke schreibt er erst, wenn er
+        # wirklich bei der Arbeit ist.
+        for _ in range(int(DETACH_NACHWEIS_S * 10)):
+            if LEBENSMARKE.exists():
+                print(f"Start-Wächter abgekoppelt gestartet und bei der Arbeit "
+                      f"(PID {kind.pid}).")
+                return 0
+            if kind.poll() is not None:
+                break
+            time.sleep(0.1)
+
+        rc = kind.poll()
+        print(f"🔴 Start-Wächter NICHT gestartet — kein Lebensnachweis binnen "
+              f"{DETACH_NACHWEIS_S:.0f} s"
+              + (f", Prozess endete mit {rc}" if rc is not None else "")
+              + ". **Es wacht niemand.** Bitte nicht auf ihn verlassen; den "
+                "Eingriff von Hand begleiten.")
+        return 3
 
     return bewachen(Path(a.venv), Path(a.freeze), a.frist, a.grund)
 

@@ -6504,6 +6504,48 @@ def _ist_voruebergehend(fehler: str) -> bool:
     return any(m in t for m in _VORUEBERGEHEND)
 
 
+# ---- Umlaut-Ersatz in ausgehenden Texten (Engywucks Auflage C, 29.08.) ----
+#
+# **Adam hat das viermal verlangt** — am 28.07., 26.08., 27.08. und zuletzt am
+# 28.08. um 20:45. Der Pruefer stand in einer Auftragsfassung, die noch am
+# selben Abend ueberholt wurde; ohne diese Auflage waere er **still
+# weggefallen**, und Adam haette ein fuenftes Mal gefragt.
+#
+# Gemeint sind ASCII-Umschreibungen in Texten, die an Adam gehen: [Vorraete]
+# statt Vorräte, [verfuegbar] statt verfügbar, [Stoerung] statt Störung.
+# Innerhalb des Quelltextes sind sie richtig und ausdruecklich gewollt — in
+# einer gesendeten Nachricht sind sie ein Schreibfehler.
+#
+# **Eine WORTLISTE, kein Muster, und das ist hier ausnahmsweise richtig.**
+# Ein Muster auf [ue|ae|oe] schluege bei jedem englischen Wort an — queue,
+# value, true — und waere binnen einer Woche abgeschaltet. Die uebliche
+# K5-Warnung (Verbotslisten sind konstruktiv unvollstaendig) wiegt hier
+# leichter, weil die Luecke **laut** ist: Adam sieht den fehlenden Umlaut und
+# meldet ihn, die Liste waechst. Bei einer Sicherheitsschranke waere die
+# Luecke still — dort gilt die Warnung unveraendert.
+UMLAUT_ERSATZ = (
+    "vorraete", "verfuegbar", "stoerung", "moeglich", "waehrend", "naechste",
+    "zurueck", "muessen", "koennen", "hoeren", "fuer", "ueber", "gruen",
+    "wuerde", "haette", "taeglich", "aendern", "loeschen", "pruefen",
+    "schliessen", "gemaess", "spaeter", "erklaeren", "waechter", "geraet",
+)
+
+
+def umlaut_ersatz_gefunden(text: str) -> str:
+    """Das erste ASCII-umschriebene Wort in einem AUSGEHENDEN Text (sonst leer).
+
+    Verglichen wird auf Wortgrenzen-freie Weise — deutsche Zusammensetzungen
+    tragen das Wort in der Mitte ([Speichervorraete], [Systemstoerung]), und
+    eine Wortgrenze haette genau die verfehlt. Das ist dieselbe Lehre wie beim
+    Stichwort-Filter der roten Worte, nur hier ohne Sicherheitsfolge.
+    """
+    klein = (text or "").lower()
+    for wort in UMLAUT_ERSATZ:
+        if wort in klein:
+            return wort
+    return ""
+
+
 def postfach_darf_senden(daten: dict) -> tuple[bool, str]:
     """Darf dieser Auftrag hinaus? `(ok, Grund)` — **die Ausfuhr-Schranke.**
 
@@ -6536,6 +6578,17 @@ def postfach_darf_senden(daten: dict) -> tuple[bool, str]:
         return (False, f"Datei nicht gefunden: {filep}")
     if not filep and not daten.get("text"):
         return (False, "Auftrag ohne text UND ohne file.")
+
+    # Auflage C: **am Versandpfad, nicht am Ablegepfad.** Der urspruengliche
+    # Ort (`postfach_legen.py`) faellt mit der ueberholten Auftragsfassung weg;
+    # hier kommt jede Sendung vorbei, gleich wer sie abgelegt hat.
+    #
+    # Der Fund verweigert den Versand und legt den Auftrag ins Endlager — mit
+    # sichtbarer Meldung. **Still zustellen waere schlechter**, denn dann
+    # bemerkt es nur Adam, und zwar am fertigen Text.
+    if (treffer := umlaut_ersatz_gefunden(str(daten.get("text") or ""))):
+        return (False, f"ASCII-Umschreibung im ausgehenden Text: [{treffer}] — "
+                       "bitte mit Umlaut schreiben und neu ablegen")
     return (True, "")
 
 

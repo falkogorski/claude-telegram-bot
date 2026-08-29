@@ -868,6 +868,32 @@ def is_auth_error(exc: Exception) -> bool:
     return authmarke.passt(str(exc))
 
 
+def limit_ruecklage(mb, job, fehlertext: str) -> float | None:
+    """Kontingent-Limit: Auftrag zurueck an den KOPF, Pause setzen.
+
+    Rueckgabe: der abgelesene Reset-Zeitpunkt, oder `None`, wenn die Meldung
+    keinen nennt. **Keine Zeit wird erfunden** — dann greift die Viertelstunde
+    als Ersatzfrist, und die Meldung an Adam sagt das ausdruecklich.
+
+    **Warum eine eigene Funktion (Rang A, Stelle 6):** Die Pruefzeile dazu
+    baute den Vorgang bisher NACH, statt ihn auszufuehren — sie legte den Job
+    selbst an den Kopf der Schlange und stellte dann fest, dass er dort liegt.
+    Ein Pruefer, der seine eigene Nachbildung misst, ist per Konstruktion
+    gruen. Jetzt laesst sich der Vorgang aufrufen.
+
+    Die Reihenfolge im Rumpf ist bewusst: **erst die Pause, dann das
+    Zuruecklegen.** Bricht etwas dazwischen ab, ist der Bot lieber einmal zu
+    lange still als einmal zu frueh wieder am Kontingent.
+    """
+    bis = parse_reset_zeit(fehlertext or "")
+    # Erst die Pause — siehe oben.
+    mb.pausiert_bis = bis or (time.time() + 900)
+    mb.queue.appendleft(job)
+    if job.pending_key:
+        pending.set_status(job.pending_key, pending.STATUS_OPEN)
+    return bis
+
+
 def is_context_overflow(exc: Exception) -> bool:
     """True bei Kontextfenster-/‚prompt too long'-Fehlern (Session voll).
     Wie is_auth_error anhand des durchgereichten Fehlertexts."""
@@ -1851,11 +1877,16 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             # der Reihe nach nach. Nichts geht verloren.
             if is_session_limit(e):
                 mb = _get_mailbox(user_id)
-                bis = parse_reset_zeit(str(e))
-                mb.pausiert_bis = bis or (time.time() + 900)
-                mb.queue.appendleft(job)
-                if job.pending_key:
-                    pending.set_status(job.pending_key, pending.STATUS_OPEN)
+                # **[RANG A, Stelle 6 — 29.08.] Die Rueckstellung ist jetzt eine
+                # eigene Funktion**, damit ein Pruefer sie AUFRUFEN kann.
+                # Vorher stand sie hier inline, und der Pruefer baute sie in
+                # `_nachricht_bleibt_vorn` **selbst nach** — er legte den Job
+                # eigenhaendig an den Kopf und stellte dann fest, dass er dort
+                # liegt. **Er mass sich selbst.** Haette `_run_job` das
+                # Zuruecklegen eingestellt, waere er gruen geblieben, und Adams
+                # Nachricht waere beim naechsten Kontingent-Limit verloren
+                # gewesen — genau der Fall, fuer den A1 gebaut wurde.
+                bis = limit_ruecklage(mb, job, str(e))
                 if bis:
                     from datetime import datetime as _dt2
                     wann = _dt2.fromtimestamp(bis).astimezone().strftime("%H:%M")
@@ -8205,20 +8236,74 @@ def run_self_check() -> tuple[bool, list[str]]:
         Fenster wieder offen — und mit H1 ist dieses Fenster länger geworden
         (Zerlegen plus Tonspur-Transkription), nicht kürzer.
         """
-        import inspect
+        # **[RANG A, Stelle 5 — 29.08.] Diese Zeile las Quelltext und war damit
+        # umgehbar.** Sie verlangte, dass `_media_eingang(` im Handler VORKOMMT
+        # und vor `_download_tg_file` steht. Wer die Funktion auf `return None`
+        # kuerzt, laesst beide Zeichenketten stehen: **Der Pruefer bliebe
+        # gruen, und das Fenster vom 25.07. waere wieder offen** — dasselbe,
+        # durch das ein Video verschwand.
+        #
+        # Jetzt zwei Teile, keiner davon Textsuche:
+        # (a) die Funktion wird AUSGEFUEHRT und muss wirklich sichern,
+        # (b) die Reihenfolge wird ueber echte Aufrufknoten des Syntaxbaums
+        #     gemessen — ein Kommentar mit dem Namen zaehlt dort nicht.
+        import ast as _ast
+        import inspect as _inspect
+
+        # ---- (a) Verhalten: sichert `_media_eingang` tatsaechlich?
+        class _MsgAttrappe:
+            chat_id, message_id, message_thread_id, date = 42, 4711, None, None
+
+        class _UserAttrappe:
+            id = 42
+
+        class _UpdAttrappe:
+            message = _MsgAttrappe()
+            effective_user = _UserAttrappe()
+
+        _gesehen: list[dict] = []
+        _echt_record = pending.record
+        try:
+            # Attrappe an den RAENDERN — die Ablage wird nicht angefasst,
+            # der geprueffte Code in der Mitte laeuft echt.
+            pending.record = lambda k, d: _gesehen.append(d)
+            _schluessel = _media_eingang(_UpdAttrappe(), "Foto", 1.5)
+        finally:
+            pending.record = _echt_record
+
+        assert _gesehen, ("_media_eingang hat NICHTS gesichert — auf `return "
+                          "None` gekuerzt bliebe die alte Textpruefung gruen")
+        _d = _gesehen[0]
+        assert _d.get("stage") == MEDIA_STAGE, \
+            f"der gesicherte Eintrag traegt nicht die Medien-Stufe: {_d.get('stage')}"
+        assert _d.get("message_id") == 4711 and _d.get("chat_id") == 42, \
+            "der gesicherte Eintrag zeigt nicht auf die Nachricht"
+        assert _schluessel, "kein Schluessel zurueckgegeben — der Abbruchzweig " \
+                            "koennte den Eingang nicht aufloesen"
+
+        # ---- (b) Reihenfolge ueber echte Aufrufknoten
         for fn, name in ((on_photo, "Foto"), (on_video, "Video"),
                          (on_document, "Datei")):
-            src = inspect.getsource(fn)
-            assert "_media_eingang(" in src, \
-                f"{name}-Handler sichert den Eingang nicht (5.2)"
-            i_sicher = src.index("_media_eingang(")
-            i_download = src.index("_download_tg_file")
-            assert i_sicher < i_download, \
+            _baum = _ast.parse(_inspect.getsource(fn).lstrip())
+            _rufe = {}
+            for _k in _ast.walk(_baum):
+                if not isinstance(_k, _ast.Call):
+                    continue
+                _n = (_k.func.id if isinstance(_k.func, _ast.Name)
+                      else getattr(_k.func, "attr", ""))
+                if _n in ("_media_eingang", "_download_tg_file",
+                          "_resolve_media_stage"):
+                    _rufe.setdefault(_n, _k.lineno)
+            assert "_media_eingang" in _rufe, \
+                f"{name}-Handler RUFT die Sicherung nicht (5.2)"
+            assert "_download_tg_file" in _rufe, \
+                f"{name}-Handler laedt gar nicht — Pruefung waere bedeutungslos"
+            assert _rufe["_media_eingang"] < _rufe["_download_tg_file"], \
                 (f"{name}: die Sicherung steht HINTER dem Download — genau die "
-                 "Lücke, die am 25.07. ein Video verschluckt hat")
-            assert "_resolve_media_stage(" in src, \
-                f"{name}: Abbruchzweig löst den Eingang nicht auf — der Bot " \
-                "würde die Datei bei jedem Start erneut melden"
+                 "Luecke, die am 25.07. ein Video verschluckt hat")
+            assert "_resolve_media_stage" in _rufe, \
+                f"{name}: Abbruchzweig loest den Eingang nicht auf — der Bot " \
+                "wuerde die Datei bei jedem Start erneut melden"
     check("Medien-Eingangsschutz (5.2)", _c_medien_eingang)
 
     return state["ok"], results

@@ -99,11 +99,20 @@ def _nachricht_bleibt_vorn():
     spaeter = bot.QueuedJob(update=None, text="zweite Nachricht", bot=None,
                             chat_id=4242, message_id=2)
     mb.queue.append(spaeter)
-    # So verhält sich der Limit-Zweig: Job zurück an den KOPF, Pause setzen.
+    # **[RANG A, Stelle 6 — 29.08.] Hier stand die Nachbildung, nicht die
+    # Pruefung.** Der Test legte den Job mit `mb.queue.appendleft(...)` SELBST
+    # an den Kopf und setzte die Pause SELBST — und stellte danach fest, dass
+    # beides so ist. Er mass seine eigenen zwei Zeilen.
+    #
+    # Haette `_run_job` das Zuruecklegen eingestellt, waere er gruen geblieben,
+    # und Adams Nachricht waere beim naechsten Kontingent-Limit verloren
+    # gewesen. Genau der Fall, fuer den A1 ueberhaupt gebaut wurde.
+    #
+    # Jetzt wird die echte Ruecklage AUFGERUFEN.
     gescheitert = bot.QueuedJob(update=None, text="erste Nachricht", bot=None,
                                 chat_id=4242, message_id=1)
-    mb.queue.appendleft(gescheitert)
-    mb.pausiert_bis = (datetime.now() + timedelta(minutes=5)).timestamp()
+    bot.limit_ruecklage(mb, gescheitert,
+                        "5-hour limit reached, resets at 9pm")
     assert len(mb.queue) == 2, "eine Nachricht ging verloren"
     assert mb.queue[0].text == "erste Nachricht", \
         "die Reihenfolge stimmt nicht — die ältere Nachricht muss vorn bleiben"
@@ -114,14 +123,48 @@ def _nachricht_bleibt_vorn():
 
 # --- Der Zweig existiert im Code und schließt sauber ab --------------------
 def _zweig_verhaelt_sich_richtig():
+    """**[RANG A, Stelle 6] Textsuche ersetzt — dreimal.**
+
+    Hier stand `src.index(...)` mit Suchfenstern von 900 und 2500 Zeichen. Das
+    ist doppelt zerbrechlich: Es misst Schreibweise statt Wirkung, UND das
+    Fenster verschiebt sich, sobald jemand einen Kommentar einfuegt. Ein
+    umformulierter Zweig waere rot geworden, ohne dass sich etwas geaendert
+    haette — und ein entkernter waere gruen geblieben.
+    """
+    import ast as _ast
     import inspect
-    src = inspect.getsource(bot._run_job)
-    assert "is_session_limit(e)" in src, "kein eigener Limit-Zweig in _run_job"
-    i_limit = src.index("is_session_limit(e)")
-    assert "queue.appendleft(job)" in src[i_limit:i_limit + 900], \
-        "die Nachricht wird beim Limit nicht zurück an den Kopf gelegt"
-    assert 'return "offen"' in src[i_limit:i_limit + 2500], \
+
+    # (a) Die Ruecklage TUT, was sie soll — ausgefuehrt, mit leerer Schlange.
+    mb = bot.Mailbox()
+    job = bot.QueuedJob(update=None, text="x", bot=None, chat_id=1, message_id=1)
+    bis = bot.limit_ruecklage(mb, job, "5-hour limit reached, resets at 9pm")
+    assert list(mb.queue) == [job], "die Ruecklage legt den Auftrag nicht zurueck"
+    assert mb.pausiert_bis > 0, "die Ruecklage setzt keine Pause"
+    assert bis, "die Reset-Zeit aus der Meldung wurde nicht gelesen"
+
+    # (b) Ohne Zeitangabe wird keine erfunden — aber pausiert wird trotzdem.
+    mb2 = bot.Mailbox()
+    job2 = bot.QueuedJob(update=None, text="y", bot=None, chat_id=1, message_id=2)
+    bis2 = bot.limit_ruecklage(mb2, job2, "usage limit reached")
+    assert bis2 is None, "es wurde eine Zeit erfunden, die nicht dastand"
+    assert mb2.pausiert_bis > 0, "ohne Zeitangabe wird gar nicht pausiert"
+
+    # (c) Der Limit-Zweig RUFT sie — echte Aufrufknoten, keine Zeichenkette.
+    _baum = _ast.parse(inspect.getsource(bot._run_job).lstrip())
+    _rufe = [k for k in _ast.walk(_baum)
+             if isinstance(k, _ast.Call) and isinstance(k.func, _ast.Name)
+             and k.func.id == "limit_ruecklage"]
+    assert _rufe, "_run_job ruft die Ruecklage nicht auf — der Limit-Fall " \
+                  "verliert die Nachricht wieder"
+
+    # (d) Und er endet als OFFEN, nicht als gescheitert. Gemessen ueber den
+    #     Rueckgabewert im Syntaxbaum statt ueber ein Textfenster.
+    _rueck = {k.value.value for k in _ast.walk(_baum)
+              if isinstance(k, _ast.Return) and isinstance(k.value, _ast.Constant)
+              and isinstance(k.value.value, str)}
+    assert "offen" in _rueck, \
         "der Limit-Fall wird nicht als offen (= nicht gescheitert) beendet"
+
     w = inspect.getsource(bot._session_worker)
     assert "pausiert_bis" in w, "der Worker kennt die Kontingent-Pause nicht"
 

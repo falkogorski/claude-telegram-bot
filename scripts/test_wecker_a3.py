@@ -155,23 +155,44 @@ def _das_limit_setzt_den_vermerk_auf_offen():
     """**Adams erste Bedingung, an der Quelle gemessen.** Im Kontingent-Zweig
     steht die Nachricht zurück in die Warteschlange UND der Vermerk auf
     „offen" — beides zusammen ist die Zusage."""
+    # **[UMGEBAUT 29.08. beim Rang-A-Durchgang, Stelle 6.]** Hier stand eine
+    # Textsuche in einem 900-Zeichen-Fenster hinter `if is_session_limit(e):`.
+    # Sie ist beim Herausziehen der Ruecklage rot geworden — und das war der
+    # Beweis ihrer Schwaeche, nicht eines Fehlers: Der Code tat weiterhin
+    # genau dasselbe, nur ein paar Zeilen weiter unten. **Ein Pruefer, der bei
+    # einer Umstrukturierung anschlaegt und bei einer Entkernung schweigt,
+    # misst die falsche Sache.**
+    #
+    # Jetzt wird die Ruecklage AUSGEFUEHRT und alle drei Zusagen an ihrem
+    # Ergebnis gemessen: Pause, Rueckstellung, Vermerk auf offen.
+    import ast as _ast
     import inspect
-    quelle = inspect.getsource(bot.run_job) if hasattr(bot, "run_job") else ""
-    if not quelle:
-        # Der Zweig liegt im Worker-Umfeld; dann dort messen.
-        quelle = inspect.getsource(bot._session_worker)
-    treffer = "is_session_limit" in quelle and "STATUS_OPEN" in quelle
-    if not treffer:
-        # Letzte Instanz: die Datei selbst, aber nur ausführbare Zeilen.
-        roh = Path(bot.__file__).read_text(encoding="utf-8").splitlines()
-        code = "\n".join(z for z in roh
-                         if z.strip() and not z.strip().startswith("#"))
-        i = code.find("if is_session_limit(e):")
-        assert i > 0, "der Kontingent-Zweig ist nicht auffindbar"
-        fenster = code[i:i + 900]
-        assert "pausiert_bis" in fenster, "keine Pause im Kontingent-Zweig"
-        assert "appendleft" in fenster, "die Nachricht geht nicht zurück"
-        assert "STATUS_OPEN" in fenster, "der Vermerk wird nicht auf offen gesetzt"
+
+    class _JobAttrappe:
+        pending_key = "probe-4711-99"
+
+    gesetzt: list[tuple] = []
+    echt = pending.set_status
+    try:
+        pending.set_status = lambda k, s: gesetzt.append((k, s))
+        mb = bot.Mailbox()
+        job = bot.QueuedJob(update=None, text="Adams Frage", bot=None,
+                            chat_id=4711, message_id=99,
+                            pending_key="probe-4711-99")
+        bot.limit_ruecklage(mb, job, "5-hour limit reached, resets at 9pm")
+    finally:
+        pending.set_status = echt
+
+    assert mb.pausiert_bis > 0, "keine Pause im Kontingent-Zweig"
+    assert list(mb.queue) == [job], "die Nachricht geht nicht zurück"
+    assert gesetzt and gesetzt[0][1] == pending.STATUS_OPEN, \
+        "der Vermerk wird nicht auf offen gesetzt"
+
+    # Und der Zweig ruft sie wirklich — echte Aufrufknoten, kein Textfenster.
+    _baum = _ast.parse(inspect.getsource(bot._run_job).lstrip())
+    assert any(isinstance(k, _ast.Call) and isinstance(k.func, _ast.Name)
+               and k.func.id == "limit_ruecklage" for k in _ast.walk(_baum)), \
+        "der Kontingent-Zweig ruft die Ruecklage nicht auf"
 
 
 def _hoechstens_drei_versuche():

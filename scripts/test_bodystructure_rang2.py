@@ -120,10 +120,53 @@ zeile("Zahlen bleiben stehen", ek._lese_sexp('("a" 234)') == [["a", "234"]])
 zeile("Verschachtelung bleibt erhalten",
       ek._lese_sexp('(("a")("b"))') == [[["a"], ["b"]]])
 
+# ---------------------------------------------------------------- Punkt 5
+print()
+print("== Rang 2, Punkt 5: eine Menge fuer beide Leser ==")
+import mailtext as mt                                          # noqa: E402
+
+# **U+202E ist der Kern der Bedrohung, nicht ein Randfall.** RIGHT-TO-LEFT
+# OVERRIDE kehrt die Darstellungsrichtung um: Ein Betreff zeigt in Adams
+# Anzeige etwas anderes, als in den Daten steht — ausgerechnet an der Stelle,
+# die den Absender ausweist.
+BIDI = {
+    "U+202A LRE": "‪", "U+202B RLE": "‫", "U+202C PDF": "‬",
+    "U+202D LRO": "‭", "U+202E RLO": "‮",
+    "U+2066 LRI": "⁦", "U+2067 RLI": "⁧",
+    "U+2068 FSI": "⁨", "U+2069 PDI": "⁩",
+}
+for name, z in BIDI.items():
+    zeile(f"{name} wird in Kopfzeilen gefangen",
+          bool(ek._STEUERZEICHEN.search(z)))
+    zeile(f"{name} wird im Nachrichtentext gefangen",
+          bool(mt._UNSICHTBARE_ZEICHEN.search(z)))
+
+# Der gemessene Widerspruch zwischen den beiden Listen.
+zeile("U+00AD faengt jetzt auf BEIDEN Seiten",
+      bool(ek._STEUERZEICHEN.search("­"))
+      and bool(mt._UNSICHTBARE_ZEICHEN.search("­")))
+
+# **Eine Menge, nicht zwei** — sonst driften sie wieder auseinander.
+zeile("beide Seiten benutzen dieselbe Zeichenklasse",
+      mt.TRUEGERISCHE_ZEICHEN_KLASSE in ek._STEUERZEICHEN.pattern,
+      gemessen="email_kanal baut seine Klasse nicht aus mailtext")
+
+# Und die Gegenrichtung: harmloser Text bleibt unangetastet.
+for harmlos in ("Rechnung Mai", "Grüße aus Köln", "Re: Angebot 2026"):
+    zeile(f"harmloser Betreff bleibt: {harmlos!r}",
+          not ek._STEUERZEICHEN.search(harmlos))
+
+# Kopfzeilen-Umbrueche bleiben Sache von email_kanal — dort brechen sie die
+# Faltung; im Nachrichtentext sind sie legitim.
+zeile("Zeilenumbruch faengt nur die Kopfzeilen-Seite",
+      bool(ek._STEUERZEICHEN.search("\n"))
+      and not mt._UNSICHTBARE_ZEICHEN.search("\n"))
+
+
 print()
 if fehler:
     print(f"❌ {len(fehler)} von {n} Zeilen rot:")
     for f in fehler:
         print(f"   · {f}")
     sys.exit(1)
-print(f"✅ Alle {n} Zeilen der Anhang-Erkennung bestanden")
+print(f"✅ Alle {n} Zeilen von Rang 2 bestanden")

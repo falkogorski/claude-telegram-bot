@@ -87,7 +87,35 @@ _UNSICHTBAR_STIL = re.compile(
 # `email_kanal._STEUERZEICHEN`: Zero-Width-Zeichen trennen ein Wort, ohne dass
 # man es sieht. Hier werden sie durch ein sichtbares Zeichen ersetzt, damit im
 # Bericht steht, dass dort etwas war.
-_UNSICHTBARE_ZEICHEN = re.compile(r"[​-‍⁠﻿­]")
+# **[NEU 29.08., Engywucks Rang 2, Punkt 5] DIE EINE Menge unsichtbarer und
+# richtungssteuernder Zeichen — fuer beide Leser.**
+#
+# Es gab zwei Listen: diese hier und `email_kanal._STEUERZEICHEN`. **Gemessen
+# widersprachen sie sich** — U+00AD (weiches Trennzeichen) fing nur diese,
+# und **neun Bidi-Zeichen gingen durch beide**.
+#
+# Das ist dieselbe Lehre wie bei der Anmelde-Marke G1: *Zwei Listen driften;
+# eine gemeinsame kann es nicht.* Wer hier etwas ergaenzt, ergaenzt es fuer
+# beide Seiten.
+#
+# **Warum die Bidi-Zeichen der schwerste Teil sind:** U+202E (RIGHT-TO-LEFT
+# OVERRIDE) kehrt die Darstellungsrichtung um. Ein Betreff zeigt in Adams
+# Anzeige dann etwas anderes an, als in den Daten steht — der Kern der
+# Bedrohung, ausgerechnet an der Stelle, die den Absender ausweist. Der
+# klassische Fall ist der Dateiname `rechnung\u202egpj.exe`, der als
+# `rechnungexe.jpg` erscheint.
+#
+# Sie sind **nicht unsichtbar**, sondern richtungssteuernd — deshalb heisst
+# die Menge jetzt nach dem, was sie tut, und nicht nach ihrem Aussehen.
+TRUEGERISCHE_ZEICHEN_KLASSE = (
+    "\u200b-\u200d"      # Breitenlose Trenner und Verbinder
+    "\u2060"             # Wortverbinder
+    "\ufeff"             # Byte-Reihenfolge-Marke
+    "\u00ad"             # weiches Trennzeichen
+    "\u202a-\u202e"      # Richtungsumkehr: LRE RLE PDF LRO RLO
+    "\u2066-\u2069"      # Richtungs-Isolate: LRI RLI FSI PDI
+)
+_UNSICHTBARE_ZEICHEN = re.compile(f"[{TRUEGERISCHE_ZEICHEN_KLASSE}]")
 
 
 # --------------------------------------------------------------------------

@@ -50,6 +50,8 @@ import os
 import re
 import smtplib
 import ssl
+
+import mailtext as _mailtext
 from dataclasses import dataclass, field
 from email.header import decode_header, make_header
 from email.message import EmailMessage
@@ -104,7 +106,13 @@ _STEUERZEICHEN = re.compile(
     # gehoert nicht in einen Wert, den ein Mensch lesen soll.
     r"[\r\n\x00-\x08\x09\x0b\x0c\x0e-\x1f\x7f"
     r"  "          # Zeilentrenner jenseits von ASCII
-    r"​-‍⁠﻿]"  # unsichtbare Trenner mitten im Wort
+    # **[BERICHTIGT 29.08., Engywucks Rang 2, Punkt 5]** Hier stand eine
+    # zweite, eigene Liste unsichtbarer Zeichen. Gemessen widersprach sie
+    # der in `mailtext`: U+00AD fing nur jene, und **neun Bidi-Zeichen
+    # gingen durch beide**. Jetzt EINE Menge fuer beide Leser — dieselbe
+    # Lehre wie bei der Anmelde-Marke G1: zwei Listen driften, eine
+    # gemeinsame kann es nicht.
+    + _mailtext.TRUEGERISCHE_ZEICHEN_KLASSE + r"]"
 )
 
 # Anhänge dürfen nur aus dem Arbeitsbereich kommen — nie aus Geheimnis-Pfaden.

@@ -11002,8 +11002,24 @@ def _split_tts_chunks(text: str, max_chars: int = TTS_CHUNK_CHARS) -> list[str]:
 
 
 def _extract_pdf_text(path: Path) -> str:
-    """Extrahiert den Text eines PDFs seitenweise via PyMuPDF."""
-    import fitz, re
+    """Extrahiert den Text eines PDFs seitenweise via PyMuPDF.
+
+    **`pymupdf` statt `fitz` (29.08., beim Patch-Sprung auf 1.28.2 gemessen).**
+    Das Paket warnt seit dieser Fassung beim Import: *[The `fitz` API is
+    deprecated and will be removed in future.]* Es funktioniert noch, aber es
+    wird verschwinden — und dann braeche der PDF-Pfad bei einem Update, das
+    sonst harmlos aussieht. **Ein Fehler, der erst Wochen spaeter und dann bei
+    einem fremden Anlass auftritt**, ist genau die Sorte, die dieses Projekt
+    inzwischen vorher schliesst.
+
+    Der Rueckfall bleibt: Aeltere Fassungen kennen `pymupdf` als Namen noch
+    nicht. Ein harter Wechsel haette den Rueckweg des Updates zerstoert.
+    """
+    import re
+    try:
+        import pymupdf as fitz
+    except ImportError:              # pragma: no cover — aeltere Fassung
+        import fitz
     doc = fitz.open(str(path))
     pages = [page.get_text() for page in doc]
     doc.close()

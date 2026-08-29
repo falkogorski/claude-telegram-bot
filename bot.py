@@ -10060,9 +10060,15 @@ async def on_mail_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     try:
-        text = await asyncio.to_thread(email_kanal.posteingang_lesbar, konto, 10)
-        kennungen = await asyncio.to_thread(
-            lambda: [n["kennung"] for n in email_kanal.posteingang(konto, 10)])
+        # **Ein Abruf, nicht zwei** (Rang 2, Punkt 2, 29.08.). Vorher holten
+        # Liste und Knöpfe den Posteingang getrennt — zwei Abrufe sind zwei
+        # Zeitpunkte, und dazwischen kann Post eintreffen oder verschwinden.
+        # Dann zeigte Knopf n auf eine andere Nachricht als Zeile n, ohne dass
+        # es irgendwo aufgefallen wäre. Jetzt stammen beide aus DERSELBEN
+        # Antwort, und die Kennung ist die UID vom Server.
+        nachrichten = await asyncio.to_thread(email_kanal.posteingang, konto, 10)
+        text = email_kanal.als_text(konto, nachrichten)
+        kennungen = [n["kennung"] for n in nachrichten]
     except email_kanal.Abgewiesen as e:
         await send_chunked(query.get_bot(), query.message.chat_id, f"❌ {e}",
                            parse_mode=None)

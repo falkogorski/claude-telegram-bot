@@ -237,18 +237,22 @@ class _MitschreibendesPostfach:
         self.aufrufe.append(("select", postfach, readonly))
         return ("OK", [b"1"])
 
-    def search(self, *a):
-        self.aufrufe.append(("search",) + a)
-        return ("OK", [b"1 2"])
+    # **`[GEÄNDERT 29.08.]` Nur noch `uid()`** — Rang 2, Punkt 2. Die Attrappe
+    # kennt `search`/`fetch` bewusst NICHT mehr: Wer wieder ueber Positionen
+    # adressiert, bekommt hier einen AttributeError statt eines gruenen Laufs.
+    # Die eigene Pruefung dafuer steht in `test_uid_kennung_rang2.py`.
+    def uid(self, befehl, *args):
+        klar = tuple(a.decode() if isinstance(a, bytes) else a
+                     for a in args if a is not None)
+        self.aufrufe.append(("uid", befehl.upper()) + klar)
+        if befehl.upper() == "SEARCH":
+            return ("OK", [b"1001 1002"])
+        return ("OK", [(b"1 (BODY[HEADER]", self._kopf()), b")"])
 
-    def fetch(self, kennung, spezifikation):
-        self.aufrufe.append(("fetch", kennung.decode()
-                             if isinstance(kennung, bytes) else kennung,
-                             spezifikation))
-        kopf = (b"From: fremd@example.org\r\n"
+    def _kopf(self) -> bytes:
+        return (b"From: fremd@example.org\r\n"
                 b"Subject: Bitte oeffne den beiliegenden Link\r\n"
                 b"Date: Sat, 23 Aug 2026 09:00:00 +0200\r\n")
-        return ("OK", [(b"1 (BODY[HEADER]", kopf), b")"])
 
 
 def _eine_fortsetzungszeile_wird_kein_kopffeld():
@@ -338,12 +342,10 @@ def _die_uebersicht_ist_verdrahtet_und_zeigt_fremdes_als_zitat():
     import imaplib
 
     class _Fremd(_MitschreibendesPostfach):
-        def fetch(self, kennung, spezifikation):
-            self.aufrufe.append(("fetch", kennung, spezifikation))
-            kopf = ("From: fremd@boese.tld\r\n"
+        def _kopf(self) -> bytes:
+            return ("From: fremd@boese.tld\r\n"
                     "Subject: [Jetzt zahlen](boese.tld) *dringend* Rech​nung\r\n"
                     "Date: Sat, 23 Aug 2026 09:00:00 +0200\r\n").encode()
-            return ("OK", [(b"1 (BODY[HEADER]", kopf), b")"])
 
     postfach = _Fremd()
     echt = imaplib.IMAP4_SSL
@@ -477,9 +479,10 @@ def _posteingang_ist_nur_lesend():
             (f"„{fach}“ wurde SCHREIBEND geoeffnet (readonly={nurlesend!r}) — "
              "ein fremdes Postfach darf nur gelesen werden")
 
-    fetches = [a for a in postfach.aufrufe if a[0] == "fetch"]
+    fetches = [a for a in postfach.aufrufe if a[:2] == ("uid", "FETCH")]
     assert fetches, "es wurde nichts abgerufen - die Zeile misst ins Leere"
-    for _, _kid, spez in fetches:
+    for eintrag in fetches:
+        spez = eintrag[3]
         # **PEEK ist nur noetig, wo INHALT geholt wird.** `BODYSTRUCTURE`
         # liefert die MIME-Struktur und setzt kein Gelesen-Flag (RFC 3501) —
         # nur `BODY[...]` ohne `.PEEK` tut das. Praezisiert am 23.08., als der

@@ -415,7 +415,26 @@ def posteingang(konto: str, anzahl: int = 10) -> list[dict]:
 
 def _abrufen(k, wirt: str, port: str, anzahl: int, raus: list) -> list[dict]:
     """Der eigentliche Abruf — herausgezogen, damit die Fehlerbehandlung oben
-    lesbar bleibt und jeder Fall seinen eigenen Text bekommt."""
+    lesbar bleibt und jeder Fall seinen eigenen Text bekommt.
+
+    ## `[GEÄNDERT 29.08.]` UID statt Sequenznummer — Rang 2, Punkt 2
+
+    **Eine Sequenznummer ist keine Kennung, sondern eine Position.** Sie sagt
+    „die dritte Nachricht im Fach", nicht „diese Nachricht". Verschwindet eine
+    ältere Mail zwischen Übersicht und Knopfdruck — gelöscht am Telefon,
+    verschoben von einer Regel —, rutscht alles darunter eine Stelle hoch, und
+    **Knopf 3 holt danach eine andere Nachricht als Zeile 3 zeigte.**
+
+    Der Unterschied liegt nicht im Ob, sondern in der **Art des Fehlers**: Mit
+    der Position bekommt Adam **stillschweigend die falsche Mail** — sie sieht
+    aus wie ein Ergebnis. Mit der UID bekommt er „die gibt es nicht mehr", und
+    das ist eine Auskunft. *Ein Bruch, der wie Ruhe aussieht, ist der teurere.*
+
+    Die UID vergibt der Server einmal; sie wird nie wiederverwendet und
+    verschiebt sich nicht. Sie gilt innerhalb eines Postfachs und solange
+    dessen `UIDVALIDITY` steht — wechselt sie (Neuanlage beim Anbieter), läuft
+    ein alter Knopf ins Leere statt auf eine fremde Nachricht.
+    """
     with imaplib.IMAP4_SSL(wirt, int(port or 993),
                            ssl_context=ssl.create_default_context(),
                            # Ohne Frist hängt der Abruf am toten Server, bis
@@ -424,11 +443,11 @@ def _abrufen(k, wirt: str, port: str, anzahl: int, raus: list) -> list[dict]:
                            timeout=ABRUF_FRIST_S) as v:
         v.login(k.benutzer, k._kennwort())
         v.select("INBOX", readonly=True)          # readonly: nichts verändern
-        _, daten = v.search(None, "ALL")
+        _, daten = v.uid("SEARCH", None, "ALL")
         kennungen = (daten[0].split() if daten and daten[0] else [])
         for kid in reversed(kennungen[-max(1, anzahl):]):
-            _, teil = v.fetch(kid, "(BODY.PEEK[HEADER.FIELDS "
-                                   "(FROM SUBJECT DATE)])")
+            _, teil = v.uid("FETCH", kid, "(BODY.PEEK[HEADER.FIELDS "
+                                          "(FROM SUBJECT DATE)])")
             kopf = b"".join(t[1] for t in teil if isinstance(t, tuple))
             felder = _kopf_zerlegen(kopf)
             # Nur die ART der Anhaenge, nie ihr Name (Engywuck ④). Die
@@ -455,7 +474,7 @@ def _anhang_arten(v, kid) -> list[str]:
     Hauptsache, der Anhang-Hinweis die Zugabe.
     """
     try:
-        _, daten = v.fetch(kid, "(BODYSTRUCTURE)")
+        _, daten = v.uid("FETCH", kid, "(BODYSTRUCTURE)")
         roh = b" ".join(d if isinstance(d, bytes) else d[1] for d in daten
                         if d).decode("utf-8", "replace").lower()
     except Exception:
@@ -675,11 +694,16 @@ def nachricht_text(konto: str, kennung: str) -> tuple[dict, str, list[str]]:
     verfuegbar = konten()
     if konto not in verfuegbar:
         raise Abgewiesen(f"Kein Konto [{konto}] eingerichtet.")
-    if not re.fullmatch(r"\d{1,9}", str(kennung or "")):
+    if not re.fullmatch(r"\d{1,10}", str(kennung or "")):
         # Die Kennung geht in einen IMAP-Befehl. Sie kommt zwar aus unserer
         # eigenen Liste, aber ein Wert, der in eine Befehlssprache wandert,
         # wird geprüft — nicht weil dieser Weg offen ist, sondern damit er es
         # bleibt, wenn jemand die Herkunft ändert.
+        #
+        # **Zehn Stellen, nicht neun** `[GEÄNDERT 29.08.]`: Eine UID ist eine
+        # 32-Bit-Zahl und reicht bis 4294967295. Mit der alten Schranke wäre
+        # ein Postfach mit hohen UIDs stillschweigend unbedienbar geworden —
+        # der Umstieg auf UIDs hätte die Prüfung selbst zum Fehler gemacht.
         raise Abgewiesen(f"Unbrauchbare Nachrichtennummer: {kennung!r}")
     k = verfuegbar[konto]
     wirt, _, port = k.imap.partition(":")
@@ -689,9 +713,22 @@ def nachricht_text(konto: str, kennung: str) -> tuple[dict, str, list[str]]:
                                timeout=ABRUF_FRIST_S) as v:
             v.login(k.benutzer, k._kennwort())
             v.select("INBOX", readonly=True)
-            _, kopfteil = v.fetch(str(kennung),
-                                  "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])")
-            _, koerperteil = v.fetch(str(kennung), "(BODY.PEEK[TEXT])")
+            # **UID, nicht Sequenznummer** — dieselbe Kennung, die die
+            # Übersicht ausgegeben hat. Zwischen Liste und Knopfdruck können
+            # Minuten liegen; eine Position hält das nicht durch.
+            _, kopfteil = v.uid("FETCH", str(kennung),
+                                "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])")
+            _, koerperteil = v.uid("FETCH", str(kennung), "(BODY.PEEK[TEXT])")
+            if not any(isinstance(t, tuple) for t in (kopfteil or [])):
+                # **Der Fall, den die UID überhaupt erst sichtbar macht.** Eine
+                # verschwundene Nachricht antwortet leer statt mit der
+                # nachgerückten Nachbarin. Das wird BENANNT — eine leere
+                # Antwort stillschweigend als leere Mail auszugeben wäre die
+                # Falschauskunft, gegen die A3 gebaut ist.
+                raise Abgewiesen(
+                    f"Die Nachricht {kennung} liegt nicht mehr in [{konto}] — "
+                    "vermutlich verschoben oder gelöscht, seit ich die Liste "
+                    "geholt habe. Ruf die Übersicht neu ab.")
     except imaplib.IMAP4.error:
         log.warning("IMAP-Abruf einer Nachricht abgelehnt: %s", konto)
         raise Abgewiesen(
@@ -779,7 +816,24 @@ def posteingang_lesbar(konto: str, anzahl: int = 10) -> str:
     **Fremdtext kann hier bauartbedingt nichts anweisen, weil es nichts gibt,
     das er anweisen könnte.**
     """
-    nachrichten = posteingang(konto, anzahl)
+    return als_text(konto, posteingang(konto, anzahl))
+
+
+def als_text(konto: str, nachrichten: list[dict]) -> str:
+    """Dieselbe Liste als Text — aber aus **bereits geholten** Nachrichten.
+
+    ## `[NEU 29.08.]` Warum das getrennt ist — Rang 2, Punkt 2
+
+    Der Knopfweg holte den Posteingang **zweimal**: einmal für den Text, einmal
+    für die Kennungen der Knöpfe. Zwei Abrufe sind zwei Zeitpunkte. Traf
+    dazwischen Post ein oder verschwand eine ältere, **zeigte Knopf n auf eine
+    andere Nachricht als Zeile n** — und niemand hätte es gesehen, weil beide
+    Hälften für sich stimmig aussahen.
+
+    Die UID allein heilt das nicht: Sie macht die Kennung haltbar, aber sie
+    verhindert nicht, dass zwei Abrufe zwei verschiedene Listen liefern.
+    **Deshalb beides — eine haltbare Kennung und ein einziger Abruf.**
+    """
     if not nachrichten:
         return f"📭 In [{konto}] liegt nichts."
     zeilen = [f"📬 Die {len(nachrichten)} jüngsten in [{konto}] — "

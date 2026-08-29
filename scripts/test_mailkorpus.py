@@ -333,8 +333,16 @@ def _der_textabruf_bleibt_nur_lesend():
             self.aufrufe.append(("select", fach, readonly))
             return ("OK", [b"1"])
 
-        def fetch(self, kid, spez):
-            self.aufrufe.append(("fetch", kid, spez))
+        # **`[GEÄNDERT 29.08.]` Nur `uid()`** — Rang 2, Punkt 2: Eine Nachricht
+        # wird über ihre UID geholt, nicht über ihre Position. `fetch` fehlt
+        # bewusst; ein Rückfall auf Positionen endet hier im AttributeError.
+        def uid(self, befehl, *args):
+            klar = [a.decode() if isinstance(a, bytes) else a
+                    for a in args if a is not None]
+            self.aufrufe.append(("uid", befehl.upper(), *klar))
+            if befehl.upper() == "SEARCH":
+                return ("OK", [b"1001"])
+            spez = klar[1] if len(klar) > 1 else ""
             if "HEADER" in spez:
                 return ("OK", [(b"1 (", b"From: a@b.tld\r\nSubject: x\r\n")])
             return ("OK", [(b"1 (", b"Hallo.")])
@@ -350,8 +358,8 @@ def _der_textabruf_bleibt_nur_lesend():
     selects = [a for a in postfach.aufrufe if a[0] == "select"]
     assert selects and all(a[2] is True for a in selects), \
         f"der Einzelabruf oeffnet SCHREIBEND: {selects}"
-    fetches = [a for a in postfach.aufrufe if a[0] == "fetch"]
-    assert fetches and all("BODY.PEEK" in a[2] for a in fetches), \
+    fetches = [a for a in postfach.aufrufe if a[:2] == ("uid", "FETCH")]
+    assert fetches and all("BODY.PEEK" in a[3] for a in fetches), \
         f"der Einzelabruf markiert als gelesen: {fetches}"
 
 

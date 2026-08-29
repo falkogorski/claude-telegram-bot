@@ -15,8 +15,29 @@ except Exception:
     print('')
 " 2>/dev/null)
 
-case "$FILE" in
-  */MIGRATION.md|*/CLAUDE.md|MIGRATION.md|CLAUDE.md) ;;
+# **[BERICHTIGT 29.08., Engywucks Maschinen-Gleichstand, Fund ③]**
+#
+# Hier stand der Vergleich auf `$FILE` direkt. `case` in bash ist
+# **schreibweisenempfindlich**, und wer nicht passt, faellt in `*) exit 0` —
+# also **durchlassen**, nicht blockieren.
+#
+# Auf Adams Mac ist das Dateisystem schreibweisen-**un**empfindlich: Ein
+# Zugriff auf `claude.md` trifft dieselbe Datei, umgeht aber beide Muster.
+# **Damit war die dritte Schicht der Fuehrungs-Register-Absicherung
+# ausgerechnet auf der Maschine loechrig, auf der die fuehrende Sitzung
+# schreibt.** Fail-open statt fail-closed.
+#
+# Auf VPS und Container entstand kein Loch — dort existiert die Datei unter
+# dem anderen Namen schlicht nicht. Genau die Sorte Divergenz, die Adams
+# Gleichstands-Regel meint.
+#
+# Verglichen wird jetzt der **kleingeschriebene Dateiname**. `tr` statt
+# `${VAR,,}`, weil `/bin/bash` auf macOS die Fassung 3.2 ist und die
+# Kleinschreibungs-Erweiterung erst mit 4.0 kam — eine Loesung, die nur auf
+# einer Maschine laeuft, waere hier besonders absurd.
+_BASIS=$(basename "$FILE" | tr '[:upper:]' '[:lower:]')
+case "$_BASIS" in
+  migration.md|claude.md) ;;
   *) exit 0 ;;
 esac
 

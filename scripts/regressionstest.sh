@@ -199,6 +199,7 @@ run "Bash-Positivliste"               "$PY" scripts/test_bashfreigabe.py
 run "Umlaut-Ersatz am Versand"        "$PY" scripts/test_umlaut_versand.py
 run "SDK-Fehlererkennung"            "$PY" scripts/test_fehlererkennung_sdk.py
 run "Gegenleser (ruhend)"            "$PY" scripts/test_gegenleser.py
+run "Governance-Hook (8.7)"          "$PY" scripts/test_governance_hook.py
 run "Hermetik der Pruefläufe (L)"       "$PY" scripts/test_hermetik.py
 run "Zielumgebung (bash -n + env -i)"  bash scripts/test_zielumgebung.sh
 run "Sendepfad-Rauchtest (Pflicht 1)"  "$PY" scripts/test_sendepfad_rauch.py

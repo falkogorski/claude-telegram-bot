@@ -71,15 +71,50 @@ def bot_prozess() -> int | None:
     ein `pgrep -f "python bot.py"` zählt sonst den eigenen Aufruf mit — genau
     dieses Messartefakt hat am 24.07. eine Phantom-Zweitinstanz vorgetäuscht.
     """
+    # **[BERICHTIGT 29.08., Engywucks Maschinen-Gleichstand, Fund ①]**
+    #
+    # Hier stand `pgrep -af`. Das ist die **GNU-Form** — und dieselbe Datei
+    # rechnet zwei Zeilen weiter ausdruecklich mit macOS (`dienst_aktiv()`:
+    # *None, wenn es hier kein systemd gibt (Mac)*).
+    #
+    # **Auf dem Mac gemessen, und es ist doppelt falsch:**
+    #
+    #     pgrep -af "sleep 300"   ->  31191
+    #                                 31193      (nackte PIDs, KEIN Befehl)
+    #     pgrep -fl "sleep 300"   ->  31193 sleep 300
+    #
+    # BSD gibt ohne `-l` nur die Nummer aus, und `-a` bedeutet dort etwas
+    # anderes: **Vorfahren einbeziehen** — daher der zusaetzliche Treffer
+    # 31191, die Eltern-Shell.
+    #
+    # **Die Folge war kein Schoenheitsfehler.** `zeile.split(None, 1)` ergibt
+    # eine einelementige Liste, `len(teile) != 2` greift fuer JEDE Zeile, und
+    # `bot_prozess()` liefert **immer** `None`. `warte_auf_hochlauf` haette
+    # ewig [kein Bot-Prozess] gemeldet — und nach Fristablauf spielte der
+    # Waechter ein `pip install` ueber die venv eines **voellig gesunden**
+    # Bots zurueck. Ein Retter, der den Patienten holt, weil er ihn nicht
+    # sieht.
+    #
+    # **Kein Plattform-Zweig, sondern eine Form fuer beide.** `ps -Ao
+    # pid=,args=` ist POSIX und verhaelt sich auf Linux wie auf BSD gleich.
+    # Eine Fallunterscheidung waere eine zweite Wahrheit ueber dieselbe Frage
+    # — und die driftet, sobald jemand nur eine Haelfte anfasst.
     try:
-        out = subprocess.run(["pgrep", "-af", "bot[.]py"], capture_output=True,
+        out = subprocess.run(["ps", "-Ao", "pid=,args="], capture_output=True,
                              text=True, timeout=15).stdout
     except Exception:
         return None
     eigen = os.getpid()
     for zeile in out.splitlines():
         teile = zeile.split(None, 1)
-        if len(teile) != 2 or "start_waechter" in teile[1]:
+        if len(teile) != 2:
+            continue
+        # `ps` listet alle Prozesse — die Auswahl, die vorher `pgrep` traf,
+        # geschieht jetzt hier. **Bewusst am Dateinamen mit Punkt**, damit
+        # `botanik.py` oder `chatbot.py` nicht mitzaehlen.
+        if "bot.py" not in teile[1]:
+            continue
+        if "start_waechter" in teile[1]:
             continue
         try:
             pid = int(teile[0])

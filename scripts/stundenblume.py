@@ -189,8 +189,15 @@ def _befunde() -> list[tuple[str, str]]:
 # Hier ist er bekannt und fest. Eine Regel ist nicht deshalb schlecht, weil sie
 # eine Zahl enthält, sondern wenn die Zahl geraten ist.
 TAGESCHECK_STILL_S = 26 * 3600
+# **[BERICHTIGT 29.08., Engywucks Maschinen-Gleichstand, Fund ②]** Der
+# Rueckfall war der feste VPS-Pfad — auf dem Mac zeigt er ins Leere. Die
+# Bauform (Umgebungsgroesse mit Vorgabe) war richtig, die Vorgabe nicht.
+# **Abgeleitet statt getippt**, dieselbe Lehre wie bei `_REPO_MARKEN`: Der
+# Ort ergibt sich aus dem Ort dieser Datei und stimmt damit auf jeder
+# Maschine.
+_REPO = Path(__file__).resolve().parent.parent
 TAGESCHECK_LOG = Path(os.environ.get("TAGESCHECK_LOG")
-                      or "/home/claudebot/claude-telegram-bot/logs/daily-check.log")
+                      or (_REPO / "logs" / "daily-check.log"))
 
 
 def tagescheck_pruefen() -> list[tuple[str, str]]:

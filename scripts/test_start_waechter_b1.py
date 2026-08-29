@@ -298,6 +298,52 @@ def _die_marke_wird_geraeumt():
         "der Lebensnachweis liegt nach der Bewachung noch da"
 
 
+def _die_prozesserkennung_findet_einen_echten_prozess():
+    """**[Engywucks Fund ① vom 29.08.] Ausgefuehrt auf DIESER Maschine.**
+
+    Hier stand `pgrep -af` — die GNU-Form. Auf dem Mac gemessen liefert sie
+    nackte PIDs ohne Befehlszeile, und `-a` heisst dort *Vorfahren
+    einbeziehen*. `bot_prozess()` lieferte damit **immer** `None`; der
+    Waechter haette nach Fristablauf ein `pip install` ueber die venv eines
+    gesunden Bots gespielt.
+
+    Diese Zeile prueft nicht die Schreibweise des Aufrufs, sondern **ob die
+    Erkennung auf der Maschine funktioniert, auf der sie gerade laeuft** —
+    mit einem echten Prozess, der `bot.py` im Namen traegt. Genau das haette
+    den Fund von Anfang an verhindert, und zwar auf beiden Systemen.
+    """
+    import subprocess as sp
+    import sys as _sys
+    import time as _time
+
+    # Ein echter, harmloser Prozess, dessen Befehlszeile `bot.py` enthaelt.
+    kind = sp.Popen([_sys.executable, "-c",
+                     "import time,sys; sys.argv=['bot.py']; time.sleep(20)",
+                     "bot.py"],
+                    stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+    try:
+        _time.sleep(0.6)
+        gefunden = w.bot_prozess()
+        assert gefunden is not None, (
+            "die Prozesserkennung findet einen laufenden bot.py-Prozess NICHT "
+            "— auf dieser Maschine liefert sie immer None, und der Waechter "
+            "wuerde einen gesunden Bot zurueckrollen")
+    finally:
+        kind.terminate()
+        try:
+            kind.wait(timeout=5)
+        except Exception:
+            kind.kill()
+
+    # Die Gegenrichtung: ohne solchen Prozess darf sie nichts erfinden.
+    _time.sleep(0.4)
+    # (Auf einer Maschine, auf der der echte Bot laeuft, ist ein Treffer
+    #  richtig — deshalb hier nur pruefen, dass der Testprozess weg ist.)
+    assert kind.poll() is not None, "der Probe-Prozess laeuft noch"
+
+
+check("Prozesserkennung findet einen echten Prozess",
+      _die_prozesserkennung_findet_einen_echten_prozess)
 check("abgekoppelt ohne Lebensnachweis → laut", _detach_ohne_lebensnachweis_meldet_es)
 check("abgekoppelt mit Lebensnachweis → Erfolg", _detach_mit_lebensnachweis_meldet_erfolg)
 check("der Lebensnachweis entsteht im Lauf", _die_marke_entsteht_waehrend_der_bewachung)

@@ -506,11 +506,55 @@ def _ist_ortsabhaengig(wert: str) -> bool:
         w.startswith("/home/claudebot") or w.startswith("~/"))
 
 
+def _alle_python_dateien() -> list[Path]:
+    """Alle versionierten `.py`-Dateien — als MENGE über eine Eigenschaft.
+
+    **[BERICHTIGT 29.08., Engywucks Maschinen-Gleichstand, Fund ②]** Hier
+    stand:
+
+        sorted((WURZEL / "scripts").glob("test_*.py")) + [WURZEL / "bot.py"]
+
+    Das erfasst 45 Prüfer und `bot.py` — **alle Betriebsskripte lagen
+    außerhalb.** Gemessen ergab die Prüfart deshalb die **leere Menge**,
+    während im Bestand drei echte Festpfade standen (`stundenblume.py:193`,
+    `version_monitor.py:29` und `:299`). **Der Prüfer, der ortsabhängige
+    Festpfade finden soll, konnte die einzigen echten nicht sehen.**
+
+    Das ist die Mengen-Regel zum fünften Mal — und diesmal ausgerechnet in
+    `differenz.py`, dem Werkzeug, das eigens gegen Aufzählungen gebaut wurde.
+    *Jede Prüfung läuft über eine Menge, und es ist immer die, die dem
+    Erbauer am Bautag einfiel.*
+
+    `test_hermetik.py` bleibt ausgenommen: Dort **ist** ein fester Pfad der
+    Testgegenstand.
+    """
+    import subprocess
+    try:
+        aus = subprocess.run(["git", "-C", str(WURZEL), "ls-files", "*.py"],
+                             capture_output=True, text=True, timeout=20)
+    except Exception:
+        return []
+    dateien = []
+    for name in aus.stdout.split("\n"):
+        # `test_hermetik.py` und `differenz.py` bleiben draußen: Dort **ist**
+        # ein fester Pfad der Testgegenstand. Beim ersten geweiteten Lauf
+        # schlug die Prüfart sofort auf ihre eigenen Vergleichszeichenketten
+        # an (`differenz.py:503` und `:506`) — **ein Prüfer, der über die
+        # Beschreibung seines eigenen Gegenstands stolpert, wird binnen einer
+        # Woche abgeschaltet.** Das ist wörtlich eine der beiden Regeln, die
+        # `CLAUDE.md` für Prüfer aufstellt.
+        if not name or name.endswith(("test_hermetik.py", "differenz.py")):
+            continue
+        pfad = WURZEL / name
+        if pfad.is_file():
+            dateien.append(pfad)
+    return sorted(dateien)
+
+
 def _feste_betriebspfade() -> set[str]:
     """Über den **Syntaxbaum**, damit Kommentare und Docstrings draußen sind."""
     raus = set()
-    dateien = [d for d in sorted((WURZEL / "scripts").glob("test_*.py"))
-               if d.name != "test_hermetik.py"] + [WURZEL / "bot.py"]
+    dateien = _alle_python_dateien()
     for datei in dateien:
         try:
             baum = ast.parse(datei.read_text(encoding="utf-8"))

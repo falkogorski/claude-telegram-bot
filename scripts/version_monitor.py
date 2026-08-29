@@ -25,8 +25,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 REGISTER = ROOT / "components.json"
+# **[BERICHTIGT 29.08., Engywucks Maschinen-Gleichstand, Fund ②]** Der
+# Rueckfall war der feste VPS-Pfad — auf dem Mac zeigt er ins Leere. Die
+# Bauform (Umgebungsgroesse mit Vorgabe) war richtig, die Vorgabe nicht.
+# **Abgeleitet statt getippt**, dieselbe Lehre wie bei `_REPO_MARKEN`: Der
+# Ort ergibt sich aus dem Ort dieser Datei und stimmt damit auf jeder
+# Maschine.
 LOGFILE = Path(os.environ.get("VERSION_MONITOR_LOG")
-               or "/home/claudebot/claude-telegram-bot/logs/version-monitor.log")
+               or (ROOT / "logs" / "version-monitor.log"))
 ENVFILE = os.environ.get("BOT_ENVFILE") or "/etc/claude-telegram-bot.env"
 HTTP_TIMEOUT = 15
 
@@ -296,7 +302,7 @@ def _send_telegram(text: str) -> None:
 
 
 SEENFILE = Path(os.environ.get("VERSION_MONITOR_SEEN")
-                or "/home/claudebot/claude-telegram-bot/logs/version-monitor-gesehen.json")
+                or (ROOT / "logs" / "version-monitor-gesehen.json"))
 INTERVALL_STD_TAGE = 90
 
 

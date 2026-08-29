@@ -16,6 +16,16 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# **Hermetik (Lehre aus dem Abhaengigkeits-Register, Punkt 4).** Die Umgebung
+# wird ERZWUNGEN, nicht ergaenzt. Ohne diese Zeilen laeuft der Pruefer nur
+# dort, wo zufaellig eine `.env` liegt — im Probelauf-Klon vom 29.08. ist er
+# genau daran gescheitert, waehrend er im Hauptbaum gruen war. Ein Pruefer,
+# der von einer nicht versionierten Datei abhaengt, misst die Maschine und
+# nicht den Code.
+import os as _os
+_os.environ["TELEGRAM_BOT_TOKEN"] = "0:pruefstand"
+_os.environ["ALLOWED_USER_IDS"] = "4711"
+
 import bashfreigabe as bf                                    # noqa: E402
 
 fehler: list[str] = []

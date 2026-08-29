@@ -27,7 +27,37 @@ bei uns gebaut werden** — der Sprung nimmt uns davon nichts ab.
 | **0.2.129 (Breaking)** — Skill-Namen in `ClaudeAgentOptions.skills` werden validiert, `skills=["*"]` wirft jetzt | **Nein** | `grep -n "skills" *.py` → **kein Treffer**. Wir setzen die Option nicht. |
 | **0.2.137** — `ConversationResetMessage` weitet die `Message`-Union; erschöpfendes Matching mit `assert_never` bricht | **Nein** | `grep -n "assert_never" *.py` → **kein Treffer**. Unser Stromleser matcht offen, nicht erschöpfend. |
 | **0.2.140** — `can_use_tool` jetzt auch für `query()` und String-Prompts | **Nein, reine Erweiterung** | Wir nutzen durchgehend `ClaudeSDKClient` (bot.py:3723, 4380, 9665, 11324) und `client.query(...)` als Methode — nie die Freifunktion. Der Riegel bleibt, wo er ist. |
-| **0.2.140** — `mcp`-Abhängigkeit auf `>=1.23.0,<3.0.0` geweitet | **Nein** | Kein `mcp`-Pin in `requirements.txt`; wird transitiv gezogen. |
+| **0.2.140** — MCP-2.x-Unterstützung; In-Process-Server laufen über mcps eigenen In-Memory-Transport statt handgeschriebenem JSON-RPC | **JA — siehe Korrektur unten** | Zuerst als folgenlos eingestuft. Falsch. |
+
+## KORREKTUR, zehn Minuten nach der ersten Fassung — es sind ZWEI Punkte
+
+**Die Zeile oben hieß erst „Nein — kein `mcp`-Pin in `requirements.txt`".** Das
+war die Konfiguration gelesen statt die Wirkung gemessen — genau die Krankheit,
+gegen die unsere eigene Prüfregel steht. Der fehlende Pin sagt nichts darüber,
+ob wir den Pfad *benutzen*.
+
+**Gemessen, und wir benutzen ihn:** `create_sdk_mcp_server` (bot.py:3547) und
+ein `@tool` (bot.py:3450) — der In-Process-Server **„suche"**. Das ist genau
+der Pfad, den 0.2.140 von handgeschriebenem JSON-RPC-Versand auf mcps eigenen
+In-Memory-Transport umgestellt hat, bei gleichzeitiger Weitung der
+Abhängigkeit auf `mcp>=1.23.0,<3.0.0`. Installiert ist heute `mcp 1.27.1`,
+verfügbar ist `2.1.1` — der Sprung kann die Hauptfassung mitziehen.
+
+**Warum ausgerechnet dieser Server heikel ist:** An ihm hängen zwei
+sicherheitstragende Stellen — die **Kostenschranke der Websuche** (💰, sie
+zählt nicht, sie führt aus) und die frisch gebaute **Ausfall-Erkennung**, die
+einen stillen Zulieferer-Ausfall von einem echten „nichts gefunden"
+unterscheidet. Bricht der Transport still, ist im besten Fall die Suche tot
+(laut, fällt auf) — im schlechten Fall läuft sie an der Schranke vorbei.
+
+**Auflage für den Klon, zusätzlich zu den drei unten:**
+
+4. **Den Suchpfad im Klon ausführen**, nicht importieren: den Server bauen, das
+   Werkzeug rufen, Antwort und Fehlerform ansehen. Dazu `mcp` einmal in 1.x und
+   einmal in 2.x messen, damit klar ist, ob die Hauptfassung der Auslöser wäre.
+5. **Die Kostenschranke im Klon gegenprüfen** — Schutz raus, rot sehen, Schutz
+   rein. Sie ist eine der acht Rang-A-Stellen und darf nicht über einen
+   Fundament-Sprung still ihre Wirkung verlieren.
 
 ## Der EINE Punkt, der im Klon AUSGEFÜHRT geprüft werden muss
 

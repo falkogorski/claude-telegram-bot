@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jakuna.icloud-spiegel-bot</string>
+
+    <!-- Bewusst NICHT com.jakuna.mirror-ki: Dieser Job ist ein zweiter,
+         eigener Spiegel fuer die Bot-Ausarbeitungen. Der aeltere Job von Mai
+         spiegelt nach ~/Backups und steht seit dem 25.05. auf Exit 78 —
+         er wird hier weder ersetzt noch angefasst. -->
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/jakuna/Projects/claude-telegram-bot/scripts/mac/icloud_spiegel.sh</string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <!-- Kein RunAtLoad: Der erste Lauf soll bei der Einrichtung von Hand
+         ausgeloest werden, damit sein Ergebnis SICHTBAR ist. Ein stiller
+         erster Lauf ist der haeufigste Weg, wie ein kaputter Zeitgeber
+         monatelang als "eingerichtet" gilt. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <!-- Ziel bewusst ausserhalb von ~/Documents: Dieser Ordner ist selbst
+         TCC-geschuetzt, und ein Protokoll, das der Job nicht schreiben darf,
+         verwandelt einen lauten Fehler in einen stillen. -->
+    <key>StandardOutPath</key>
+    <string>/Users/jakuna/.claude/icloud-spiegel.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/jakuna/.claude/icloud-spiegel.err.log</string>
+</dict>
+</plist>

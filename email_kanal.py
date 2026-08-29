@@ -452,10 +452,142 @@ def _anhang_arten(v, kid) -> list[str]:
                         if d).decode("utf-8", "replace").lower()
     except Exception:
         return []
+    return arten_aus_bodystructure(roh)
+
+
+def _lese_sexp(roh: str) -> list:
+    """Zerlegt eine IMAP-Listendarstellung in verschachtelte Python-Listen.
+
+    BODYSTRUCTURE ist **keine flache Zeichenkette**, sondern der in RFC 3501
+    §7.4.2 beschriebene geklammerte Ausdruck. Zeichenketten stehen in
+    Anfuehrungszeichen, `nil` bedeutet leer, Zahlen stehen nackt, und Teile
+    schachteln sich ineinander.
+
+    Fail-quiet wie der Aufrufer: Was sich nicht zerlegen laesst, ergibt eine
+    leere Liste — der Anhang-Hinweis ist die Zugabe, nicht die Hauptsache.
+    """
+    stapel: list[list] = [[]]
+    i, n = 0, len(roh)
+    while i < n:
+        z = roh[i]
+        if z == "(":
+            neu_liste: list = []
+            stapel[-1].append(neu_liste)
+            stapel.append(neu_liste)
+            i += 1
+        elif z == ")":
+            if len(stapel) == 1:
+                return []          # unbalanciert — keine Aussage
+            stapel.pop()
+            i += 1
+        elif z == '"':
+            j = i + 1
+            teile = []
+            while j < n and roh[j] != '"':
+                if roh[j] == "\\" and j + 1 < n:
+                    teile.append(roh[j + 1]); j += 2
+                    continue
+                teile.append(roh[j]); j += 1
+            stapel[-1].append("".join(teile))
+            i = j + 1
+        elif z.isspace():
+            i += 1
+        else:
+            j = i
+            while j < n and not roh[j].isspace() and roh[j] not in "()":
+                j += 1
+            wort = roh[i:j]
+            stapel[-1].append(None if wort == "nil" else wort)
+            i = j
+    return stapel[0] if len(stapel) == 1 else []
+
+
+def _teile_sammeln(knoten, raus: list) -> None:
+    """Laeuft den Strukturbaum ab und sammelt (Typ, Untertyp, Verwendung).
+
+    **Der Unterschied zwischen einem Teil und einem Mehrteiler steht an der
+    ersten Stelle:** Beginnt ein Knoten mit einer Liste, ist er ein
+    Mehrteiler; beginnt er mit einer Zeichenkette, ist das der MIME-Typ, und
+    die zweite Stelle ist der Untertyp. **Genau das unterscheidet die beiden
+    ersten Elemente von allem, was danach kommt** — und das ist der Punkt, an
+    dem der alte Ausdruck scheiterte: Er sah nur Paare, keine Stellen.
+    """
+    if not isinstance(knoten, list) or not knoten:
+        return
+    if isinstance(knoten[0], list):
+        # **Nur die FUEHRENDEN Listen sind Kindteile.** Ein Mehrteiler hat die
+        # Form `(teil1 teil2 … "untertyp" (parameter) …)` — sobald eine
+        # Zeichenkette kommt, sind die Teile zu Ende, und was danach folgt,
+        # gehoert dem Mehrteiler selbst.
+        #
+        # Vom ersten Prueflauf gefunden: Ohne diesen Abbruch wurde die
+        # Parameterliste `("boundary" "x")` als weiterer Teil gelesen und
+        # ergab einen Anhang [unbekannt] — bei JEDER mehrteiligen Mail. Der
+        # Zerleger haette damit denselben Fehler gemacht wie der Ausdruck,
+        # den er ersetzt, nur einmal statt fuenfmal.
+        for kind in knoten:
+            if not isinstance(kind, list):
+                break
+            _teile_sammeln(kind, raus)
+        return
+    if not isinstance(knoten[0], str):
+        return
+    typ = knoten[0]
+    unter = knoten[1] if len(knoten) > 1 and isinstance(knoten[1], str) else ""
+    # Die Verwendung (`attachment` / `inline`) steht als eigene Liste weiter
+    # hinten. Sie wird gesucht, nicht gezaehlt — ihre Stelle unterscheidet
+    # sich zwischen einteiligen und mehrteiligen Nachrichten.
+    verwendung = ""
+    for feld in knoten[2:]:
+        if (isinstance(feld, list) and feld
+                and isinstance(feld[0], str)
+                and feld[0] in ("attachment", "inline")):
+            verwendung = feld[0]
+            break
+    raus.append((typ, unter, verwendung))
+
+
+def arten_aus_bodystructure(roh: str) -> list[str]:
+    """Die Anhang-Arten aus einer BODYSTRUCTURE-Antwort — **zerlegt, nicht gesucht**.
+
+    **`[NEU 29.08., Engywucks Rang 2]` Hier stand ein regulaerer Ausdruck:**
+
+        ein Ausdruck ueber je zwei Zeichenketten in Anfuehrungszeichen
+
+    Er greift **jedes Paar aus zwei Zeichenketten** — und in einer
+    BODYSTRUCTURE stehen dutzende, die keine MIME-Typen sind. Selbst
+    nachgemessen, alle drei Faelle aus seinem Befund bestaetigt:
+
+        einfache Textmail        ->  [1 Anhang (unbekannt)]     (charset/utf-8)
+        Text + eine PDF          ->  [5 Anhaenge]               (statt einer)
+        charset=utf-8; image=x;
+        audio=y; video=z         ->  [4 Anhaenge (Audio, Bild,
+                                      Video, unbekannt)]        OHNE JEDEN ANHANG
+
+    **Der letzte Fall ist der schwere.** Die Parameter im Content-Type schreibt
+    der **Absender**. Damit stammte die Wortwahl in Adams Uebersicht doch von
+    ihm — und die Zusage von Engywucks Punkt ④ vom 23.08. (*nie der Dateiname;
+    der MIME-Typ kommt vom Server*) war in der Umsetzung gekippt, ohne dass es
+    jemand gemerkt haette.
+
+    Jetzt wird die Struktur **zerlegt** und je Teil die **erste und zweite
+    Stelle** gelesen. Ein Parameter kann dort nicht stehen: Er ist immer Teil
+    einer eingeklammerten Unterliste, nie das erste Element eines Teils.
+
+    Zusaetzlich zaehlt nur als Anhang, was auch einer ist — der Nachrichtentext
+    selbst nicht, und eine `alternative`-Fassung in HTML ebenso wenig.
+    """
+    baum = _lese_sexp(roh or "")
+    teile: list[tuple[str, str, str]] = []
+    for knoten in baum:
+        _teile_sammeln(knoten, teile)
     arten = []
-    for typ, unter in re.findall(r'"(\w+)"\s+"([\w.+-]+)"', roh):
-        if typ == "text" and unter in ("plain", "html"):
-            continue          # der Nachrichtentext selbst ist kein Anhang
+    for typ, unter, verwendung in teile:
+        if typ == "text" and unter in ("plain", "html") and verwendung != "attachment":
+            # Der Nachrichtentext selbst ist kein Anhang — **es sei denn, er
+            # ist ausdruecklich als solcher ausgewiesen.** Eine angehaengte
+            # .txt-Datei ist ein Anhang, auch wenn sie Text enthaelt.
+            continue
         arten.append(_anhang_art(f"{typ}/{unter}"))
     return arten
 

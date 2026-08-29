@@ -12,9 +12,11 @@ Entscheidbare steht hier statt in einer Rückfrage.
 > **`[STAND 29.08., 11:40]` Vier Punkte sind erledigt** — ① Deploy, ④ Mai-Spiegel
 > und die beiden Spiegel-Fragen aus deiner Antwort. Sie stehen unten
 > durchgestrichen statt gelöscht, damit die Begründung nachlesbar bleibt.
-> **Offen sind: ② Ultracode · ③ 0.2.148 statt .144 · ⑥ SDK übernehmen ·
-> ⑦ Node-Termin · ⑧ Container-Probelauf · ⑨ die drei Gegenleser-Handgriffe ·
-> ⑩ der Postfach-Nachweis.**
+> **`[STAND 29.08., 17:3x]` ③ und ⑥ sind entschieden:** Sprung auf 0.2.148,
+> aber **im Fenster nach Node**, und `mcp` + `anyio` werden mitgepinnt. Die
+> abgelesenen Werte und alle Schritte stehen in `PRUEFLISTE-sdk-sprung.md`.
+> **Offen bleiben: ② Ultracode · ⑦ Node-Termin · ⑧ Container-Probelauf ·
+> ⑨ die drei Gegenleser-Handgriffe · ⑩ der Postfach-Nachweis.**
 
 ## ~~① Der Deploy der Bash-Positivliste~~ — ERLEDIGT 29.08., 11:31
 

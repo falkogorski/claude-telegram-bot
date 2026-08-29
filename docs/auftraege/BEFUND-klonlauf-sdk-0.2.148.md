@@ -69,5 +69,12 @@ liegen bei Adam (siehe `ENTSCHEIDUNGEN-FUER-ADAM-2026-08-29.md`): ob auf
 0.2.148 statt 0.2.144 gesprungen wird, und wann deployt wird.
 
 Deshalb ist der **Pin nicht nachgezogen** und die Mac-venv nicht angehoben.
-Der Klon bleibt stehen, bis entschieden ist — wieder aufgeräumt wird er mit
-`git worktree remove ../probe-sdk`.
+
+**`[NACHGEZOGEN 29.08., 17:3x]` Entschieden ist inzwischen:** Adam pinnt im
+SDK-Fenster, und zwar `mcp` und `anyio` mit — **drei Zeilen, nicht eine.** Die
+Werte sind aus diesem Klon **abgelesen** und stehen in
+`PRUEFLISTE-sdk-sprung.md`; **dort** wird der Sprung abgearbeitet, nicht hier.
+
+Der Klon ist danach **geräumt** (R4: keine Streu-Bäume). Die gemessene Paarung
+ist damit nicht verloren — sie steht in der Prüfliste, und genau dafür war
+Adams Auflage da: *rekonstruiert ist nicht gemessen.*

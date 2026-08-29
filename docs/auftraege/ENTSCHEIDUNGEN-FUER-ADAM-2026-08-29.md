@@ -9,6 +9,43 @@ Entscheidbare steht hier statt in einer Rückfrage.
 
 ---
 
+> **`[STAND 29.08., 11:40]` Vier Punkte sind erledigt** — ① Deploy, ④ Mai-Spiegel
+> und die beiden Spiegel-Fragen aus deiner Antwort. Sie stehen unten
+> durchgestrichen statt gelöscht, damit die Begründung nachlesbar bleibt.
+> **Offen sind: ② Ultracode · ③ 0.2.148 statt .144 · ⑥ SDK übernehmen ·
+> ⑦ Node-Termin · ⑧ Container-Probelauf · ⑨ die drei Gegenleser-Handgriffe ·
+> ⑩ der Postfach-Nachweis.**
+
+## ~~① Der Deploy der Bash-Positivliste~~ — ERLEDIGT 29.08., 11:31
+
+Engywucks Gegenprüfung hat freigegeben, nach **einer** Reparatur: Meine zwei
+neuen Prüfer legten ihre Wegwerf-Ordner unter `/private/tmp` an — **den Pfad
+gibt es nur auf macOS**, auf dem VPS starben beide beim Import. Der
+Betriebscode war einwandfrei; **tot war der Prüfer, und zwar stumm.**
+
+Repariert, Symlink-Gegenprobe erneut gefahren, die Klasse in
+`test_zielumgebung.sh` abgefangen. Dann deployt: **61/61 auf dem VPS**, beide
+Prüfer leben dort, Bot neu gestartet und aktiv.
+
+Meine Zurückhaltung war laut Engywuck richtig — ohne sie stünde die Schranke
+jetzt mit totem Prüfer im Betrieb.
+
+## ~~④ Der tote Mai-Spiegel~~ — ENTSCHIEDEN UND ERSETZT
+
+Ersetzt statt repariert, mit demselben Zuschnitt wie der Papierweg.
+**Der erste Lauf beziffert die Lücke: 221 von 368 Dateien waren seit dem
+25. Mai ohne zweite Kopie, 107 MB.** Alter Agent entladen und ausgetragen.
+
+## ~~Spiegel-Fragen~~ — ALLE DREI UMGESETZT
+
+Zeitgeber entladen · Papierweg an den Sitzungsstart und auf Zuruf ·
+Mai-Spiegel ersetzt. Beim ersten Lauf fiel eine Dubletten-Falle auf, die
+niemand gesucht hatte — sie ist geschlossen.
+
+---
+
+### Die ursprüngliche Begründung zu ①, zum Nachlesen
+
 ## ① Der Deploy der Bash-Positivliste — meine einzige bewusste Zurückhaltung
 
 **Gebaut, geprüft, gepusht — aber NICHT auf den VPS gebracht.**

@@ -46,13 +46,23 @@ def zeile(name: str, bedingung, *, gemessen: str = "") -> None:
 #      denn `resolve()` verhaelt sich bei fehlenden Pfaden anders.
 import tempfile                                              # noqa: E402
 # **Der Ablageort ist Teil der Pruefung, nicht Beiwerk.** `mkdtemp` legt auf
-# macOS unter `/var/folders/…` an — und `/var` ist ein symbolischer Verweis auf
-# `/private/var`. Diese eine Aufloesung ueberlagerte in der Gegenprobe jede
-# andere: Beim Entkernen von `resolve()` wurden zwanzig Zeilen rot, aber
-# ausgerechnet die Symlink-Zeile blieb gruen — sie wurde vom `/var`-Effekt
-# mitgefangen statt von dem, was sie messen soll. Also auf einem Pfad
-# arbeiten, der schon aufgeloest ist.
-tmp = Path(tempfile.mkdtemp(prefix="bashfrei-", dir="/private/tmp")).resolve()
+# macOS unter `/var/folders/…` an — und `/var` ist dort ein symbolischer
+# Verweis auf `/private/var`. Diese eine Aufloesung ueberlagerte in der
+# Gegenprobe jede andere: Beim Entkernen von `resolve()` wurden zwanzig Zeilen
+# rot, aber ausgerechnet die Symlink-Zeile blieb gruen — sie wurde vom
+# `/var`-Effekt mitgefangen statt von dem, was sie messen soll.
+#
+# **`[BERICHTIGT 29.08., Engywucks Gegenpruefung]` Die Diagnose war richtig,
+# die Medizin falsch.** Hier stand `dir="/private/tmp"` — und **den Pfad gibt
+# es nur auf macOS.** Auf dem VPS starb dieser Pruefer beim Import, bevor eine
+# einzige Zeile lief. Der Betriebscode war einwandfrei; **tot war der
+# Pruefer** — und zwar stumm, nicht laut. Die neue Sicherheitsschranke waere
+# auf den VPS gegangen und dort ungeprueft im Betrieb gestanden.
+#
+# `resolve()` allein loest den `/var`-Verweis auf **jedem** System auf. Der
+# Effekt, der ausgeschlossen werden sollte, ist damit weg, ohne einen
+# macOS-Pfad festzuschreiben.
+tmp = Path(tempfile.mkdtemp(prefix="bashfrei-")).resolve()
 (repo := tmp / "repo").mkdir()
 (ws := tmp / "workspace").mkdir()
 (pf := tmp / "postfach").mkdir()

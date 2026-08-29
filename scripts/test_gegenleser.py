@@ -79,7 +79,11 @@ zeile("substanzlose Zustimmung zaehlt als UNGEPRUEFT",
 
 print()
 print("== Versagen 3: der Befund erreicht niemanden ==")
-d = Path(tempfile.mkdtemp(prefix="gegenleser-", dir="/private/tmp"))
+# `resolve()` statt eines festen `/private/tmp` — den Pfad gibt es nur auf
+# macOS, und dieser Pruefer starb auf dem VPS beim Import (Engywucks
+# Gegenpruefung 29.08.). Was auf einer Maschine gemessen wurde, gilt auf
+# der anderen nicht.
+d = Path(tempfile.mkdtemp(prefix="gegenleser-")).resolve()
 os.environ["GEGENLESER_DIR"] = str(d)
 ok, wo = g.ablegen([g.beurteilen("eins", "Zeile 12: Grenze ungeprueft.",
                                  vorlage=VORLAGE)], "probe-1")

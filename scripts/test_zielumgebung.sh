@@ -198,5 +198,40 @@ else
     "keine Quittung oder kein Grund je ausgeschlossener Datei — lautlos aussortiert"
 fi
 
+# --- 6. Kein Pruefer schreibt einen plattformgebundenen Pfad fest ----------
+#
+# **Engywucks Auflage vom 29.08., aus einem echten Fehlschlag.** Zwei frische
+# Pruefer legten ihre Wegwerf-Ordner unter dem festen Pfad /private/tmp an —
+# **den gibt es nur auf macOS.** Auf dem VPS starben beide beim Import, bevor
+# eine einzige Pruefzeile lief: 57 von 61 statt 61 von 61. Der Betriebscode
+# war einwandfrei; **tot war der Pruefer**, und zwar stumm.
+#
+# Das wiegt schwer, weil es genau die neue Sicherheitsschranke betraf: Sie
+# waere auf den VPS gegangen und dort ungeprueft im Betrieb gestanden.
+#
+# **Dritter Fall derselben Klasse in fuenf Tagen** — PEP 701 (Python 3.11
+# gegen 3.13), die iCloud-Freigabe (App gegen launchd), jetzt der macOS-Pfad.
+# *Was auf einer Maschine gemessen wurde, gilt auf der anderen nicht.*
+#
+# Die Menge entsteht ueber `git ls-files`, nicht ueber ein Namensmuster im
+# Ordner — ein Muster haette Unterordner verfehlt. `scripts/mac/` ist
+# ausgenommen: Diese Skripte sind ausdruecklich Mac-gebunden.
+#
+# Kommentarzeilen fallen heraus, sonst stolperte die Zeile ueber ihre eigene
+# Erklaerung — der sicherste Weg, binnen einer Woche abgeschaltet zu werden.
+_gefunden=""
+for _d in $(git ls-files 'scripts/*.py' 2>/dev/null | grep -v '^scripts/mac/'); do
+  if grep -vE '^[[:space:]]*#' "$_d" \
+     | grep -qE '["'"'"'](/private/tmp|/private/var|/Users/|/opt/homebrew|/Library/Mobile)'; then
+    _gefunden="$_gefunden $_d"
+  fi
+done
+if [ -z "$_gefunden" ]; then
+  melde ok "kein Pruefer schreibt einen plattformgebundenen Pfad fest"
+else
+  melde nein "kein Pruefer schreibt einen plattformgebundenen Pfad fest" \
+    "diese Pruefer laufen nur auf einer Maschine:$_gefunden"
+fi
+
 echo "== Zielumgebung: $((GESAMT-FAILS))/$GESAMT bestanden =="
 exit $FAILS

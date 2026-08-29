@@ -40,6 +40,7 @@ export FREIGABE_DIR="$PRUEFHEIM/freigaben"
 export HORA_DIR="$PRUEFHEIM/hora"
 export BLUMEN_DIR="$PRUEFHEIM/blumen"
 export BASHFREI_HEIM="$PRUEFHEIM"
+export BASHFREI_PROTOKOLL="$PRUEFHEIM/bash-freigaben.jsonl"
 # `[NEU 2026-08-20]` Das Auftragsbuch fehlte hier — und der Riegel hat prompt
 # ein Loch gehabt, das sich am selben Tag zeigte: Der Zielumgebungs-Pruefer
 # startet den ECHTEN Tagescheck, und der legt seit A6.1 einen Sichtungs-Vermerk

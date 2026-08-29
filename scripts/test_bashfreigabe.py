@@ -312,6 +312,59 @@ zeile("bot.py ruft bashfreigabe.entscheiden wirklich auf",
 zeile("der Aufruf reicht die Geheimnis-Schranke herein",
       any(any(kw.arg == "ist_geheimnis" for kw in r.keywords) for r in _rufe))
 
+
+# ---------------------------------------------------------------- Auftrag 5 (Auswertung)
+print("-- Auftrag 5: die Auswertung legt von selbst vor")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import bash_dialog_auswertung as bda                            # noqa: E402
+
+# `beurteilen` ist eine reine Funktion — messbar ohne Datei und ohne Uhr.
+PROBE = (
+    [{"urteil": "frei", "art": "grep", "bereich": "repo"}] * 100
+    + [{"urteil": "dialog", "art": "python3", "bereich": "workspace"}] * 12
+    + [{"urteil": "dialog", "art": "curl", "bereich": "—"}] * 6
+    + [{"urteil": "dialog", "art": "jq", "bereich": "workspace"}] * 2
+    + [{"urteil": "abweisen", "art": "cat", "bereich": "—"}] * 3
+)
+b = bda.beurteilen(PROBE)
+zeile("zaehlt die Urteile getrennt",
+      (b["gesamt"], b["frei"], b["dialog"], b["abgewiesen"]) == (123, 100, 20, 3),
+      gemessen=str((b["gesamt"], b["frei"], b["dialog"], b["abgewiesen"])))
+zeile("erkennt den Wiederkehrer", b["wiederkehrer"][0][0] == "python3",
+      gemessen=str(b["wiederkehrer"][:2]))
+zeile("seltene Auslöser erzeugen keinen Vorschlag",
+      not any("jq" in v for v in b["vorschlaege"]), gemessen=str(b["vorschlaege"]))
+
+# **Die wichtigste Zeile: die Stossrichtung darf nicht kippen.**
+_pv = " ".join(b["vorschlaege"])
+zeile("bei python3 wird NICHT die Klasse geoeffnet",
+      "NICHT die Klasse" in _pv and "benanntes Skript" in _pv, gemessen=_pv[:120])
+# Beide Richtungen der Schwelle — die erste Fassung dieser Zeile war falsch
+# herum: 20 Dialoge sind UNTER 50 und damit erreicht.
+zeile("unter der Schwelle gilt als erreicht", b["ziel_erreicht"] is True)
+zeile("ueber der Schwelle gilt als NICHT erreicht",
+      bda.beurteilen([{"urteil": "dialog", "art": "curl", "bereich": "—"}]
+                     * (bda.SCHWELLE_DIALOGE + 1))["ziel_erreicht"] is False)
+
+# Eine unlesbare Ablage ist ein Befund, kein Abbruch.
+b2 = bda.beurteilen([{"urteil": "_kaputt", "anzahl": 4}])
+zeile("unlesbare Zeilen werden gemeldet, nicht verschluckt",
+      b2["kaputte_zeilen"] == 4 and "unlesbare" in bda.bericht(b2))
+zeile("leere Ablage sagt es ausdruecklich",
+      "Keine Aufrufe" in bda.bericht(bda.beurteilen([])))
+
+# Und das Ablegen selbst: Zeitpunkt, Urteil, Art, Bereich — sonst nichts.
+import json as _json                                            # noqa: E402
+protokoll = tmp / "protokoll.jsonl"
+import os as _os                                                # noqa: E402
+_os.environ["BASHFREI_PROTOKOLL"] = str(protokoll)
+bf.protokollieren(e(f"grep x {ws}/datei.txt"), zeit="2026-08-29 03:40:00")
+_z = _json.loads(protokoll.read_text(encoding="utf-8").strip())
+zeile("Protokoll legt genau vier Felder ab",
+      set(_z) == {"zeit", "urteil", "art", "bereich"}, gemessen=str(sorted(_z)))
+zeile("Protokoll enthaelt KEINEN Grund und KEINE Pfade",
+      "grund" not in _z and str(ws) not in protokoll.read_text(encoding="utf-8"))
+
 print()
 if fehler:
     print(f"❌ {len(fehler)} von {zeilen} Zeilen rot:")

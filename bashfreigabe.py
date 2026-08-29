@@ -402,6 +402,50 @@ def _ein_befehl(teile: list[str], roh: str, bereiche,
     return Entscheid(FREI, "", art, bereich_name or "—", tuple(gefunden))
 
 
+# ---------------------------------------------------------------- Auftrag 5
+#
+# **Adams Nachtrag vom 29.08., 01:2x, macht die Messung zur Bringschuld statt
+# zur Rueckfallebene** — sein Wortlaut: *„Sie werden ueber kurz oder lang
+# nerven. Messdaten proaktiv hinzuziehen bitte!"* Ein Protokoll, das niemand
+# liest, ist keine Messung; deshalb wird hier abgelegt und nach sieben Tagen
+# von `scripts/bash_dialog_auswertung.py` von selbst vorgelegt.
+#
+# **Was abgelegt wird: Zeitpunkt, Urteil, Befehlsart, Bereich. Sonst nichts.**
+# Ausdruecklich KEIN Grund und KEINE Pfade — der Grund traegt Pfade
+# („liegt ausserhalb der Bereiche: /…"), und eine Zaehldatei ist der falsche
+# Ort dafuer. Auftrag 5 sagt es genau: *„Kein Geheimnis kann darin stehen,
+# weil nur das erste Wort und der Bereichsname abgelegt werden."*
+
+def _zaehldatei() -> Path:
+    roh = os.environ.get("BASHFREI_PROTOKOLL")
+    if roh:
+        return Path(roh).expanduser()
+    heim = Path(os.environ.get("BASHFREI_HEIM") or Path.home()).expanduser()
+    return heim / ".claude" / "bash-freigaben.jsonl"
+
+
+def protokollieren(erg: Entscheid, *, zeit: str) -> None:
+    """Eine Zeile je Aufruf — und ein Fehlschlag darf den Bot nicht aufhalten.
+
+    Der Zeitpunkt wird **hereingereicht**, nicht hier gebildet: So bleibt die
+    Funktion rein und ein Pruefer kann sie ohne Uhr messen.
+    """
+    try:
+        datei = _zaehldatei()
+        datei.parent.mkdir(parents=True, exist_ok=True)
+        import json
+        with datei.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"zeit": zeit, "urteil": erg.urteil,
+                                "art": erg.befehlsart, "bereich": erg.bereich},
+                               ensure_ascii=False) + "\n")
+    except Exception:
+        # **Bewusst stumm.** Eine volle Platte oder ein fehlendes Recht darf
+        # keinen Bash-Aufruf scheitern lassen — die Messung ist wichtig, aber
+        # nicht wichtiger als die Arbeit. Dass sie ausbleibt, faellt bei der
+        # Auswertung auf: eine Datei ohne frische Zeilen ist selbst ein Befund.
+        pass
+
+
 def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
     """Darf dieser Bash-Befehl ohne Rueckfrage laufen?
 

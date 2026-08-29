@@ -2975,6 +2975,9 @@ def make_permission_callback(user_id: int):
             log.info("bash-freigabe: %s art=%s bereich=%s grund=%s",
                      _erg.urteil, _erg.befehlsart or "—", _erg.bereich or "—",
                      _erg.grund or "—")
+            from datetime import datetime as _jetzt
+            bashfreigabe.protokollieren(
+                _erg, zeit=_jetzt.now().strftime("%Y-%m-%d %H:%M:%S"))
             if _erg.urteil == bashfreigabe.ABWEISEN:
                 # **Abweisen statt vorlegen** (Auftrag 2). Ein Dialog wäre hier
                 # die falsche Antwort: Er verlagert eine Entscheidung auf Adam,

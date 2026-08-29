@@ -10635,6 +10635,154 @@ def _apply_tts_pronunciation(text: str) -> str:
     return text
 
 
+def _normalize_doppelpunkt_zahlen(text: str) -> str:
+    """Doppelpunkt-Zahlen fuer die Sprachausgabe — Uhrzeit oder Verhaeltnis.
+
+    **Auftrag 1 aus Claudias Bauauftrag vom 28.08., in Adams berichtigter
+    Fassung vom 29.08., 00:15 Uhr.**
+
+    Adams Befund: [20:05 Uhr] wurde als Zeitdauer gesprochen — [zwanzig
+    Stunden fuenf Uhr]. Und in derselben Nachricht wurde [um 20:05 Uhr]
+    richtig gelesen, [seit 20:05 Uhr] falsch; am naechsten Tag dieselbe
+    Zeichenfolge wieder richtig.
+
+    **Dass es mal so, mal so ausgeht, ist der staerkste Grund fuer den Filter,
+    nicht der schwaechste.** Wer nur die Fehlerfaelle sieht, schliesst auf
+    [geht ja meistens] und laesst es liegen. Eine Ausgabe, die je nach Satz
+    drumherum kippt, ist schlechter vorhersehbar als eine, die immer falsch
+    ist — man merkt es erst beim Hoeren, und dann steht es schon im Kanal.
+
+    **Die berichtigte Regel, und die Berichtigung ist der eigentliche Inhalt.**
+    Claudias erster Entwurf wollte jede Doppelpunkt-Zahl mit zweistelliger
+    Minute als Uhrzeit lesen. Adam hat die Grenzfaelle gehoert und einzeln
+    beurteilt:
+
+        2:1    -> [2 zu 1]    richtig
+        21:19  -> [21 zu 19]  richtig
+        16:9   -> [16, 9]     falsch, hier fehlt das [zu]
+        3:16   -> [3 Uhr 16]  falsch, eine Bibelstelle hat keine Uhrzeit
+
+    **Der erste Entwurf haette aus dem funktionierenden [21 zu 19] ein
+    falsches [21 Uhr 19] gemacht** — eine Regel, die einen guten Fall
+    verdirbt, um einen seltenen zu retten. Also:
+
+    1. **Mit `Uhr` oder `h` dahinter -> Uhrzeit.** Eindeutig, kein Raten.
+    2. **Ohne Indikator -> [zu].** Deckt Verhaeltnis, Ergebnis, Seitenmass.
+
+    Das folgt Adams Grundsatz aus Auftrag 3: *Ein Wort traegt nie zuverlaessig
+    einen Parameter; der Indikator muss aus der Struktur kommen.* Das
+    nachgestellte `Uhr` ist genau so ein struktureller Indikator — er wirkt,
+    gleich ob [um], [seit], [ab] oder [bis] davorsteht.
+
+    **Was bewusst offenbleibt:** Eine Bibelstelle wird zu [3 zu 16]. Auch
+    falsch, aber harmloser als eine erfundene Uhrzeit — und sie richtig zu
+    treffen braeuchte eine Liste biblischer Buchnamen, also genau die Bauform,
+    die Auftrag 3 verwirft.
+    """
+    import re
+
+    def _uhrzeit(m: "re.Match") -> str:
+        std, minute = int(m.group(1)), int(m.group(2))
+        if not (0 <= std <= 23 and 0 <= minute <= 59):
+            return m.group(0)          # kein gueltiger Zeitpunkt — unangetastet
+        # Minute 00 spricht sich nicht mit: [20 Uhr], nicht [20 Uhr 0].
+        # Fuehrende Null faellt weg: [16:03 Uhr] -> [16 Uhr 3].
+        return f"{std} Uhr" if minute == 0 else f"{std} Uhr {minute}"
+
+    # (1) Mit Indikator dahinter. Der Indikator wird MITVERBRAUCHT, sonst
+    #     stuende danach [20 Uhr 5 Uhr].
+    text = re.sub(r"\b(\d{1,2}):(\d{2})\s*(?:Uhr\b|h\b)", _uhrzeit, text)
+
+    def _verhaeltnis(m: "re.Match") -> str:
+        a, b = int(m.group(1)), int(m.group(2))
+        # Jahreszahlen und Grosswerte nicht anfassen — dieselbe Grenze, die
+        # `_normalize_number_ranges` fuer Sportergebnisse zieht.
+        if a >= 1000 or b >= 1000:
+            return m.group(0)
+        return f"{a} zu {b}"
+
+    # (2) Ohne Indikator -> [zu].
+    #
+    # **Zwei Randbedingungen, beide vom ersten Prueflauf gefunden:**
+    #
+    # * Der Lookahead darf den **Satzpunkt** nicht ausschliessen — [16:9.] am
+    #   Satzende blieb sonst unangetastet, und das war genau der Fall, den
+    #   Adam als falsch gehoert hat.
+    # * Ein nachgestelltes `Uhr` schliesst den Zweig aus. Sonst wurde aus
+    #   einer UNGUELTIGEN Zeit wie [25:61 Uhr] ein [25 zu 61 Uhr] — der
+    #   Uhrzeit-Zweig oben laesst sie zu Recht liegen, und dieser hier hat
+    #   sie dann aufgegriffen. Was keine gueltige Zeit ist, bleibt stehen.
+    return re.sub(r"(?<![\w:.])(\d{1,3}):(\d{1,3})(?![\d:])(?!\s*(?:Uhr\b|h\b))",
+                  _verhaeltnis, text)
+
+
+def _normalize_tausenderpunkte(text: str) -> str:
+    """Gliederungspunkte in grossen Zahlen durch Leerzeichen ersetzen.
+
+    **Auftrag 2, seit dem 17.07.2026 vereinbart und nie gebaut.** [800.000]
+    wird zuverlaessig als Komma-Zahl gelesen. Die leerzeichengetrennte Form
+    spricht die Stimme als ganze Zahl.
+
+    **Adam hat am 28.08. um 23:11 Uhr Claudias Ausweichweg aufgehoben:** Sie
+    hatte seit dem 29.07. grosse Zahlen ausgeschrieben, weil der Filter
+    fehlte. Sein Wort: *[Du sollst bitte Zahlen als Zahlen schreiben.]* Der
+    Grund ist, dass die Ausweichform zum Hoeren gut und **zum Lesen schlecht**
+    war — und er liest die Nachrichten auch.
+
+    **`[BERICHTIGT beim Prueflauf 29.08.]` Die Stellung in der Kette ist
+    Vorsicht, nicht der Schutz — und der Unterschied ist wichtig.**
+
+    Claudias Auftrag nennt die Reihenfolge als [den eigentlichen Bau]: nach
+    dem Datum, vor den Fassungsnummern. Ich hatte das uebernommen und
+    behauptet, sonst griffe die Regel in [22.06.2026] auf [06.202].
+
+    **Die Gegenprobe hat das widerlegt.** Der Tausenderfilter allein, VOR
+    allem anderen, auf drei Faelle angesetzt:
+
+        22.06.2026     ->  22.06.2026      unangetastet
+        am 1.06.2026   ->  am 1.06.2026    unangetastet
+        Version 1.234  ->  Version 1.234   unangetastet
+
+    Der Grund ist konstruktiv: `\d{3}` verlangt **genau drei** Ziffern hinter
+    dem Punkt — auf den ersten Punkt eines Datums folgen zwei, auf den zweiten
+    vier, und dort scheitert der Lookahead. Die Fassungsnummer faengt der
+    Lookbehind.
+
+    **Das ist die staerkere Sicherung**, denn sie haelt auch, wenn jemand die
+    Kette umsortiert. Die Stellung bleibt trotzdem, wie Claudia sie vorgibt —
+    sie kostet nichts und ist die zweite Linie.
+
+    * **Kein Dezimalpunkt:** Im Deutschen trennt das Komma die
+      Nachkommastellen. Bei englischen Zahlen ([3.141]) waere das falsch —
+      hinnehmbar, weil unsere Texte deutsch sind.
+    * **Keine Fassungsnummer:** Steht [Version] oder [Fassung] davor, bleibt
+      die Zahl unangetastet.
+    * **Kein Dezimalpunkt:** Im Deutschen trennt das Komma die
+      Nachkommastellen. Bei englischen Zahlen ([3.141]) waere das falsch —
+      hinnehmbar, weil unsere Texte deutsch sind.
+    * **Keine Fassungsnummer:** Steht [Version] oder [Fassung] davor, bleibt
+      die Zahl unangetastet.
+
+    Iterativ, weil mehrfach gegliederte Zahlen ([1.234.567]) sonst nur einen
+    Punkt verloeren.
+    """
+    import re
+    # **Die GANZE gegliederte Zahl auf einmal**, nicht Gruppe fuer Gruppe.
+    #
+    # Der erste Entwurf ersetzte je einen Punkt und lief iterativ. Gemessen
+    # blieb [1.234.567] dabei **unveraendert**: Fuer die erste Gruppe
+    # scheiterte der Lookahead am folgenden `.567`, fuer die zweite der
+    # Lookbehind am vorangehenden `1.` — beide Enden blockierten, und die
+    # Iteration half nicht, weil sie nie einen ersten Treffer bekam.
+    #
+    # Ein Ausdruck ueber alle Gruppen loest das ohne Schleife.
+    muster = re.compile(
+        r"(?<![\w.])"                                   # kein Teil einer laengeren Zahl
+        r"(?<!(?i:version)\s)(?<!(?i:fassung)\s)"      # keine Fassungsnummer
+        r"(\d{1,3})((?:\.\d{3})+)(?![\d.])")
+    return muster.sub(lambda m: m.group(1) + m.group(2).replace(".", " "), text)
+
+
 def _normalize_number_ranges(text: str) -> str:
     """Zahlen mit Bindestrich für TTS sinngemäß umschreiben:
     - Sport-Kontext (Endstand/Spielstand/Sieg/Halbzeit/...) → 'zu':
@@ -10957,8 +11105,17 @@ def _strip_markdown_for_tts(text: str) -> str:
     #     ihren letzten vier Ziffern zu einem Jahrhundert werden.
     text = _strip_kontext_hinweis(text)
     text = _apply_tts_pronunciation(text)
+    # 4. Doppelpunkt-Zahlen VOR den Bindestrich-Bereichen: Sonst trifft dort
+    #    womoeglich die Doppelpunkt-Zahl anders (Claudias Auflage, 28.08.).
+    text = _normalize_doppelpunkt_zahlen(text)
     text = _normalize_number_ranges(text)
     text = _normalize_dates(text)
+    # 5. Tausenderpunkte nach dem Datum, vor den Fassungsnummern — als
+    #    zweite Linie. **Der eigentliche Schutz sitzt im Muster selbst**
+    #    (gemessen 29.08.: der Filter laesst Datum und Fassungsnummer auch
+    #    dann in Ruhe, wenn er zuerst laeuft). Die Stellung kostet nichts und
+    #    bleibt deshalb, wie Claudias Auftrag sie vorgibt.
+    text = _normalize_tausenderpunkte(text)
     text = _normalize_kennnummern(text)
     text = _normalize_jahreszahlen(text)
     text = _normalize_versions(text)

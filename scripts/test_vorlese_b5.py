@@ -189,6 +189,114 @@ def _bestehende_regeln_stehen_noch():
     assert "http" not in bot._strip_markdown_for_tts("Quelle: https://example.com/a")
 
 
+def _uhrzeit_mit_indikator():
+    """**Auftrag 1, Adams berichtigte Fassung vom 29.08., 00:15 Uhr.**
+
+    Der Ausloeser ist das nachgestellte `Uhr` oder `h` — ein **struktureller**
+    Indikator, kein Wort davor. Das folgt Adams Grundsatz: *Ein Wort traegt
+    nie zuverlaessig einen Parameter.* Deshalb wirkt die Regel gleich, ob
+    [um], [seit], [ab] oder [bis] davorsteht — genau der Fall, in dem die
+    Ausgabe bisher mal so, mal so ausging.
+    """
+    for roh, erwartet, was in [
+        ("um 20:05 Uhr", "um 20 Uhr 5", "Grundfall"),
+        ("seit 20:05 Uhr", "seit 20 Uhr 5", "anderes Wort davor"),
+        ("ab 20:05 Uhr", "ab 20 Uhr 5", "drittes Wort davor"),
+        ("Start 20:00 Uhr", "Start 20 Uhr", "volle Stunde ohne Null"),
+        ("um 16:03 Uhr", "um 16 Uhr 3", "fuehrende Null faellt weg"),
+        ("Abfahrt 7:45 h", "Abfahrt 7 Uhr 45", "h als Indikator"),
+    ]:
+        ist = bot._strip_markdown_for_tts(roh)
+        assert erwartet in ist, f"{was}: {roh!r} -> {ist!r}, erwartet {erwartet!r}"
+
+
+def _ohne_indikator_wird_zu():
+    """**Die Berichtigung ist der eigentliche Inhalt dieser Zeile.**
+
+    Claudias erster Entwurf wollte jede Doppelpunkt-Zahl mit zweistelliger
+    Minute als Uhrzeit lesen. Adam hat die Grenzfaelle gehoert: [21:19] wird
+    heute korrekt als [21 zu 19] gesprochen — der Entwurf haette daraus ein
+    falsches [21 Uhr 19] gemacht. **Eine Regel, die einen guten Fall
+    verdirbt, um einen seltenen zu retten.**
+    """
+    for roh, erwartet, was in [
+        ("Das Format ist 16:9.", "16 zu 9", "Seitenverhaeltnis am Satzende"),
+        ("Endstand 2:1", "2 zu 1", "Sportergebnis"),
+        ("Es stand 21:19", "21 zu 19", "zweistellig — der gerettete Fall"),
+        ("Mischung 1:3", "1 zu 3", "Mischungsverhaeltnis"),
+    ]:
+        ist = bot._strip_markdown_for_tts(roh)
+        assert erwartet in ist, f"{was}: {roh!r} -> {ist!r}, erwartet {erwartet!r}"
+    # Keine erfundene Uhrzeit, wo keine sein kann.
+    assert "Uhr" not in bot._strip_markdown_for_tts("Es stand 21:19")
+
+
+def _ungueltige_zeit_bleibt_stehen():
+    """Was keine gueltige Zeit ist, wird nicht umgedeutet.
+
+    Vom ersten Prueflauf gefunden: [25:61 Uhr] liess der Uhrzeit-Zweig zu
+    Recht liegen — und der Verhaeltnis-Zweig griff es danach auf und machte
+    [25 zu 61 Uhr] daraus. **Ein halb angewandter Filter ist schlechter als
+    keiner**, weil er eine Form erzeugt, die es in keiner Lesart gibt.
+    """
+    for roh in ("25:61 Uhr", "99:99 Uhr"):
+        assert bot._strip_markdown_for_tts(roh).strip() == roh, \
+            f"ungueltige Zeit wurde umgedeutet: {roh!r} -> " \
+            f"{bot._strip_markdown_for_tts(roh)!r}"
+
+
+def _tausenderpunkte():
+    """**Auftrag 2 — seit dem 17.07.2026 vereinbart, nie gebaut.**
+
+    Der mehrfach gegliederte Fall ist der lehrreiche: Die erste Fassung
+    ersetzte je einen Punkt und lief iterativ — und liess [1.234.567]
+    **unveraendert**, weil fuer die erste Gruppe der Lookahead und fuer die
+    zweite der Lookbehind blockierte. Die Iteration bekam nie einen ersten
+    Treffer.
+    """
+    for roh, erwartet, was in [
+        ("800.000 Einwohner", "800 000 Einwohner", "einfache Gliederung"),
+        ("1.234.567 Zeichen", "1 234 567 Zeichen", "mehrfach gegliedert"),
+        ("rund 12.500 Euro", "12 500", "vierstellig"),
+    ]:
+        ist = bot._strip_markdown_for_tts(roh)
+        assert erwartet in ist, f"{was}: {roh!r} -> {ist!r}, erwartet {erwartet!r}"
+
+
+def _tausenderregel_greift_nicht_ins_datum():
+    """Der Filter laesst Datum und Fassungsnummer in Ruhe — **aus sich heraus**.
+
+    **`[BERICHTIGT 29.08.]` Diese Zeile hiess erst [die Stellung in der Kette]
+    und behauptete, ohne die richtige Reihenfolge griffe die Tausenderregel
+    in [22.06.2026] auf [06.202].** Die Entkernungs-Gegenprobe hat es
+    widerlegt: Den Filter VOR das Datum zu schieben laesst den Pruefer gruen,
+    weil er dort schlicht nicht greift.
+
+    Der Grund ist konstruktiv — `\d{3}` verlangt genau drei Ziffern hinter
+    dem Punkt. Also misst diese Zeile jetzt, **was wirklich schuetzt**: den
+    Filter allein, ohne die Kette drumherum. Das ist die staerkere Zusage,
+    denn sie haelt auch, wenn jemand die Reihenfolge umstellt.
+    """
+    for roh in ("22.06.2026", "am 1.06.2026", "Version 1.234", "Fassung 2.100"):
+        assert bot._normalize_tausenderpunkte(roh) == roh, \
+            f"der Filter greift ohne die Kette in {roh!r} -> " \
+            f"{bot._normalize_tausenderpunkte(roh)!r}"
+    # Und der Fall, den er sehr wohl treffen muss:
+    assert bot._normalize_tausenderpunkte("800.000 Euro") == "800 000 Euro", \
+        "der Filter greift gar nicht mehr — die Zeile oben waere bedeutungslos"
+    ist = bot._strip_markdown_for_tts("am 22.06.2026 um 9:30 Uhr")
+    assert "22. Juni 2026" in ist and "9 Uhr 30" in ist, \
+        f"Datum und Uhrzeit vertragen sich nicht: {ist!r}"
+    assert "06 202" not in ist, f"Tausenderregel hat ins Datum gegriffen: {ist!r}"
+    ist = bot._strip_markdown_for_tts("Version 1.234 ist da")
+    assert "1 234" not in ist, f"Fassungsnummer als Tausenderzahl gelesen: {ist!r}"
+
+
+check("Uhrzeit: Indikator entscheidet, nicht das Wort davor", _uhrzeit_mit_indikator)
+check("ohne Indikator wird [zu] gelesen", _ohne_indikator_wird_zu)
+check("ungueltige Zeit bleibt unangetastet", _ungueltige_zeit_bleibt_stehen)
+check("Tausenderpunkte werden Leerzeichen", _tausenderpunkte)
+check("Tausenderregel greift nicht ins Datum", _tausenderregel_greift_nicht_ins_datum)
 check("Datum wird als Datum gelesen", _datum_wird_datum)
 check("was KEIN Datum ist, bleibt unangetastet", _kein_datum_bleibt_unangetastet)
 check("Datum läuft vor der Versionsregel", _datum_laeuft_vor_der_versionsregel)

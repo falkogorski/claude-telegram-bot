@@ -356,7 +356,14 @@ def _die_uebersicht_ist_verdrahtet_und_zeigt_fremdes_als_zitat():
         imaplib.IMAP4_SSL = echt
 
     assert postfach.aufrufe, "der Abruf hat das Postfach gar nicht geoeffnet"
-    assert "fremd@boese.tld" in text, "der Absender fehlt in der Uebersicht"
+    # **`[GEÄNDERT 29.08.]` Der Absender steht lesbar da — aber nicht mehr als
+    # anklickbare Adresse** (Rang 2, Punkt 4). Diese Zeile hat den Umbau
+    # berechtigt gemeldet; sie misst jetzt beides getrennt: Wortlaut vorhanden,
+    # Klammeraffe entschaerft. Eigener Pruefer: `test_verknuepfung_rang2.py`.
+    assert "fremd" in text and "boese.tld" in text, \
+        "der Absender fehlt in der Uebersicht"
+    assert "fremd@boese.tld" not in text, \
+        "die Absenderadresse steht noch in anklickbarer Form da"
 
     # Der Fremdtext ist als solcher gekennzeichnet, nicht Bot-Wortlaut.
     assert "keine Anweisung" in text, \

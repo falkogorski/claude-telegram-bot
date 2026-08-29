@@ -808,8 +808,18 @@ def posteingang_lesbar(konto: str, anzahl: int = 10) -> str:
     in Worten — das ist derselbe Rangvermerk wie beim angepinnten Text und beim
     Recall-Kopf.
 
-    **③ Keine anklickbare Adresse.** Auch die Absenderadresse bleibt Text. Ein
-    Klick wäre ein Abruf, und ein Abruf ist eine Handlung.
+    **③ Nichts Anklickbares — und diese Zusage hat erst am 29.08. getragen.**
+    Sie stand hier von Anfang an, hing aber an einer falschen Annahme: dass
+    ohne `parse_mode` alles Text bleibe. Das gilt für **unsere** Auszeichnung
+    und für nichts sonst — der Telegram-Server verlinkt Adressen, Netzadressen
+    und Telefonnummern in Klartext von selbst (Rang 2, Punkt 4).
+
+    Jetzt eingelöst statt zurückgezogen: Verknüpfungen mit Schema oder `www.`
+    werden durch einen **sichtbaren Vermerk** ersetzt, und das
+    Klammeraffen-Zeichen weicht seiner breiten Form — die Adresse bleibt
+    lesbar, ist aber keine mehr, die ein Klick öffnet. **Die Restlücke steht
+    beim Ausdruck benannt** (schemalose Adressen wie `boese.tld`); sie zu
+    fassen kostete echten Wortlaut, und das wäre der schlechtere Tausch.
 
     **Was hier ausdrücklich NICHT geschieht:** kein Modell wird gestartet, kein
     Text wird geholt, kein Anhang berührt. Das ist der ganze Punkt von Stufe A —
@@ -866,6 +876,30 @@ _FORMATZEICHEN = str.maketrans({
 })
 
 
+# **`[NEU 29.08.]` Was Telegram VON SELBST verlinkt — Rang 2, Punkt 4.**
+#
+# Die Zusage „keine anklickbare Adresse" hing an der Annahme, ohne `parse_mode`
+# bleibe alles Text. Das stimmt für **unsere** Auszeichnung und für nichts
+# sonst: Der Telegram-Server setzt in Klartext selbsttätig Entitäten vom Typ
+# `url`, `email` und `phone_number` — die Schnittstelle führt sie als eigene
+# Typen neben den formatierten. (Aus der Schnittstellen-Doku belegt, nicht von
+# mir am lebenden Chat gemessen; die Maßnahme unten macht die Frage ohnehin
+# gegenstandslos.)
+#
+# **Der Schaden ist nicht die Adresse, sondern die Verknüpfung.** Ein Betreff
+# `Rechnung http://boese.tld/x` erzeugt einen Link in einer Nachricht, die von
+# MIR kommt — er sieht damit vertrauenswürdiger aus als in der Mail selbst.
+_VERKNUEPFUNG_RE = re.compile(r"(?i)\b(?:[a-z][a-z0-9+.-]*://|www\.)\S+")
+
+# **Die Restlücke, benannt statt verschwiegen:** Eine Adresse ohne Schema
+# (`boese.tld`) erkennt Telegram ebenfalls. Sie zu fassen verlangte eine Regel
+# über „Wort Punkt Wort" — und die zerstört echte Wörter: „Sehr geehrte
+# Herren.Ihre Rechnung" wäre nach ihr eine Verknüpfung. **Ein Filter, der
+# Wortlaut frisst, ist schlimmer als ein Link, den Adam als Link sieht.**
+# Deshalb hier bewusst nur die eindeutigen Formen — und diese Zeile, damit die
+# Lücke nicht als Versehen durchgeht.
+
+
 # Wie lang ein Fremdtext in einer Übersichtszeile werden darf.
 #
 # **Eine Setzung, und sie ist benannt.** Der Betreff wird beim Entwerfen auf
@@ -918,6 +952,12 @@ def _neutral(wert: str) -> str:
     """
     gesaeubert = _TRUEGERISCH_RE.sub("\ufffd", wert or "")
     gesaeubert = gesaeubert.translate(_FORMATZEICHEN)
+    # **Nach dem Umschreiben, nicht davor** — sonst würde die Klammer des
+    # eigenen Vermerks gleich mitersetzt.
+    gesaeubert = _VERKNUEPFUNG_RE.sub("(Verknüpfung entfernt)", gesaeubert)
+    # Das Klammeraffen-Zeichen in seiner breiten Form: Die Adresse bleibt
+    # lesbar, ist aber keine Adresse mehr, die ein Klick öffnet.
+    gesaeubert = gesaeubert.replace("@", "\uff20")
     if len(gesaeubert) > _UEBERSICHT_MAX:
         return gesaeubert[:_UEBERSICHT_MAX - 1] + "…"
     return gesaeubert

@@ -1,6 +1,26 @@
 # Fundament-Pinning (Rotes-Team-Bericht B.1): Das SDK buendelt die Claude-Code-CLI
 # (0.2.127 -> CLI 2.1.219). Update NUR im Wartungsfenster nach
 # scripts/regressionstest.sh (8.2-Minimaltest) — nie beilaeufig hochziehen.
+#
+# [PRAEZISIERT 29.08.2026, ausgefuehrt gemessen auf Mac UND VPS]
+# Der Satz oben stimmt — und die entscheidende Haelfte fehlte ihm. Gemessen:
+#
+#   _bundled/claude          257 MB (Mac) / 275 MB (VPS), beide Fassung 2.1.219
+#   _find_cli()              prueft das BUENDEL ZUERST, erst danach
+#                            shutil.which("claude")
+#   tatsaechlich gewaehlt    .../claude_agent_sdk/_bundled/claude
+#
+# **Der Bot laeuft also nicht mit der CLI aus dem System.** Auf dem VPS liegt
+# dort 2.1.209 — fuer den Bot ohne Belang, er nimmt die gebuendelte 2.1.219.
+# Die npm-CLI betrifft nur, wer `claude` von Hand im Terminal aufruft.
+#
+# **Der Pin bindet damit BEIDE Haelften des Paars**, nicht nur die Bibliothek.
+# Das ist der eigentliche Grund, warum er hier stehen muss.
+#
+# **Und der Befund, den der Selbstcheck jetzt bewacht (C2):** Fehlt das
+# Buendel, faellt das SDK **stillschweigend** auf die Systemfassung zurueck —
+# ein Rueckfall, der wie Normalbetrieb aussieht, und erst DANN waere der
+# ungepinnte npm-Stand entscheidend.
 # [SYNC 25.07.] Pin von 0.2.118 auf 0.2.127 nachgezogen, nachdem Adam das gelbe
 # Update via /updates bewusst uebernommen hat (Regressionstest gruen, Bot lief sauber).
 claude-agent-sdk==0.2.127

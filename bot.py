@@ -8051,6 +8051,96 @@ def run_self_check() -> tuple[bool, list[str]]:
                 drift.append(f"{name}: installiert {have} ≠ gepinnt {pinned}")
         assert not drift, ("Pin weicht ab (Rebuild würde zurückfallen!): "
                            + "; ".join(drift))
+
+        # --- [ERWEITERT 29.08., Engywucks Auftrag ③] ---------------------
+        #
+        # **(a) Welche CLI läuft wirklich?** Sein Vorschlag war, `claude
+        # --version` gegen `__cli_version__` zu halten. **Ausgeführt gemessen
+        # ist das der falsche Vergleich, und er hätte einen Dauer-Fehlalarm
+        # erzeugt:** Das SDK bringt eine eigene CLI mit (`_bundled/claude`,
+        # 257 MB hier, 275 MB auf dem VPS) und nimmt sie in `_find_cli()`
+        # **VOR** `shutil.which("claude")`. Auf dem VPS läuft der Bot also mit
+        # der gebündelten 2.1.219, während im System 2.1.209 liegt — die
+        # Systemfassung ist für ihn schlicht ohne Belang.
+        #
+        # Gemessen wird deshalb die **tatsächlich gewählte** CLI. Und der
+        # eigentliche Befund wäre ein **fehlendes Bündel**: Dann fiele das SDK
+        # stillschweigend auf die Systemfassung zurück, und erst dann wäre
+        # deren Stand entscheidend. Ein Rückfall, der wie Normalbetrieb
+        # aussieht — genau die Sorte, die dieses Projekt sucht.
+        try:
+            from claude_agent_sdk._internal.transport.subprocess_cli import (
+                SubprocessCLITransport as _T)
+            from claude_agent_sdk import _cli_version as _cv
+            _gewaehlt = _T._find_cli(_T.__new__(_T))
+            _gebuendelt = "_bundled" in str(_gewaehlt)
+            assert _gebuendelt, (
+                f"Das SDK nutzt NICHT seine gebündelte CLI, sondern {_gewaehlt} "
+                f"— das Bündel fehlt, und damit hängt der Betrieb an der "
+                f"Systemfassung, die niemand pinnt. Erwartet wäre "
+                f"{_cv.__cli_version__}.")
+        except (ImportError, AttributeError):
+            pass          # anderes SDK-Innenleben — kein Befund, keine Aussage
+
+        # **(b) Ungepinnte Sicherheitsträger.** Über eine MENGE, nicht über
+        # eine zweite Aufzählung: Was direkt angefordert wird, aber **ohne**
+        # `==` steht, kann zwischen den Maschinen frei driften.
+        #
+        # Der Anlass ist `mcp`: gemessen Mac 1.27.1 gegen VPS 1.28.1 bei
+        # identischem SDK. Daran hängt der In-Process-Transport des
+        # Suchservers — und damit die WebSearch-Kostenschranke und die
+        # Ausfall-Erkennung.
+        #
+        # **Das ist bewusst KEIN Fehlschlag, sondern eine Aufzeichnung.** Ob
+        # gepinnt wird, ist eine Entscheidung (der Pin ist die einzige Stelle,
+        # an der eine Fassung geschrieben steht — und er bindet dann auch);
+        # ein Prüfer, der bei jedem Mitzieher rot wird, ist binnen einer Woche
+        # abgeschaltet.
+        try:
+            _roh = req.read_text(encoding="utf-8")
+            _ungepinnt = []
+            for _z in _roh.splitlines():
+                _z = _z.strip()
+                if not _z or _z.startswith("#") or "==" in _z:
+                    continue
+                _m = re.match(r"^([A-Za-z0-9_.\-]+)", _z)
+                if _m:
+                    _ungepinnt.append(_m.group(1))
+            if _ungepinnt:
+                log.info("C2: ohne feste Fassung angefordert (driftet zwischen "
+                         "Maschinen frei): %s", ", ".join(sorted(_ungepinnt)))
+        except Exception:
+            pass
+
+        # **Und die TRANSITIVEN Träger, die in keiner Anforderungsdatei
+        # stehen.** Der erste Lauf dieser Erweiterung hat gezeigt, dass die
+        # Zeile darüber genau den Fall verfehlt, für den sie gebaut wurde:
+        # `mcp` steht nirgends in `requirements.txt` — es kommt über das SDK.
+        # Gemessen driftet es trotzdem (Mac 1.27.1, VPS 1.28.1, Engywucks
+        # Container 1.29.1 — bei identischem SDK).
+        #
+        # An `mcp` hängt der In-Process-Transport des Suchservers und damit
+        # die **WebSearch-Kostenschranke** und die Ausfall-Erkennung.
+        #
+        # **Aufzeichnung, kein Urteil** — und das ist hier die ehrliche Form:
+        # Ob zwei Maschinen auseinanderlaufen, kann keine von beiden allein
+        # feststellen. Was eine allein kann, ist ihre Zahl hinschreiben,
+        # damit ein Vergleich später überhaupt möglich ist. Der eigentliche
+        # Gleichstands-Prüfer muss auf jeder Maschine laufen und die Messungen
+        # zusammenführen; er gehört zuletzt gebaut, nicht nebenbei.
+        try:
+            from importlib.metadata import version as _v
+            _traeger = {}
+            for _n in ("mcp", "claude-agent-sdk", "anyio", "httpx"):
+                try:
+                    _traeger[_n] = _v(_n)
+                except Exception:
+                    continue
+            if _traeger:
+                log.info("C2: Fassungen der Traeger auf DIESER Maschine — %s",
+                         ", ".join(f"{k} {v}" for k, v in sorted(_traeger.items())))
+        except Exception:
+            pass
     check("Pin-Divergenz (C2)", _c_pin_divergenz)
 
     def _c_medien_transport() -> None:

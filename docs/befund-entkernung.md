@@ -101,6 +101,8 @@ verlangt die Schreibweise `min(30.0` — eine benannte Konstante macht ihn rot
 bei intaktem Schutz. **(c)** `test_update_textbefehl:264` (Katalog). **(d)** der
 Geisterbefund-Mechanismus als Auflage in die Prüf-Doku.
 
+**`[ERLEDIGT 2026-08-29]` Rang B vollständig.** (a) und (b) waren am 28.08. geschlossen. **(c) hat sich mitgeschlossen**, ohne dass es jemand einzeln reparieren musste: Die abgeleiteten Repo-Marken aus (a) — `_REPO_MARKEN` folgt `__file__` statt einer festen Zeichenkette — decken denselben Fall. **Gemessen statt behauptet:** `test_update_textbefehl.py` läuft im Klon `probe-sdk`, der nachweislich anders heißt, vollständig grün. (d) steht jetzt als **Auflage** in `CLAUDE.md` beim Abschnitt über Verhaltens-Prüfer — mit allen drei Handgriffen (`__pycache__` löschen · Eingriff verifizieren · erwartete Zeile vorher hinschreiben) und je einem Beleg, warum jeder einzelne nötig ist. **Alle drei Fehler sehen wie ein Ergebnis aus** — deshalb Auflage, nicht Empfehlung.
+
 ## Rang C — alles Übrige in die F-Liste
 
 Die verbleibenden ~45 Funde (nicht sicherheitstragende K1/K2-Fälle, die 16

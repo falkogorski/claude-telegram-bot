@@ -1281,6 +1281,28 @@ grün. Aufgefallen ist es erst bei der Gegenprobe einer fremden Instanz.
 sehen.** Wer sie nicht gefahren hat, weiß nicht, ob er einen Prüfer gebaut hat
 oder eine Beruhigung.
 
+**`[NEU 2026-08-29]` Und vor jeder Gegenprobe: `__pycache__` löschen, den
+Eingriff verifizieren, die erwartete Zeile vorher hinschreiben.** Rang B (d)
+des Entkernungs-Befunds, hier als Auflage statt als Fußnote — drei Handgriffe,
+die je einen eigenen Fehltyp abfangen:
+
+- **`__pycache__` löschen.** Sonst misst man eine übersetzte Vorfassung und
+  hält deren Verhalten für das der Änderung. Der **Geisterbefund**: Der Schutz
+  ist entfernt, der Prüfer bleibt grün — nicht weil er blind ist, sondern weil
+  er den alten Code geladen hat. Man schließt daraus auf eine blinde
+  Prüfzeile, die in Wahrheit funktioniert.
+- **Den Eingriff verifizieren** (`assert alt in t` **vor** der Ersetzung).
+  Eine Ersetzung, deren Suchtext nicht vorkommt, ändert nichts — und der
+  grüne Prüfer danach liest sich wie „der Schutz hält". Drei von fünf
+  Gegenproben waren am 24.08. so konstruiert.
+- **Die erwartete Zeile vorher hinschreiben.** Sonst nimmt man jede beliebige
+  rote Zeile als Bestätigung. Am 29.08. wurde genau so eine falsche
+  Gegenprobe entlarvt: Beim Entkernen der Pfad-Auflösung wurden zwanzig
+  Zeilen rot — aber **nicht die**, die es messen sollte.
+
+**Alle drei Fehler sehen wie ein Ergebnis aus.** Das ist der Grund, warum sie
+hier als Auflage stehen und nicht als Empfehlung.
+
 **Und die Zielumgebung ist die Prüfumgebung.** Der 29.07. war der Beweis: Ein
 `$HOME` in einem Skript, das als root-Dienst ohne HOME läuft, tötete einen
 täglichen Wächter einundzwanzig Tage lang. Am Mac lief alles.

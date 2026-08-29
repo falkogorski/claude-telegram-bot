@@ -855,6 +855,69 @@ _EFFORT_IDS: dict[str, str | None] = {
 
 # ---------- auth-error helper ----------
 
+def fehlertext_vollstaendig(exc: Exception) -> str:
+    """Der gesamte durchsuchbare Text einer Ausnahme — Meldung UND Nutzlast.
+
+    **Gemessen im Probelauf-Klon am 29.08., und der Befund war der Ertrag des
+    ganzen SDK-Sprungs.** Ab `claude-agent-sdk` 0.2.140 wirft das SDK bei
+    einem terminalen Fehler `ResultError` statt eines nackten
+    Exit-Code-Fehlers — ausdruecklich, damit Aufrufer *ohne String-Matching*
+    verzweigen koennen. Wir verzweigen aber ueber genau das.
+
+    Gemessen mit 0.2.148:
+
+        ResultError("OAuth token expired", …)      str(e) traegt den Text  → erkannt
+        ResultError("Command failed",
+                    {"errors": ["authentication_error: …"],
+                     "api_error_status": 401})      str(e) = [Command failed] → NICHT erkannt
+
+    **Der zweite Fall haette den Bot blind gemacht fuer einen kippenden
+    Zugang.** Dann greift nicht die Zugangs-Ruecklage A1 — Nachricht zurueck an
+    die erste Stelle, Marke setzen, Adam bekommt die Anleitung —, sondern der
+    allgemeine Ausnahmezweig. Und der Anmelde-Waechter der Stundenblume, der
+    ueber G1 dieselbe Marke liest, bliebe stumm. **Im Regressionslauf waere das
+    nicht rot geworden: dort entsteht keine echte SDK-Ausnahme.**
+
+    Die Funktion ist bewusst **fassungsunabhaengig**: Fehlt `data`, bleibt
+    alles wie zuvor. Sie laeuft also mit dem alten SDK genauso wie mit dem
+    neuen — der Rueckweg des Updates bleibt offen.
+    """
+    teile = [str(exc)]
+    daten = getattr(exc, "data", None)
+    if isinstance(daten, dict):
+        # Nur die Felder, die eine Fehlerursache tragen. **Nicht das ganze
+        # `data`**: Es kann eine Sitzungskennung und Nutzertext enthalten, und
+        # dieser Text wandert ueber `authmarke.setzen` in eine Datei.
+        for feld in ("result", "subtype", "terminal_reason"):
+            wert = daten.get(feld)
+            if isinstance(wert, str):
+                teile.append(wert)
+        fehler = daten.get("errors")
+        if isinstance(fehler, (list, tuple)):
+            teile += [str(f) for f in fehler]
+        elif isinstance(fehler, str):
+            teile.append(fehler)
+    return " | ".join(teile)
+
+
+def _api_status(exc: Exception) -> int | None:
+    """Der HTTP-Status aus der SDK-Nutzlast, wenn einer dasteht.
+
+    **Der eigentliche Gewinn der neuen Ausnahme:** 401 ist ein Zugangsfehler,
+    ganz gleich wie der Anbieter ihn diesmal formuliert. Das ist der einzige
+    wortlautunabhaengige Beleg, den wir je hatten — und die Wortliste bleibt
+    trotzdem, weil aeltere Fassungen und andere Wege keinen Status liefern.
+    """
+    daten = getattr(exc, "data", None)
+    if not isinstance(daten, dict):
+        return None
+    wert = daten.get("api_error_status")
+    try:
+        return int(wert)
+    except (TypeError, ValueError):
+        return None
+
+
 def is_auth_error(exc: Exception) -> bool:
     """True wenn eine Exception nach einem Anthropic-Auth-/Credentials-Fehler aussieht.
     Der Claude-Subprozess bubbles die Fehler als Text hoch — zuverlässigster Indikator.
@@ -865,7 +928,10 @@ def is_auth_error(exc: Exception) -> bool:
     beiden — der wichtigste Fall ging um ein Wort daneben. Zwei Listen driften;
     eine gemeinsame kann es nicht.
     """
-    return authmarke.passt(str(exc))
+    # 401/403 sind Zugangsfehler unabhaengig vom Wortlaut (29.08.).
+    if _api_status(exc) in (401, 403):
+        return True
+    return authmarke.passt(fehlertext_vollstaendig(exc))
 
 
 def limit_ruecklage(mb, job, fehlertext: str) -> float | None:
@@ -896,8 +962,9 @@ def limit_ruecklage(mb, job, fehlertext: str) -> float | None:
 
 def is_context_overflow(exc: Exception) -> bool:
     """True bei Kontextfenster-/‚prompt too long'-Fehlern (Session voll).
-    Wie is_auth_error anhand des durchgereichten Fehlertexts."""
-    msg = str(exc).lower()
+    Wie is_auth_error anhand des durchgereichten Fehlertexts — **samt
+    Nutzlast**, siehe `fehlertext_vollstaendig` (29.08.)."""
+    msg = fehlertext_vollstaendig(exc).lower()
     needles = (
         "prompt is too long",
         "context length",
@@ -972,7 +1039,7 @@ def is_transport_overflow(exc: Exception) -> bool:
     landet der Fall im allgemeinen Zweig und liest sich für Adam wie ein
     unerklärlicher Session-Fehler.
     """
-    msg = str(exc).lower()
+    msg = fehlertext_vollstaendig(exc).lower()
     return ("maximum buffer size" in msg
             or "exceeded maximum buffer" in msg
             or ("buffer size" in msg and "exceed" in msg))

@@ -506,6 +506,19 @@ def _ist_ortsabhaengig(wert: str) -> bool:
         w.startswith("/home/claudebot") or w.startswith("~/"))
 
 
+# Dateien, in denen ein fester Pfad der **Gegenstand** ist, nicht ein Fehler.
+#
+# **[BERICHTIGT 29.08., Engywucks Gegenprüfung (b)]** Hier stand
+# `name.endswith(("test_hermetik.py", "differenz.py"))` — eine Endungsprüfung
+# auf den **ganzen Pfad**. Sie trifft heute genau die zwei gewollten Dateien,
+# aber `scripts/test_differenz.py` — der naheliegendste Name für einen Prüfer
+# von `differenz.py` — fiele damit **still mit heraus**: *Der Prüfer seines
+# eigenen Gegenstands wäre der erste, der verschwindet.*
+#
+# Verglichen wird deshalb der **Dateiname** gegen eine benannte Menge.
+_EIGENER_GEGENSTAND = frozenset({"test_hermetik.py", "differenz.py"})
+
+
 def _alle_python_dateien() -> list[Path]:
     """Alle versionierten `.py`-Dateien — als MENGE über eine Eigenschaft.
 
@@ -532,8 +545,20 @@ def _alle_python_dateien() -> list[Path]:
     try:
         aus = subprocess.run(["git", "-C", str(WURZEL), "ls-files", "*.py"],
                              capture_output=True, text=True, timeout=20)
-    except Exception:
-        return []
+    except Exception as e:
+        # **[BERICHTIGT 29.08., Engywucks Gegenprüfung (a)]** Hier stand
+        # `return []`. Eine leere Dateimenge ergibt dieselbe Ausgabe wie ein
+        # sauberer Bestand — **zwei identische Meldungen, zwei
+        # entgegengesetzte Bedeutungen.** Genau die Form des Fehlers, gegen
+        # den diese Datei gebaut ist: Der Prüfer misst nichts und meldet grün.
+        #
+        # Heute greift es nicht, weil Mac und VPS Git-Checkouts sind. Es
+        # greift an dem Tag, an dem jemand aus einem Tarball ausrollt, in
+        # einem Worktree misst oder `git` im Dienstpfad fehlt — und dann still.
+        raise RuntimeError(
+            f"Die Dateimenge konnte nicht gebildet werden ({e!r}). Das ist "
+            "KEIN leeres Ergebnis: Es wurde nichts geprueft. Ein Bestand ohne "
+            "Git-Verwaltung ist ein Befund, kein Bestehen.") from e
     dateien = []
     for name in aus.stdout.split("\n"):
         # `test_hermetik.py` und `differenz.py` bleiben draußen: Dort **ist**
@@ -543,11 +568,18 @@ def _alle_python_dateien() -> list[Path]:
         # Beschreibung seines eigenen Gegenstands stolpert, wird binnen einer
         # Woche abgeschaltet.** Das ist wörtlich eine der beiden Regeln, die
         # `CLAUDE.md` für Prüfer aufstellt.
-        if not name or name.endswith(("test_hermetik.py", "differenz.py")):
+        if not name or Path(name).name in _EIGENER_GEGENSTAND:
             continue
         pfad = WURZEL / name
         if pfad.is_file():
             dateien.append(pfad)
+    if not dateien:
+        # Auch der zweite Weg in die leere Menge: `git` lief, lieferte aber
+        # nichts (kein Checkout, leeres Verzeichnis, falsche Wurzel).
+        raise RuntimeError(
+            "Die Dateimenge ist leer — es gibt keine versionierte .py-Datei "
+            "unter der Wurzel. Das ist ein Befund, kein Bestehen: Ein Pruefer "
+            "ueber der leeren Menge besteht immer.")
     return sorted(dateien)
 
 
@@ -575,6 +607,122 @@ def _feste_betriebspfade() -> set[str]:
                     and id(knoten) not in docstrings
                     and _ist_ortsabhaengig(knoten.value)):
                 raus.add(f"{datei.name}:{knoten.lineno} {knoten.value}")
+
+    # **[GEWEITET 29.08., Engywucks Gegenprüfung (c)]** Der Fund lautete
+    # „die Dateimenge ist zu eng" — `git ls-files "*.py"` weitet sie nur
+    # **innerhalb einer Sprache.** Gemessen standen die festen Pfade auch in
+    # Skripten und im Komponenten-Register.
+    #
+    # **Je Dateityp eine eigene Ableseart, weil der Syntaxbaum nur bei Python
+    # trägt.** Das ist der Preis dafür, dass die Menge über eine Eigenschaft
+    # entsteht statt über eine Sprache — und er ist niedriger, als die Lücke
+    # es war.
+    raus |= _feste_pfade_in_skripten()
+    raus |= _feste_pfade_in_json()
+    return raus
+
+
+def _versionierte(muster: str) -> list[Path]:
+    """Versionierte Dateien eines Musters — dieselbe Mengenbildung wie oben."""
+    import subprocess
+    try:
+        aus = subprocess.run(["git", "-C", str(WURZEL), "ls-files", muster],
+                             capture_output=True, text=True, timeout=20)
+    except Exception as e:
+        raise RuntimeError(
+            f"Die Dateimenge fuer [{muster}] konnte nicht gebildet werden "
+            f"({e!r}) — das ist ein Befund, kein leeres Ergebnis.") from e
+    return [WURZEL / n for n in aus.stdout.split("\n")
+            if n and (WURZEL / n).is_file()]
+
+
+# Dateien, in denen ein VPS-Pfad **richtig** ist — je Eintrag eine Begründung.
+#
+# **Das ist eine Aufzählung, und hier ist sie die richtige Form.** Ob ein
+# fester Pfad ein Fehler oder eine Absicht ist, kann kein Muster entscheiden:
+# Es ist jedes Mal ein Urteil. Dieselbe Bauart wie die Ausnahmeliste der roten
+# Worte — *jede Zeile darin ist eine Entscheidung, kein Automatismus.*
+#
+# **Sie bleibt kurz, sonst höhlt sie die Prüfart aus.** Wer hier etwas
+# einträgt, schreibt den Grund dazu; ohne Grund gehört der Pfad begradigt.
+_VPS_GEBUNDEN = {
+    "daily_check.sh":
+        "Läuft als systemd-Dienst auf dem VPS, als root — `$HOME` wäre dort "
+        "`/root`, deshalb steht `BOTHOME` ausdrücklich fest (der Kommentar in "
+        "der Datei begründet es). Auf dem Mac wird er nie aufgerufen.",
+    "vps_backup.sh":
+        "Läuft VOM Mac AUS gegen den VPS. Die Pfade sind die des ENTFERNTEN "
+        "Rechners — ableiten hieße hier, auf den falschen zu zeigen.",
+    "test_zielumgebung.sh":
+        "Der Pfad ist ein ERKENNUNGSMERKMAL, kein Ablageort: `if [ -d … ]` "
+        "prüft, ob wir überhaupt auf dem VPS stehen.",
+    "components.json":
+        "Register des Versions-Wächters, der ausschließlich auf dem VPS läuft "
+        "(kein Zeitgeber auf dem Mac). Und er meldet einen toten Pfad LAUT "
+        "(`Quelle nicht erreichbar`, Befund D) — der Fall ist nicht still.",
+    "api_cache_pflege.sh":
+        "VPS-Wartungsskript; die Vorgabe steht hinter einer Umgebungsgröße "
+        "und ist damit umbiegbar.",
+}
+
+
+def _ist_bewusst_vps_gebunden(datei: Path) -> bool:
+    return datei.name in _VPS_GEBUNDEN
+
+
+def _feste_pfade_in_skripten() -> set[str]:
+    """Shell-Skripte: zeilenweise, ohne Kommentare.
+
+    Kein Syntaxbaum — es gibt keinen für `sh`. Kommentarzeilen fallen heraus,
+    sonst stolperte die Prüfung über die **Erklärungen**, die in diesem
+    Projekt genau diese Pfade besprechen.
+    """
+    raus = set()
+    for datei in _versionierte("*.sh"):
+        # `scripts/mac/` ist ausdruecklich maschinengebunden.
+        if "/mac/" in str(datei) or _ist_bewusst_vps_gebunden(datei):
+            continue
+        try:
+            zeilen = datei.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for nr, zeile in enumerate(zeilen, 1):
+            if zeile.lstrip().startswith("#"):
+                continue
+            for treffer in re.findall(r"[\"'\s=:(]((?:/home/claudebot|~/)[\w./-]*)",
+                                      zeile):
+                if _ist_ortsabhaengig(treffer):
+                    raus.add(f"{datei.name}:{nr} {treffer}")
+    return raus
+
+
+def _feste_pfade_in_json() -> set[str]:
+    """Register-Dateien: rekursiv ueber alle Zeichenketten-Werte.
+
+    `components.json` ist der Fall, der das noetig macht — der
+    Versions-Waechter liest es, und dort stehen acht venv-Pfade.
+    """
+    import json as _json
+    raus = set()
+    for datei in _versionierte("*.json"):
+        if _ist_bewusst_vps_gebunden(datei):
+            continue
+        try:
+            daten = _json.loads(datei.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+
+        def geh(o, pfad="") -> None:
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    geh(v, f"{pfad}.{k}" if pfad else str(k))
+            elif isinstance(o, list):
+                for i, v in enumerate(o):
+                    geh(v, f"{pfad}[{i}]")
+            elif isinstance(o, str) and _ist_ortsabhaengig(o):
+                raus.add(f"{datei.name}:{pfad} {o}")
+
+        geh(daten)
     return raus
 
 

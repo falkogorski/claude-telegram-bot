@@ -1,6 +1,30 @@
 # Bauauftrag: Bash-Freigabe für die laufende Sitzung umschaltbar machen
 
-**Stichtag:** 2026-08-26 · **überholt durch:** — · **maßgeblich ist diese Datei**
+**Stichtag:** 2026-08-26 · **überholt durch:** `2026-08-29_NACHTPAKET-MICK.md` · **maßgeblich ist das Nachtpaket**
+
+> ## ⛔ WIRD NICHT GEBAUT — entschieden, nicht vergessen
+> **Engywuck, 29.08.2026, 01:20:** Der Sitzungs-Schalter aus diesem Auftrag
+> wird nicht gebaut. Adams „Button hat Vorrang!!!“ von 00:13 ist durch
+> seine Abnahme der Ausgangs-Wache um 00:42 überholt.
+>
+> **Der Grund, und er ist der eigentliche Ertrag dieses Auftrags:** Die
+> Positivliste nimmt die harmlosen Dialoge weg. Was danach an Dialogen
+> übrig bleibt — geschätzt rund vierzig je Woche — sind **genau die
+> heiklen**: Netz, Betrieb, Löschen, Skriptausführung. Ein Auto-Fenster
+> über diesem Rest wäre nicht die milde, sondern die **gefährlichste**
+> Form des Schalters gewesen — es hätte ausschließlich das freigegeben,
+> wovor die Schranke schützt.
+>
+> **Was stattdessen die Zahl senkt:** wiederkehrende gleichartige Dialoge
+> werden durch **benannte, geprüfte Skripte** ersetzt, die einzeln in die
+> Positivliste rücken. `python3 <beliebig>` bleibt dialogpflichtig, ein
+> `scripts/<zweck>.py` mit fester Funktion kann freigegeben werden. So
+> sinken die vierzig weiter, **ohne dass die Grenze fällt**, die die
+> Konstruktion trägt.
+>
+> Der Befund unten — dass die Mechanik längst existiert und nur die
+> falsche Lebensdauer hat — bleibt gültig und lesenswert. **Nur der Bau
+> entfällt.**
 
 **Weg:** Claudia → Engywuck (Prüfung) → Mick (Bau).
 

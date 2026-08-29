@@ -163,6 +163,101 @@ zeile("Zeilenumbruch faengt nur die Kopfzeilen-Seite",
       and not mt._UNSICHTBARE_ZEICHEN.search("\n"))
 
 
+# ------------------------------------------------- die Geschwister-Schleife
+print()
+print("== Geschwister: absenderkontrollierter Text aus Strukturfeldern ==")
+#
+# **Engywucks Frage nach dem Anhang-Fix, 29.08.:** *Wenn absenderkontrollierter
+# Text aus einem Strukturfeld bis in Adams Uebersicht durchkam — wo noch?*
+#
+# Die sieben Pfade stehen hier **einzeln benannt**, auch die, die heute gar
+# keinen Aufrufer haben. Das ist der Zweck: Ein kuenftiger Bau, der einen von
+# ihnen anschliesst, faellt hier auf — statt still eine Tuer zu oeffnen.
+#
+# Gebaut wie die Medien-Eingangsschutz-Zeile: **eine Schleife ueber alle
+# Geschwister**, nicht drei einzelne Zeilen, die auseinanderlaufen.
+
+RLO = "‮"          # RIGHT-TO-LEFT OVERRIDE — kehrt die Anzeige um
+ZWSP = "​"         # breitenloser Trenner
+GIFT = f"Rechnung{RLO}gpj.exe"     # zeigt sich als [rechnungexe.jpg]
+
+# (Pfad, erreicht-die-Anzeige, wie der Wert dorthin kaeme)
+GESCHWISTER = [
+    ("Betreff", True, lambda w: ek._neutral(w)),
+    ("Anzeigename des Absenders", True, lambda w: ek._neutral(w)),
+    ("Anhang-Dateiname", False, None),
+    ("filename*-Kodierung", False, None),
+    ("Content-Disposition", False, None),
+    ("Kalendereintrag in einer Mail", False, None),
+    ("Ordnername vom IMAP-Server", False, None),
+]
+
+for name, erreichbar, durch in GESCHWISTER:
+    if not erreichbar:
+        continue
+    for probe, was in [(GIFT, "Bidi"), (f"a{ZWSP}b", "unsichtbarer Trenner"),
+                       ("[Klick](boese.tld)", "Markdown"), ("A" * 500, "Laenge")]:
+        raus = durch(probe)
+        if was == "Laenge":
+            zeile(f"{name}: {was} wird gekappt",
+                  len(raus) <= ek._UEBERSICHT_MAX and raus.endswith("…"),
+                  gemessen=f"{len(raus)} Zeichen")
+        elif was == "Markdown":
+            zeile(f"{name}: {was} kann nicht mehr verlinken", "](" not in raus,
+                  gemessen=raus)
+        else:
+            zeile(f"{name}: {was} wird sichtbar ersetzt",
+                  RLO not in raus and ZWSP not in raus and raus != probe,
+                  gemessen=repr(raus))
+
+# **Die fuenf ohne Aufrufer — gemessen, nicht behauptet.** Sie sind heute
+# sicher, WEIL es den Weg nicht gibt. Diese Zeilen halten das fest: Wer einen
+# von ihnen anschliesst, sieht hier, dass eine Schranke fehlt.
+# **Ueber den Syntaxbaum, nicht ueber den Text.** Die erste Fassung suchte
+# `"LIST" not in quelle` — und stolperte ueber den **eigenen Docstring**, in
+# dem die Tabelle [kein LIST-Aufruf im Modul] steht. Genau die Regel, die
+# `CLAUDE.md` fuer Pruefer aufstellt: *Er darf die Beschreibung seines eigenen
+# Gegenstands nicht anschlagen.* Ein Kommentar existiert im Baum nicht.
+import ast as _ast                                              # noqa: E402
+import inspect                                                  # noqa: E402
+_baum = _ast.parse(inspect.getsource(ek))
+_aufrufe = {
+    (k.func.attr if isinstance(k.func, _ast.Attribute) else
+     getattr(k.func, "id", ""))
+    for k in _ast.walk(_baum) if isinstance(k, _ast.Call)
+}
+zeile("kein IMAP-LIST-Aufruf (Ordnernamen erreichen nichts)",
+      "list_folders" not in _aufrufe and "lsub" not in _aufrufe,
+      gemessen="ein Ordner-Abruf ist dazugekommen — dann braucht er eine Schranke")
+
+# Zeichenketten-Konstanten des Moduls, **ohne** Docstrings: Ein Kalender-Pfad
+# braeuchte den MIME-Typ irgendwo als Wert.
+_docs = {id(k.value) for k in _ast.walk(_baum)
+         if isinstance(k, (_ast.Module, _ast.FunctionDef, _ast.AsyncFunctionDef,
+                           _ast.ClassDef))
+         and k.body and isinstance(k.body[0], _ast.Expr)
+         and isinstance(k.body[0].value, _ast.Constant)
+         for k in [k.body[0]]}
+_werte = {k.value for k in _ast.walk(_baum)
+          if isinstance(k, _ast.Constant) and isinstance(k.value, str)
+          and id(k) not in _docs}
+zeile("kein Kalender-Pfad (Termine aus Mails erreichen nichts)",
+      not any("calendar" in w or "VEVENT" in w for w in _werte),
+      gemessen="ein Kalender-Typ steht als Wert im Modul")
+zeile("Anhaenge liefern nur die ART, nie den Namen",
+      "filename" not in ek.arten_aus_bodystructure(
+          '(("text" "plain" nil nil nil "7bit" 1 1 nil nil nil nil)'
+          '("application" "pdf" ("name" "gift.pdf") nil nil "base64" 9 nil '
+          '("attachment" ("filename" "gift.pdf")) nil nil)'
+          ' "mixed" ("boundary" "x") nil nil nil).__str__()'))
+
+# **Und die EINE Menge, nicht zwei** — sonst driften Zerlegung und Anzeige
+# wieder auseinander, wie sie es bis heute taten.
+zeile("Anzeige und Zerlegung benutzen dieselbe Zeichenklasse",
+      mt.TRUEGERISCHE_ZEICHEN_KLASSE in ek._TRUEGERISCH_RE.pattern
+      and mt.TRUEGERISCHE_ZEICHEN_KLASSE in ek._STEUERZEICHEN.pattern)
+
+
 print()
 if fehler:
     print(f"❌ {len(fehler)} von {n} Zeilen rot:")

@@ -803,14 +803,26 @@ def posteingang_lesbar(konto: str, anzahl: int = 10) -> str:
 # Zeichen, mit denen Telegram formatiert. Sie werden im Fremdtext **ersetzt**,
 # nicht entfernt: Wer `*Rechnung*` schreibt, soll auch `*Rechnung*` lesen — nur
 # eben nicht fett, und ohne dass unklar bleibt, ob dort etwas stand.
+# Dieselbe Menge wie in der Kopfzeilen-Zerlegung — **eine, nicht zwei.**
+_TRUEGERISCH_RE = re.compile(f"[{_mailtext.TRUEGERISCHE_ZEICHEN_KLASSE}]")
+
 _FORMATZEICHEN = str.maketrans({
     "*": "∗", "_": "＿", "`": "ˋ", "[": "〔", "]": "〕",
     "~": "∼", "|": "¦", ">": "＞", "#": "＃",
 })
 
 
+# Wie lang ein Fremdtext in einer Übersichtszeile werden darf.
+#
+# **Eine Setzung, und sie ist benannt.** Der Betreff wird beim Entwerfen auf
+# 200 gekappt; in einer Liste von zwanzig Nachrichten wären 200 je Zeile aber
+# eine Wand, hinter der der Rangvermerk verschwindet — und genau darum geht
+# es bei Engywucks Rang-2-Punkt 3.
+_UEBERSICHT_MAX = 120
+
+
 def _neutral(wert: str) -> str:
-    """Fremdtext, der nichts mehr formatieren oder verlinken kann. (A2)
+    """Fremdtext, der nichts mehr formatieren, verlinken **oder täuschen** kann.
 
     **Ersetzen statt entfernen** — dieselbe Überlegung wie bei den unsichtbaren
     Zeichen: Ein Zeichen, das spurlos verschwindet, verbirgt, dass es da war.
@@ -820,8 +832,41 @@ def _neutral(wert: str) -> str:
     **Das ist der zweite Riegel, nicht der erste.** Der erste ist, dass die
     Nachricht ohne `parse_mode` gesendet wird. Beide zusammen, weil eine
     Sendestelle irgendwann jemand ändert — und dann trägt noch einer.
+
+    ## `[ERWEITERT 29.08.]` Die Geschwister-Regel, sofort angewandt
+
+    **Engywucks Frage nach dem Anhang-Fix:** *Wenn absenderkontrollierter Text
+    aus einem Strukturfeld bis in Adams Übersicht durchkam — wo noch?* Alle
+    sieben von ihm benannten Pfade einzeln gemessen, nicht bedacht:
+
+    | Pfad | Ergebnis |
+    |---|---|
+    | Anhang-Dateiname | erreicht nur die **Art**, nie den Namen |
+    | `filename*`-Kodierung | dito — kein Weg in die Anzeige |
+    | Content-Disposition | dito |
+    | Kalendereinträge in Mails | **kein Aufrufer im Modul** |
+    | Ordnernamen vom IMAP-Server | **kein LIST-Aufruf im Modul** |
+    | **Betreff** | **kam durch** — Bidi und ungekappt |
+    | **Anzeigename des Absenders** | **kam durch** — derselbe Weg |
+
+    **Zwei von sieben waren offen, und beide liefen durch genau diese
+    Funktion.** Ich hatte am selben Tag `_STEUERZEICHEN` um die Bidi-Zeichen
+    erweitert — das ist die Kopfzeilen-**Zerlegung**. Die **Anzeige** hat eine
+    eigene Schranke, und die blieb zurück. *Ein Fix an einem Pfad ist erst
+    fertig, wenn geprüft ist, welche Geschwister denselben Fehler haben.*
+
+    Deshalb hier dieselbe Menge wie dort (`TRUEGERISCHE_ZEICHEN_KLASSE`) —
+    **nicht eine zweite Liste**, sonst driften sie wie schon einmal.
+
+    Und gekappt wird, weil ein 500 Zeichen langer Betreff den Rangvermerk aus
+    dem Blickfeld schiebt. Die Kürzung ist **sichtbar** (`…`): Ein Text, der
+    stillschweigend endet, sieht aus wie ein vollständiger.
     """
-    return (wert or "").translate(_FORMATZEICHEN)
+    gesaeubert = _TRUEGERISCH_RE.sub("\ufffd", wert or "")
+    gesaeubert = gesaeubert.translate(_FORMATZEICHEN)
+    if len(gesaeubert) > _UEBERSICHT_MAX:
+        return gesaeubert[:_UEBERSICHT_MAX - 1] + "…"
+    return gesaeubert
 
 
 def uebersicht() -> str:

@@ -9996,16 +9996,20 @@ async def mail_zusammenfassen(konto: str, kennung: str) -> str:
         "Schreibe fünf bis zehn vollständige Sätze, gut vorlesbar, ohne "
         "Aufzählungssymbole, ohne Adressen, ohne Code."
     )
-    eingabe = mailtext.bericht(text, verborgen)
-    kopfzeile = (f"Absender laut Kopfzeile: {felder.get('from', '—')}\n"
-                 f"Betreff laut Kopfzeile: {felder.get('subject', '—')}\n\n")
+    # **Die Kopfzeilen gehen IN den Bericht, nicht davor** (Rang 2, Punkt 3,
+    # 29.08.). Vorher standen Absender und Betreff — beides vom Absender
+    # gewählt — vor dem Rangvermerk, der sie einordnen soll. Der Vermerk kam
+    # damit zu spät für genau die zwei Werte, die ein Angreifer frei füllt.
+    eingabe = mailtext.bericht(text, verborgen,
+                               absender=felder.get("from", "—"),
+                               betreff=felder.get("subject", "—"))
 
     options = werkzeugfreie_optionen(system_prompt)
     client = ClaudeSDKClient(options=options)
     await client.connect()
     try:
         await client.query("Berichte über diese fremde E-Mail:\n\n"
-                           + kopfzeile + eingabe)
+                           + eingabe)
         teile: list[str] = []
         async for msg in client.receive_response():
             if isinstance(msg, AssistantMessage):

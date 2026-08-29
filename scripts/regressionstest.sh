@@ -202,6 +202,7 @@ run "Gegenleser (ruhend)"            "$PY" scripts/test_gegenleser.py
 run "Governance-Hook (8.7)"          "$PY" scripts/test_governance_hook.py
 run "Anhang-Erkennung (Rang 2)"      "$PY" scripts/test_bodystructure_rang2.py
 run "UID-Kennung (Rang 2)"          "$PY" scripts/test_uid_kennung_rang2.py
+run "Rangvermerk zuerst (Rang 2)"   "$PY" scripts/test_rangvermerk_rang2.py
 run "Hermetik der Pruefläufe (L)"       "$PY" scripts/test_hermetik.py
 run "Zielumgebung (bash -n + env -i)"  bash scripts/test_zielumgebung.sh
 run "Sendepfad-Rauchtest (Pflicht 1)"  "$PY" scripts/test_sendepfad_rauch.py

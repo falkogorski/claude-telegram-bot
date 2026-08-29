@@ -1,0 +1,476 @@
+"""Positivliste fuer Bash-Befehle — die Wache steht am Ausgang.
+<!-- ROLLE: bash-positivliste -->
+
+**Auftrag:** `docs/auftraege/2026-08-29_bauauftrag-bash-freigaben-weniger-druecke.md`
+(Claudia 00:45, Engywucks Freigabe mit vier Entscheiden und drei Auflagen im
+Nachtpaket 01:20, Adams Abnahme 00:42).
+
+## Warum das ein Sicherheits- und kein Bequemlichkeitsbau ist
+
+Gemessen ueber sieben Tage: **448 Bash-Aufrufe, 352 davon mit Dialog.** Adam
+am 29.08. um 00:28: *„Es ist einfach super anstrengend. Man verliert die Lust.
+… Ich gucke mir nicht jede Datei vorher an, bevor ich die freigebe."*
+
+**Eine Rueckfrage, die 352 Mal kommt und ungelesen bestaetigt wird, schuetzt
+nicht — sie gewoehnt ab.** Der eine gefaehrliche Befehl geht genau deshalb
+durch: Er sieht aus wie die 351 davor. Der reale Angriffsweg ist nicht ein
+Einbruch auf dem Server, sondern Inhalt, den die Sitzung liest — eine
+Webseite, ein weitergeleitetes Bild, eine fremde Ablage. **Eine Positivliste
+wirkt auch dann, wenn das Modell hereingelegt wurde; ein weggedrueckter
+Dialog wirkt dann nicht.**
+
+## Drei Ausgaenge, nicht zwei
+
+* **frei** — laeuft ohne Rueckfrage (Auftrag 1)
+* **abweisen** — wird gar nicht erst vorgelegt (Auftrag 2). Ein Dialog waere
+  hier die falsche Antwort: Er verlagert eine Entscheidung auf Adam, die er
+  nachts um halb eins nicht pruefen kann.
+* **dialog** — alles Uebrige (Auftrag 3), und **alles Unbekannte**. Die
+  Vorgabe ist fail-closed: Was diese Datei nicht versteht, geht in den Dialog.
+
+## Was diese Datei NICHT tut
+
+Sie kennt keine Geheimnisse. `_is_sensitive_ref` bleibt in `bot.py` und wird
+**hereingereicht** — so bleibt die Geheimnis-Schranke an einer einzigen
+Stelle, und ein Pruefer kann eine Attrappe einsetzen und messen, dass ein
+Treffer wirklich abweist. Zwei Listen driften; eine gemeinsame kann es nicht
+(dieselbe Lehre wie bei der Anmelde-Marke G1).
+"""
+from __future__ import annotations
+
+import os
+import re
+import shlex
+from dataclasses import dataclass, field
+from pathlib import Path
+
+__all__ = ["Bereich", "Entscheid", "bereiche_aus_umgebung", "entscheiden",
+           "FREI", "ABWEISEN", "DIALOG"]
+
+FREI = "frei"
+ABWEISEN = "abweisen"
+DIALOG = "dialog"
+
+
+@dataclass(frozen=True)
+class Bereich:
+    """Ein Ordner, in dem gearbeitet werden darf.
+
+    **Der Bereichspfad loest sich SELBST auf, und das ist kein Beiwerk.**
+    Gefunden beim ersten Prueflauf: Elf Zeilen waren rot, weil die Pruefung
+    Wegwerf-Ordner unter `/var/folders/…` anlegte, `resolve()` daraus aber
+    `/private/var/folders/…` machte — auf macOS ist `/var` ein symbolischer
+    Verweis. Die aufgeloesten Argumente lagen damit nie in den nicht
+    aufgeloesten Bereichen.
+
+    Im Pruefstand war das eine rote Zeile. **Im Betrieb waere es eine
+    Freigabe, die stillschweigend nie greift** — jeder Befehl fiele weiter in
+    den Dialog, und niemand haette einen Grund dafuer. Genau die Fehlerform,
+    die dieses Projekt schon dreimal aktenkundig hat: Der Bruch sieht aus wie
+    der Normalzustand.
+
+    Die Aufloesung gehoert deshalb hierher und nicht in den Aufrufer: **Was
+    jeder Aufrufer selbst tun muss, vergisst irgendwann einer.**
+    """
+    name: str
+    pfad: Path
+    schreibbar: bool = False
+
+    def __post_init__(self) -> None:
+        try:
+            aufgeloest = Path(self.pfad).expanduser().resolve()
+        except Exception:
+            aufgeloest = Path(self.pfad)
+        object.__setattr__(self, "pfad", aufgeloest)
+
+    def enthaelt(self, p: Path) -> bool:
+        return p == self.pfad or self.pfad in p.parents
+
+
+@dataclass(frozen=True)
+class Entscheid:
+    urteil: str                     # FREI | ABWEISEN | DIALOG
+    grund: str = ""
+    befehlsart: str = ""            # erstes Wort, fuer das Protokoll (Auftrag 5)
+    bereich: str = ""               # Name des Bereichs, fuer das Protokoll
+    pfade: tuple[str, ...] = field(default=())
+
+
+# ---------------------------------------------------------------- die Bereiche
+#
+# **Abgeleitet, nicht getippt** — dieselbe Lehre wie bei `_REPO_MARKEN`: In
+# einem Probelauf-Klon heisst der Ordner anders, und eine feste Zeichenkette
+# griffe dort nicht. Ueber die Umgebung ueberschreibbar, damit ein Pruefer
+# gegen Wegwerf-Ordner messen kann, statt gegen die echten.
+
+def bereiche_aus_umgebung(repo: Path | None = None) -> tuple[Bereich, ...]:
+    """Die vier Bereiche aus Auftrag 1.
+
+    Bereich 4 (Logs) ist **Engywucks offene Frage 3**, und sie ist gemessen
+    beantwortet: Auf dem VPS liegen die Bot-Protokolle unter `logs/` INNERHALB
+    des Repos, sind also von Bereich 1 abgedeckt. Er bleibt trotzdem als
+    eigener Eintrag stehen, weil `~/logsync/claude-bot-logs` (der Kurier-Klon)
+    daneben liegt und nicht zum Repo gehoert. **Redundanz schadet hier nicht;
+    eine fehlende Zeile schon.**
+    """
+    repo = repo or Path(__file__).resolve().parent
+    # **Ein EIGENER Schluessel, nicht `HOME`** — der Differenzmesser hat den
+    # Grund geliefert: Er verlangt, dass jede Pfadquelle eines Produktivmoduls
+    # im Regressionslaeufer riegelbar ist, sonst misst ein Prueflauf gegen
+    # Adams echte Ordner. `HOME` global zu verbiegen wuerde venv, Zwischen-
+    # speicher und halbe Werkzeugkette mitreissen; ein eigener Schluessel
+    # laesst sich gefahrlos umbiegen.
+    #
+    # Der Rueckfall auf `Path.home()` bleibt **sichtbar** stehen. Ihn zu
+    # nehmen, um dem Messer zu entgehen, waere eine Umgehung gewesen: dieselbe
+    # Abhaengigkeit, nur unsichtbar — genau die Bauform, die dieses Projekt
+    # sich abgewoehnt hat.
+    heim = Path(os.environ.get("BASHFREI_HEIM") or Path.home()).expanduser()
+
+    def _p(schluessel: str, vorgabe: Path) -> Path:
+        roh = os.environ.get(schluessel)
+        return Path(roh).expanduser() if roh else vorgabe
+
+    return (
+        Bereich("repo", repo, schreibbar=False),
+        Bereich("workspace", _p("BASHFREI_WORKSPACE", heim / "workspace"),
+                schreibbar=True),
+        Bereich("postfach", _p("BASHFREI_POSTFACH", heim / "postfach"),
+                schreibbar=True),
+        Bereich("logs", _p("BASHFREI_LOGS", heim / "logsync"), schreibbar=False),
+    )
+
+
+# ---------------------------------------------------------------- die Verben
+#
+# Nach WIRKUNG geordnet, nicht alphabetisch: Was nur liest, darf in jedem
+# Bereich laufen; was schreibt, nur in den schreibbaren.
+
+LESEN = frozenset("""
+    ls cat head tail grep rg find wc stat file sort uniq diff du df
+    tree nl column less more basename dirname realpath readlink cmp
+""".split())
+
+SCHREIBEN = frozenset("sed printf echo cp mv mkdir tee touch".split())
+
+ERZEUGEN = frozenset("pandoc weasyprint typst".split())
+
+# Ohne Wirkung auf Dateien — duerfen ueberall laufen, auch ohne Pfad.
+ZUSTAND = frozenset("free uptime date sleep which whoami hostname ps env true echo".split())
+
+# `git` mit einem lesenden Unterbefehl. Alles andere an git ist Dialog —
+# `git push` steht ausdruecklich in Auftrag 3.
+GIT_LESEND = frozenset("""
+    log status diff show branch blame ls-files rev-parse describe
+    config remote tag shortlog
+""".split())
+
+# `systemctl` NUR mit `status` (Auftrag 1). Jeder andere Unterbefehl greift in
+# den Betrieb ein und gehoert nach Auftrag 3 in den Dialog.
+SYSTEMCTL_LESEND = frozenset("status list-timers list-units is-active is-enabled show cat".split())
+
+ALLE_ERLAUBTEN = LESEN | SCHREIBEN | ERZEUGEN | ZUSTAND | {"git", "systemctl"}
+
+# ---------------------------------------------------------------- was abweist
+#
+# Auftrag 2. **Diese Faelle werden nicht vorgelegt, sondern abgewiesen.**
+
+# `.claude` ist zu — mit EINER Ausnahme, und die ist Engywucks Auflage A:
+# `~/.claude/memory` bleibt LESBAR. Der System-Prompt sagt dem Bot diesen
+# Ordner ausdruecklich zu (8.7, Befund G vom 23.08.). Eine Schranke, die dem
+# Prompt widerspricht, laesst den Bot an einer Stelle dialogen, die ihm
+# zugesagt ist — und niemand versteht warum.
+CLAUDE_ORDNER = ".claude"
+CLAUDE_AUSNAHME_LESEND = "memory"
+
+# Ausfuehrende Schalter machen aus einem Lese-Verb eine Shell. Uebernommen aus
+# `bot._AUSFUEHRENDE_SCHALTER` (H6, Engywucks Probelauf 22.08.): `find -exec`
+# ist eine Shell, `find -delete` ein Loeschwerkzeug, und **beides braucht kein
+# einziges Verkettungszeichen**, an dem eine Meta-Pruefung greifen wuerde.
+AUSFUEHRENDE_SCHALTER = re.compile(
+    r"(?<![\w-])-(exec(dir)?|delete|ok(dir)?|fprintf?|fls|printf)(?![\w-])"
+    r"|(?<![\w-])--(hide|exclude)=", re.IGNORECASE)
+
+# Ersetzungen: der Inhalt ist zur Pruefzeit unbekannt. Auftrag 4.
+ERSETZUNG = re.compile(r"\$\(|`|<\(|\$\{|\$[A-Za-z_]")
+
+# Verkettungen ausser dem einen erlaubten `&&`. Auftrag 4.
+WEITERE_VERKETTUNG = re.compile(r"[;|]|\n|\|\|")
+
+# Wie in bot.py: eine reine FEHLERumleitung schreibt nichts und darf bleiben.
+HARMLOSE_UMLEITUNG = re.compile(r"\s*2>\s*(?:&1|/dev/null|/tmp/[\w.\-/]+)")
+
+# Was ein `sleep` hoechstens darf. **Setzung, kein Messwert** — begruendet:
+# `sleep` steht in Auftrag 1 unter den wirkungslosen Zustandsabfragen, aber
+# `sleep 99999` waere eine blockierte Sitzung ohne jeden Dialog. Fuenf Minuten
+# decken jedes Warten ab, das im Alltag vorkommt.
+SCHLAF_DECKEL_S = 300
+
+
+def _ohne_harmlose_umleitung(cmd: str) -> str:
+    return HARMLOSE_UMLEITUNG.sub(" ", cmd or "")
+
+
+def _aufloesen(roh: str) -> Path | None:
+    """Pfad aufloesen — `..` und symbolische Verweise mit.
+
+    **Aufloesen, nicht vergleichen** (Befund D/E, Engywuck 23.08.): Ein `..`
+    hebt jede Zusage auf, ohne die Zeichenkette anzutasten. Gemessen liefen
+    damals `cat <repo>/../../../etc/passwd` und `cat $X/proc/self/environ`
+    ohne Dialog durch.
+    """
+    try:
+        return Path(roh).expanduser().resolve()
+    except Exception:
+        return None
+
+
+def _bereich_von(p: Path, bereiche) -> Bereich | None:
+    # Der ENGSTE passende Bereich gewinnt: Liegt `logs` innerhalb des Repos,
+    # soll der Treffer `logs` heissen und nicht `repo` — sonst luegt das
+    # Protokoll aus Auftrag 5 ueber den Ort.
+    treffer = [b for b in bereiche if b.enthaelt(p)]
+    if not treffer:
+        return None
+    return max(treffer, key=lambda b: len(str(b.pfad)))
+
+
+def _ist_claude_ordner(p: Path) -> tuple[bool, bool]:
+    """(liegt in .claude, liegt im Gedaechtnis-Unterordner)"""
+    teile = p.parts
+    if CLAUDE_ORDNER not in teile:
+        return (False, False)
+    i = teile.index(CLAUDE_ORDNER)
+    return (True, len(teile) > i + 1 and teile[i + 1] == CLAUDE_AUSNAHME_LESEND)
+
+
+def _pfad_artig(wort: str) -> bool:
+    """Sieht das Argument nach einem Pfad aus?
+
+    Argumente ohne `/` und ohne `~` werden uebersprungen: Suchmuster, Verben,
+    Zahlen. **Ein Ausbruch braucht einen Pfad, und ein Pfad hat einen
+    Schraegstrich**; ein blosser Dateiname loest sich gegen das
+    Arbeitsverzeichnis auf, das wir selbst setzen.
+    """
+    return ("/" in wort or wort.startswith("~")) and not wort.startswith("-")
+
+
+def _teile(cmd: str) -> list[str] | None:
+    try:
+        return shlex.split(cmd)
+    except ValueError:
+        return None       # unbalancierte Anfuehrungszeichen -> fail-closed
+
+
+def _unterbefehl(teile: list[str]) -> str:
+    """Der erste Nicht-Options-Teil nach dem Verb.
+
+    **Gefunden beim ersten Prueflauf:** `git -C <pfad> log` galt als nicht
+    lesend, weil starr `teile[1]` gelesen wurde — und das war `-C`. Genau die
+    Form, die in diesem Projekt taeglich vorkommt, waere dauerhaft im Dialog
+    gelandet. Optionen und ihre Werte werden deshalb uebersprungen.
+    """
+    i = 1
+    while i < len(teile):
+        w = teile[i]
+        if w.startswith("-"):
+            # Optionen mit eigenem Wert (`-C <pfad>`, `--git-dir <pfad>`):
+            # der naechste Teil gehoert dazu, wenn kein `=` im Schalter steht.
+            if "=" not in w and i + 1 < len(teile) and not teile[i + 1].startswith("-"):
+                i += 2
+                continue
+            i += 1
+            continue
+        return w
+    return ""
+
+
+def _schlaf_ok(teile: list[str]) -> bool:
+    for w in teile[1:]:
+        if w.startswith("-"):
+            continue
+        try:
+            return float(w) <= SCHLAF_DECKEL_S
+        except ValueError:
+            return False
+    return False          # `sleep` ohne Zahl ist keine bekannte Form
+
+
+def _ein_befehl(teile: list[str], roh: str, bereiche,
+                ist_geheimnis, umgelenkt_nach: str = "") -> Entscheid:
+    """Ein einzelner Befehl, bereits zerlegt und ohne Verkettung."""
+    verb = teile[0]
+    art = Path(verb).name          # `/bin/ls` protokolliert als `ls`
+
+    if ist_geheimnis(roh):
+        return Entscheid(ABWEISEN, "Geheimnis-Pfad — auch lesend zu", art)
+
+    if art not in ALLE_ERLAUBTEN:
+        # Auftrag 3, und dieser Punkt traegt die ganze Konstruktion: Ein
+        # Skript kann jede Grenze dieser Liste umgehen. Waere `python3` frei,
+        # waeren die Auftraege 1 und 2 wirkungslos.
+        return Entscheid(DIALOG, f"[{art}] steht nicht auf der Positivliste", art)
+
+    if AUSFUEHRENDE_SCHALTER.search(roh):
+        return Entscheid(DIALOG, "ein ausfuehrender Schalter (-exec/-delete)", art)
+
+    if art == "git":
+        unter = _unterbefehl(teile)
+        if unter not in GIT_LESEND:
+            return Entscheid(DIALOG, f"git {unter or '—'} ist nicht lesend", art)
+
+    if art == "systemctl":
+        unter = _unterbefehl(teile)
+        if unter not in SYSTEMCTL_LESEND:
+            return Entscheid(DIALOG,
+                             f"systemctl {unter or '—'} greift in den Betrieb ein", art)
+
+    if art == "sleep" and not _schlaf_ok(teile):
+        return Entscheid(DIALOG, f"sleep ueber {SCHLAF_DECKEL_S} s", art)
+
+    schreibt = art in SCHREIBEN
+    # `sed` liest, solange es nicht in-place schreibt.
+    if art == "sed" and not re.search(r"(?<![\w-])-\w*i", " ".join(teile[1:])):
+        schreibt = False
+
+    # **Erzeuger lesen und schreiben zugleich — und das ist kein Sonderfall,
+    # sondern der Normalfall.** Auftrag 1 sagt es genau: *„Dokumentenerzeugung:
+    # pandoc, weasyprint — AUSGABE in Bereich 2."* Die Quelle darf also im Repo
+    # liegen; nur das Ziel muss schreibbar sein.
+    #
+    # Erkannt wird das Ziel am ausdruecklichen `-o`, **nicht an der Position**.
+    # Eine Positions-Regel („das letzte Argument ist das Ziel") waere geraten,
+    # und geratene Regeln sind in einer Sicherheitsschranke genau das, was
+    # dieses Projekt sich abgewoehnt hat.
+    erzeugt_nach: set[str] = set()
+    if art in ERZEUGEN:
+        for i, w in enumerate(teile):
+            if w in ("-o", "--output") and i + 1 < len(teile):
+                erzeugt_nach.add(teile[i + 1])
+            elif w.startswith("--output="):
+                erzeugt_nach.add(w.split("=", 1)[1])
+
+    # ---- die Pfade
+    gefunden: list[str] = []
+    bereich_name = ""
+    for wort in teile[1:]:
+        if not _pfad_artig(wort):
+            continue
+        p = _aufloesen(wort)
+        if p is None:
+            return Entscheid(DIALOG, f"Pfad nicht aufloesbar: {wort}", art)
+        gefunden.append(str(p))
+
+        in_claude, ist_gedaechtnis = _ist_claude_ordner(p)
+        if in_claude:
+            # Auflage A: Gedaechtnis lesend frei, alles andere unter `.claude` zu.
+            if ist_gedaechtnis and not schreibt:
+                bereich_name = bereich_name or "gedaechtnis"
+                continue
+            return Entscheid(ABWEISEN,
+                             "unter .claude — nur der Gedaechtnis-Ordner ist "
+                             "lesend frei", art)
+
+        b = _bereich_von(p, bereiche)
+        if b is None:
+            return Entscheid(DIALOG, f"liegt ausserhalb der Bereiche: {p}", art)
+        muss_schreibbar = schreibt or (wort in erzeugt_nach)
+        if muss_schreibbar and not b.schreibbar:
+            return Entscheid(DIALOG, f"Bereich [{b.name}] ist nur lesbar", art)
+        bereich_name = bereich_name or b.name
+
+    if schreibt and not gefunden and not umgelenkt_nach:
+        # Ein Schreibbefehl ohne erkennbaren Pfad schreibt irgendwohin —
+        # in den Dialog damit.
+        #
+        # **`umgelenkt_nach` gehoert in diese Bedingung**, und der Prueflauf hat
+        # gezeigt warum: `printf x > <postfach>/auftrag.json` ist der haeufigste
+        # Schreibweg ueberhaupt. Das Ziel steht dort in der Umlenkung, die eine
+        # Ebene hoeher bereits gegen die schreibbaren Bereiche geprueft und
+        # danach aus der Zeile entfernt wurde — hier unten war also kein Pfad
+        # mehr zu sehen. Der Befehl waere dauerhaft im Dialog gelandet, und der
+        # Grund haette gelautet „ohne erkennbaren Pfad", obwohl der Pfad
+        # dastand.
+        return Entscheid(DIALOG, "Schreibbefehl ohne erkennbaren Pfad", art)
+
+    if not gefunden and art not in ZUSTAND:
+        # `ls` ohne Argument trifft das Arbeitsverzeichnis, das wir setzen —
+        # das ist einer der Bereiche. Aber es ausdruecklich benennen, statt es
+        # stillschweigend als frei zu behandeln.
+        bereich_name = "arbeitsverzeichnis"
+
+    return Entscheid(FREI, "", art, bereich_name or "—", tuple(gefunden))
+
+
+def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
+    """Darf dieser Bash-Befehl ohne Rueckfrage laufen?
+
+    `ist_geheimnis` ist die Geheimnis-Schranke aus `bot.py`
+    (`_is_sensitive_ref` mit `schreibend=False`), hereingereicht statt
+    nachgebaut.
+    """
+    roh = cmd or ""
+    if not roh.strip():
+        return Entscheid(DIALOG, "leerer Befehl")
+
+    bereiche = bereiche if bereiche is not None else bereiche_aus_umgebung()
+    ohne = _ohne_harmlose_umleitung(roh)
+    umgelenkt_nach = ""
+
+    # ---- Auftrag 4: das Fliesstext-Problem, VOR jeder Verb-Pruefung
+    if ERSETZUNG.search(ohne):
+        return Entscheid(DIALOG,
+                         "eine Ersetzung ($(…), Rueckwaertsanfuehrung, "
+                         "Variable) — ihr Inhalt ist hier nicht bekannt")
+
+    # Umlenkung: `>` und `>>` schreiben tatsaechlich. Erlaubt nur, wenn das
+    # Ziel in einem schreibbaren Bereich liegt.
+    for treffer in re.finditer(r">>?\s*(\S+)", ohne):
+        ziel = _aufloesen(treffer.group(1))
+        if ziel is None:
+            return Entscheid(DIALOG, "Umlenkungsziel nicht aufloesbar")
+        b = _bereich_von(ziel, bereiche)
+        if b is None or not b.schreibbar:
+            return Entscheid(DIALOG,
+                             f"Umlenkung nach [{ziel}] — ausserhalb der "
+                             "schreibbaren Bereiche")
+        umgelenkt_nach = str(ziel)
+        ohne = ohne.replace(treffer.group(0), " ")
+
+    if WEITERE_VERKETTUNG.search(ohne):
+        return Entscheid(DIALOG,
+                         "eine Verkettung ausser dem einen erlaubten "
+                         "[cd … && …] — bitte in einzelne Befehle teilen")
+
+    stuecke = [s.strip() for s in re.split(r"&&", ohne) if s.strip()]
+    if len(stuecke) > 2:
+        return Entscheid(DIALOG, "mehr als ein [&&]")
+
+    # ---- die eine erlaubte Verkettungsform: `cd <erlaubter Pfad> && <Befehl>`
+    if len(stuecke) == 2:
+        kopf = _teile(stuecke[0])
+        if kopf is None:
+            return Entscheid(DIALOG, "unbalancierte Anfuehrungszeichen")
+        if not kopf or kopf[0] != "cd":
+            return Entscheid(DIALOG,
+                             "vor dem [&&] steht etwas anderes als [cd] — nur "
+                             "[cd <Pfad> && <Befehl>] ist erlaubt")
+        if len(kopf) != 2:
+            return Entscheid(DIALOG, "[cd] ohne genau ein Ziel")
+        ziel = _aufloesen(kopf[1])
+        if ziel is None:
+            return Entscheid(DIALOG, "cd-Ziel nicht aufloesbar")
+        in_claude, ist_gedaechtnis = _ist_claude_ordner(ziel)
+        if in_claude and not ist_gedaechtnis:
+            return Entscheid(ABWEISEN, "cd unter .claude")
+        if _bereich_von(ziel, bereiche) is None and not in_claude:
+            return Entscheid(DIALOG, f"cd-Ziel ausserhalb der Bereiche: {ziel}")
+        rest = stuecke[1]
+    else:
+        rest = stuecke[0]
+
+    teile = _teile(rest)
+    if not teile:
+        return Entscheid(DIALOG, "Befehl nicht zerlegbar")
+
+    return _ein_befehl(teile, roh, bereiche, ist_geheimnis, umgelenkt_nach)

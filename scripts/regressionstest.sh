@@ -39,6 +39,7 @@ export WEBSUCHE_VERLAUF="$PRUEFHEIM/websuche-verlauf.json"
 export FREIGABE_DIR="$PRUEFHEIM/freigaben"
 export HORA_DIR="$PRUEFHEIM/hora"
 export BLUMEN_DIR="$PRUEFHEIM/blumen"
+export BASHFREI_HEIM="$PRUEFHEIM"
 # `[NEU 2026-08-20]` Das Auftragsbuch fehlte hier — und der Riegel hat prompt
 # ein Loch gehabt, das sich am selben Tag zeigte: Der Zielumgebungs-Pruefer
 # startet den ECHTEN Tagescheck, und der legt seit A6.1 einen Sichtungs-Vermerk
@@ -192,6 +193,7 @@ run "Mail-Angriffskorpus (Stufe B)"    "$PY" scripts/test_mailkorpus.py
 run "Websuche meldet ihren Ausfall"   "$PY" scripts/test_websuche_ausfall.py
 run "Websuche-Waechter (Daempfung)"   "$PY" scripts/test_websuche_check.py
 run "Freigabedialog sagt es"          "$PY" scripts/test_freigabedialog.py
+run "Bash-Positivliste"               "$PY" scripts/test_bashfreigabe.py
 run "Hermetik der Pruefläufe (L)"       "$PY" scripts/test_hermetik.py
 run "Zielumgebung (bash -n + env -i)"  bash scripts/test_zielumgebung.sh
 run "Sendepfad-Rauchtest (Pflicht 1)"  "$PY" scripts/test_sendepfad_rauch.py

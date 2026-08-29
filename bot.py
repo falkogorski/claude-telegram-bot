@@ -5035,10 +5035,10 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         summary_ch = cid or chat_id
         if in_channel:
             await query.edit_message_text(
-                f"{filename} ({size_mb:.1f} MB) — Zusammenfassen, Ausgabe in {ch_title} …",
+                f"{filename} ({groesse_lesbar(size_mb, ist_mb=True)}) — Zusammenfassen, Ausgabe in {ch_title} …",
             )
         else:
-            await query.edit_message_text(f"{filename} ({size_mb:.1f} MB) — Zusammenfassen …")
+            await query.edit_message_text(f"{filename} ({groesse_lesbar(size_mb, ist_mb=True)}) — Zusammenfassen …")
 
         local_path_str = pending_doc.get("local_path", "")
         local_path_obj = Path(local_path_str) if local_path_str else None
@@ -5117,12 +5117,12 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         summary_ch = cid or chat_id
         if in_channel:
             await query.edit_message_text(
-                f"{filename} ({size_mb:.1f} MB) — Kurzfassung wird erstellt und vorgelesen, "
+                f"{filename} ({groesse_lesbar(size_mb, ist_mb=True)}) — Kurzfassung wird erstellt und vorgelesen, "
                 f"Ausgabe in {ch_title} …",
             )
         else:
             await query.edit_message_text(
-                f"{filename} ({size_mb:.1f} MB) — Kurzfassung wird erstellt und vorgelesen …"
+                f"{filename} ({groesse_lesbar(size_mb, ist_mb=True)}) — Kurzfassung wird erstellt und vorgelesen …"
             )
 
         local_path_str = pending_doc.get("local_path", "")
@@ -5189,13 +5189,13 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         ch_link = _channel_title_link_html(cid, ch_title, username, post_id)
         safe_fn = _html.escape(filename)
         await query.edit_message_text(
-            f"📻 {safe_fn} ({size_mb:.1f} MB) — {len(chapters)} Kapitel, Ausgabe in {ch_link}",
+            f"📻 {safe_fn} ({groesse_lesbar(size_mb, ist_mb=True)}) — {len(chapters)} Kapitel, Ausgabe in {ch_link}",
             parse_mode=ParseMode.HTML,
             reply_markup=_channel_post_markup(cid, post_id, username),
         )
     else:
         await query.edit_message_text(
-            f"📻 {filename} ({size_mb:.1f} MB) — {len(chapters)} Kapitel"
+            f"📻 {filename} ({groesse_lesbar(size_mb, ist_mb=True)}) — {len(chapters)} Kapitel"
         )
     asyncio.create_task(
         _send_pdf_chapters_tts(bot, chat_id, target, filename, chapters, post_id)
@@ -10289,12 +10289,12 @@ def _zu_gross_hinweis(art: str, size_mb: float) -> str:
     if LOKALER_API_SERVER:
         # Läuft der eigene Server, ist die Grenze unsere — dann keine
         # Verweisung auf einen Ausweg, den es schon gibt.
-        return (f"❌ {art} ist {size_mb:.1f} MB groß und übersteigt damit auch "
+        return (f"❌ {art} ist {groesse_lesbar(size_mb, ist_mb=True)} groß und übersteigt damit auch "
                 f"die erweiterte Grenze von {grenze_mb} MB des eigenen "
                 "Bot-API-Servers. Bitte kürzen oder den entscheidenden "
                 "Ausschnitt schicken.")
     return (
-        f"❌ {art} ist {size_mb:.1f} MB groß — Telegram gibt Bots über die "
+        f"❌ {art} ist {groesse_lesbar(size_mb, ist_mb=True)} groß — Telegram gibt Bots über die "
         f"öffentliche Schnittstelle **höchstens {grenze_mb} MB** heraus. Das ist "
         "Telegrams Grenze, nicht meine: Die Datei liegt noch bei Telegram, ich "
         "komme nur nicht an sie heran.\n\n"
@@ -10448,7 +10448,7 @@ async def on_document(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             kurz = caption if len(caption) <= 200 else caption[:200] + " […]"
             hinweis = f"\n\nDer Absender schrieb dazu: „{kurz}“"
         await msg.reply_text(
-            f"{filename} ({size_mb:.1f} MB) empfangen.{hinweis}\nWie soll ich vorgehen?",
+            f"{filename} ({groesse_lesbar(size_mb, ist_mb=True)}) empfangen.{hinweis}\nWie soll ich vorgehen?",
             reply_markup=keyboard,
         )
         return
@@ -10470,9 +10470,9 @@ async def on_document(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    await msg.reply_text(f"{filename} ({size_mb:.1f} MB) empfangen — weiterleiten …")
+    await msg.reply_text(f"{filename} ({groesse_lesbar(size_mb, ist_mb=True)}) empfangen — weiterleiten …")
     await process_user_text(update, prefix + "\n".join(parts),
-                            log_note=f"📎 Datei: {filename} · {mime} · {size_mb:.1f} MB",
+                            log_note=f"📎 Datei: {filename} · {mime} · {groesse_lesbar(size_mb, ist_mb=True)}",
                             adam_anteil=_adam_anteil(update, caption))
 
 
@@ -10517,7 +10517,7 @@ async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     # H1 (d): Ein Video passt nie als Ganzes durch die Transportgrenze — und das
     # Modell kann eine Videodatei ohnehin nicht direkt ansehen. Statt abzuweisen
     # wird es in Teile zerlegt: gleichmäßig verteilte Einzelbilder plus Tonspur.
-    await msg.reply_text(f"🎬 {label} ({size_mb:.1f} MB) empfangen — "
+    await msg.reply_text(f"🎬 {label} ({groesse_lesbar(size_mb, ist_mb=True)}) empfangen — "
                          "ich zerlege es in Einzelbilder und Tonspur …")
     teile = await asyncio.to_thread(
         media.prepare_video, local_path, MEDIA_BUDGET,
@@ -10560,7 +10560,7 @@ async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         parts.append(f"Hinweis: Das Video konnte nicht zerlegt werden "
                      f"({teile['error']}). Die Datei liegt unter {local_path}.")
     await process_user_text(update, prefix + "\n".join(parts),
-                            log_note=f"🎬 {label}: {filename} · {size_mb:.1f} MB")
+                            log_note=f"🎬 {label}: {filename} · {groesse_lesbar(size_mb, ist_mb=True)}")
 
 
 # Gängige Abkürzungen für die Sprachausgabe ausschreiben — sonst liest edge-tts
@@ -10633,6 +10633,42 @@ def _apply_tts_pronunciation(text: str) -> str:
     for src, repl in TTS_PRONUNCIATION.items():
         text = re.sub(rf"\b{re.escape(src)}\b", repl, text)
     return text
+
+
+def groesse_lesbar(bytes_oder_mb: float, *, ist_mb: bool = False) -> str:
+    """Dateigroesse in der Einheit, die zur Groesse passt.
+
+    **Adams Befund vom 28.08., 18:15 Uhr, woertlich:** *[0,0 bedeutet aber
+    nichts drin. Weil 0,0 gibt es eigentlich gar nicht. Das ist eine falsche
+    Bezeichnung.]*
+
+    Gemessen: Zehn Stellen in dieser Datei formatierten starr auf Megabyte mit
+    einer Nachkommastelle. Eine Datei von 17,2 KB erschien dort als
+    **[0,0 MB]** — und das behauptet nicht [klein], sondern **leer**. Der
+    Empfaenger liest eine falsche Tatsache, keine ungenaue.
+
+    **Dieselbe Regel gilt fuer Zeitangaben laengst** (`guardian.sh::human_age`:
+    Sekunden, Minuten, Stunden, Tage je nach Groesse). Fuer Dateigroessen
+    fehlte sie.
+
+    **Eine Hilfsfunktion, nicht zehn Formatierungen** — sonst weicht die elfte
+    Stelle wieder ab. Das ist die Mengen-Lehre dieses Projekts, auf eine
+    Anzeige angewandt.
+
+    `ist_mb=True` fuer die Aufrufer, die ihre Groesse ohnehin schon in Megabyte
+    fuehren; sie sollen nicht zurueckrechnen muessen.
+    """
+    b = float(bytes_oder_mb) * 1_048_576 if ist_mb else float(bytes_oder_mb)
+    if b < 0:
+        return "unbekannt"
+    if b < 1024:
+        # **Ganze Bytes ohne Nachkommastelle** — [512,0 B] waere albern.
+        return f"{int(round(b))} B"
+    if b < 1_048_576:
+        return f"{b / 1024:.1f} KB".replace(".", ",")
+    if b < 1024 * 1_048_576:
+        return f"{b / 1_048_576:.1f} MB".replace(".", ",")
+    return f"{b / (1024 * 1_048_576):.1f} GB".replace(".", ",")
 
 
 def _normalize_doppelpunkt_zahlen(text: str) -> str:
@@ -10743,7 +10779,7 @@ def _normalize_tausenderpunkte(text: str) -> str:
         am 1.06.2026   ->  am 1.06.2026    unangetastet
         Version 1.234  ->  Version 1.234   unangetastet
 
-    Der Grund ist konstruktiv: `\d{3}` verlangt **genau drei** Ziffern hinter
+    Der Grund ist konstruktiv: drei Ziffern werden VERLANGT, hinter
     dem Punkt — auf den ersten Punkt eines Datums folgen zwei, auf den zweiten
     vier, und dort scheitert der Lookahead. Die Fassungsnummer faengt der
     Lookbehind.

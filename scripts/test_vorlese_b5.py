@@ -437,3 +437,35 @@ if fails:
     print(f"❌ {len(fails)} B5-Prüfung(en) fehlgeschlagen: {', '.join(fails)}")
     sys.exit(1)
 print("Alle B5-Vorlese-Tests bestanden.")
+
+
+def _groessen_werden_lesbar_angezeigt():
+    """**Auftrag 4 aus dem Karteileichen-Bauauftrag, Adams Befund vom 28.08.**
+
+    Woertlich: *[0,0 bedeutet aber nichts drin. Weil 0,0 gibt es eigentlich gar
+    nicht. Das ist eine falsche Bezeichnung.]* Zehn Stellen formatierten starr
+    auf Megabyte — eine Datei von 17,2 KB erschien als [0,0 MB], und das
+    behauptet nicht [klein], sondern **leer**.
+
+    Die Grenzwerte stehen so im Auftrag; sie sind der Kern, weil eine
+    Einheiten-Wahl genau an den Uebergaengen falsch wird.
+    """
+    for roh, erwartet in [
+        (0, "0 B"), (1, "1 B"), (1023, "1023 B"),
+        (1024, "1,0 KB"), (999999, "976,6 KB"),
+        (1048576, "1,0 MB"), (17612, "17,2 KB"),
+        (2000 * 1048576, "2,0 GB"),
+    ]:
+        ist = bot.groesse_lesbar(roh)
+        assert ist == erwartet, f"{roh} B -> {ist!r}, erwartet {erwartet!r}"
+    # Der ausloesende Fall, von der Megabyte-Seite her.
+    assert bot.groesse_lesbar(0.0168, ist_mb=True) == "17,2 KB", \
+        "der Fall, der den Auftrag ausgeloest hat, ist nicht behoben"
+    # Und: **keine Stelle formatiert mehr von Hand.** Sonst weicht die elfte ab.
+    from pathlib import Path as _P
+    quelle = _P(bot.__file__).read_text(encoding="utf-8")
+    assert "size_mb:.1f" not in quelle, \
+        "es gibt noch eine handformatierte Megabyte-Stelle — genau die weicht ab"
+
+
+check("Dateigroessen tragen die passende Einheit", _groessen_werden_lesbar_angezeigt)

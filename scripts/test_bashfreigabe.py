@@ -251,6 +251,67 @@ print("-- Vorgabe ist fail-closed")
 zeile("leerer Befehl -> Dialog", u("") == bf.DIALOG)
 zeile("nur Leerzeichen -> Dialog", u("   ") == bf.DIALOG)
 
+# ---------------------------------------------------------------- 8.7
+print("-- 8.7: die Positivliste kann das Repo nicht oeffnen")
+#
+# **Der Auftrag nennt das den gefaehrlichsten Fall:** *„Der Schalter dockt
+# versehentlich ueber der Sensibilitaetspruefung an … Merkt: niemand, bis es
+# passiert."* Sein Vorschlag war ein Pruefer, der die REIHENFOLGE im Quelltext
+# festschreibt.
+#
+# **Ein Reihenfolge-Pruefer waere aber genau die Klasse, die acht von acht Mal
+# umgehbar war** — er liest Quelltext. Die tragfaehigere Absicherung ist ein
+# doppelter Boden, der die Reihenfolge gar nicht braucht: Selbst wenn die
+# Positivliste eines Tages VOR der 8.7-Sperre stuende, darf sie einen
+# schreibenden Repo-Befehl nicht freigeben. Das ist ausfuehrbar messbar.
+import bot                                                     # noqa: E402
+ECHT = bf.bereiche_aus_umgebung()
+def ue(cmd: str) -> str:
+    return bf.entscheiden(cmd, ist_geheimnis=lambda s: bot._is_sensitive_ref(
+        s, schreibend=False), bereiche=ECHT).urteil
+
+REPO = str(Path(bot.__file__).resolve().parent)
+for cmd, was in [
+    (f"git -C {REPO} commit -m x", "git commit"),
+    (f"git -C {REPO} push", "git push"),
+    (f"sed -i s/a/b/ {REPO}/bot.py", "sed -i"),
+    (f"printf x > {REPO}/bot.py", "Umlenkung ins Repo"),
+    (f"cp /tmp/x {REPO}/bot.py", "cp ins Repo"),
+    (f"rm {REPO}/bot.py", "rm im Repo"),
+    (f"tee {REPO}/bot.py", "tee ins Repo"),
+    (f"mv /tmp/x {REPO}/bot.py", "mv ins Repo"),
+    (f"cd {REPO} && git commit -m x", "cd + git commit"),
+    (f"mkdir {REPO}/neu", "mkdir im Repo"),
+]:
+    zeile(f"8.7 haelt: [{was}] wird NICHT frei", ue(cmd) != bf.FREI,
+          gemessen=bf.entscheiden(cmd, ist_geheimnis=lambda s: bot._is_sensitive_ref(
+              s, schreibend=False), bereiche=ECHT).grund)
+
+# Und die echte Geheimnis-Schranke, nicht die Attrappe: Sie muss auch mit dem
+# scharfen `_is_sensitive_ref` abweisen — sonst haette die Attrappe oben nur
+# bewiesen, dass eine Attrappe funktioniert.
+zeile("echte Geheimnis-Schranke weist ab (nicht nur die Attrappe)",
+      ue(f"cat {REPO}/.env") == bf.ABWEISEN,
+      gemessen=bf.entscheiden(f"cat {REPO}/.env",
+                              ist_geheimnis=lambda s: bot._is_sensitive_ref(s, schreibend=False),
+                              bereiche=ECHT).grund)
+
+# Das zweite Netz: die Verdrahtung wird WIRKLICH gerufen. Gezaehlt werden
+# echte Aufrufknoten, nicht Zeilen mit dem Namen — ein Kommentar steht im
+# Syntaxbaum nicht, und genau daran war die Zeilenzaehlung frueher blind.
+import ast as _ast                                             # noqa: E402
+_baum = _ast.parse(Path(bot.__file__).with_suffix(".py").read_text(encoding="utf-8"))
+_rufe = [k for k in _ast.walk(_baum)
+         if isinstance(k, _ast.Call)
+         and isinstance(k.func, _ast.Attribute)
+         and k.func.attr == "entscheiden"
+         and isinstance(k.func.value, _ast.Name)
+         and k.func.value.id == "bashfreigabe"]
+zeile("bot.py ruft bashfreigabe.entscheiden wirklich auf",
+      len(_rufe) >= 1, gemessen=f"{len(_rufe)} Aufrufknoten")
+zeile("der Aufruf reicht die Geheimnis-Schranke herein",
+      any(any(kw.arg == "ist_geheimnis" for kw in r.keywords) for r in _rufe))
+
 print()
 if fehler:
     print(f"❌ {len(fehler)} von {zeilen} Zeilen rot:")

@@ -67,6 +67,7 @@ import tempfile
 
 from transcribe import Transcriber, build_transcriber
 import ampel
+import bashfreigabe
 import channels
 import freigaben as freigabepost
 import kalender
@@ -2949,6 +2950,46 @@ def make_permission_callback(user_id: int):
         # git log/status/diff …) — nur einzelne, verkettungsfreie Lese-Befehle.
         if tool_name == "Bash" and _is_repo_read_cmd(str(tool_input.get("command") or "")):
             return PermissionResultAllow()
+
+        # ---- Bash-Positivliste (29.08.) -----------------------------------
+        #
+        # **Sie steht UNTER der Repo-Schreibsperre und ÜBER dem Dialog** — die
+        # Reihenfolge ist die Sicherheit, nicht die Liste. Wer sie nach oben
+        # schiebt, hebelt 8.7 aus; wer sie nach unten schiebt, macht sie
+        # wirkungslos. Ein eigener Prüfer hält beides fest.
+        #
+        # Der Bau steht in `bashfreigabe.py`; hier bleibt nur der Anschluss.
+        # Die Geheimnis-Schranke wird HEREINGEREICHT, damit es sie weiterhin
+        # nur an einer Stelle gibt.
+        if tool_name == "Bash":
+            _befehl = str(tool_input.get("command") or "")
+            _erg = bashfreigabe.entscheiden(
+                _befehl,
+                ist_geheimnis=lambda s: _is_sensitive_ref(s, schreibend=False),
+            )
+            # Auftrag 5: die Befehlsart wird mitgeschrieben — erstes Wort,
+            # Urteil, Bereich. **Kein Geheimnis kann darin stehen**, weil weder
+            # Argumente noch Pfade abgelegt werden. Nach einem Vorfall ist so
+            # nachvollziehbar, was durchging; und die Liste lässt sich an der
+            # Messung nachschärfen, statt an der Vermutung.
+            log.info("bash-freigabe: %s art=%s bereich=%s grund=%s",
+                     _erg.urteil, _erg.befehlsart or "—", _erg.bereich or "—",
+                     _erg.grund or "—")
+            if _erg.urteil == bashfreigabe.ABWEISEN:
+                # **Abweisen statt vorlegen** (Auftrag 2). Ein Dialog wäre hier
+                # die falsche Antwort: Er verlagert eine Entscheidung auf Adam,
+                # die er nachts um halb eins nicht prüfen kann.
+                return PermissionResultDeny(
+                    message=f"Abgewiesen: {_erg.grund}. Das ist keine Rückfrage — "
+                            "diese Klasse ist gesperrt (Geheimnisse, .claude, "
+                            "außerhalb der Arbeitsbereiche)."
+                )
+            if _erg.urteil == bashfreigabe.FREI:
+                return PermissionResultAllow()
+            # Alles Übrige fällt weiter unten in den Dialog — mit dem Grund,
+            # den `entscheiden` mitgibt, damit die verbleibenden ~40 Fragen je
+            # Woche auf einen lesbaren Text treffen (Rang 3a).
+            _bash_freigabe_grund = _erg.grund
 
         # 5.25 (b) Geheimnis-Schutz: Verweise auf Secrets fallen IMMER in den
         # Dialog — vor jeder Auto-Freigabe geprüft, auch vor Always-Allow.

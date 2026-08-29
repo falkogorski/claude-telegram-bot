@@ -701,7 +701,21 @@ def _eine_alte_bash_freigabe_greift_nicht_mehr():
     class _Ctx:
         suggestions = None
 
-    ergebnis = asyncio.run(rueckruf("Bash", {"command": "ls -la"}, _Ctx()))
+    # **[NACHGEZOGEN 29.08., und die Aenderung ist eine Praezisierung, keine
+    # Abschwaechung.]** Hier stand `ls -la`. Seit der Bash-Positivliste ist
+    # genau dieser Befehl frei — nicht wegen eines alten Klicks, sondern weil
+    # ihn eine Schranke geprueft hat.
+    #
+    # Die Zeile misst weiterhin das, wofuer sie gebaut wurde: dass eine
+    # PAUSCHALE Dauerfreigabe nicht unsichtbar weitergilt. Dafuer braucht sie
+    # einen Befehl, den die Positivliste NICHT freigibt — und `curl` ist der
+    # richtige: ein Weg nach draussen, ausdruecklich dialogpflichtig.
+    #
+    # **Der Unterschied ums Ganze:** Eine Dauerfreigabe waeltigt jeden Befehl
+    # unbesehen. Die Positivliste prueft jeden einzeln und weist im Zweifel
+    # ab. Wer beides gleichsetzt, haelt eine Schranke fuer eine Luecke.
+    ergebnis = asyncio.run(rueckruf(
+        "Bash", {"command": "curl https://example.com"}, _Ctx()))
     assert not isinstance(ergebnis, PermissionResultAllow), \
         ("eine gefuehrte Bash-Dauerfreigabe wurde durchgewunken - der Klick "
          "gilt unsichtbar weiter")
@@ -711,8 +725,32 @@ def _eine_alte_bash_freigabe_greift_nicht_mehr():
         "niemand wurde gefragt - das Deny kam aus einem Fehlschlag, nicht aus der Schranke"
 
 
+def _die_positivliste_wirkt_ohne_jede_dauerfreigabe():
+    """Die Gegenprobe zur Zeile darueber — und sie ist noetig.
+
+    Ohne sie liesse sich die Praezisierung oben als Aufweichung lesen: Man
+    haette den unbequemen Befehl gegen einen bequemen getauscht. Also
+    ausdruecklich messen, dass `ls -la` frei ist, OHNE dass Bash irgendwo als
+    dauerfreigegeben gefuehrt wird — die Freigabe kommt dann nachweislich aus
+    der geprueften Positivliste und nicht aus einem alten Klick.
+    """
+    from claude_agent_sdk import PermissionResultAllow
+    sess = _sitzung(always_allowed_tools=set())     # ausdruecklich LEER
+    rueckruf = bot.make_permission_callback(4711)
+
+    class _Ctx:
+        suggestions = None
+
+    ergebnis = asyncio.run(rueckruf("Bash", {"command": "ls -la"}, _Ctx()))
+    assert isinstance(ergebnis, PermissionResultAllow), \
+        "die Positivliste gibt ls nicht frei - Adams Auftrag vom 29.08. greift nicht"
+    assert not sess.bot.dialoge, \
+        "es wurde trotzdem gefragt - die Freigabe kam nicht aus der Positivliste"
+
+
 check("Bash steht auf der Nie-dauerhaft-Liste", _bash_steht_auf_der_nie_dauerhaft_liste)
 check("alte Bash-Freigabe greift nicht mehr", _eine_alte_bash_freigabe_greift_nicht_mehr)
+check("Positivliste wirkt ohne jede Dauerfreigabe", _die_positivliste_wirkt_ohne_jede_dauerfreigabe)
 
 
 def _eine_gespeicherte_bash_freigabe_wird_rueckwirkend_geraeumt():

@@ -106,6 +106,39 @@ while IFS= read -r datei; do
     continue
   fi
 
+  # **Dublettenschutz — gefunden beim ersten echten Lauf am 29.08.**
+  #
+  # Papiere kommen aus iCloud oft mit zusammengeschriebenen Namen an
+  # (`20260829_bauauftragbashfreigaben…`), waehrend im Projekt die Fassung mit
+  # Bindestrichen liegt und **referenziert wird** — aus Commits, aus dem
+  # Drehbuch, aus anderen Auftraegen.
+  #
+  # Ohne diese Pruefung waechst der Ordner bei jedem Umbenennen um eine
+  # inhaltsgleiche Kopie, und niemand merkt es: Beide Dateien sind gueltig,
+  # beide sehen richtig aus. **Genau die Karteileiche, die dieses Projekt
+  # nicht mehr entstehen lassen will** — und schlimmer als eine tote Datei ist
+  # eine zweite lebende, denn dann ist unklar, welche gilt.
+  #
+  # Verglichen wird der INHALT, nicht der Name: Ein Namensmuster haette die
+  # naechste Schreibweise verfehlt.
+  if command -v md5 >/dev/null 2>&1; then _md5() { md5 -q "$1"; }
+  else _md5() { md5sum "$1" | cut -d" " -f1; }; fi
+  summe="$(_md5 "$datei" 2>/dev/null)"
+  zwilling=""
+  if [ -n "$summe" ]; then
+    for vorhanden in "$ZIEL"/*.md "$ZIEL"/*.pdf; do
+      [ -e "$vorhanden" ] || continue
+      [ "$(basename "$vorhanden")" = "$name" ] && continue
+      if [ "$(_md5 "$vorhanden" 2>/dev/null)" = "$summe" ]; then
+        zwilling="$(basename "$vorhanden")"; break
+      fi
+    done
+  fi
+  if [ -n "$zwilling" ]; then
+    sag "uebersprungen: $name liegt inhaltsgleich schon als [$zwilling]"
+    continue
+  fi
+
   # Die Bremse greift nur bei Textdateien; ein PDF ist binaer und wuerde
   # zufaellige Treffer erzeugen.
   if [ "${name##*.}" = "md" ] && grep -aElq "$GEHEIM_MUSTER" "$datei" 2>/dev/null; then

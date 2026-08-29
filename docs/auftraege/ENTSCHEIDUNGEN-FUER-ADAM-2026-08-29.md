@@ -17,7 +17,7 @@ Entscheidbare steht hier statt in einer Rückfrage.
 > abgelesenen Werte und alle Schritte stehen in `PRUEFLISTE-sdk-sprung.md`.
 > **`[STAND 29.08., 18:0x]` ② und ⑧ sind ebenfalls entschieden bzw. erledigt:**
 > Ultracode läuft **nach** Rang 2 der Erkennungsseite und **vor** dem ersten
-> Postfach (Kette: Node → SDK → Erkennungsseite → Ultracode → Postfach). Der
+> Postfach (Einzelheiten und Begründung: `ZETTEL-ultracode-wann.md`) (Kette: Node → SDK → Erkennungsseite → Ultracode → Postfach). Der
 > Container-Probelauf entfällt — er wurde **ohne root und ohne Docker**
 > gefahren (Archiv entpackt, PATH nur in einer Subshell), voller
 > Regressionslauf 62/62 unter Node 24.

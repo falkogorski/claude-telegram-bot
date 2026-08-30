@@ -371,6 +371,36 @@ PYEND
   esac
 fi
 
+# --- 9g. Zustand der Ausarbeitungen (Claudias Auftrag 1, 30.08.) -----------
+#
+# GEGEN KARTEILEICHEN: Eine Entscheidung wurde angenommen, aber nicht abgelegt —
+# das Gespraech verging, das Dokument blieb, und beim naechsten Zugriff gewann
+# das Dokument. Register verzeichnen, was EXISTIERT; ein ueberholter Satz in
+# einem gueltig aussehenden Papier existiert weiterhin.
+#
+# EMPFAENGER IST DIE KONTROLLE, NICHT ADAM: technisch, wird ohnehin bearbeitet.
+# Eine taegliche Zeile ueber Papierpflege in Adams Meldung kostet Aufmerksamkeit
+# fuer die Zeilen, die zaehlen.
+#
+# GEDAEMPFT: Der Pruefer meldet nur ZUGAENGE, nicht den Bestand — sonst stuenden
+# hier taeglich dieselben fuenfundvierzig Namen und die Meldung waere binnen
+# zwei Tagen ueberlesen. Ausgabe leer heisst „nichts Neues".
+if [ -f "$BOTDIR/scripts/ausarbeitungen_pruefen.py" ]; then
+  if trocken; then
+    add "🧪 Zustandspruefer der Ausarbeitungen: im Trockenlauf uebersprungen"
+  else
+    zust="$("${BOTENV[@]}" "PYTHONPATH=$BOTDIR" "$VENVPY" \
+            "$BOTDIR/scripts/ausarbeitungen_pruefen.py" --ins-auftragsbuch 2>&1)"
+    case "$zust" in
+      "")        : ;;   # nichts Neues — und das ist der haeufige Fall
+      GELEGT)    add "📋 Zustand der Ausarbeitungen: Befund fuer die Kontrolle gelegt" ;;
+      SCHON-DA)  add "✅ ein offener Zustands-Befund liegt bereits" ;;
+      FEHLER*)   red "Zustandspruefer der Ausarbeitungen: $zust" ;;
+      *)         add "📋 $zust" ;;
+    esac
+  fi
+fi
+
 # --- 9d. ZEITGEBER-WACHE (Befund E aus Vorlage 5.21-E) ---------------------
 #
 # DIE LUECKE: Dieser Check prueft die DIENSTE - und keinen einzigen ZEITGEBER.

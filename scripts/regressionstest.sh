@@ -55,6 +55,13 @@ export GEGENLESER_DIR="$PRUEFHEIM/gegenleser"
 # an denen ein Test schreiben kann.
 export AUFTRAGSBUCH_DIR="$PRUEFHEIM/auftragsbuch"
 export PENDING_DIR="$PRUEFHEIM/pending"
+# `[NEU 30.08.]` Der Zustandspruefer der Ausarbeitungen — **vom
+# Differenzmesser gemeldet, bevor ich es bemerkt habe.** Ohne diese beiden
+# Riegel schriebe ein Pruflauf seinen Merker in die ECHTE Ablage und laese den
+# echten Papierordner; die naechste Meldung im Betrieb waere dann still um die
+# Zugaenge aermer, die der Testlauf schon „gesehen" hat.
+export AUSARBEITUNGEN_DIR="$PRUEFHEIM/ausarbeitungen"
+export AUSARBEITUNGEN_STAND="$PRUEFHEIM/ausarbeitungen-stand.json"
 # `[NEU 2026-08-23]` Und die Liste war weiter unvollstaendig — genau so, wie es
 # der Absatz darueber vorhergesagt hat. Engywucks Befund L: `USER_PREFS_FILE`
 # fehlte hier, zwoelf Testdateien setzten es einzeln, und `bot.py` LAS es gar
@@ -101,7 +108,8 @@ mkdir -p "$POSTFACH_DIR/outbox" "$FREIGABE_DIR" "$HORA_DIR" "$BLUMEN_DIR" \
          "$AUFTRAGSBUCH_DIR" "$PENDING_DIR" "$LINK_INBOX_DIR" \
          "$CONVERSATION_LOG_DIR" "$UPLOAD_DIR" \
          "$ERINNERUNG_DIR" "$KONTINGENT_HOME" "$LOG_SYNC_REPO" \
-         "$UPDATER_STATE_DIR" "$WACHPOSTEN_DIR" "$WACHPOSTEN_LOGDIR"
+         "$UPDATER_STATE_DIR" "$WACHPOSTEN_DIR" "$WACHPOSTEN_LOGDIR" \
+         "$AUSARBEITUNGEN_DIR"
 # **[VERTEIDIGT 30.08.] Der EINZIGE EXIT-Trap dieses Skripts.**
 #
 # `457ba5f` hat hier einen zweiten hinzugefuegt (fuer die Protokolldatei) —
@@ -280,6 +288,7 @@ run "Blinde-Flecken-Verfahren (B6)"     "$PY" scripts/test_blinde_flecken_b6.py
 run "Auftragsbuch B8 (ruhend)"          "$PY" scripts/test_auftragsbuch_b8.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 run "Uebersprungen ≠ bestanden (A1)"    "$PY" scripts/test_uebersprungen_a1.py
+run "Zustand der Ausarbeitungen"        "$PY" scripts/test_ausarbeitungen.py
 
 # Der Nachweis, dass die Wegwerf-Umgebung wirklich gegriffen hat. Nachmessen,
 # was ankam — nicht die Konfiguration lesen (Wirkungs-Regel). Steht bewusst am

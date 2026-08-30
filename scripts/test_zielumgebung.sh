@@ -94,9 +94,11 @@ fi
 #
 # Der Kern des Vorfalls. Gesucht wird das UNGESCHUETZTE $HOME - `${HOME:-...}`
 # mit Rueckfall ist ausdruecklich erlaubt, denn der bricht nicht.
+HOME_GEPRUEFT=0
 for f in $SKRIPTE; do
   [ "$f" = "scripts/test_zielumgebung.sh" ] && continue
   grep -q 'set -u' "$f" || continue
+  HOME_GEPRUEFT=$((HOME_GEPRUEFT+1))
   # **[GEAENDERT 30.08.] Der Filter warf zu viel weg** (Fund [64]): `grep -v
   # ':-'` verwarf JEDE Zeile mit einem Rueckfall — auch `${VAR:-$HOME/x}`.
   # Dort wird $HOME aber expandiert, sobald VAR fehlt, und bricht unter
@@ -108,7 +110,14 @@ for f in $SKRIPTE; do
   # ein Skript, das HOME am Anfang mit `${HOME:?...}` einfordert, ist
   # ebenfalls sicher: Es bricht dann mit einem GRUND ab statt mit
   # "unbound variable" irgendwo in der Mitte.
-  grep -q 'HOME:?' "$f" && { melde ok "HOME abgesichert: $(basename "$f")"; continue; }
+  # **Nur in Code-Zeilen, nicht im ganzen Text** (Rang 3): Die Suche lief
+  # ueber die ganze Datei — ein Kommentar, der `HOME:?` erwaehnt, haette
+  # genuegt, um das Skript als abgesichert zu fuehren. Genau die Sorte
+  # Selbsttaeuschung, die dieser Pruefer verhindern soll.
+  if grep -vE '^[[:space:]]*#' "$f" | grep -q 'HOME:?'; then
+    melde ok "HOME abgesichert: $(basename "$f")"
+    continue
+  fi
   # Kommentarzeilen zaehlen NICHT - der Erklaertext zu diesem Fehler enthaelt
   # das Wort selbst, und ein Pruefer, der die Beschreibung seines eigenen
   # Gegenstands anschlaegt, wird binnen einer Woche abgeschaltet.
@@ -122,6 +131,20 @@ for f in $SKRIPTE; do
       "$(echo "$treffer" | head -2 | tr '\n' ' ') — als root-Dienst ist HOME leer, set -u bricht ab"
   fi
 done
+
+# **Und Schleife 2 prueft ihre Menge ebenfalls** (Rang 3, zweiter Teil): Die
+# Zeile oben bewachte nur Schleife 1. Wer `$SKRIPTE` hier durch etwas anderes
+# ersetzt, bekaeme weiterhin gruene Zeilen — nur weniger davon.
+_mit_set_u="$(for f in $SKRIPTE; do
+                [ "$f" = "scripts/test_zielumgebung.sh" ] && continue
+                grep -q 'set -u' "$f" && echo x
+              done | grep -c . || echo 0)"
+if [ "$HOME_GEPRUEFT" -eq "$_mit_set_u" ] && [ "$HOME_GEPRUEFT" -gt 0 ]; then
+  melde ok "die HOME-Pruefung sah alle $_mit_set_u Skripte mit set -u"
+else
+  melde nein "die HOME-Pruefung sah alle Skripte mit set -u" \
+    "geprueft $HOME_GEPRUEFT von $_mit_set_u - welche fehlen?"
+fi
 
 # --- 3. Start WIE SYSTEMD: leere Umgebung, kein HOME -------------------------
 #
@@ -160,9 +183,22 @@ for f in scripts/daily_check.sh scripts/api_cache_pflege.sh scripts/log_sync.sh;
   ausgabe="$(env -i TROCKENLAUF=1 "AUFTRAGSBUCH_DIR=$_wegwerf" \
                  TELEGRAM_BOT_TOKEN= ALLOWED_USER_IDS= \
                  /bin/bash "$f" 2>&1 </dev/null | head -40 || true)"
+  # **[GESCHAERFT 30.08., Engywucks Widerlegung Rang 3]** Diese Zeile suchte
+  # nur den Wortlaut `unbound variable`. Meine eigene Reparatur vom selben Tag
+  # hat sie damit blind gemacht: `${HOME:?...}` bricht mit einer ANDEREN
+  # Meldung ab — die Zeile wurde gruen, und ein Skript, das in der Zielumgebung
+  # sofort mit rc=1 stirbt, galt als abgesichert.
+  #
+  # **Der Unterschied, auf den es ankommt, ist nicht Abbruch gegen Durchlauf,
+  # sondern KRYPTISCH gegen BENANNT.** Ein Skript ohne HOME kann seine Pfade
+  # nicht bilden; dass es abbricht, ist richtig. Falsch war nur, dass niemand
+  # dem Abbruch ansah, woran er lag. Also wird beides gemessen: kein
+  # `unbound variable` UND, falls es abbricht, ein Grund im Klartext.
   if echo "$ausgabe" | grep -q 'unbound variable'; then
     zeile="$(echo "$ausgabe" | grep -m1 'unbound variable')"
     melde nein "startet ohne HOME: $(basename "$f")" "$zeile"
+  elif echo "$ausgabe" | grep -q 'HOME ist nicht gesetzt'; then
+    melde ok "bricht ohne HOME mit GRUND ab: $(basename "$f")"
   else
     melde ok "startet ohne HOME: $(basename "$f")"
   fi

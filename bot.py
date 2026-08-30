@@ -3026,7 +3026,16 @@ def make_permission_callback(user_id: int):
         if tool_name in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
             raw = tool_input.get("file_path") or ""
             try:
-                if raw and "/claude-telegram-bot" in str(Path(raw).expanduser().resolve()):
+                # **`[GEÄNDERT 30.08.]` Dieselbe Frage, dieselbe Antwort**
+                # (Fächer-Fund [12]). Hier stand die feste Teilzeichenkette
+                # `/claude-telegram-bot`, während der Bash-Zweig zwei Zeilen
+                # tiefer über `_ist_repo_bezug` geht. **Zwei Wahrheiten für
+                # dieselbe Frage — die G1-Lehre**, und die schwächere saß
+                # ausgerechnet im Schreibpfad: In einem Probelauf-Klon (die
+                # R4-Regel dieses Projekts verlangt ihn) heißt der Ordner
+                # anders, und der Edit-Zweig hätte ihn durchgelassen, während
+                # der Bash-Zweig ihn sperrt.
+                if raw and _ist_repo_bezug(str(Path(raw).expanduser().resolve())):
                     return PermissionResultDeny(
                         message="Das Projekt-Repo ist für den Bot NUR-LESEN "
                                 "(Führungs-Register, CLAUDE.md). Änderungswunsch "
@@ -7950,6 +7959,33 @@ def run_self_check() -> tuple[bool, list[str]]:
         # Verdrahtung im Callback: Repo-Lese-Zweig + Repo-Dir als Read-Basis.
         assert "_is_repo_read_cmd" in src, "Repo-Lese-Freigabe nicht im Callback"
         assert "_REPO_DIR" in src, "Repo-Dir nicht als Read-Basis im Callback"
+
+        # **`[NEU 30.08.]` Beide Zweige stellen DIESELBE Frage** (Fund [12]).
+        #
+        # Der Bash-Zweig ging über `_ist_repo_bezug`, der Edit/Write-Zweig über
+        # eine feste Teilzeichenkette `/claude-telegram-bot` — zwei Wahrheiten
+        # für dieselbe Frage, und die schwächere saß im Schreibpfad. In einem
+        # Probelauf-Klon (die R4-Regel verlangt ihn) heißt der Ordner anders.
+        #
+        # Gemessen über echte Aufrufknoten, nicht über Zeilentext: Ein Name im
+        # Quelltext sagt nichts darüber, ob die Stelle noch gerufen wird.
+        import ast as _ast
+        _baum = _ast.parse(src)
+        _rufe = {k.func.id for k in _ast.walk(_baum)
+                 if isinstance(k, _ast.Call) and isinstance(k.func, _ast.Name)}
+        assert "_ist_repo_bezug" in _rufe, (
+            "der Callback ruft `_ist_repo_bezug` nicht — der Schreibpfad fragt "
+            "wieder anders als der Bash-Pfad")
+        # Und die Gegenrichtung — **über Zeichenketten-LITERALE, nicht über
+        # Zeilentext.** Der erste Anlauf suchte im Quelltext und schlug prompt
+        # über den Erklärkommentar zwei Absätze weiter oben an: neunter Fall
+        # derselben Familie in diesem Projekt. *Kommentare gibt es im Baum
+        # nicht* — genau deshalb ist er hier das richtige Werkzeug.
+        _texte = [k.value for k in _ast.walk(_baum)
+                  if isinstance(k, _ast.Constant) and isinstance(k.value, str)]
+        assert not any("/claude-telegram-bot" in t for t in _texte), (
+            "im Callback steht wieder eine feste Repo-Zeichenkette; ein Klon "
+            "mit anderem Ordnernamen käme daran vorbei")
         # Auf dem VPS zusätzlich: Klon hat keine lokalen Veränderungen.
         #
         # **`[KORRIGIERT 23.08.]` Der Ortstest war implizit — und das fiel erst

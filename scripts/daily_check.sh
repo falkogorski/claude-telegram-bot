@@ -130,8 +130,16 @@ if [ "$n" = "1" ]; then add "✅ genau eine Bot-Instanz"; else red "Bot-Instanze
 
 # --- 3. 8.2-Regressionstest (als claudebot, dessen venv) --------------------
 if reg="$(sudo -u claudebot bash "$BOTDIR/scripts/regressionstest.sh" 2>&1)"; then
-  last="$(echo "$reg" | tail -1)"
-  add "✅ Regressionstest: $last"
+  # **[GEAENDERT 30.08.] Die BILANZ, nicht die letzte Zeile.** Seit der Laeufer
+  # Uebersprungenes getrennt ausweist, ist `tail -1` die Uebersprungszeile —
+  # und die Bilanz waere aus Adams Tagesmeldung verschwunden. Kleine Aenderung
+  # am Laeufer, stille Folge beim Leser: genau die Fenster-Regel.
+  last="$(echo "$reg" | grep '== Ergebnis:' | tail -1)"
+  [ -n "$last" ] || last="$(echo "$reg" | tail -1)"
+  # Und wenn etwas uebersprungen wurde, gehoert das MIT in die Meldung —
+  # sonst liest sich ein Lauf mit ungemessenen Zeilen wie ein vollstaendiger.
+  ueber="$(echo "$reg" | grep 'uebersprungen —' | tail -1)"
+  add "✅ Regressionstest: $last${ueber:+ · $ueber}"
 else
   fail="$(echo "$reg" | grep '❌' | head -3 | tr '\n' ' ')"
   red "Regressionstest FEHLGESCHLAGEN: ${fail:-siehe daily-check.log}"

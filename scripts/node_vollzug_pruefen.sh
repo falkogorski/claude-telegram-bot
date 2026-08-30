@@ -136,7 +136,10 @@ pruefe symlink gleich "Ziel von /usr/local/bin/claude"
 echo
 echo "-- und der Nachweis, den die neun Zeilen oben NICHT ersetzen --"
 if (cd "$REPO" && bash scripts/regressionstest.sh >/tmp/nodevollzug.log 2>&1); then
-  echo "  ✅ Regressionslauf: $(tail -1 /tmp/nodevollzug.log)"
+  # Die Bilanzzeile, nicht die letzte — seit dem 30.08. kann darunter noch
+  # eine Uebersprungszeile stehen.
+  echo "  ✅ Regressionslauf: $(grep '== Ergebnis:' /tmp/nodevollzug.log | tail -1)"
+  grep 'uebersprungen —' /tmp/nodevollzug.log | tail -1 | sed 's/^/     /'
 else
   echo "  ❌ Regressionslauf ROT: $(tail -1 /tmp/nodevollzug.log)"
   echo "     (voller Mitschrieb: /tmp/nodevollzug.log)"

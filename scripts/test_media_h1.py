@@ -34,8 +34,13 @@ def check(name, fn):
 
 
 if not media.tools_available():
-    print("⚠ ffmpeg/ffprobe fehlen — H1-Test übersprungen (kein Fehlschlag)")
-    sys.exit(0)
+    # **`[GEÄNDERT 30.08.]` Rückgabewert 77 statt 0** (Fächer-Fund [58]).
+    # Vorher endete dieser Lauf mit 0, und der Läufer schrieb darüber
+    # `✅ Medien-Transport H1` — für einen Lauf, in dem alle zwölf Prüfzeilen
+    # nie ausgeführt wurden. Die Zahl `60/63` zählte ihn als bestanden mit.
+    print("⏭️ ffmpeg/ffprobe fehlen — H1-Test NICHT GEMESSEN "
+          "(kein Fehlschlag, aber auch kein Bestehen)")
+    sys.exit(77)
 
 
 def _make_image(path: Path, w=4000, h=3000) -> None:

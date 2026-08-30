@@ -20,9 +20,25 @@ cd "$(dirname "$0")/.."
 FAILS=0
 GESAMT=0
 
+# **[NEU 30.08.] Ein dritter Zustand: uebersprungen.**
+#
+# Faecher-Funde [47] und [62]. Drei Zeilen ueber der Stelle stand im eigenen
+# Kommentar der Satz "ein uebersprungener Pruefer, der wie ein bestandener
+# aussieht, ist schlimmer als keiner" — und genau darunter meldete
+# `melde ok "... uebersprungen"` den Uebersprung als bestanden.
+#
+# **Die Folge war die fehlende Zahlendifferenz:** Mac und Zielumgebung kamen
+# beide auf 24/24, obwohl auf dem Mac eine Pruefung nie lief. Ein Tagescheck,
+# der nichts mehr ablegt, waere hier nicht aufgefallen — dieselbe Lage wie beim
+# einundzwanzig Tage toten Waechter, gegen den diese Datei gebaut wurde.
+UEBERSPRUNGEN=0
 melde() {
   GESAMT=$((GESAMT+1))
-  if [ "$1" = "ok" ]; then echo "✓ $2"; else echo "✗ $2: $3"; FAILS=$((FAILS+1)); fi
+  case "$1" in
+    ok)   echo "✓ $2" ;;
+    skip) echo "⏭️  $2: $3"; UEBERSPRUNGEN=$((UEBERSPRUNGEN+1)) ;;
+    *)    echo "✗ $2: $3"; FAILS=$((FAILS+1)) ;;
+  esac
 }
 
 # --- 1. Jedes Skript ist syntaktisch heil ------------------------------------
@@ -120,7 +136,8 @@ if [ -d "$_bot" ] && [ -x "$_bot/.venv/bin/python3" ]; then
   fi
   rm -rf "$_norm"
 else
-  melde ok "Normalfall-Vermerk: uebersprungen (nicht die Zielumgebung)"
+  melde skip "Normalfall-Vermerk" \
+             "nicht die Zielumgebung - hier wurde NICHTS gemessen"
 fi
 
 # --- 3d. Die Sollbruchstelle der Kontingent-Abfrage (Engywuck-F-Zeile 21.08.)
@@ -233,5 +250,8 @@ else
     "diese Pruefer laufen nur auf einer Maschine:$_gefunden"
 fi
 
-echo "== Zielumgebung: $((GESAMT-FAILS))/$GESAMT bestanden =="
+echo "== Zielumgebung: $((GESAMT-FAILS-UEBERSPRUNGEN))/$GESAMT bestanden =="
+if [ "$UEBERSPRUNGEN" -gt 0 ]; then
+  echo "== $UEBERSPRUNGEN uebersprungen — hier wurde nichts gemessen =="
+fi
 exit $FAILS

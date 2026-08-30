@@ -119,14 +119,42 @@ FAILS=0
 # ebenso falsch gerechnet. Eine Kennzahl, die von Hand nachgepflegt werden
 # muss, wird irgendwann nicht nachgepflegt.
 GESAMT=0
+# **[NEU 30.08.] Die dritte Kategorie: uebersprungen.**
+#
+# Der Faecher-Befund fand sechs Pruefer, die gruen meldeten, ohne gemessen zu
+# haben. Der Laeufer war die Haelfte des Problems: Er kannte genau zwei
+# Ausgaenge, also musste jeder Uebersprung als BESTANDEN durchgehen. So stand
+# "✅ Medien-Transport H1" ueber einem Lauf, in dem zwoelf Pruefzeilen nie
+# ausgefuehrt wurden — und "60/63" zaehlte ihn mit.
+#
+# Ein Pruefer sagt "uebersprungen" mit **Rueckgabewert 77** (die uebliche
+# Kennzahl dafuer). Uebersprungenes zaehlt NICHT als bestanden, faellt aber
+# auch nicht durch: Es steht als eigene Zahl da. Genau daran entsteht die
+# Zahlendifferenz zwischen Mac und Zielumgebung, die bisher fehlte — auf einer
+# Maschine ohne das noetige Werkzeug ist die Bilanz sichtbar unvollstaendig,
+# statt gruen zu luegen.
+UEBERSPRUNGEN=0
+# **Der Log-Pfad haengt am Nutzer, nicht an /tmp** (Fund [70]): Ein fester
+# Pfad gehoert dem ersten Nutzer, der ihn anlegt. Beim zweiten scheitert die
+# Umlenkung — und bash fuehrt sie VOR dem Befehl aus, der Pruefling laeuft
+# also gar nicht erst. Ergebnis waere "0/N bestanden" mit lauter Fehlschlaegen,
+# die keiner ist. Gemessen und nachgestellt im Befund.
+LOGDATEI="$(mktemp "${TMPDIR:-/tmp}/regress_last.XXXXXX")"
+trap 'rm -f "$LOGDATEI"' EXIT
 run() {
   local name="$1"; shift
+  local rc=0
   GESAMT=$((GESAMT+1))
-  if "$@" >/tmp/regress_last.log 2>&1; then
+  "$@" >"$LOGDATEI" 2>&1 || rc=$?
+  if [ "$rc" -eq 0 ]; then
     echo "✅ $name"
+  elif [ "$rc" -eq 77 ]; then
+    echo "⏭️  $name — UEBERSPRUNGEN, nichts gemessen:"
+    tail -3 "$LOGDATEI"
+    UEBERSPRUNGEN=$((UEBERSPRUNGEN+1))
   else
     echo "❌ $name — Log:"
-    tail -20 /tmp/regress_last.log
+    tail -20 "$LOGDATEI"
     FAILS=$((FAILS+1))
   fi
 }
@@ -213,6 +241,7 @@ run "Vorlese-Regeln (B5)"               "$PY" scripts/test_vorlese_b5.py
 run "Blinde-Flecken-Verfahren (B6)"     "$PY" scripts/test_blinde_flecken_b6.py
 run "Auftragsbuch B8 (ruhend)"          "$PY" scripts/test_auftragsbuch_b8.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
+run "Uebersprungen ≠ bestanden (A1)"    "$PY" scripts/test_uebersprungen_a1.py
 
 # Der Nachweis, dass die Wegwerf-Umgebung wirklich gegriffen hat. Nachmessen,
 # was ankam — nicht die Konfiguration lesen (Wirkungs-Regel). Steht bewusst am
@@ -245,5 +274,10 @@ else
   echo "✅ Wegwerf-Umgebung: keine Pruefung hat ins echte Auftragsbuch geschrieben"
 fi
 
-echo "== Ergebnis: $((GESAMT-FAILS))/$GESAMT bestanden =="
+# **Uebersprungenes zaehlt nicht als bestanden** (30.08.). Die Bestanden-Zahl
+# ist jetzt "gemessen und gruen", nicht "nicht rot".
+echo "== Ergebnis: $((GESAMT-FAILS-UEBERSPRUNGEN))/$GESAMT bestanden =="
+if [ "$UEBERSPRUNGEN" -gt 0 ]; then
+  echo "== $UEBERSPRUNGEN uebersprungen — auf DIESER Maschine wurde dort nichts gemessen =="
+fi
 exit $FAILS

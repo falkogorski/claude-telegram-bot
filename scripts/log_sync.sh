@@ -25,6 +25,24 @@ REPO="${LOG_SYNC_REPO:-$HOME/logsync/claude-bot-logs}"
 [ -d "$SRC" ] || { echo "Quelle fehlt: $SRC"; exit 1; }
 cd "$REPO" || { echo "Log-Repo-Klon fehlt: $REPO"; exit 1; }
 
+# **[NEU 30.08.] Das Werkzeug wird geprueft, bevor darauf gebaut wird.**
+#
+# Faecher-Fund [71], und er benennt den gefaehrlicheren Teil richtig: Das
+# Skript laeuft mit `set -uo pipefail` OHNE `-e`. Fehlte rsync, lief es
+# durch, kopierte nichts und endete mit Rueckgabewert 0 samt der Meldung
+# "Keine Log-Aenderungen — nichts zu pushen."
+#
+# **Ein Abgleich, der nichts kopiert, sah damit genauso aus wie einer, bei dem
+# es nichts zu kopieren gab.** Das ist woertlich die Klasse des Tageswaechters,
+# der am 29.07. starb und einundzwanzig Tage nicht auffiel: Der Bruch sieht
+# aus wie Ruhe. Hier scheitert er stattdessen laut und benannt.
+command -v rsync >/dev/null 2>&1 || {
+  echo "rsync fehlt auf dieser Maschine — es wurde NICHTS abgeglichen." >&2
+  echo "Ohne diese Zeile haette der Lauf mit 0 geendet und wie ein leerer" >&2
+  echo "Abgleich ausgesehen. rsync steht als Abhaengigkeit im Register." >&2
+  exit 3
+}
+
 # Fremde Änderungen (z. B. manuell im Web gelöschte Dateien) zuerst holen.
 git pull --ff-only --quiet 2>/dev/null || true
 

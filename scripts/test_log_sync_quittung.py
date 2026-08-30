@@ -18,12 +18,22 @@ Log-Repo, kein Netz, kein `git push` (das Skript bricht beim Push ab — für
 diese Prüfungen genügt, was **vorher** geschieht).
 """
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# **[NEU 30.08.] Fehlt das Werkzeug, wird das GESAGT — nicht die Quittung
+# beschuldigt.** Ohne rsync meldete dieser Prüfer zwei Zeilen rot, die beide
+# auf die Quittungslogik zeigten; das fehlende Werkzeug kam nirgends vor.
+if not shutil.which("rsync"):
+    print("⏭️ rsync fehlt auf dieser Maschine — die Quittung wurde NICHT "
+          "GEMESSEN (kein Fehlschlag, aber auch kein Bestehen)")
+    sys.exit(77)
+
 _TMP = Path(tempfile.mkdtemp(prefix="quittung-"))
 WORK = _TMP / "workspace"
 REPO = _TMP / "logrepo"
@@ -56,7 +66,19 @@ _git("config", "user.name", "Test")
 
 
 def _lauf() -> None:
-    """Das echte Skript, mit umgebogenen Pfaden."""
+    """Das echte Skript, mit umgebogenen Pfaden.
+
+    ## `[GEÄNDERT 30.08.]` Rückgabewert und Fehlerstrom werden ausgewertet
+
+    **Fächer-Fund [71].** Vorher warf diese Funktion beides weg. Fehlte
+    `rsync`, lief das Skript durch, kopierte nichts und endete mit 0 — und
+    dieser Prüfer meldete daraufhin zwei Zeilen rot, die beide die
+    **Quittungslogik** beschuldigten. Das fehlende Werkzeug kam nirgends vor.
+
+    *Ein Prüfer mit falschem Schild ist teurer als einer, der schweigt:* Er
+    schickt den Suchenden an die falsche Stelle. In diesem Projekt hätte das
+    eine Stunde gekostet.
+    """
     umgebung = dict(os.environ)
     umgebung.update({
         "LOG_SYNC_SRC": str(SRC),
@@ -64,8 +86,25 @@ def _lauf() -> None:
         "LOG_SYNC_WORK": str(WORK),
         "HOME": str(_TMP),
     })
-    subprocess.run(["bash", str(ROOT / "scripts" / "log_sync.sh")],
-                   env=umgebung, capture_output=True)
+    e = subprocess.run(["bash", str(ROOT / "scripts" / "log_sync.sh")],
+                       env=umgebung, capture_output=True, text=True)
+    # **Geduldet wird GENAU EIN Abbruch: der Push ohne Gegenstelle.** Der
+    # Wegwerf-Baum hat kein `origin`, das Skript endet dort mit 128 — das ist
+    # der Aufbau, nicht ein Befund. Erst gemessen, dann eingegrenzt: Mein
+    # erster Anlauf verwarf jeden Rückgabewert ungleich null und machte damit
+    # den gewollten Abbruch zum Fehlschlag. **Eine Ausnahme, die einen
+    # bekannten Fall benennt, ist tragfähig; eine, die eine Zahlenliste
+    # pflegt, veraltet** — deshalb hängt sie am Wortlaut der Gegenstelle.
+    push_ohne_gegenstelle = "Could not read from remote repository" in (e.stderr or "")
+    if e.returncode != 0 and not push_ohne_gegenstelle:
+        raise RuntimeError(
+            f"log_sync.sh endete mit {e.returncode}: "
+            + (e.stderr or e.stdout or "ohne Ausgabe").strip()[-300:])
+    # Auch bei Rückgabewert 0 kann der Fehlerstrom das Entscheidende tragen —
+    # genau so verhielt sich das Skript ohne rsync.
+    if "command not found" in (e.stderr or ""):
+        raise RuntimeError(
+            "log_sync.sh vermisst ein Werkzeug: " + e.stderr.strip()[-300:])
 
 
 def _quittung() -> str:

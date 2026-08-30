@@ -7448,10 +7448,30 @@ def _startup_message_from_last_task() -> str:
     return f"Bin wieder da, Adam. Letzter Stand: {summary}" if summary else "Bin wieder da, Adam."
 
 
+class NichtsGemessen(Exception):
+    """Die Voraussetzung einer Prüfzeile fehlt — es wurde **nichts gemessen.**
+
+    ## Warum das eine eigene Klasse ist und kein stiller `return`
+
+    Der Fächer-Befund vom 30.08. fand **sechs** Stellen mit derselben Bauform:
+    Ein Prüfer trifft auf eine fehlende Voraussetzung, steigt still aus und
+    meldet grün. Der schwerste Fall war der **Pin-Wächter selbst** — wer den
+    Pin von `==` auf `>=` lockert, erhöht das Rückfall-Risiko beim Rebuild aufs
+    Maximum **und schaltet im selben Zug die Wache ab, die davor warnen soll.**
+
+    *Ein Haken für eine Zeile, die nichts gemessen hat, ist gefährlicher als
+    gar keine Zeile* — denn er beantwortet die Frage, statt sie offenzulassen.
+
+    **Wer diese Ausnahme wirft, sagt: hier fehlt etwas, das da sein sollte.**
+    Für Fälle, in denen Nichtmessen völlig in Ordnung ist, gibt es sie nicht —
+    dann gehört die Prüfzeile gar nicht erst in diesen Durchlauf.
+    """
+
+
 def run_self_check() -> tuple[bool, list[str]]:
     """Smoke-Test der Kern-Invarianten. Läuft bei jedem Start und via /selfcheck.
     Prüft, ob bestehende Funktionen weiter korrekt arbeiten (Regressionsschutz).
-    Gibt (alles_ok, zeilen) zurück; jede Zeile beginnt mit '✓' oder '✗'."""
+    Gibt (alles_ok, zeilen) zurück; jede Zeile beginnt mit '✓', '✗' oder '⏭️'."""
     results: list[str] = []
     state = {"ok": True}
 
@@ -7459,6 +7479,13 @@ def run_self_check() -> tuple[bool, list[str]]:
         try:
             fn()
             results.append(f"✓ {name}")
+        except NichtsGemessen as e:
+            # **Übersprungen ist nicht bestanden** (Fächer-Befund, 30.08.).
+            # Eine Prüfzeile, die ihre Voraussetzung nicht vorfindet, hat
+            # NICHTS gemessen — und ein Haken dafür ist die gefährlichste
+            # Auskunft überhaupt: Er sieht aus wie Ruhe.
+            state["ok"] = False
+            results.append(f"⏭️ {name}: NICHTS GEMESSEN — {e}")
         except Exception as e:
             state["ok"] = False
             results.append(f"✗ {name}: {e}")
@@ -8030,27 +8057,44 @@ def run_self_check() -> tuple[bool, list[str]]:
     # Hätte die Lücke 0.2.118 (Pin) ↔ 0.2.127 (installiert) von allein gemeldet —
     # sonst fällt ein Rebuild stillschweigend auf die alte Version zurück.
     def _c_pin_divergenz() -> None:
+        # **`[GEÄNDERT 30.08.]` Drei stille Ausstiege, alle drei laut gemacht.**
+        # Der Fächer-Befund [26] hat den Wächter an sich selbst gemessen: Bei
+        # entferntem Pin UND bei einem Pin auf ein nicht installiertes Paket
+        # meldete er `✓` — ohne irgendetwas verglichen zu haben.
         req = _REPO_DIR / "requirements.txt"
         if not req.exists():
-            return
+            raise NichtsGemessen(f"{req} gibt es nicht — kein Pin vergleichbar")
         pins = dict(re.findall(r"^([A-Za-z0-9_.\-]+)(?:\[[^\]]*\])?==([^\s#]+)",
                                req.read_text(encoding="utf-8"), re.MULTILINE))
         if not pins:
-            return
+            # Der gefährlichste der drei: Wer `==` auf `>=` lockert, schaltet
+            # genau die Wache ab, die den Rückfall melden soll.
+            raise NichtsGemessen(
+                "requirements.txt enthält keine einzige Pin-Zeile (==) mehr — "
+                "ein Rebuild könnte unbemerkt auf eine alte Fassung zurückfallen")
         try:
             from importlib.metadata import version as _pkg_version
-        except Exception:
-            return
-        drift = []
+        except Exception as e:
+            raise NichtsGemessen(f"Paketauskunft nicht verfügbar ({e})") from None
+        drift, fehlt = [], []
         for name, pinned in pins.items():
             try:
                 have = _pkg_version(name)
             except Exception:
-                continue  # nicht in DIESER Umgebung installiert — kein Befund
+                # **Früher `continue`.** Heute unerreichbar (nur ein Pin, und
+                # sein Fehlen bräche schon den Import) — aber beim SDK-Fenster
+                # kommen zwei Pins dazu, und dann wäre ein gepinntes, nicht
+                # installiertes Paket genau der stille Fall.
+                fehlt.append(name)
+                continue
             if have != pinned:
                 drift.append(f"{name}: installiert {have} ≠ gepinnt {pinned}")
         assert not drift, ("Pin weicht ab (Rebuild würde zurückfallen!): "
                            + "; ".join(drift))
+        if fehlt and not drift:
+            raise NichtsGemessen(
+                "gepinnt, aber in dieser Umgebung nicht installiert: "
+                + ", ".join(sorted(fehlt)))
 
         # --- [ERWEITERT 29.08., Engywucks Auftrag ③] ---------------------
         #
@@ -8192,7 +8236,12 @@ def run_self_check() -> tuple[bool, list[str]]:
         """
         register = _REPO_DIR / "ABHAENGIGKEITEN.md"
         if not register.exists():
-            return                      # anderswo ausgecheckt — kein Befund
+            # `[GEÄNDERT 30.08.]` Stand hier als „anderswo ausgecheckt — kein
+            # Befund". Das Fehlen des Registers IST ein Befund: Die Wache über
+            # die Vollständigkeit meldete grün, während es nichts zu lesen gab.
+            raise NichtsGemessen(
+                "ABHAENGIGKEITEN.md ist von hier aus nicht lesbar — die "
+                "Register-Vollständigkeit wurde gegen nichts geprüft")
         inhalt = register.read_text(encoding="utf-8")
         fehlt: list[str] = []
         for modul in ("channels.py", "media.py", "pending.py", "presend.py",
@@ -8233,7 +8282,9 @@ def run_self_check() -> tuple[bool, list[str]]:
         import sys as _sys
         pfad = _REPO_DIR / "scripts" / "differenz.py"
         if not pfad.exists():
-            return
+            raise NichtsGemessen(
+                "scripts/differenz.py ist von hier aus nicht lesbar — der "
+                "Differenzmesser wurde gegen nichts geprüft")
         spec = importlib.util.spec_from_file_location("differenz", pfad)
         modul = importlib.util.module_from_spec(spec)
         # **Vor dem Ausführen registrieren, sonst bricht `@dataclass`.**
@@ -8306,6 +8357,13 @@ def run_self_check() -> tuple[bool, list[str]]:
         """
         gewuenscht = (os.environ.get("STT_BACKEND") or "faster_whisper").lower()
         if gewuenscht == "off":
+            # **Kein Fall für `NichtsGemessen`, und das ist die Unterscheidung,
+            # auf die es ankommt** (30.08.): Hier fehlt keine Voraussetzung —
+            # Adam hat die Spracherkennung ausdrücklich abgeschaltet. Es gibt
+            # nichts zu messen, WEIL so entschieden wurde. Diese Zeile blind
+            # mit umzustellen hieße, eine bewusste Wahl als Störung zu melden;
+            # und ein Prüfer, der bei einer gewollten Einstellung anschlägt,
+            # ist binnen einer Woche abgeschaltet.
             return
         tr = get_transcriber()
         name = type(tr).__name__
@@ -8350,7 +8408,12 @@ def run_self_check() -> tuple[bool, list[str]]:
                        if p.stem in ("rechnung", "rechnungen", "sekretariat",
                                      "buchhaltung", "invoice")]
         if not sekretariat:
-            return                      # noch nichts gebaut — nichts zu prüfen
+            # Ebenfalls KEIN `NichtsGemessen` (30.08.): Die Zeile prüft eine
+            # Bedingung, die erst gilt, wenn das Sekretariat existiert. Sein
+            # Nichtvorhandensein ist der geplante Normalzustand, nicht eine
+            # fehlende Voraussetzung. Der Unterschied zu [26]: Dort war das
+            # Fehlen des Pins ein Schaden, hier ist es der Bauplan.
+            return
         drehbuch = _REPO_DIR / "MIGRATION.md"
         text = drehbuch.read_text(encoding="utf-8") if drehbuch.exists() else ""
         assert "Log-Repo-Ampel: BEWERTET" in text, (

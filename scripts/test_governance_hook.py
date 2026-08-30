@@ -58,6 +58,21 @@ def hook_auf(pfad: str) -> int:
     return r.returncode
 
 
+def hook_roh(eingabe: str, *, pfad_umgebung: str | None = None):
+    """Wie oben, aber mit **beliebiger** Eingabe und wahlweise verbogenem PATH.
+
+    Braucht es, weil die gefaehrlichste Frage nicht lautet „blockiert er die
+    richtige Datei?", sondern **„was tut er, wenn er gar nicht urteilen
+    kann?"** — und die liess sich mit der bisherigen Hilfsfunktion nicht
+    stellen, weil sie immer gueltiges JSON erzeugte.
+    """
+    umgebung = dict(os.environ)
+    if pfad_umgebung is not None:
+        umgebung["PATH"] = pfad_umgebung
+    return subprocess.run(["bash", str(HOOK)], input=eingabe, env=umgebung,
+                          capture_output=True, text=True, timeout=60)
+
+
 print("== Governance-Hook: blockiert er eine veraltete Kopie? ==")
 
 basis = Path(tempfile.mkdtemp(prefix="governance-")).resolve()
@@ -109,6 +124,84 @@ try:
                  "migration.py", "bot.py"):
         rc = hook_auf(str(arbeit / name))
         zeile(f"[{name}] laeuft durch", rc == 0, gemessen=f"exit {rc}")
+
+    # --- Der Ausfall. Bis zum 30.08. prüfte diese Frage niemand.
+    print("-- ein Ausfall sieht NICHT mehr wie eine Freigabe aus (A3) --")
+
+    # ① Unlesbares JSON. Vorher: `except: print('')` → leerer Pfad → exit 0.
+    r = hook_roh("das ist kein JSON")
+    zeile("unlesbare Eingabe blockiert", r.returncode == 2,
+          gemessen=f"exit {r.returncode} — 0 hiesse: Ausfall = Freigabe")
+    zeile("und sie sagt, warum", "auswerten" in r.stderr.lower(),
+          gemessen=r.stderr.strip()[:110])
+
+    # ② Gar kein python3 im PATH — der kaputte Shim aus dem Befund.
+    leer = tempfile.mkdtemp(prefix="ohne-python-")
+    for werkzeug in ("bash", "git", "basename", "dirname", "tr", "cat",
+                     "printf", "command"):
+        quelle = shutil.which(werkzeug)
+        if quelle:
+            try:
+                os.symlink(quelle, Path(leer) / werkzeug)
+            except OSError:
+                pass
+    r = hook_roh(json.dumps({"tool_input": {"file_path": str(arbeit / "CLAUDE.md")}}),
+                 pfad_umgebung=leer)
+    zeile("ohne python3 blockiert der Hook", r.returncode == 2,
+          gemessen=f"exit {r.returncode}: {(r.stderr or '').strip()[:90]}")
+
+    # ②b Und ohne **git** — der zweite Ausfall, der urteilsunfaehig macht.
+    ohne_git = tempfile.mkdtemp(prefix="ohne-git-")
+    for werkzeug in ("bash", "python3", "basename", "dirname", "tr", "cat",
+                     "printf"):
+        quelle = shutil.which(werkzeug)
+        if quelle:
+            try:
+                os.symlink(quelle, Path(ohne_git) / werkzeug)
+            except OSError:
+                pass
+    r = hook_roh(json.dumps({"tool_input": {"file_path": str(arbeit / "CLAUDE.md")}}),
+                 pfad_umgebung=ohne_git)
+    zeile("ohne git blockiert der Hook", r.returncode == 2,
+          gemessen=f"exit {r.returncode}: {(r.stderr or '').strip()[:90]}")
+
+    # ②c Ein misslungener VERGLEICH. Vorher endete jeder rev-list-Fehler in
+    #     `|| echo 0` — also in „die Kopie ist aktuell", der beruhigendsten
+    #     aller Falschauskuenfte. Nachgestellt mit einem Repo, das die
+    #     Gegenstelle kennt, aber selbst noch keinen Commit hat.
+    kaputt = basis / "ohne-head"
+    kaputt.mkdir()
+    git("init", "--quiet", str(kaputt))
+    git("fetch", "--quiet", str(ursprung),
+        "mac-produktivstand:refs/remotes/origin/mac-produktivstand", cwd=kaputt)
+    (kaputt / "CLAUDE.md").write_text("noch nie committet\n", encoding="utf-8")
+    probe = git("rev-list", "HEAD..origin/mac-produktivstand", "--count", cwd=kaputt)
+    zeile("der Pruefstand erzeugt wirklich einen Vergleichsfehler",
+          probe.returncode != 0,
+          gemessen=f"rc={probe.returncode} — sonst misst die naechste Zeile ins Leere")
+    rc = hook_auf(str(kaputt / "CLAUDE.md"))
+    zeile("ein misslungener Vergleich blockiert (statt 0 zu melden)", rc == 2,
+          gemessen=f"exit {rc} — 0 hiesse: „die Kopie ist aktuell“")
+
+    # ③ Die Gegenrichtung, und ohne sie waere ① wertlos: Eine gueltige Anfrage
+    #    OHNE Dateipfad ist der Normalfall anderer Werkzeuge und muss durch.
+    r = hook_roh(json.dumps({"tool_input": {"command": "ls"}}))
+    zeile("gueltige Anfrage ohne Dateipfad laeuft durch", r.returncode == 0,
+          gemessen=f"exit {r.returncode} — sonst blockiert der Hook alles")
+
+    # ④ Ein FREMDES Repo mit eigener CLAUDE.md darf nicht blockiert werden.
+    #    Ohne diese Zeile waere der fail-closed-Umbau ein Arbeitsverbot in
+    #    jedem anderen Projekt Adams.
+    fremd = basis / "fremdes-projekt"
+    fremd.mkdir()
+    git("init", "--quiet", str(fremd))
+    (fremd / "CLAUDE.md").write_text("anderes Projekt\n", encoding="utf-8")
+    git("add", "-A", cwd=fremd)
+    git("-c", "user.email=f@f", "-c", "user.name=F", "commit", "--quiet",
+        "-m", "eins", cwd=fremd)
+    rc = hook_auf(str(fremd / "CLAUDE.md"))
+    zeile("ein fremdes Projekt ohne diesen Zweig laeuft durch", rc == 0,
+          gemessen=f"exit {rc} — sonst waere der Hook dort ein Arbeitsverbot")
 
     # --- Und bei aktuellem Stand darf nichts blockieren.
     print("-- eine aktuelle Kopie wird nicht behindert --")

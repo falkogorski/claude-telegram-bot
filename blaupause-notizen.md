@@ -1140,3 +1140,45 @@ umgesetzt; Ausarbeitung später in eigenem Business-Repo/-Sitzungen):
 
   **Und die Gegenprobe ist die einzige Instanz, die das faengt.** Beide Male
   war der Pruefer gruen und sah richtig aus.
+
+---
+
+## 30.08. — Der Tag, an dem die Prüfer die eigene Arbeit gemeldet haben
+
+**Was gebaut** · dritter Knopf mit fünf Auflagen · Ablageweg für
+Gesprächsentscheidungen · Zustandsprüfer der Ausarbeitungen · Übersprungs-Signal
+im Läufer und bei vier Verbrauchern · fail-closed im Governance-Hook ·
+IMAP-Statusprüfung · `werkzeug_da` im Tagescheck.
+**Kettenwirkung geprüft** · je Baustein Register, Wegwerf-Umgebung, Doku-Spiegel.
+**Tatsächlich eingetreten** — und das ist die Zeile, die zählt:
+
+**① Bestehende Prüfer haben neun eigene Fehler gemeldet, bevor ich sie bemerkt
+habe.** Der Differenzmesser die fehlenden Riegel in der Wegwerf-Umgebung (ohne
+sie hätte ein Prüflauf in die echte Ablage geschrieben), der Selbstcheck
+zweimal einen fehlenden Register-Eintrag, das Blinde-Flecken-Verfahren zweimal
+gemischte Anführungspaare, der Hermetik-Prüfer ein `setdefault`, der
+Zielumgebungs-Prüfer ein `sed` im werkzeugfreien Pfad. **Das Netz trägt — es
+findet, was der Erbauer im selben Zug übersieht.**
+
+**② Die gefährlichste Klasse blieb dieselbe: grün ohne Messung.** Sie ist heute
+an neun verschiedenen Stellen aufgetreten, und viermal an **meiner eigenen
+frischen Arbeit** — eine Prüfzeile, die die Bilanz nicht mass; eine
+Verzweigung über das zu Messende; eine Zeile, die den Dublettenschutz nie
+erreichte; eine Gegenprobe, die den git-Zweig nie erreichte, weil `cat` fehlte.
+**Alle vier fand die Entkernungs-Gegenprobe, keine das Nachdenken.**
+
+**③ Reparieren erzeugt die Klasse neu.** Der fail-closed-Umbau des Hooks schuf
+einen neuen fail-open (`2>&1` klebte stderr an den Pfad). Die
+`${HOME:?}`-Schranke machte den Prüfer blind, der sie messen sollte. Beim
+Entfernen von `basename`/`tr` habe ich `sed` neu eingesetzt — **derselbe
+Fehler, eine Zeile weiter.**
+
+**④ Und ein Verfahrensfehler von mir, festgehalten statt beschönigt:** Ich habe
+den vollen Lauf und den Commit in EINEN Befehl geschrieben, mit Zeilenumbruch
+statt `&&`. Der Lauf meldete 68/69, der Commit lief trotzdem. Schlimmer: Ich
+hatte die Ausgabe mit `tail -2` beschnitten — **die rote Zeile ist damit
+verloren und nicht mehr reproduzierbar** (drei Läufe danach: 69/69).
+**Der Griff:** Das Ergebnis wird gelesen, bevor committet wird, und die
+Lauf-Ausgabe wird nie so beschnitten, dass ein Befund darin verschwinden kann.
+Dieselbe Lehre wie beim Tagescheck, der seine Befunde erst am Ende schrieb —
+nur diesmal an mir selbst.

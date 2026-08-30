@@ -146,6 +146,29 @@ run() {
   local rc=0
   GESAMT=$((GESAMT+1))
   "$@" >"$LOGDATEI" 2>&1 || rc=$?
+  # **[NEU 30.08.] Ein stiller Erfolg ist auch ein Uebersprung.**
+  #
+  # Der 77er-Weg oben verlangt, dass ein Pruefer seinen Uebersprung SELBST
+  # bemerkt und meldet. Genau das taten die sechs Faelle des Faecher-Befunds
+  # nicht — sie endeten mit 0 und schwiegen. Diese Zeile faengt die Klasse
+  # unabhaengig davon: **Wer nichts gemeldet hat, hat nichts gemessen.**
+  #
+  # **Und sie gilt nur fuer UNSERE Pruefskripte** — das ist keine Einschraenkung
+  # aus Vorsicht, sondern aus einer Messung: Alle 54 Skript-Pruefer drucken
+  # Haekchen; die zehn `py_compile`-Laeufe im selben Durchgang tun es nicht und
+  # messen trotzdem (Schweigen ist dort die Konvention). Mein erster Anlauf
+  # ohne diese Unterscheidung meldete prompt zehn falsche Uebersprünge —
+  # **ich hatte die Menge gemessen, die mir am Bautag einfiel, nicht die
+  # tatsaechliche.** Eine Schranke mit zehn Fehlalarmen je Lauf wird binnen
+  # einer Woche abgeschaltet und nimmt die echten Funde mit.
+  local _eigener=0
+  for _arg in "$@"; do
+    case "$_arg" in scripts/*.py|scripts/*.sh) _eigener=1 ;; esac
+  done
+  if [ "$_eigener" -eq 1 ] && [ "$rc" -eq 0 ] && ! grep -qE '✓|✅' "$LOGDATEI"; then
+    rc=77
+    echo "   (kein einziges Haekchen in der Ausgabe — als Uebersprung gewertet)" >>"$LOGDATEI"
+  fi
   if [ "$rc" -eq 0 ]; then
     echo "✅ $name"
   elif [ "$rc" -eq 77 ]; then

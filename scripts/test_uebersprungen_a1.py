@@ -126,9 +126,11 @@ if schnitt:
     FAILS=0; GESAMT=0; UEBERSPRUNGEN=0
     LOGDATEI="$(mktemp "${{TMPDIR:-/tmp}}/probe.XXXXXX")"
     {schnitt.group(0)}
-    run "gruen"         /bin/sh -c 'exit 0'
+    run "gruen"         /bin/sh -c 'echo "✓ etwas gemessen"; exit 0'
     run "uebersprungen" /bin/sh -c 'echo nichts gemessen; exit 77'
     run "rot"           /bin/sh -c 'exit 1'
+    run "stiller erfolg" /bin/sh -c 'exit 0' scripts/attrappe.py
+    run "fremdes werkzeug" /bin/sh -c 'exit 0'
     echo "ZAEHLER gesamt=$GESAMT fails=$FAILS uebersprungen=$UEBERSPRUNGEN"
     rm -f "$LOGDATEI"
     """
@@ -139,13 +141,36 @@ if schnitt:
           gemessen=(e.stderr or ausgabe)[:160])
     if m:
         gesamt, fails, uebersprungen = (int(x) for x in m.groups())
-        zeile("der Uebersprung zaehlt als uebersprungen",
-              uebersprungen == 1, gemessen=ausgabe.strip()[-80:])
+        # Vier Prueflinge: gruen, uebersprungen (77), rot, **stiller Erfolg**.
+        # Der letzte endet mit 0 und schweigt — genau die Form, in der die
+        # sechs Faecher-Faelle durchkamen. Er MUSS als Uebersprung zaehlen.
+        #
+        # Das Argument `scripts/attrappe.py` ist kein Beiwerk: Die Schranke im
+        # Laeufer gilt nur fuer eigene Pruefskripte, weil `py_compile` bei
+        # Erfolg konventionell schweigt und sonst zehnmal je Lauf falsch
+        # anschluege. `sh -c 'exit 0' <arg0>` fuehrt nichts davon aus — es
+        # setzt nur den Namen, an dem die Schranke den eigenen Pruefer erkennt.
+        zeile("der gemeldete Uebersprung UND der stille zaehlen beide",
+              uebersprungen == 2, gemessen=ausgabe.strip()[-90:])
         zeile("er zaehlt NICHT als Fehlschlag (nur der echte tut das)",
               fails == 1, gemessen=f"fails={fails}")
-        zeile("und er zaehlt NICHT als bestanden",
-              gesamt - fails - uebersprungen == 1,
-              gemessen=f"bestanden={gesamt - fails - uebersprungen}")
+        # Fuenf Prueflinge, davon bestehen genau zwei: der gruene und das
+        # fremde Werkzeug. Uebrig bleiben ein Fehlschlag und zwei Uebersprünge.
+        zeile("und beide zaehlen NICHT als bestanden",
+              gesamt - fails - uebersprungen == 2,
+              gemessen=f"bestanden={gesamt - fails - uebersprungen} von {gesamt}")
+        zeile("ein Pruefer, der schweigt, wird als solcher benannt",
+              "kein einziges Haekchen" in ausgabe,
+              gemessen=ausgabe.strip()[-140:])
+        # **Die Gegenrichtung, und sie ist der teurere Fehler:** Ein fremdes
+        # Werkzeug (`py_compile`, `bash -n`) schweigt bei Erfolg — das ist dort
+        # Konvention und keine fehlende Messung. Ohne diese Zeile koennte die
+        # Einschraenkung still verschwinden, und der Lauf meldete bei jedem
+        # Durchgang zehn falsche Uebersprünge. Genau so lief mein erster
+        # Anlauf.
+        zeile("ein fremdes Werkzeug darf schweigen, ohne als Uebersprung zu gelten",
+              gesamt == 5 and uebersprungen == 2,
+              gemessen=f"{gesamt} Laeufe, {uebersprungen} uebersprungen")
     zeile("der Uebersprung ist in der Ausgabe als solcher erkennbar",
           "UEBERSPRUNGEN" in ausgabe and "✅ uebersprungen" not in ausgabe,
           gemessen=ausgabe.strip()[:160])

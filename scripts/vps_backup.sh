@@ -13,6 +13,15 @@
 # ============================================================================
 set -uo pipefail
 
+# **[NEU 30.08.] HOME wird BENANNT eingefordert** (Faecher-Fund [19], A2).
+# Unter `set -u` bricht `$HOME` ohne HOME mit "unbound variable" ab — auch
+# innerhalb eines Rueckfalls wie `${VAR:-$HOME/x}`, denn dort wird $HOME
+# expandiert, sobald VAR fehlt. Genau daran starb am 29.07. ein Waechter,
+# einundzwanzig Tage unbemerkt. Diese Zeile macht daraus einen Abbruch mit
+# Grund statt einer Fehlermeldung, die niemand einem fehlenden Zuhause
+# zuordnet — und sie sichert alle folgenden $HOME-Stellen auf einmal.
+: "${HOME:?HOME ist nicht gesetzt — als Dienst ohne User= gestartet?}"
+
 CONF="${VPS_BACKUP_CONF:-$HOME/.claude/vps-backup.conf}"
 [ -f "$CONF" ] && . "$CONF"
 BACKUP_DIR="${BACKUP_DIR:-$HOME/VPS-Backup}"

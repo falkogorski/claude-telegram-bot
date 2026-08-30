@@ -41,9 +41,31 @@ melde() {
   esac
 }
 
+# **[NEU 30.08.] Die Menge, gebildet ueber eine EIGENSCHAFT** (A2, Funde
+# [19] [64] [33]).
+#
+# Alle drei Schleifen sahen `scripts/*.sh` — nicht rekursiv, nicht die
+# Repo-Wurzel. Draussen lagen sieben versionierte Skripte, darunter **alle
+# drei Hooks unter `.claude/hooks/`**. Das ist bitter: Der Pruefer, der genau
+# gegen den 29.07.-Fehler gebaut wurde (`$HOME` in einem Dienst ohne HOME, ein
+# Waechter einundzwanzig Tage tot), sah ausgerechnet die Hooks nicht.
+#
+# **Jede Pruefung laeuft ueber eine Menge — und es ist immer die, die dem
+# Erbauer am Bautag einfiel.** Deshalb hier keine Aufzaehlung und kein
+# Verzeichnismuster, sondern die Frage an git: was ist versioniert und endet
+# auf `.sh`? Ohne git (ausgepacktes Archiv) traegt `find` denselben Gedanken.
+if SKRIPTE="$(git ls-files '*.sh' 2>/dev/null)" && [ -n "$SKRIPTE" ]; then
+  :
+else
+  SKRIPTE="$(find . -name '*.sh' -not -path './.venv/*' -not -path './.git/*' \
+             | sed 's|^\./||')"
+fi
+
 # --- 1. Jedes Skript ist syntaktisch heil ------------------------------------
-for f in scripts/*.sh; do
+SYNTAX_GEPRUEFT=0
+for f in $SKRIPTE; do
   [ "$f" = "scripts/test_zielumgebung.sh" ] && continue
+  SYNTAX_GEPRUEFT=$((SYNTAX_GEPRUEFT+1))
   if ausgabe="$(bash -n "$f" 2>&1)"; then
     melde ok "Syntax: $(basename "$f")"
   else
@@ -51,18 +73,48 @@ for f in scripts/*.sh; do
   fi
 done
 
+# **Die Menge prueft sich selbst** (A2, 30.08.). Ohne diese Zeile waere die
+# Weitung ungeprueft: Wer `$SKRIPTE` morgen wieder auf ein Verzeichnismuster
+# setzt, bekaeme weiterhin lauter gruene Zeilen — nur eben weniger davon, und
+# **eine fehlende Zeile faellt niemandem auf.** Genau so lagen die drei Hooks
+# fuenf Wochen ausserhalb.
+_alle_skripte="$(git ls-files '*.sh' 2>/dev/null | grep -c . || echo 0)"
+if [ "$_alle_skripte" -gt 0 ]; then
+  if [ "$((SYNTAX_GEPRUEFT+1))" -eq "$_alle_skripte" ]; then
+    melde ok "die Menge ist vollstaendig ($_alle_skripte versionierte Skripte)"
+  else
+    melde nein "die Menge ist vollstaendig" \
+      "geprueft $((SYNTAX_GEPRUEFT+1)) von $_alle_skripte versionierten Skripten - welche fehlen?"
+  fi
+else
+  melde skip "die Menge ist vollstaendig" "ohne git nicht vergleichbar"
+fi
+
 # --- 2. Kein bares $HOME in einem Skript mit `set -u` ------------------------
 #
 # Der Kern des Vorfalls. Gesucht wird das UNGESCHUETZTE $HOME - `${HOME:-...}`
 # mit Rueckfall ist ausdruecklich erlaubt, denn der bricht nicht.
-for f in scripts/*.sh; do
+for f in $SKRIPTE; do
   [ "$f" = "scripts/test_zielumgebung.sh" ] && continue
   grep -q 'set -u' "$f" || continue
-  # $HOME ohne folgendes ":-" und nicht als ${HOME:-...}
+  # **[GEAENDERT 30.08.] Der Filter warf zu viel weg** (Fund [64]): `grep -v
+  # ':-'` verwarf JEDE Zeile mit einem Rueckfall — auch `${VAR:-$HOME/x}`.
+  # Dort wird $HOME aber expandiert, sobald VAR fehlt, und bricht unter
+  # `set -u` genauso wie ein bares $HOME. Fuenf der sechs heute gefundenen
+  # Stellen hatten genau diese Form; der alte Filter sah keine davon.
+  #
+  # Richtig ist die Unterscheidung: `${HOME:-...}` schuetzt HOME selbst und
+  # ist erlaubt — deshalb wird nur DIESE Form vorher herausgeschnitten. Und
+  # ein Skript, das HOME am Anfang mit `${HOME:?...}` einfordert, ist
+  # ebenfalls sicher: Es bricht dann mit einem GRUND ab statt mit
+  # "unbound variable" irgendwo in der Mitte.
+  grep -q 'HOME:?' "$f" && { melde ok "HOME abgesichert: $(basename "$f")"; continue; }
   # Kommentarzeilen zaehlen NICHT - der Erklaertext zu diesem Fehler enthaelt
   # das Wort selbst, und ein Pruefer, der die Beschreibung seines eigenen
   # Gegenstands anschlaegt, wird binnen einer Woche abgeschaltet.
-  treffer="$(grep -nE '\$HOME([^A-Za-z_]|$)|\$\{HOME\}' "$f" | grep -v ':-' | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+  treffer="$(sed 's/${HOME:-[^}]*}//g' "$f" \
+             | grep -nE '\$HOME([^A-Za-z_]|$)|\$\{HOME\}' \
+             | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
   if [ -z "$treffer" ]; then
     melde ok "kein ungeschuetztes \$HOME: $(basename "$f")"
   else
@@ -90,7 +142,20 @@ done
 # steht die Zusage.
 _wegwerf="${TMPDIR:-/tmp}/zielumgebung-buch.$$"
 mkdir -p "$_wegwerf"
-for f in scripts/daily_check.sh scripts/api_cache_pflege.sh; do
+# **[ERWEITERT 30.08.] Diese Liste bleibt kurz — und das ist eine Entscheidung,
+# keine Nachlaessigkeit** (zu Fund [33]).
+#
+# Schleife 1 und 2 laufen jetzt ueber ALLE versionierten Skripte, weil sie
+# nichts tun ausser lesen. Diese hier **startet** die Skripte. Ein Start ist
+# eine Handlung, und sie trifft nicht jedes Skript gefahrlos: `guardian.sh`
+# startet den Bot neu, `mail_konto_anlegen.sh` legt Zugaenge an. Eine Menge
+# ueber alle Skripte waere hier kein besserer Pruefer, sondern ein Eingriff.
+#
+# Aufgenommen ist deshalb, was **zeitgesteuert ohne Mensch** laeuft — genau die
+# Lage des 29.07.-Vorfalls. `log_sync.sh` fehlte bisher, obwohl es stuendlich
+# als Timer laeuft; das war eine echte Luecke. Die statische $HOME-Pruefung
+# oben deckt alle uebrigen ab, ohne sie anzufassen.
+for f in scripts/daily_check.sh scripts/api_cache_pflege.sh scripts/log_sync.sh; do
   [ -f "$f" ] || continue
   ausgabe="$(env -i TROCKENLAUF=1 "AUFTRAGSBUCH_DIR=$_wegwerf" \
                  TELEGRAM_BOT_TOKEN= ALLOWED_USER_IDS= \

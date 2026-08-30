@@ -237,7 +237,17 @@ zeile("der Pruefer nennt eine Bilanz", m is not None, gemessen=bilanz)
 # `melde ok`) liess sie in den anderen Zweig laufen, der dann eine volle
 # Bilanz erwartete — und die war voll. Eine Verzweigung ueber das, was man
 # messen will, misst nichts.
-in_zielumgebung = Path("/home/claudebot/claude-telegram-bot/.venv/bin/python3").exists()
+# **Der Ort kommt aus dem Prüfling, nicht aus meinem Gedächtnis.** Mein erster
+# Anlauf schrieb den Betriebspfad hier fest hin — und wurde prompt vom
+# Differenzmesser gemeldet („Prüfer mit fest verdrahtetem Betriebspfad"). Zu
+# Recht: Das wären zwei Wahrheiten für dieselbe Frage gewesen, und die eine
+# hätte sich beim ersten Umzug von der anderen entfernt. Der Prüfling selbst
+# weiß, wo die Zielumgebung liegt.
+_zielumgebung_quelle = (ROOT / "scripts" / "test_zielumgebung.sh").read_text(encoding="utf-8")
+_m_bot = re.search(r'^_bot="([^"]+)"', _zielumgebung_quelle, re.M)
+zeile("der Ort der Zielumgebung liess sich aus dem Pruefling lesen",
+      _m_bot is not None, gemessen="Zeile '_bot=\"...\"' nicht gefunden")
+in_zielumgebung = bool(_m_bot) and Path(_m_bot.group(1), ".venv/bin/python3").exists()
 if in_zielumgebung:
     zeile("in der Zielumgebung laeuft der Normalfall wirklich — Bilanz voll",
           bool(m) and m.group(1) == m.group(2), gemessen=bilanz)

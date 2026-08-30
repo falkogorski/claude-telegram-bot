@@ -19,6 +19,15 @@
 # ============================================================================
 set -uo pipefail
 
+# **[NEU 30.08.] HOME wird BENANNT eingefordert** (Faecher-Fund [19], A2).
+# Unter `set -u` bricht `$HOME` ohne HOME mit "unbound variable" ab — auch
+# innerhalb eines Rueckfalls wie `${VAR:-$HOME/x}`, denn dort wird $HOME
+# expandiert, sobald VAR fehlt. Genau daran starb am 29.07. ein Waechter,
+# einundzwanzig Tage unbemerkt. Diese Zeile macht daraus einen Abbruch mit
+# Grund statt einer Fehlermeldung, die niemand einem fehlenden Zuhause
+# zuordnet — und sie sichert alle folgenden $HOME-Stellen auf einmal.
+: "${HOME:?HOME ist nicht gesetzt — als Dienst ohne User= gestartet?}"
+
 SRC="${LOG_SYNC_SRC:-$HOME/claude-telegram-bot/logs/conversations}"
 REPO="${LOG_SYNC_REPO:-$HOME/logsync/claude-bot-logs}"
 

@@ -249,15 +249,38 @@ fi
 # Einspielen prueft; im Alltag bleibt die Zeile aus, weil sie rund eine Minute
 # kostet und ein Pruefer, der jeden Lauf verlaengert, abgeschaltet wird.
 if [ -n "${KONTINGENT_LIVE:-}" ] && [ -d "$_bot" ]; then
-  _kout="$("$_bot/.venv/bin/python3" "$_bot/kontingent_sitzung.py" \
-           "$_bot/.venv/lib/python3.13/site-packages/claude_agent_sdk/_bundled/claude" \
-           2>/dev/null || true)"
-  if echo "$_kout" | grep -q "anteil"; then
-    melde ok "Kontingent-Abfrage liefert nach dem Update noch Werte"
+  # **[GEAENDERT 30.08.] Die Python-Fassung wird GESUCHT, nicht getippt**
+  # (F-Listen-Fund [25]). Hier stand `python3.13` fest im Pfad — die einzige
+  # Stelle im ganzen Repo mit einer festen Fassung. `bot.py` loest denselben
+  # Pfad ueber `Path(_sdk.__file__).parent` auf; hier tut es ein Muster.
+  # **Ein Python-Sprung haette diese Zeile still ins Leere laufen lassen** —
+  # `2>/dev/null || true` haette den Fehler geschluckt, und die Zeile waere
+  # rot geworden mit der Begruendung "Layout von /usage geaendert". Die
+  # falsche Spur ist teurer als der fehlende Befund.
+  _cli="$(ls -d "$_bot"/.venv/lib/python3.*/site-packages/claude_agent_sdk/_bundled/claude \
+          2>/dev/null | head -1)"
+  if [ -z "$_cli" ]; then
+    melde skip "Kontingent-Abfrage liefert nach dem Update noch Werte" \
+               "die gebuendelte CLI ist unter keinem python3.*-Pfad auffindbar"
   else
-    melde nein "Kontingent-Abfrage liefert nach dem Update noch Werte" \
-               "kein Wert gelesen - hat sich das Layout von /usage geaendert?"
+    _kout="$("$_bot/.venv/bin/python3" "$_bot/kontingent_sitzung.py" "$_cli" \
+             2>/dev/null || true)"
+    if echo "$_kout" | grep -q "anteil"; then
+      melde ok "Kontingent-Abfrage liefert nach dem Update noch Werte"
+    else
+      melde nein "Kontingent-Abfrage liefert nach dem Update noch Werte" \
+                 "kein Wert gelesen - hat sich das Layout von /usage geaendert?"
+    fi
   fi
+else
+  # **[NEU 30.08.] Der Block verschwand spurlos** (F-Listen-Fund [63]): Ohne
+  # `KONTINGENT_LIVE` wurde `melde` nie gerufen, GESAMT stieg nicht, und in der
+  # Bilanz war von dieser Pruefung keine Spur. Auf dem VPS laeuft sie nach
+  # jedem Update wirklich (`updater.py`), am Bau-Rechner nie — **und beide
+  # Maschinen zeigten dieselbe Vollzahl.** Genau die fehlende Zahlendifferenz,
+  # gegen die heute Vormittag die Uebersprungs-Kategorie entstanden ist.
+  melde skip "Kontingent-Abfrage liefert nach dem Update noch Werte" \
+             "nur nach einem Update gemessen (KONTINGENT_LIVE), kostet sonst eine Minute"
 fi
 
 # --- 3b. Python-Aufrufe des Tagescheck bekommen die Bot-Umgebung -------------
@@ -349,6 +372,33 @@ if [ -z "$_gefunden" ]; then
 else
   melde nein "kein Pruefer schreibt einen plattformgebundenen Pfad fest" \
     "diese Pruefer laufen nur auf einer Maschine:$_gefunden"
+fi
+
+# --- 7. Keine feste Python-Fassung in einem Pfad --------------------------
+#
+# **F-Listen-Fund [25], und die Zeile darueber haette ihn nicht gefunden:** Sie
+# sucht Betriebssystem-Pfade (`/Users/`, `/opt/homebrew`) und nur in `*.py`.
+# Eine festgeschriebene Fassung wie `python3.13` mitten in einem Pfad faellt
+# durch beide Raster — sie war die einzige Stelle im ganzen Repo.
+#
+# **Warum das still bricht:** Beim naechsten Python-Sprung zeigt der Pfad ins
+# Leere. Wo ein `2>/dev/null` daneben steht, wird daraus kein Fehler, sondern
+# ein leeres Ergebnis — und die Pruefung meldet einen falschen Grund. Die
+# falsche Spur ist teurer als der fehlende Befund.
+#
+# Kommentarzeilen fallen heraus: Der Erklaertext hier nennt die Fassung selbst.
+_fest=""
+for _d in $(git ls-files '*.py' '*.sh' 2>/dev/null); do
+  [ "$_d" = "scripts/test_zielumgebung.sh" ] && continue
+  if grep -vE '^[[:space:]]*#' "$_d" | grep -qE 'python3\.[0-9]'; then
+    _fest="$_fest $_d"
+  fi
+done
+if [ -z "$_fest" ]; then
+  melde ok "keine feste Python-Fassung in einem Pfad"
+else
+  melde nein "keine feste Python-Fassung in einem Pfad" \
+    "beim naechsten Python-Sprung zeigen diese Pfade ins Leere:$_fest"
 fi
 
 echo "== Zielumgebung: $((GESAMT-FAILS-UEBERSPRUNGEN))/$GESAMT bestanden =="

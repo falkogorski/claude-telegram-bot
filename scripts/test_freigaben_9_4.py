@@ -560,6 +560,76 @@ check("der Knopf oeffnet den Antwortweg (ausgefuehrt)",
 check("Adams Fassung wird uebernommen und geht NICHT an den Agenten",
       _adams_fassung_wird_uebernommen_und_geht_nicht_an_den_agenten)
 
+
+# ── Gespraechsentscheidungen bekommen einen Ablageweg (Auftrag 2) ──────────
+#
+# **Das Protokoll war gebaut und leer** — gemessen am 28.08.: null Eintraege,
+# die Ordner seit dem 25.07. unveraendert. Kein Fehler, ein Zuschnitt: Es
+# erfasste nur Urteile aus dem Freigabe-Postfach. Adams Entscheidungen fallen
+# aber ueberwiegend frei im Gespraech.
+
+def _gespraechsentscheidung_landet_im_protokoll():
+    """Der Ablageweg selbst — und er nutzt den BESTEHENDEN Uebertragungsweg."""
+    _leeren()
+    e = f.gespraechsentscheidung(
+        zitat="Das mit Fehlern zu machen, das ist alles manipulativ",
+        sache="Eingebaute Maengel im Pruefverfahren",
+        urteil="abgelehnt", von="Adam", gefallen_am="2026-08-27 18:11",
+        herkunft="Bot-Chat")
+    p = f.protokoll_offen()
+    assert len(p) == 1 and p[0]["kennung"] == e["kennung"], \
+        "die Entscheidung hat keinen Weg in die Ablage gefunden"
+    assert f.urteil_lesen(e["kennung"]) is not None, \
+        "sie ist nicht maschinell auffindbar"
+    assert p[0]["beantwortet_am"] == "2026-08-27 18:11", \
+        "der Zeitpunkt der Entscheidung wurde durch den der Ablage ersetzt"
+
+
+def _ohne_zitat_keine_zeile():
+    """**Pflichtfeld, und der Grund ist belegt:** Claudias erste Formulierung
+    machte aus Adams *bedingter* Ablehnung eine grundsaetzliche. Eine
+    zusammengefasste Entscheidung ist eine Auslegung."""
+    _leeren()
+    for fehlt in ({"zitat": "   "}, {"sache": ""}):
+        daten = dict(zitat="wörtlich so", sache="worum es ging",
+                     urteil="abgelehnt", von="Adam")
+        daten.update(fehlt)
+        try:
+            f.gespraechsentscheidung(**daten)
+            raise AssertionError(f"Zeile ohne {list(fehlt)[0]} wurde angelegt")
+        except f.Abgewiesen:
+            pass
+    assert f.protokoll_offen() == [], "trotz Abweisung wurde etwas abgelegt"
+    # Und ein erfundenes Urteil geht nicht durch.
+    try:
+        f.gespraechsentscheidung(zitat="z", sache="s", urteil="vielleicht",
+                                 von="Adam")
+        raise AssertionError("unbekanntes Urteil wurde angenommen")
+    except f.Abgewiesen:
+        pass
+
+
+def _das_zitat_steht_in_der_protokollzeile():
+    """Ohne das Zitat in der Zeile ist es kein Beleg, sondern eine Behauptung."""
+    _leeren()
+    f.gespraechsentscheidung(zitat="Klemmbrett ist super", sache="Symbol",
+                             urteil="festgelegt", von="Adam")
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import entscheidungs_protokoll as ep
+    zeile_ = ep.zeile(f.protokoll_offen()[0])
+    assert "Klemmbrett ist super" in zeile_, \
+        f"das Zitat fehlt in der Drehbuchzeile: {zeile_}"
+    # Die Tabelle bleibt sechsspaltig — eine siebte Spalte braeche jede
+    # bestehende Zeile im Drehbuch.
+    assert zeile_.count("|") == 7, f"die Tabelle hat ihre Form verloren: {zeile_}"
+
+
+check("eine Gespraechsentscheidung landet im Protokoll",
+      _gespraechsentscheidung_landet_im_protokoll)
+check("ohne woertliches Zitat keine Zeile", _ohne_zitat_keine_zeile)
+check("das Zitat steht in der Drehbuchzeile",
+      _das_zitat_steht_in_der_protokollzeile)
+
 if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")
     sys.exit(1)

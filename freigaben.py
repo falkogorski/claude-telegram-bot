@@ -454,6 +454,87 @@ def aendern(kennung: str, neuer_text: str, von: str,
     return a
 
 
+def gespraechsentscheidung(zitat: str, sache: str, urteil: str, von: str,
+                           gefallen_am: str = "", herkunft: str = "Gespräch",
+                           jetzt: float | None = None) -> dict:
+    """Legt eine Entscheidung ab, die **frei im Gespräch** gefallen ist.
+
+    ## Die Lücke, die das schließt
+
+    **Das Entscheidungs-Protokoll war gebaut und leer.** Gemessen am 28.08.:
+    null Einträge, die Ordner seit dem 25.07. unverändert. Der Grund war kein
+    Fehler, sondern ein Zuschnitt: Es erfasst Urteile aus dem
+    **Freigabe-Postfach** — Antworten auf formelle Anfragen mit Knopf oder
+    Daumen. Adams Entscheidungen fallen aber überwiegend **frei im Gespräch**,
+    als Sprachnachricht. Sie hatten keinen Weg in die Ablage.
+
+    Der eigene Kopfsatz des Protokolls galt damit gegen es selbst: *Eine
+    Entscheidung, die keinen Weg in die Ablage hat, ist verloren.*
+
+    ## Warum das ein Handgriff ist und keine Automatik
+
+    Claudia hat diese Frage ausdrücklich offengelassen. **Gebaut ist die
+    sichere Hälfte:** Eine Sitzung, die eine Entscheidung entgegennimmt, legt
+    sie ab. Automatik erzeugte hier leicht erfundene Urteile — dieselbe Gefahr,
+    die bei der Freigabe-Frist schon einmal erkannt und abgewendet wurde. Der
+    Fall, an dem es hängt, ist belegt: Claudias erste Formulierung machte aus
+    Adams *bedingter* Ablehnung eine grundsätzliche; seine Unterscheidung
+    zwischen „nicht als Einstiegstest" und „später als Zusatztest möglich" fiel
+    weg. Bei automatischer Ablage stünde jetzt eine zu weit gefasste
+    Entscheidung im Protokoll, die etwas verbietet, das er erlaubt hat.
+
+    ## Das Zitat ist Pflichtfeld
+
+    **Ohne Zitat keine Zeile** — eine zusammengefasste Entscheidung ist eine
+    Auslegung, und eine Auslegung im Protokoll ist genau der Fehler oben. Das
+    Zitat wandert in die Zeile, damit es beim Lesen danebensteht.
+    """
+    zitat = (zitat or "").strip()
+    sache = (sache or "").strip()
+    if not zitat:
+        raise Abgewiesen(
+            "Ohne wörtliches Zitat keine Protokollzeile. Eine zusammengefasste "
+            "Entscheidung ist eine Auslegung — und genau daran ist am 28.08. "
+            "aus einer bedingten Ablehnung eine grundsätzliche geworden.")
+    if not sache:
+        raise Abgewiesen("Wozu die Entscheidung fiel, ist Pflicht (Sache).")
+    if urteil not in ("freigegeben", "abgelehnt", "festgelegt"):
+        raise Abgewiesen(
+            f"unbekanntes Urteil: {urteil!r} "
+            "(freigegeben | abgelehnt | festgelegt)")
+    for feld, wert in (("Zitat", zitat), ("Sache", sache)):
+        if _hat_geheimnis(wert):
+            raise Abgewiesen(f"{feld} enthält einen Geheimnis-Bezug.")
+    _ordner()
+    now = jetzt or time.time()
+    kennung = f"gespraech-{int(now)}-{abs(hash((zitat, sache))) % 100000:05d}"
+    eintrag = {
+        "kennung": kennung,
+        "titel": sache[:200],
+        "aktion": f"(im Gespräch entschieden) {sache[:200]}",
+        "ampel": "gruen",
+        "herkunft": (herkunft or "Gespräch").strip()[:60],
+        "urteil": urteil,
+        # Das Zitat steht im Grund — damit landet es in der Protokollzeile
+        # neben der Sache, ohne die Tabelle um eine Spalte zu erweitern (das
+        # bräche jede bestehende Zeile).
+        "grund": "wörtlich: " + zitat[:300],
+        "zitat": zitat,
+        "vorgelegt": 1,
+        "beantwortet_von": (von or "Adam").strip()[:60],
+        "beantwortet_am": (gefallen_am.strip()[:20] if gefallen_am
+                           else time.strftime("%Y-%m-%d %H:%M",
+                                              time.localtime(now))),
+        "art": "gespraech",
+    }
+    for ordner in (URTEILE, PROTOKOLL):
+        tmp = ordner / f".{kennung}.tmp"
+        tmp.write_text(json.dumps(eintrag, ensure_ascii=False, indent=2),
+                       encoding="utf-8")
+        tmp.rename(ordner / f"{kennung}.json")
+    return eintrag
+
+
 def urteil_lesen(kennung: str) -> dict | None:
     """Für den Fragenden: Liegt schon ein Urteil vor?"""
     p = URTEILE / f"{kennung}.json"

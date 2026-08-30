@@ -102,6 +102,20 @@ mkdir -p "$POSTFACH_DIR/outbox" "$FREIGABE_DIR" "$HORA_DIR" "$BLUMEN_DIR" \
          "$CONVERSATION_LOG_DIR" "$UPLOAD_DIR" \
          "$ERINNERUNG_DIR" "$KONTINGENT_HOME" "$LOG_SYNC_REPO" \
          "$UPDATER_STATE_DIR" "$WACHPOSTEN_DIR" "$WACHPOSTEN_LOGDIR"
+# **[VERTEIDIGT 30.08.] Der EINZIGE EXIT-Trap dieses Skripts.**
+#
+# `457ba5f` hat hier einen zweiten hinzugefuegt (fuer die Protokolldatei) —
+# und **Bash-EXIT-Traps sind nicht additiv: der zweite ERSETZT den ersten.**
+# Gemessen: `trap "echo ERSTE" EXIT; trap "echo ZWEITE" EXIT` druckt nur
+# ZWEITE. Folge: Das Wegwerf-Heim blieb bei jedem Lauf liegen; am Mac lagen
+# vierzehn davon, auf dem VPS waechst die Zahl taeglich (Tagescheck) plus je
+# Hora-Auftrag plus je Update — jedes mit Postfach, Auftragsbuch, prefs.json.
+#
+# Statt zwei Traps zu verketten liegt die Protokolldatei jetzt IM Wegwerf-Heim
+# (siehe LOGDATEI weiter unten). Damit gibt es nichts mehr zu verketten — die
+# Fehlerquelle ist beseitigt, nicht ausgeglichen. **Wer hier einen zweiten
+# `trap ... EXIT` hinzufuegt, schaltet diese Zeile ab; die Pruefzeile
+# „genau ein EXIT-Trap" in `test_pruefumgebung.py` meldet das.**
 trap 'rm -rf "$PRUEFHEIM"' EXIT
 
 # Stand des ECHTEN Postfachs VOR dem Lauf — der Nachweis am Ende vergleicht.
@@ -139,8 +153,9 @@ UEBERSPRUNGEN=0
 # Umlenkung — und bash fuehrt sie VOR dem Befehl aus, der Pruefling laeuft
 # also gar nicht erst. Ergebnis waere "0/N bestanden" mit lauter Fehlschlaegen,
 # die keiner ist. Gemessen und nachgestellt im Befund.
-LOGDATEI="$(mktemp "${TMPDIR:-/tmp}/regress_last.XXXXXX")"
-trap 'rm -f "$LOGDATEI"' EXIT
+# **Im Wegwerf-Heim, nicht daneben** — damit der EINE Trap oben auch sie
+# raeumt und kein zweiter noetig ist, der den ersten verdraengen wuerde.
+LOGDATEI="$PRUEFHEIM/regress_last.log"
 run() {
   local name="$1"; shift
   local rc=0

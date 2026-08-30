@@ -158,12 +158,60 @@ def _der_laeufer_raeumt_eine_wegwerf_umgebung_ein():
         "es wird nicht nachgemessen, ob doch ins echte Postfach geschrieben wurde"
 
 
+def _das_wegwerf_heim_wird_wirklich_geraeumt():
+    """**Diese Zeile fehlte, und ihr Fehlen kostete vierzehn Wegwerf-Bäume.**
+
+    Engywucks Widerlegung vom 30.08., Rang 0 ①: Ein zweiter `trap … EXIT` im
+    Läufer hat den ersten **ersetzt** — Bash-EXIT-Traps sind nicht additiv.
+    Seither blieb bei jedem Lauf ein vollständiger Zustandsbaum liegen:
+    Postfach, Auftragsbuch, prefs.json, Freigaben. Auf dem VPS wächst das
+    täglich, je Hora-Auftrag und je Update.
+
+    **Die Zeile darüber hat es nicht bemerkt, weil sie Quelltext liest:** Sie
+    prüft, dass `mktemp -d` dasteht — nicht, dass danach jemand aufräumt.
+
+    Gemessen wird deshalb das **Verhalten**, und zwar ohne den vollen Lauf zu
+    starten (der liefe hier rekursiv): Die drei echten Zeilen — Heim anlegen,
+    Trap setzen, Protokolldatei bestimmen — werden aus dem Läufer geschnitten
+    und in einer eigenen Shell ausgeführt. Danach darf das Heim nicht mehr da
+    sein.
+    """
+    import re
+    import subprocess
+    import tempfile
+
+    laeufer = (HIER / "regressionstest.sh").read_text(encoding="utf-8")
+
+    # **Genau ein EXIT-Trap.** Ein zweiter wäre nicht „zusätzlich", sondern
+    # ein Ersatz — das ist die Sprachregel, nicht unsere Wahl.
+    traps = re.findall(r"^\s*trap\s+.*\bEXIT\b", laeufer, re.M)
+    assert len(traps) == 1, (
+        f"{len(traps)} EXIT-Traps im Läufer — Bash nimmt nur den letzten, alle "
+        f"davor sind tot: {traps}")
+
+    heim_zeile = next(z for z in laeufer.splitlines() if z.startswith("PRUEFHEIM="))
+    trap_zeile = traps[0].strip()
+    log_zeile = next(z for z in laeufer.splitlines() if z.startswith("LOGDATEI="))
+    marke = Path(tempfile.mkdtemp(prefix="raeum-probe-"))
+    probe = (f'export TMPDIR="{marke}"\n{heim_zeile}\n{trap_zeile}\n{log_zeile}\n'
+             'echo "$PRUEFHEIM" > "%s/pfad.txt"\n'
+             'echo etwas >"$LOGDATEI"\n' % marke)
+    subprocess.run(["bash", "-c", probe], capture_output=True, text=True, timeout=60)
+    pfad = (marke / "pfad.txt").read_text(encoding="utf-8").strip()
+    assert pfad, "die Probe hat gar kein Wegwerf-Heim angelegt"
+    assert not Path(pfad).exists(), (
+        f"das Wegwerf-Heim blieb nach dem Lauf liegen: {pfad} — der EXIT-Trap "
+        "räumt es nicht (oder wurde von einem späteren verdrängt)")
+
+
 check("kein Test startet einen überlebenden Prozess ohne Ersatz",
       _kein_test_startet_einen_ueberlebenden_prozess)
 check("jede Prüfung setzt ihre schreibenden Ordner hart",
       _jede_pruefung_haelt_ihre_umgebung_fest)
 check("der Läufer räumt eine Wegwerf-Umgebung ein",
       _der_laeufer_raeumt_eine_wegwerf_umgebung_ein)
+check("und er räumt sie hinterher wieder weg (ausgeführt)",
+      _das_wegwerf_heim_wird_wirklich_geraeumt)
 
 
 def _jede_postfach_nachricht_nennt_ihren_absender():

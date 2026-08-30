@@ -19,17 +19,71 @@ set -uo pipefail
 #   MISSLUNGEN            -> wir wissen nicht, was geschrieben wird -> Stopp
 #
 # Eine Schranke, deren Ausfall wie eine Freigabe aussieht, ist keine Schranke.
-INPUT=$(cat)
+# **Auch das Einlesen ohne externes Programm** `[BERICHTIGT 30.08.]`.
+# `INPUT=$(cat)` war die dritte Werkzeug-Abhaengigkeit im Erkennungspfad — und
+# die heimtueckischste: Sie liess die Pruefzeile „ohne git blockiert der Hook"
+# **gruen aus dem falschen Grund** durchgehen. Ohne `cat` scheiterte schon das
+# Einlesen, der Hook blockierte, und niemand hat je den git-Zweig gemessen.
+# Gefunden durch die Gegenprobe, nicht durch Nachdenken.
+IFS= read -r -d '' INPUT || true
+
+# **[BERICHTIGT 30.08., Engywucks Widerlegung Rang 0 ③]** — mein eigener
+# fail-closed-Umbau hatte einen neuen fail-OPEN erzeugt.
+#
+# Die erste Fassung fing stderr mit `2>&1` ein, um es in die Meldung zu
+# schreiben. **Damit klebte jede Bibliothekswarnung am Dateipfad.** Gemessen:
+#
+#   "/pfad/CLAUDE.md\nobjc[123]: warnung"  ->  basename ergibt eine
+#   mehrzeilige Zeichenkette, das `case` trifft nicht  ->  DURCHGELASSEN
+#
+# Und genau der Auslöser, den meine eigene Commit-Nachricht nannte — ein
+# kaputter Shim, ein dyld-Fehler — schreibt auf stderr und endet mit rc=0.
+# **Der Schutz haengt am Rueckgabewert, nicht an der Meldung**; also wird
+# stderr verworfen. Zwei Zeilen Text sind den Riss nicht wert.
 FILE=$(printf '%s' "$INPUT" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
+print(d.get('tool_name', ''))
 print(d.get('tool_input', {}).get('file_path', ''))
-" 2>&1)
+" 2>/dev/null)
 _RC=$?
 if [ "$_RC" -ne 0 ]; then
-  echo "BLOCKIERT (Führungs-Register): Die Anfrage liess sich nicht auswerten (python3 endete mit $_RC). Solange unklar ist, WELCHE Datei geschrieben wird, kann die Schranke nicht urteilen — und ein Ausfall darf nicht wie eine Freigabe aussehen. Meldung: ${FILE:-keine}" >&2
+  echo "BLOCKIERT (Führungs-Register): Die Anfrage liess sich nicht auswerten (python3 endete mit $_RC). Solange unklar ist, WELCHE Datei geschrieben wird, kann die Schranke nicht urteilen — und ein Ausfall darf nicht wie eine Freigabe aussehen." >&2
   exit 2
 fi
+
+# Erste Zeile Werkzeugname, zweite Zeile Dateipfad — mehr darf nicht kommen.
+#
+# **Mit `read` statt `sed`**, und das ist kein Stilfrage: Mein erster Anlauf
+# nahm `sed -n '1p'` — und fiel prompt in der eigenen Pruefzeile „ohne git
+# blockiert der Hook" durch, weil in jenem PATH auch `sed` fehlt. Ich hatte
+# `basename` und `tr` aus dem Pfad genommen und eine Zeile spaeter `sed` neu
+# hineingesetzt: **derselbe Fehler, eine Zeile weiter.** `read` ist eingebaut.
+{ IFS= read -r _WERKZEUG || true
+  IFS= read -r _PFAD || true
+  IFS= read -r _REST || true
+} <<EOF
+$FILE
+EOF
+if [ -n "$_REST" ]; then
+  echo "BLOCKIERT (Führungs-Register): Die Auswertung lieferte mehr als Werkzeug und Pfad — da hat etwas mitgeschrieben. Ungeprueft wird nicht durchgelassen." >&2
+  exit 2
+fi
+
+# **Das gedriftete Eingabe-Schema, jetzt wirklich gefasst.** Meine
+# Commit-Nachricht zu A3 fuehrte diesen Fall als behoben auf, gebaut war nur
+# der Zweig „python3 endete ungleich null" — eine Falschaussage in der eigenen
+# Ablage, von Engywuck gefunden. Ein Schreib-Werkzeug OHNE Dateipfad gibt es
+# nicht; kommt es doch, hat sich das Schema geaendert und niemand weiss mehr,
+# was geschrieben wird. Andere Werkzeuge (Bash, Read …) haben legitim keinen.
+case "$_WERKZEUG" in
+  Edit|Write|MultiEdit|NotebookEdit)
+    if [ -z "$_PFAD" ]; then
+      echo "BLOCKIERT (Führungs-Register): $_WERKZEUG ohne Dateipfad — das Eingabe-Schema passt nicht mehr zu dieser Schranke." >&2
+      exit 2
+    fi ;;
+esac
+FILE="$_PFAD"
 
 # **[BERICHTIGT 29.08., Engywucks Maschinen-Gleichstand, Fund ③]**
 #
@@ -51,13 +105,26 @@ fi
 # `${VAR,,}`, weil `/bin/bash` auf macOS die Fassung 3.2 ist und die
 # Kleinschreibungs-Erweiterung erst mit 4.0 kam — eine Loesung, die nur auf
 # einer Maschine laeuft, waere hier besonders absurd.
-_BASIS=$(basename "$FILE" | tr '[:upper:]' '[:lower:]')
+# **[BERICHTIGT 30.08.] Ohne externe Werkzeuge** — Engywucks Rang 0 ③, zweiter
+# Teil: Fehlte `basename` oder `tr`, blieb `_BASIS` leer und der Hook liess
+# durch. Derselbe Ausfalltyp wie beim fehlenden `python3`, nur unbemerkt.
+#
+# Beides geht mit Bordmitteln: `${FILE##*/}` ist der Dateiname, und die
+# Schreibweisen-Unabhaengigkeit traegt das Muster selbst. **Ein Erkennungspfad
+# ohne aufgerufene Programme kann durch kein fehlendes Programm aufgehen.**
+# (`[Cc]`-Klassen statt `${VAR,,}`, weil `/bin/bash` auf macOS die Fassung 3.2
+# ist — dieselbe Ueberlegung wie beim `tr` zuvor, nur konsequenter.)
+_BASIS=${FILE##*/}
 case "$_BASIS" in
-  migration.md|claude.md) ;;
+  [Mm][Ii][Gg][Rr][Aa][Tt][Ii][Oo][Nn].[Mm][Dd]) ;;
+  [Cc][Ll][Aa][Uu][Dd][Ee].[Mm][Dd]) ;;
   *) exit 0 ;;
 esac
 
-DIR=$(dirname "$FILE")
+# Auch hier Bordmittel statt `dirname` — dasselbe Argument wie oben. Der
+# Sonderfall „Datei ohne Verzeichnisteil" wird zu „.", genau wie bei dirname.
+DIR=${FILE%/*}
+[ "$DIR" = "$FILE" ] && DIR="."
 
 # **Fehlt git selbst, kann niemand urteilen** — auch das ist ein Ausfall und
 # keine Freigabe. (Ein Verzeichnis OHNE Repo ist dagegen legitim: dort gibt es

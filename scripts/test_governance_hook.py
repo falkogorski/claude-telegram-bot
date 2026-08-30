@@ -152,8 +152,11 @@ try:
 
     # ②b Und ohne **git** — der zweite Ausfall, der urteilsunfaehig macht.
     ohne_git = tempfile.mkdtemp(prefix="ohne-git-")
-    for werkzeug in ("bash", "python3", "basename", "dirname", "tr", "cat",
-                     "printf"):
+    # **Nur bash und python3** — und das ist die eigentliche Messung, nicht
+    # Sparsamkeit: Braucht der Hook ein weiteres Programm, faellt er hier
+    # durch, statt still durchzulassen. So wurde `sed` gefunden, das ich beim
+    # Entfernen von `basename`/`tr` eine Zeile spaeter neu eingesetzt hatte.
+    for werkzeug in ("bash", "python3"):
         quelle = shutil.which(werkzeug)
         if quelle:
             try:
@@ -162,8 +165,14 @@ try:
                 pass
     r = hook_roh(json.dumps({"tool_input": {"file_path": str(arbeit / "CLAUDE.md")}}),
                  pfad_umgebung=ohne_git)
-    zeile("ohne git blockiert der Hook", r.returncode == 2,
-          gemessen=f"exit {r.returncode}: {(r.stderr or '').strip()[:90]}")
+    # **Der GRUND wird mitgemessen, nicht nur der Rückgabewert.** Diese Zeile
+    # war grün, ohne je den git-Zweig erreicht zu haben: Der Hook las seine
+    # Eingabe mit `cat`, das im werkzeuglosen PATH ebenfalls fehlt — er
+    # blockierte also schon eine Stufe früher. Ein Prüfer, der nur „blockiert"
+    # misst, kann nicht unterscheiden, WORAN er blockiert hat.
+    zeile("ohne git blockiert der Hook — und zwar wegen git",
+          r.returncode == 2 and "git ist auf dieser Maschine nicht auffindbar" in (r.stderr or ""),
+          gemessen=f"exit {r.returncode}: {(r.stderr or '').strip()[:110]}")
 
     # ②c Ein misslungener VERGLEICH. Vorher endete jeder rev-list-Fehler in
     #     `|| echo 0` — also in „die Kopie ist aktuell", der beruhigendsten
@@ -182,6 +191,41 @@ try:
     rc = hook_auf(str(kaputt / "CLAUDE.md"))
     zeile("ein misslungener Vergleich blockiert (statt 0 zu melden)", rc == 2,
           gemessen=f"exit {rc} — 0 hiesse: „die Kopie ist aktuell“")
+
+    # ②d **Ein python3, das auf stderr schwatzt** — Engywucks Widerlegung
+    #     Rang 0 ③. Die erste fail-closed-Fassung fing stderr mit `2>&1` ein;
+    #     eine Bibliothekswarnung klebte damit am Dateipfad, `basename` lieferte
+    #     eine mehrzeilige Zeichenkette, das `case` traf nicht — **der
+    #     fail-closed-Umbau hatte einen neuen fail-open erzeugt.** Und der
+    #     Ausloeser war genau der, den die Commit-Nachricht nannte: ein
+    #     kaputter Shim, der mit rc=0 endet und auf stderr schreibt.
+    schwatzend = Path(tempfile.mkdtemp(prefix="schwatzendes-python-"))
+    echtes_python = shutil.which("python3") or sys.executable
+    (schwatzend / "python3").write_text(
+        "#!/bin/sh\n"
+        "echo 'objc[4711]: dyld warnung aus einer Bibliothek' >&2\n"
+        f"exec {echtes_python} \"$@\"\n", encoding="utf-8")
+    (schwatzend / "python3").chmod(0o755)
+    for werkzeug in ("bash", "git"):
+        quelle = shutil.which(werkzeug)
+        if quelle:
+            try:
+                os.symlink(quelle, schwatzend / werkzeug)
+            except OSError:
+                pass
+    r = hook_roh(json.dumps({"tool_name": "Edit",
+                             "tool_input": {"file_path": str(arbeit / "CLAUDE.md")}}),
+                 pfad_umgebung=f"{schwatzend}:{os.environ.get('PATH','')}")
+    zeile("eine Warnung auf stderr oeffnet die Schranke NICHT", r.returncode == 2,
+          gemessen=f"exit {r.returncode} — 0 hiesse: eine Bibliothekswarnung "
+                   f"haengt den Riegel aus")
+
+    # ②e **Das gedriftete Schema** — in der A3-Commit-Nachricht als behoben
+    #     aufgefuehrt, gebaut war es nicht. Ein Schreib-Werkzeug ohne Dateipfad
+    #     gibt es nicht; kommt es doch, hat sich das Schema geaendert.
+    r = hook_roh(json.dumps({"tool_name": "Edit", "tool_input": {"pfad": "/x/CLAUDE.md"}}))
+    zeile("ein Schreib-Werkzeug ohne Dateipfad blockiert (Schema-Drift)",
+          r.returncode == 2, gemessen=f"exit {r.returncode}: {r.stderr.strip()[:90]}")
 
     # ③ Die Gegenrichtung, und ohne sie waere ① wertlos: Eine gueltige Anfrage
     #    OHNE Dateipfad ist der Normalfall anderer Werkzeuge und muss durch.

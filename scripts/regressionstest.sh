@@ -289,6 +289,7 @@ run "Auftragsbuch B8 (ruhend)"          "$PY" scripts/test_auftragsbuch_b8.py
 run "Doku-Spiegel (/hilfe/Buttons)"     "$PY" scripts/check_hilfe_buttons.py
 run "Uebersprungen ≠ bestanden (A1)"    "$PY" scripts/test_uebersprungen_a1.py
 run "Zustand der Ausarbeitungen"        "$PY" scripts/test_ausarbeitungen.py
+run "Tagescheck: kein Werkzeug, kein Urteil" "$PY" scripts/test_tagescheck_werkzeuge.py
 
 # Der Nachweis, dass die Wegwerf-Umgebung wirklich gegriffen hat. Nachmessen,
 # was ankam — nicht die Konfiguration lesen (Wirkungs-Regel). Steht bewusst am

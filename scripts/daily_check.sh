@@ -104,6 +104,37 @@ merken() { trocken && return 0; printf '%s\n' "$1" >> "$LAUFDATEI" 2>/dev/null |
 add() { lines+=("$1"); merken "$1"; }
 red() { problems+=("$1"); lines+=("❌ $1"); merken "❌ $1"; }
 
+# **[NEU 30.08.] Kein Werkzeug → kein Urteil.** (F-Listen-Fund [65], von
+# Engywuck ausdruecklich vorgezogen.)
+#
+# DER FALL: Die Netzwerk-Pruefung schrieb im `else`-Zweig
+# "✅ Nach aussen lauschen nur SSH und der Webhook-Port". Fehlt `ss`, liefert
+# die Pipeline leer — und genau dieser Zweig greift. **Das Gruen hing an der
+# Anwesenheit des Werkzeugs, nicht am Zustand der Maschine.**
+#
+# WARUM DAS SCHWERER WIEGT ALS EIN STUMMER PRUEFER: Die Folge ist keine
+# fehlende Meldung, sondern eine FALSCHE. Ein Pruefer, der schweigt, ist
+# aergerlich. Einer, der Adam zusagt, nach aussen lausche nur SSH, ohne es
+# gemessen zu haben, ist eine **Aussage ueber die Sicherheitslage des
+# Servers** — und er verlaesst sich darauf.
+#
+# DIE MENGE, GEZAEHLT STATT GERATEN (Engywucks Auflage vor dem Bau): Vier
+# `else`-Zweige im Tagescheck schreiben eine positive Aussage. Zwei davon
+# haengen an einem Werkzeug, das fehlen kann — `ss` und `git`; die anderen
+# beiden pruefen eine Datei bzw. brechen vorher ab. **Beide gehen jetzt durch
+# diese eine Tuer**, damit die dritte Stelle nicht wieder einzeln vergessen
+# wird.
+#
+# Das ist dieselbe Regel wie "Uebersprungen ist nicht bestanden" im Laeufer —
+# nur hier, im Tagescheck, wo sie durchgerutscht war. Geschwister-Regel.
+werkzeug_da() {
+  if command -v "$1" >/dev/null 2>&1; then
+    return 0
+  fi
+  add "⏭️ $2: NICHT GEMESSEN — $1 ist auf dieser Maschine nicht auffindbar"
+  return 1
+}
+
 # Bricht das Skript unerwartet ab, sagt die letzte Zeile, wo es aufhoerte -
 # statt dass der ganze Lauf spurlos verschwindet.
 _abbruch() {
@@ -283,6 +314,12 @@ done
 #
 # Bewusst NUR melden, nie aufraeumen: Eine automatische Loeschung koennte
 # Handarbeit vernichten, die jemand aus gutem Grund dort abgelegt hat.
+# **Dasselbe Geschwister** (30.08.): Ohne `git` liefert die Substitution leer,
+# und der else-Zweig schriebe "VPS-Klon sauber" — eine Zusage ueber den Zustand
+# des Repos, ohne ihn gesehen zu haben.
+if ! werkzeug_da git "Sauberkeit des VPS-Klons"; then
+  unversioniert="__NICHT_GEMESSEN__"
+else
 unversioniert="$(cd "$BOTDIR" && git status --porcelain 2>/dev/null | head -10)"
 if [ -n "$unversioniert" ]; then
   anzahl="$(cd "$BOTDIR" && git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
@@ -290,6 +327,7 @@ if [ -n "$unversioniert" ]; then
   red "Im VPS-Klon liegen $anzahl unversionierte/geaenderte Datei(en): $erste — der naechste git pull kann daran scheitern (Governance 8.7)"
 else
   add "✅ VPS-Klon sauber (nichts Unversioniertes)"
+fi
 fi
 
 # --- 9f. A6.1: Der taegliche Sichtungs-Vermerk fuer die Kontrolle ----------
@@ -563,15 +601,17 @@ fi
 # Offene Anschluesse: alles, was NICHT nur lokal lauscht, wird benannt. SSH und
 # der Webhook-Port sind erwartet - jeder weitere ist ein Befund, denn nach
 # CLAUDE.md gilt: kein eingehender Port ausser den ausdruecklich gewollten.
-unerwartet=$(ss -lntH 2>/dev/null \
-  | awk '{print $4}' \
-  | grep -vE '^(127\.0\.0\.1|\[::1\])' \
-  | grep -vE ':(22|8443)$' | sort -u | tr '\n' ' ')
-if [ -n "${unerwartet// /}" ]; then
-  add "❌ Unerwartet offene Anschluesse: $unerwartet"
-  problems+=("Es lauschen Anschluesse nach aussen, die dort nicht hingehoeren: $unerwartet")
-else
-  add "✅ Nach aussen lauschen nur SSH und der Webhook-Port"
+if werkzeug_da ss "Nach aussen lauschende Anschluesse"; then
+  unerwartet=$(ss -lntH 2>/dev/null \
+    | awk '{print $4}' \
+    | grep -vE '^(127\.0\.0\.1|\[::1\])' \
+    | grep -vE ':(22|8443)$' | sort -u | tr '\n' ' ')
+  if [ -n "${unerwartet// /}" ]; then
+    add "❌ Unerwartet offene Anschluesse: $unerwartet"
+    problems+=("Es lauschen Anschluesse nach aussen, die dort nicht hingehoeren: $unerwartet")
+  else
+    add "✅ Nach aussen lauschen nur SSH und der Webhook-Port"
+  fi
 fi
 
 # 1.9 rote Auflage C.1, dritter Teil: Der Webhook-Port soll auf Telegrams Netze

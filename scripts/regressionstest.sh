@@ -318,4 +318,24 @@ echo "== Ergebnis: $((GESAMT-FAILS-UEBERSPRUNGEN))/$GESAMT bestanden =="
 if [ "$UEBERSPRUNGEN" -gt 0 ]; then
   echo "== $UEBERSPRUNGEN uebersprungen — auf DIESER Maschine wurde dort nichts gemessen =="
 fi
+
+# **[NEU 30.08., Engywucks Widerlegung Rang 1] Uebersprungenes gehoert ins
+# SIGNAL, nicht nur in die Zahl.**
+#
+# Die erste Fassung liess es bei `exit $FAILS`. Damit war die Zahl ehrlich und
+# das Signal nicht: Ein Lauf mit 65 Uebersprüngen endete mit **0**, und alle
+# vier Verbraucher gingen auf gruen — der Tagescheck mit gruenem Haken, der
+# Updater liess Updates durch, der Vollzugspruefer meldete "alles wie
+# erwartet". **Der schwerste ist `hora.py`:** Es oeffnet auf rc=0 BEIDE Tore —
+# das Vorher-Tor „auf rotem Fundament wird nicht gearbeitet" und das
+# Nachher-Tor, das den Auftrag als erledigt abhakt. Ein Laeufer, der autonom
+# Befehle ausfuehrt, haette auf einem Fundament gearbeitet, das niemand
+# vermessen hat.
+#
+# Drei Zustaende, drei Rueckgabewerte: **0 = alles gemessen und gruen ·
+# 77 = gruen, aber nicht alles gemessen · sonst = Fehlschlaege.** Wer nur
+# „ungleich null" prueft, faehrt automatisch die sichere Richtung.
+if [ "$FAILS" -eq 0 ] && [ "$UEBERSPRUNGEN" -gt 0 ]; then
+  exit 77
+fi
 exit $FAILS

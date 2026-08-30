@@ -187,6 +187,93 @@ e = subprocess.run(["bash", "-c",
 zeile("die Bilanz des Laeufers zaehlt Uebersprungene nicht als bestanden",
       "1/3" in e.stdout, gemessen=e.stdout.strip() or e.stderr.strip()[:100])
 
+# **`run()` darf es nur EINMAL geben** — Engywucks Widerlegung: Der Schnitt
+# oben nimmt die ERSTE Definition, **bash nimmt die letzte.** Eine zweite ohne
+# 77-Zweig machte den Schutz wirkungslos und diesen Prüfer nicht rot.
+_definitionen = re.findall(r"^run\(\) \{", laeufer, re.M)
+zeile("es gibt genau eine run()-Definition im Laeufer",
+      len(_definitionen) == 1,
+      gemessen=f"{len(_definitionen)} gefunden — bash naehme die letzte, "
+               f"dieser Pruefer die erste")
+
+# ---------------------------------------------------------------------------
+# ②b Der Rueckgabewert: Uebersprungenes gehoert ins SIGNAL
+# ---------------------------------------------------------------------------
+print("\n②b Ein unvollstaendiger Lauf endet nicht mit null")
+
+_schluss = laeufer.split("== Ergebnis:")[-1]
+_schluss_block = "echo \"== Ergebnis:" + _schluss
+for lage, (fails, ueber), erwartet in (
+        ("alles gruen", (0, 0), 0),
+        ("etwas uebersprungen", (0, 3), 77),
+        ("etwas rot", (2, 0), 2),
+        ("rot UND uebersprungen", (2, 3), 2)):
+    e = subprocess.run(
+        ["bash", "-c", f"GESAMT=67; FAILS={fails}; UEBERSPRUNGEN={ueber}\n{_schluss_block}"],
+        capture_output=True, text=True)
+    zeile(f"[{lage}] endet mit {erwartet}", e.returncode == erwartet,
+          gemessen=f"rc={e.returncode}: {e.stdout.strip().splitlines()[:2]}")
+
+# **Die beiden schwersten Verbraucher AUSGEFUEHRT** — mit einem Laeufer, der
+# 77 liefert. Textsuche haette hier nicht genuegt: Genau diese Prueferklasse
+# hat Engywuck an meiner Arbeit bemaengelt.
+_attrappe = Path(tempfile.mkdtemp(prefix="laeufer-77-")) / "laeufer.sh"
+_attrappe.write_text(
+    "#!/bin/sh\n"
+    'echo "== Ergebnis: 2/67 bestanden =="\n'
+    'echo "== 65 uebersprungen — auf DIESER Maschine wurde dort nichts gemessen =="\n'
+    "exit 77\n", encoding="utf-8")
+_attrappe.chmod(0o755)
+
+import hora                                                    # noqa: E402
+_echt = hora.REGRESSION
+hora.REGRESSION = _attrappe
+try:
+    _ok, _text = hora.regression()
+finally:
+    hora.REGRESSION = _echt
+# Das ist der schwerste der vier: Ein True oeffnet BEIDE Tore — „auf rotem
+# Fundament wird nicht gearbeitet" UND das Abhaken danach.
+#
+# **Gemessen, wo der Schutz wirklich sitzt:** Diese Zeile bleibt auch dann
+# gruen, wenn man Horas 77-Zweig entfernt — denn `p.returncode == 0` ist bei
+# 77 ohnehin falsch. **Der Riegel liegt im Laeufer, nicht hier.** Horas
+# Sonderzweig liefert nur den GRUND, und genau das misst die naechste Zeile.
+# Ein doppelter Boden, kein doppelter Prüfer.
+zeile("Hora-Tor bleibt bei einem unvollstaendigen Lauf ZU (ausgefuehrt)",
+      _ok is False, gemessen=f"ok={_ok!r}, Text={_text!r:.90}")
+zeile("und Hora nennt den Grund, nicht nur die Zahl",
+      "UNVOLLST" in _text.upper(), gemessen=_text[:110])
+
+import updater                                                 # noqa: E402
+_echt_u = updater.REGRESSION
+updater.REGRESSION = _attrappe
+try:
+    _erg = updater._regression() if hasattr(updater, "_regression") else None
+finally:
+    updater.REGRESSION = _echt_u
+if _erg is None:
+    zeile("Updater-Regressionslauf war nicht aufrufbar (Name geaendert?)", False,
+          gemessen="hasattr(updater, '_regression') ist falsch")
+else:
+    zeile("Updater wertet einen unvollstaendigen Lauf NICHT als ok (ausgefuehrt)",
+          _erg.get("ok") is False, gemessen=str(_erg)[:110])
+    zeile("und der Updater nennt den Grund",
+          "UNVOLLST" in str(_erg.get("line", "")).upper(),
+          gemessen=str(_erg.get("line"))[:110])
+
+# Die beiden Shell-Verbraucher: hier bleibt es bei der Textsuche, und das ist
+# eine benannte Grenze — `daily_check.sh` ruft den Laeufer ueber `sudo -u`,
+# das laesst sich im Pruefstand nicht gefahrlos nachstellen.
+for name, datei, muster in (
+        ("Tagescheck", "scripts/daily_check.sh", "-eq 77"),
+        ("Vollzugspruefer", "scripts/node_vollzug_pruefen.sh", "-eq 77")):
+    text_v = (ROOT / datei).read_text(encoding="utf-8")
+    zeile(f"{name} kennt den dritten Zustand (nur gelesen, siehe Kommentar)",
+          muster in text_v,
+          gemessen=f"{datei} nennt {muster!r} nicht — ein unvollstaendiger "
+                   f"Lauf saehe dort aus wie ein vollstaendiger")
+
 # Fund [70]: kein fester Pfad in /tmp mehr, den ein zweiter Nutzer nicht
 # beschreiben kann. Gemessen wird die Abwesenheit im Quelltext — hier
 # ausnahmsweise richtig, weil ein FESTER Pfad genau eine Zeichenkette IST.

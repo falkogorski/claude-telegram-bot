@@ -129,7 +129,14 @@ n="$(pgrep -c -f 'python bot.py' 2>/dev/null || echo 0)"
 if [ "$n" = "1" ]; then add "✅ genau eine Bot-Instanz"; else red "Bot-Instanzen: $n (soll 1)"; fi
 
 # --- 3. 8.2-Regressionstest (als claudebot, dessen venv) --------------------
-if reg="$(sudo -u claudebot bash "$BOTDIR/scripts/regressionstest.sh" 2>&1)"; then
+reg="$(sudo -u claudebot bash "$BOTDIR/scripts/regressionstest.sh" 2>&1)"; _regrc=$?
+# **Drei Zustaende, nicht zwei** (Rang 1, 30.08.): 77 heisst „gruen, aber nicht
+# alles gemessen". Das ist kein Fehlschlag — aber es ist auch kein Haken.
+if [ "$_regrc" -eq 77 ]; then
+  ueber="$(echo "$reg" | grep 'uebersprungen —' | tail -1)"
+  bilanz="$(echo "$reg" | grep '== Ergebnis:' | tail -1)"
+  add "⏭️ Regressionstest UNVOLLSTAENDIG: $bilanz · $ueber"
+elif [ "$_regrc" -eq 0 ]; then
   # **[GEAENDERT 30.08.] Die BILANZ, nicht die letzte Zeile.** Seit der Laeufer
   # Uebersprungenes getrennt ausweist, ist `tail -1` die Uebersprungszeile —
   # und die Bilanz waere aus Adams Tagesmeldung verschwunden. Kleine Aenderung

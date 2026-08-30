@@ -135,7 +135,15 @@ pruefe symlink gleich "Ziel von /usr/local/bin/claude"
 
 echo
 echo "-- und der Nachweis, den die neun Zeilen oben NICHT ersetzen --"
-if (cd "$REPO" && bash scripts/regressionstest.sh >/tmp/nodevollzug.log 2>&1); then
+(cd "$REPO" && bash scripts/regressionstest.sh >/tmp/nodevollzug.log 2>&1); _rc=$?
+# Drei Zustaende (Rang 1, 30.08.): 77 = gruen, aber nicht alles gemessen.
+# „Vollzug sauber" darf das nicht heissen — gemessen wurde ja gerade nicht.
+if [ "$_rc" -eq 77 ]; then
+  echo "  ⏭️  Regressionslauf UNVOLLSTAENDIG: $(grep '== Ergebnis:' /tmp/nodevollzug.log | tail -1)"
+  grep 'uebersprungen —' /tmp/nodevollzug.log | tail -1 | sed 's/^/     /'
+  echo "     (kein Vollzugsnachweis — hier wurde nicht alles gemessen)"
+  FEHLER=$((FEHLER+1))
+elif [ "$_rc" -eq 0 ]; then
   # Die Bilanzzeile, nicht die letzte — seit dem 30.08. kann darunter noch
   # eine Uebersprungszeile stehen.
   echo "  ✅ Regressionslauf: $(grep '== Ergebnis:' /tmp/nodevollzug.log | tail -1)"

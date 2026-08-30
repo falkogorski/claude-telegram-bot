@@ -486,7 +486,22 @@ def regression() -> tuple[bool, str]:
         p = subprocess.run(["bash", str(REGRESSION)], cwd=str(REPO),
                            capture_output=True, text=True, timeout=1800)
         letzte = [z for z in (p.stdout or "").splitlines() if "Ergebnis:" in z]
-        return p.returncode == 0, (letzte[-1] if letzte else "(keine Ausgabe)")
+        bilanz = letzte[-1] if letzte else "(keine Ausgabe)"
+        if p.returncode == 77:
+            # **[NEU 30.08., Widerlegung Rang 1] Unvollständig ist nicht grün.**
+            #
+            # Von den vier Verbrauchern des Läufers ist dieser der schwerste:
+            # Ein `True` öffnet **beide** Tore — das Vorher-Tor („auf rotem
+            # Fundament wird nicht gearbeitet") und das Nachher-Tor, das den
+            # Auftrag als erledigt abhakt. Ein Läufer, der autonom Befehle
+            # ausführt, arbeitete sonst auf einem Fundament, das niemand
+            # vermessen hat, und hakte danach ab.
+            uebersprungen = [z for z in (p.stdout or "").splitlines()
+                             if "uebersprungen —" in z]
+            return False, (bilanz + " · UNVOLLSTÄNDIG: "
+                           + (uebersprungen[-1] if uebersprungen
+                              else "es wurde nicht alles gemessen"))
+        return p.returncode == 0, bilanz
     except Exception as e:
         return False, f"Testlauf-Fehler: {e}"
 

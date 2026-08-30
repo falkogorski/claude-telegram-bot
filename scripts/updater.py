@@ -278,6 +278,17 @@ def _regression() -> dict:
             m = _SCORE_RE.search(text)
         passed, total = (int(m.group(1)), int(m.group(2))) if m else (None, None)
         line = m.group(0) if m else (text.strip().splitlines() or ["(keine Ausgabe)"])[-1]
+        if r.returncode == 77:
+            # **[NEU 30.08., Widerlegung Rang 1]** Der Läufer kennt drei
+            # Zustände; 77 heißt „grün, aber nicht alles gemessen". `ok` wird
+            # dadurch schon von selbst False — die Grundlinien-Regel (A5) hält
+            # also automatisch die sichere Richtung. **Was fehlte, war der
+            # GRUND:** Ohne diese Zeile läse Adam „Fundament rot" und suchte
+            # einen Fehlschlag, den es nicht gibt.
+            uebersprungen = [z for z in text.splitlines() if "uebersprungen —" in z]
+            line += (" · UNVOLLSTÄNDIG: "
+                     + (uebersprungen[-1] if uebersprungen
+                        else "es wurde nicht alles gemessen"))
         return {"ok": r.returncode == 0, "passed": passed, "total": total,
                 "line": line, "raw_tail": text[-800:]}
     except Exception as e:

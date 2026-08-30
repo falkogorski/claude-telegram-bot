@@ -170,6 +170,51 @@ zeile("vor dem Vermerk steht kein einziges Fremdzeichen",
                                       "boese.tld")),
       gemessen=repr(vorspann)[:160])
 
+# --------------------------------------------------------------------------
+# ④ Der zweite Pfad desselben Knopfes — Widerlegung Rang 2 ④
+# --------------------------------------------------------------------------
+print("\nAuch der BERICHT traegt keine anklickbare Verknuepfung")
+
+# **Die Geschwister-Luecke, und sie ist genau die von gestern:** Die
+# Entschaerfung sass nur in `_neutral()` und damit nur im Uebersichts-Pfad.
+# `on_mail_knopf` → `mail_zusammenfassen` → `send_chunked` trug sie nicht — ein
+# Bericht, der eine Adresse aus der Mail zitiert, erzeugte wieder eine
+# anklickbare Verknuepfung. In einer Nachricht, die vom Bot kommt.
+
+
+class AntwortenderClient(FakeClient):
+    """Wie oben, aber mit Antwort — hier ist der Bericht der Gegenstand."""
+
+    async def receive_response(self):
+        yield bot.AssistantMessage(
+            content=[bot.TextBlock(
+                text="Der Absender chef@boese.tld bittet um Zahlung und nennt "
+                     "https://boese.tld/kasse als Weg.")],
+            model="pruefstand")
+
+
+bot.ClaudeSDKClient = AntwortenderClient
+bot.email_kanal.nachricht_text = _nachricht_text
+try:
+    bericht = asyncio.run(bot.mail_zusammenfassen("geschaeftlich", "1001"))
+except Exception as e:
+    bericht = f"(Fehlschlag: {type(e).__name__}: {e})"
+finally:
+    bot.ClaudeSDKClient = echt_client
+    bot.email_kanal.nachricht_text = echt_text
+
+zeile("der Bericht ist wirklich entstanden", "boese" in bericht,
+      gemessen=bericht[:120])
+zeile("im Bericht steht kein Schema mehr", "://" not in bericht,
+      gemessen=bericht[:140])
+zeile("und kein Klammeraffe", "@" not in bericht, gemessen=bericht[:140])
+# Die Gegenrichtung: Der Wortlaut geht nicht verloren, nur die Klickbarkeit.
+zeile("der Wortlaut bleibt lesbar",
+      "boese.tld" in bericht and "Zahlung" in bericht, gemessen=bericht[:140])
+# Und der Vorspann — mein eigener Text — bleibt unangetastet.
+zeile("der Rangvermerk des Vorspanns bleibt erhalten",
+      bericht.startswith("📧"), gemessen=bericht[:60])
+
 print()
 if fehler:
     print(f"❌ {len(fehler)} von {zeilen} Zeilen rot: {fehler}")

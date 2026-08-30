@@ -95,33 +95,53 @@ for roh in HARMLOS:
           gemessen=ek._neutral(roh))
 
 # --------------------------------------------------------------------------
-# ③ Die Restluecke ist BENANNT, nicht behauptet
+# ③ Die Restluecke — als VERMERK, nicht als Pruefzeile
 # --------------------------------------------------------------------------
-print("\nDie Restluecke steht im Code, nicht nur im Bericht")
-
-quelle = Path(ek.__file__).read_text()
-# **Diese eine Zeile liest Quelltext und ist damit umgehbar — sie ist KEIN
-# Schutz, sondern haelt fest, dass der Vermerk nicht still verschwindet.**
-# Ausdruecklich benannt, damit sie niemand als Sicherung zaehlt.
-zeile("die schemalose Luecke ist im Modul vermerkt (Doku-Zeile, kein Schutz)",
-      "Restlücke" in quelle and "boese.tld" in quelle)
-# Und ehrlich gemessen: sie kommt tatsaechlich durch. Diese Zeile haelt den
-# Stand fest — schlaegt sie eines Tages an, ist die Luecke geschlossen und
-# der Vermerk oben ueberholt.
-zeile("schemalose Adresse kommt (noch) durch — Stand festgehalten",
-      "boese.tld" in ek._neutral("Sieh boese.tld an"),
-      gemessen=ek._neutral("Sieh boese.tld an"))
+#
+# **`[BERICHTIGT 30.08., Engywucks Widerlegung Rang 2 ① und ②]` Hier standen
+# zwei Zeilen, und beide waren falsch gebaut.**
+#
+# **①** Eine war als „Doku-Zeile, kein Schutz" gekennzeichnet — und rief
+# trotzdem dieselbe `zeile()` wie jeder echte Schutz, erhoehte denselben
+# Zaehler und ging in „Alle 27 Zeilen gruen" ein. Das Register schrieb diese 27
+# den zwei Schutzrichtungen zu. **Eine als harmlos deklarierte Zeile, die
+# mitzaehlt, ist gefaehrlicher als gar keine** — sie macht die Bilanz um eins
+# groesser, ohne etwas zu sichern. Und sie tat nicht einmal, was sie behauptete:
+# eine Wortsuche ueber die ganze 982-Zeilen-Datei; der Vermerk selbst haette
+# entfernt werden koennen, ohne dass sie rot wird.
+#
+# **②** Die andere verlangte, dass die Luecke BESTEHEN BLEIBT: Wird die
+# schemalose Adresse eines Tages gefasst, waere der Pruefer rot geworden und
+# der Regressionslauf gefallen. **Ein Pruefer, der die Verbesserung
+# blockiert.** Das ist keine Messung, das ist ein Riegel gegen die eigene
+# Arbeit.
+#
+# Beide sind ersatzlos gestrichen. Der Stand gehoert in den Kommentar, nicht in
+# den Zaehler — hier ist er:
+#
+#     Eine Adresse OHNE Schema (`boese.tld`) erkennt Telegram weiterhin und
+#     verlinkt sie. Sie zu fassen verlangte eine Regel ueber „Wort Punkt Wort",
+#     und die frisst echten Wortlaut — „Sehr geehrte Herren.Ihre Bestellung"
+#     waere nach ihr eine Verknuepfung. Bewusst offen gelassen; die Begruendung
+#     steht bei `_VERKNUEPFUNG_RE` in `email_kanal.py`.
+#
+# Wer die Luecke eines Tages schliesst, streicht diesen Absatz — und keine
+# Pruefzeile haelt ihn davon ab.
 
 # --------------------------------------------------------------------------
 # ④ Der ganze Weg: die Uebersicht traegt es auch
 # --------------------------------------------------------------------------
 print("\nDie fertige Uebersicht traegt keine Verknuepfung")
 
+# **`[GEÄNDERT 30.08., Widerlegung Rang 2 ⑤]` Alle DREI Felder tragen etwas.**
+# Vorher war das Datum harmlos — `als_text` schickt es durch `_neutral`, aber
+# gemessen wurde es nie. Der `_neutral`-Aufruf für `datum` liess sich entfernen,
+# ohne dass eine Zeile rot wurde: *Fabrik ja, Aufrufer nein* auf Feldebene.
 text = ek.als_text("geschaeftlich", [{
     "kennung": "1001",
     "von": "Chef <chef@boese.tld>",
     "betreff": "Jetzt zahlen: https://boese.tld/kasse",
-    "datum": "Sat, 29 Aug 2026 20:00:00 +0200",
+    "datum": "Sat, 29 Aug 2026 20:00:00 +0200 (siehe http://datum.boese.tld)",
     "anhaenge": [],
 }])
 zeile("in der fertigen Uebersicht steht kein Schema", "://" not in text,

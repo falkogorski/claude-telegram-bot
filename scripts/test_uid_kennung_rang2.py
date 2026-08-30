@@ -165,6 +165,73 @@ zeile("der Abruf bleibt nur lesend",
 # --------------------------------------------------------------------------
 # 2. Eine verschwundene Nachricht wird BENANNT, nicht ersetzt
 # --------------------------------------------------------------------------
+print("\nEin abgelehnter Befehl erzeugt keine erfundene Liste")
+
+
+class SagtNein(NurUID):
+    """Ein Server, der mit `NO` antwortet — **ohne eine Ausnahme zu heben.**
+
+    `imaplib` wirft nur bei `BAD` (nachgesehen in `_command_complete`); ein
+    `NO` kommt als gewoehnlicher Rueckgabewert. Der Statusteil wurde an allen
+    fuenf Aufrufstellen mit `_` weggeworfen — und `daten[0].split()` machte
+    aus den Woertern der Fehlermeldung Nachrichten-Kennungen.
+    """
+
+    def uid(self, befehl, *args):
+        self.aufrufe.append(("uid", befehl.upper()))
+        return ("NO", [b"[NONEXISTENT] Mailbox does not exist"])
+
+
+p = SagtNein()
+try:
+    ergebnis = mit_postfach(p, lambda: ek.posteingang("geschaeftlich", 3))
+    zeile("ein abgelehnter Befehl wird benannt", False,
+          gemessen=f"lieferte {len(ergebnis)} [Nachrichten]: "
+                   f"{[n.get('kennung') for n in ergebnis][:4]}")
+    zeile("und die Woerter der Fehlermeldung werden KEINE Kennungen", False)
+except ek.Abgewiesen as e:
+    zeile("ein abgelehnter Befehl wird benannt", True)
+    zeile("und die Woerter der Fehlermeldung werden KEINE Kennungen",
+          "NONEXISTENT" in str(e) and "Fehlermeldung" in str(e),
+          gemessen=str(e)[:130])
+except Exception as e:
+    zeile("ein abgelehnter Befehl wird benannt", False,
+          gemessen=f"{type(e).__name__}: {e}")
+    zeile("und die Woerter der Fehlermeldung werden KEINE Kennungen", False)
+
+# Auch der Einzelabruf: dieselbe Pruefung, dieselbe Stelle.
+try:
+    mit_postfach(SagtNein(), lambda: ek.nachricht_text("geschaeftlich", "1001"))
+    zeile("auch der Einzelabruf prueft den Status", False,
+          gemessen="ein abgelehnter FETCH lief durch")
+except ek.Abgewiesen:
+    zeile("auch der Einzelabruf prueft den Status", True)
+except Exception as e:
+    zeile("auch der Einzelabruf prueft den Status", False,
+          gemessen=f"{type(e).__name__}: {e}")
+
+# **Und die Gegenrichtung:** Der Anhang-Hinweis bleibt fail-quiet. Ein
+# abgelehnter BODYSTRUCTURE-Abruf darf die ganze Uebersicht nicht kosten — sie
+# ist die Hauptsache, der Hinweis die Zugabe.
+
+
+class NeinNurBeiStruktur(NurUID):
+    def uid(self, befehl, *args):
+        klar = [a.decode() if isinstance(a, bytes) else a
+                for a in args if a is not None]
+        if befehl.upper() == "FETCH" and "BODYSTRUCTURE" in str(klar).upper():
+            self.aufrufe.append(("uid", "FETCH", "STRUKTUR-NEIN"))
+            return ("NO", [b"server mag nicht"])
+        return super().uid(befehl, *args)
+
+
+p = NeinNurBeiStruktur()
+n = mit_postfach(p, lambda: ek.posteingang("geschaeftlich", 2))
+zeile("ein abgelehnter Struktur-Abruf kostet nicht die ganze Uebersicht",
+      len(n) == 2 and all(x["anhaenge"] == [] for x in n),
+      gemessen=str([(x["kennung"], x["anhaenge"]) for x in n]))
+
+
 print("\nEine verschwundene Nachricht liefert keine andere")
 
 p = NurUID()

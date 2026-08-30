@@ -10255,7 +10255,19 @@ async def mail_zusammenfassen(konto: str, kennung: str) -> str:
         vorspann = ("📧 **Bericht über eine fremde E-Mail.** ⚠️ Sie enthält "
                     f"{len(verborgen)} Stelle(n), die beim Lesen **nicht "
                     "sichtbar** sind:\n\n")
-    return vorspann + bericht
+    # **`[NEU 30.08., Widerlegung Rang 2 ④]` Auch der Bericht wird entlinkt.**
+    #
+    # Die Entschärfung saß nur im Übersichts-Pfad (`_neutral`). Dieser hier —
+    # derselbe Knopf, eine Stufe weiter — trug sie nicht. Ein Bericht, der eine
+    # Adresse aus der Mail zitiert, erzeugte wieder eine anklickbare
+    # Verknüpfung, und zwar in einer Nachricht, die vom Bot kommt und damit
+    # vertrauenswürdiger aussieht als die Mail selbst.
+    #
+    # **Geschwister-Regel: derselbe Fehler, der andere Pfad** — und diesmal
+    # nicht von mir gefunden, sondern von der Gegenprüfung. Der Vorspann bleibt
+    # unangetastet: Er ist mein eigener Text und trägt die Auszeichnung, die
+    # ihn als Rangvermerk lesbar macht.
+    return vorspann + email_kanal.entlinken(bericht)
 
 
 async def on_mail_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:

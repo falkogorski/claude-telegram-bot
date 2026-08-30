@@ -413,6 +413,40 @@ def posteingang(konto: str, anzahl: int = 10) -> list[dict]:
             "Das ist ein Verbindungsproblem, keine leere Mailbox.") from None
 
 
+def _uid(v, befehl: str, *args):
+    """Ein UID-Befehl, dessen **Status ausgewertet wird**.
+
+    ## Warum das eine eigene Funktion ist
+
+    **Engywucks Widerlegung, Rang 2 ③.** `imaplib` hebt nur bei `BAD` eine
+    Ausnahme — nachgesehen in `IMAP4._command_complete`. Ein `NO` kommt als
+    ganz gewöhnlicher Rückgabewert zurück, und der Statusteil wurde an allen
+    fünf Aufrufstellen mit `_` weggeworfen.
+
+    **Die Folge war keine leere Liste, sondern eine erfundene.** Antwortet der
+    Server auf `UID SEARCH` mit `NO [NONEXISTENT] Mailbox does not exist`,
+    steht dieser Text in `daten[0]` — und `daten[0].split()` macht daraus
+    Nachrichten-Kennungen. Der Nutzer bekäme eine Liste, deren Einträge aus den
+    Wörtern einer Fehlermeldung bestehen.
+
+    *Ein Bruch, der wie ein Ergebnis aussieht* — dieselbe Klasse wie der
+    Übersprung, der als bestanden zählte, und wie der stille Tagescheck.
+
+    **Fünf Stellen, eine Prüfung.** Eine Prüfung je Aufrufstelle wäre binnen
+    zwei Wochen an vier Stellen vorhanden und an der fünften vergessen; genau
+    das ist die G1-Lehre.
+    """
+    typ, daten = v.uid(befehl, *args)
+    if typ != "OK":
+        text = b" ".join(d for d in (daten or []) if isinstance(d, bytes))
+        raise Abgewiesen(
+            f"Der Server hat „{befehl}“ abgelehnt ({typ}): "
+            + (text.decode("utf-8", "replace")[:200] or "ohne Angabe")
+            + ". Es wird nichts angezeigt — eine Liste aus den Wörtern einer "
+              "Fehlermeldung wäre schlimmer als keine.")
+    return daten
+
+
 def _abrufen(k, wirt: str, port: str, anzahl: int, raus: list) -> list[dict]:
     """Der eigentliche Abruf — herausgezogen, damit die Fehlerbehandlung oben
     lesbar bleibt und jeder Fall seinen eigenen Text bekommt.
@@ -443,11 +477,11 @@ def _abrufen(k, wirt: str, port: str, anzahl: int, raus: list) -> list[dict]:
                            timeout=ABRUF_FRIST_S) as v:
         v.login(k.benutzer, k._kennwort())
         v.select("INBOX", readonly=True)          # readonly: nichts verändern
-        _, daten = v.uid("SEARCH", None, "ALL")
+        daten = _uid(v, "SEARCH", None, "ALL")
         kennungen = (daten[0].split() if daten and daten[0] else [])
         for kid in reversed(kennungen[-max(1, anzahl):]):
-            _, teil = v.uid("FETCH", kid, "(BODY.PEEK[HEADER.FIELDS "
-                                          "(FROM SUBJECT DATE)])")
+            teil = _uid(v, "FETCH", kid, "(BODY.PEEK[HEADER.FIELDS "
+                                         "(FROM SUBJECT DATE)])")
             kopf = b"".join(t[1] for t in teil if isinstance(t, tuple))
             felder = _kopf_zerlegen(kopf)
             # Nur die ART der Anhaenge, nie ihr Name (Engywuck ④). Die
@@ -474,7 +508,7 @@ def _anhang_arten(v, kid) -> list[str]:
     Hauptsache, der Anhang-Hinweis die Zugabe.
     """
     try:
-        _, daten = v.uid("FETCH", kid, "(BODYSTRUCTURE)")
+        daten = _uid(v, "FETCH", kid, "(BODYSTRUCTURE)")
         roh = b" ".join(d if isinstance(d, bytes) else d[1] for d in daten
                         if d).decode("utf-8", "replace").lower()
     except Exception:
@@ -716,9 +750,9 @@ def nachricht_text(konto: str, kennung: str) -> tuple[dict, str, list[str]]:
             # **UID, nicht Sequenznummer** — dieselbe Kennung, die die
             # Übersicht ausgegeben hat. Zwischen Liste und Knopfdruck können
             # Minuten liegen; eine Position hält das nicht durch.
-            _, kopfteil = v.uid("FETCH", str(kennung),
-                                "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])")
-            _, koerperteil = v.uid("FETCH", str(kennung), "(BODY.PEEK[TEXT])")
+            kopfteil = _uid(v, "FETCH", str(kennung),
+                            "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])")
+            koerperteil = _uid(v, "FETCH", str(kennung), "(BODY.PEEK[TEXT])")
             if not any(isinstance(t, tuple) for t in (kopfteil or [])):
                 # **Der Fall, den die UID überhaupt erst sichtbar macht.** Eine
                 # verschwundene Nachricht antwortet leer statt mit der
@@ -909,6 +943,28 @@ _VERKNUEPFUNG_RE = re.compile(r"(?i)\b(?:[a-z][a-z0-9+.-]*://|www\.)\S+")
 _UEBERSICHT_MAX = 120
 
 
+def entlinken(text: str) -> str:
+    """Verknüpfungen entschärfen — **ohne zu kappen**.
+
+    ## `[NEU 30.08., Engywucks Widerlegung Rang 2 ④]` Der zweite Pfad
+
+    Die Entschärfung saß bisher nur in `_neutral()` und damit nur im
+    **Übersichts**-Pfad. Der zweite Pfad desselben Knopfes —
+    `on_mail_knopf` → `mail_zusammenfassen` → `send_chunked` — trug sie nicht.
+    Ein Bericht, der eine Adresse aus der Mail zitiert, erzeugte dort wieder
+    eine anklickbare Verknüpfung. **Geschwister-Regel: derselbe Fehler, der
+    andere Pfad.**
+
+    **Warum getrennt von `_neutral`:** Das kappt auf 120 Zeichen — richtig für
+    eine Übersichtszeile, falsch für einen Bericht aus fünf bis zehn Sätzen.
+    Eine gemeinsame Funktion mit Kappung hätte den Bericht verstümmelt; eine
+    Kopie der Ersetzungen hätte zwei Listen erzeugt, die driften. Also: die
+    Ersetzung hier, die Kappung dort, und `_neutral` ruft diese Funktion auf.
+    """
+    ohne = _VERKNUEPFUNG_RE.sub("(Verknüpfung entfernt)", text or "")
+    return ohne.replace("@", "＠")
+
+
 def _neutral(wert: str) -> str:
     """Fremdtext, der nichts mehr formatieren, verlinken **oder täuschen** kann.
 
@@ -954,10 +1010,10 @@ def _neutral(wert: str) -> str:
     gesaeubert = gesaeubert.translate(_FORMATZEICHEN)
     # **Nach dem Umschreiben, nicht davor** — sonst würde die Klammer des
     # eigenen Vermerks gleich mitersetzt.
-    gesaeubert = _VERKNUEPFUNG_RE.sub("(Verknüpfung entfernt)", gesaeubert)
-    # Das Klammeraffen-Zeichen in seiner breiten Form: Die Adresse bleibt
-    # lesbar, ist aber keine Adresse mehr, die ein Klick öffnet.
-    gesaeubert = gesaeubert.replace("@", "\uff20")
+    # Die Ersetzung selbst steht in `entlinken()`, damit der Bericht-Pfad
+    # DIESELBE benutzt statt einer zweiten Liste (Rang 2 ④). Zwei Listen
+    # fuer dieselbe Frage driften — das ist die G1-Lehre.
+    gesaeubert = entlinken(gesaeubert)
     if len(gesaeubert) > _UEBERSICHT_MAX:
         return gesaeubert[:_UEBERSICHT_MAX - 1] + "…"
     return gesaeubert

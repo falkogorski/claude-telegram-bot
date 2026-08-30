@@ -71,6 +71,28 @@ _GEHEIM = (".env", "credentials", "token", "secret", "_key", "key.", "keys.",
 
 AMPELN = ("gruen", "gelb", "rot")
 
+# **[NEU 30.08.] Die ART der Frage — Claudias Auftrag 3 bzw. 5.**
+#
+# Adam am 28.08. um 19:20 an einer echten Anfrage: *„Ich verstehe nicht, worauf
+# der abzielt. Ich verstehe nicht, was ich freigebe oder ablehne."* Die
+# Kopfzeile lautete immer „🗝️ Freigabe erbeten", gleich ob ein Systemeingriff
+# gemeint war oder eine Protokollzeile. **Das Klemmbrett hat er selbst gewählt**
+# (19:41: „Ja, Klemmbrett ist super").
+#
+# Ohne Angabe bleibt es beim Schlüssel — er gilt weiterhin für alles, was eine
+# Handlung auslöst. Weitere Arten kommen später dazu; die Abbildung ist der
+# einzige Ort, an dem eine hinzukommt.
+ARTEN = {
+    "handlung": "🗝️",       # Vorgabe: etwas geschieht auf der Maschine
+    "ablage": "📋",         # eine Zeile wird ins Protokoll geschrieben
+}
+
+# Wie lange eine begonnene Änderung offen bleiben darf, bevor die
+# **ursprüngliche** Anfrage erneut vorgelegt wird. Claudias Setzung, von ihr
+# selbst als solche benannt; hier als Umgebungsschlüssel, damit sie sich
+# messen lässt, ohne den Code anzufassen.
+AENDERUNG_FRIST_S = float(os.environ.get("FREIGABE_AENDERUNG_FRIST_S") or 3600)
+
 
 @dataclass
 class Anfrage:
@@ -90,6 +112,34 @@ class Anfrage:
     rueckweg: str = ""         # wie ließe es sich rückgängig machen?
     vorgelegt: int = 1         # wie oft schon vorgelegt (1 = erstmals)
     gesehen: bool = False      # Adam war da und hat trotzdem nicht geurteilt
+    # `[NEU 30.08.]` Die Art der Frage (Schlüssel aus `ARTEN`) — sie steht in
+    # der Kopfzeile, damit Adam sieht, WORÜBER er urteilt, bevor er liest.
+    art: str = "handlung"
+    # Änderung durch Adam selbst (Claudias dritter Knopf). **Sichtbar, nicht
+    # still** (Auflage 3): Wer die Zeile formuliert hat, gehört ins Protokoll.
+    geaendert_am: float = 0.0
+    geaendert_von: str = ""
+    # Eine begonnene, noch unbeantwortete Änderung. `aenderung_nachricht` ist
+    # die Kennung der ForceReply-Nachricht — an ihr hängt die Zuordnung, ohne
+    # dass jemand raten muss, worauf sich eine Antwort bezieht.
+    aenderung_seit: float = 0.0
+    aenderung_nachricht: int = 0
+
+    def symbol(self) -> str:
+        """Das Zeichen der Art — Unbekanntes bleibt beim Schlüssel."""
+        return ARTEN.get(self.art, ARTEN["handlung"])
+
+    def aenderung_haengt(self, jetzt: float | None = None) -> bool:
+        """Wartet eine begonnene Änderung zu lange auf Antwort?
+
+        Aus Claudias Bruchtabelle: *Adam antwortet nicht auf die
+        Änderungs-Nachricht, sondern schreibt frei — der Bot ordnet die Antwort
+        keiner Anfrage zu und verschluckt sie.* Dann wird die **ursprüngliche**
+        Anfrage erneut vorgelegt, statt still zu warten.
+        """
+        if not self.aenderung_seit:
+            return False
+        return ((jetzt or time.time()) - self.aenderung_seit) > AENDERUNG_FRIST_S
 
     def __post_init__(self) -> None:
         if not self.erstmals:
@@ -140,10 +190,16 @@ def _hat_geheimnis(text: str) -> bool:
 
 
 def stellen(titel: str, aktion: str, ampel: str, herkunft: str,
-            begruendung: str = "", rueckweg: str = "") -> Anfrage:
+            begruendung: str = "", rueckweg: str = "",
+            art: str = "handlung") -> Anfrage:
     """Legt eine Anfrage ab. Prüft die Leitplanken, BEVOR etwas sichtbar wird."""
     if ampel not in AMPELN:
         raise Abgewiesen(f"unbekannte Ampelfarbe: {ampel!r}")
+    if art not in ARTEN:
+        # Abgewiesen statt stillschweigend auf die Vorgabe zurückfallen: Eine
+        # falsch geschriebene Art wäre sonst unsichtbar und Adam läse das
+        # Schlüssel-Zeichen über einer Ablage-Frage.
+        raise Abgewiesen(f"unbekannte Art: {art!r} (bekannt: {', '.join(ARTEN)})")
     if not (titel or "").strip() or not (aktion or "").strip():
         raise Abgewiesen("Titel und wörtliche Aktion sind Pflicht (Konkret vor Label)")
     # Leitplanke 4: Geheimnisse erreichen den Kanal gar nicht erst.
@@ -160,7 +216,7 @@ def stellen(titel: str, aktion: str, ampel: str, herkunft: str,
                 aktion=aktion.strip()[:2000], ampel=ampel,
                 herkunft=(herkunft or "unbekannt").strip()[:60],
                 begruendung=begruendung.strip()[:600],
-                rueckweg=rueckweg.strip()[:600])
+                rueckweg=rueckweg.strip()[:600], art=art)
     tmp = ANFRAGEN / f".{kennung}.tmp"
     tmp.write_text(json.dumps(asdict(a), ensure_ascii=False, indent=2),
                    encoding="utf-8")
@@ -216,6 +272,22 @@ def auffrischen(letzte_regung: float | None = None,
     now = jetzt or time.time()
     raus: list[Anfrage] = []
     for a in offene(now):
+        # **`[NEU 30.08.]` Eine hängende Änderung wird aufgelöst, nicht
+        # ausgesessen.** Aus Claudias Bruchtabelle: Adam antwortet nicht auf
+        # die Änderungs-Nachricht, sondern schreibt frei — dann ordnet der Bot
+        # die Antwort keiner Anfrage zu, und *„wer merkt es? Adam, wenn nichts
+        # geschieht — oder niemand"*. Die Anfrage kommt dann mit dem
+        # URSPRÜNGLICHEN Text zurück, samt Hinweis, dass die Änderung offen
+        # blieb. Ohne diesen Zweig bliebe sie für immer gesperrt: Der Merker
+        # weist jede weitere Änderung ab.
+        if a.aenderung_haengt(now):
+            a.aenderung_seit = 0.0
+            a.aenderung_nachricht = 0
+            a.vorgelegt += 1
+            a.gestellt = now
+            _anfrage_speichern(a)
+            raus.append(a)
+            continue
         if not a.faellig(now):
             continue
         a.gesehen = bool(letzte_regung and letzte_regung >= a.gestellt)
@@ -260,7 +332,17 @@ def urteilen(kennung: str, ja: bool, von: str, grund: str = "",
         "beantwortet_von": von,
         "beantwortet_am": time.strftime("%Y-%m-%d %H:%M",
                                         time.localtime(jetzt or time.time())),
+        "art": a.art,
     }
+    # **Auflage 3 — die Änderung ist sichtbar, auch im Protokoll.** Nicht nur
+    # DASS geändert wurde, sondern von wem: *Eine von Adam selbst formulierte
+    # Protokollzeile ist stärker als meine* — sie ist dann kein Verständnis von
+    # mir mehr, sondern sein Wortlaut. Das gehört an die Zeile, nicht in eine
+    # Fußnote.
+    if a.geaendert_am:
+        eintrag["formuliert_von"] = a.geaendert_von
+        eintrag["geaendert_am"] = time.strftime(
+            "%Y-%m-%d %H:%M", time.localtime(a.geaendert_am))
     _ordner()
     for ordner, name in ((URTEILE, "u"), (PROTOKOLL, "p")):
         tmp = ordner / f".{a.kennung}.tmp"
@@ -272,6 +354,104 @@ def urteilen(kennung: str, ja: bool, von: str, grund: str = "",
     except OSError:
         pass
     return eintrag
+
+
+def aenderung_beginnen(kennung: str, nachricht_id: int,
+                       jetzt: float | None = None) -> Anfrage:
+    """Merkt vor, dass Adam diese Anfrage gerade ändert.
+
+    **Auflage 5 — nur an OFFENEN Anfragen.** Eine bereits beurteilte Anfrage
+    ist abgeschlossen; nachträgliches Ändern erzeugte ein Urteil zu einem Text,
+    den niemand so beurteilt hat. `finden()` liefert nur Offene, das ist die
+    Prüfung.
+
+    **Und nur EINE Änderung je Anfrage.** Zwei gleichzeitig laufende hätten
+    zwei Antwortwege auf denselben Text — wer zuletzt schreibt, gewänne, und
+    niemand sähe es. Eine hängende Änderung wird nach `AENDERUNG_FRIST_S`
+    freigegeben, damit ein unbeantworteter Versuch die Anfrage nicht für immer
+    sperrt.
+    """
+    a = finden(kennung)
+    if a is None:
+        raise Abgewiesen("Diese Anfrage gibt es nicht mehr — sie ist "
+                         "beantwortet oder zurückgezogen. Geändert wird nur, "
+                         "was noch offen ist.")
+    if a.aenderung_seit and not a.aenderung_haengt(jetzt):
+        raise Abgewiesen("An dieser Anfrage läuft bereits eine Änderung. "
+                         "Antworte auf die Änderungs-Nachricht oder warte, "
+                         "bis sie verfällt.")
+    a.aenderung_seit = jetzt or time.time()
+    a.aenderung_nachricht = int(nachricht_id)
+    _anfrage_speichern(a)
+    return a
+
+
+def aenderung_zu_nachricht(nachricht_id: int) -> Anfrage | None:
+    """Welche Anfrage hängt an dieser Änderungs-Nachricht?
+
+    **Die Zuordnung ist technisch, nicht geraten** — das ist der Grund, warum
+    Variante B (erzwungene Antwort) Adams eigenem Ausweichvorschlag vorgezogen
+    wurde: Er hatte erwogen, den Text von Hand zu kopieren, mit der Sorge, der
+    Bot müsse dann erraten, worauf er sich bezieht.
+    """
+    for a in offene():
+        if a.aenderung_nachricht and a.aenderung_nachricht == int(nachricht_id):
+            return a
+    return None
+
+
+def aendern(kennung: str, neuer_text: str, von: str,
+            jetzt: float | None = None) -> Anfrage:
+    """Übernimmt Adams eigene Fassung des Aktionstexts.
+
+    ## Die fünf Auflagen, und sie sind der eigentliche Bau
+
+    Der Änderungsknopf verändert den Text, über den anschließend entschieden
+    wird. Das ist ein Angriffsweg, wenn er unbedacht gebaut wird.
+
+    **1. Nur Adams Kennung darf ändern** — geprüft im Aufrufer gegen dieselbe
+    Allowlist wie das Urteil, nicht gegen den Chat.
+    **2. Nach jeder Änderung wird erneut vorgelegt** — hier dadurch gesichert,
+    dass die Anfrage offen bleibt und `vorgelegt` weiterzählt; ein geänderter
+    Text kann nie ohne neue Vorlage freigegeben werden.
+    **3. Die Änderung ist sichtbar** — `geaendert_am`/`geaendert_von` wandern
+    in die Anzeige und ins Protokoll.
+    **4. Die Geheimnisprüfung läuft erneut.** Sie griff bisher nur beim
+    Anlegen; ein Text, der nachträglich ein Geheimnis bekommt, wäre ungeprüft
+    durchgegangen — die Leitplanke wäre an der Stelle offen gewesen, an der sie
+    am leichtesten zu übersehen ist.
+    **5. Nur an offenen Anfragen** — siehe `aenderung_beginnen`.
+
+    **Zu lang wird gemeldet, nicht abgeschnitten.** Stilles Kürzen erzeugte ein
+    Urteil über einen halben Satz.
+    """
+    a = finden(kennung)
+    if a is None:
+        raise Abgewiesen("Diese Anfrage gibt es nicht mehr — geändert wird "
+                         "nur, was noch offen ist.")
+    text = (neuer_text or "").strip()
+    if not text:
+        raise Abgewiesen("Der geänderte Text ist leer. Ohne wörtliche Aktion "
+                         "gibt es nichts zu beurteilen (Konkret vor Label).")
+    if len(text) > 2000:
+        raise Abgewiesen(
+            f"Der geänderte Text ist {len(text)} Zeichen lang, erlaubt sind "
+            "2000. Ich kürze ihn NICHT von selbst — ein Urteil über einen "
+            "halben Satz wäre schlimmer als diese Meldung.")
+    if _hat_geheimnis(text):
+        raise Abgewiesen(
+            "Der geänderte Text enthält einen Geheimnis-Bezug. Auch eine "
+            "Änderung geht durch dieselbe Prüfung wie das Anlegen — sonst "
+            "wäre die Leitplanke genau dort offen, wo sie niemand vermutet.")
+    a.aktion = text
+    a.geaendert_am = jetzt or time.time()
+    a.geaendert_von = (von or "unbekannt").strip()[:60]
+    a.aenderung_seit = 0.0
+    a.aenderung_nachricht = 0
+    a.vorgelegt += 1
+    a.gestellt = jetzt or time.time()
+    _anfrage_speichern(a)
+    return a
 
 
 def urteil_lesen(kennung: str) -> dict | None:

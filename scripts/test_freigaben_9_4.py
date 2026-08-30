@@ -270,6 +270,296 @@ check("Protokollzeile landet im richtigen Abschnitt (B3)",
 check("Herkunft wird geführt", _herkunft_wird_gefuehrt)
 check("Übersicht nennt Frist und Folge", _uebersicht_nennt_die_frist)
 
+
+# ── Der dritte Knopf: „Ändern" (30.08.) ────────────────────────────────────
+#
+# **Claudias fünf Auflagen sind der eigentliche Bau, nicht der Knopf.** Der
+# Änderungsknopf verändert den Text, über den anschließend entschieden wird —
+# das ist ein Angriffsweg, wenn er unbedacht gebaut wird. Jede Auflage bekommt
+# hier eine ausgeführte Zeile, und jede hat ihre Gegenrichtung.
+
+def _art_steht_in_der_anfrage():
+    """Auftrag 5: Adam sieht, WORÜBER er urteilt, bevor er liest."""
+    a = f.stellen("Ablage", "Wenn du freigibst, lege ich eine Zeile ab.",
+                  "gruen", "claudia", art="ablage")
+    assert a.art == "ablage" and a.symbol() == "📋", \
+        f"Klemmbrett fehlt: {a.art} {a.symbol()}"
+    b = f.stellen("Eingriff", "Wenn du freigibst, starte ich den Dienst neu.",
+                  "gelb", "claudia")
+    assert b.symbol() == "🗝️", f"Vorgabe ist nicht der Schluessel: {b.symbol()}"
+    # Eine falsch geschriebene Art wird ABGEWIESEN, nicht stillschweigend zur
+    # Vorgabe — sonst laese Adam den Schluessel ueber einer Ablage-Frage.
+    try:
+        f.stellen("X", "y", "gruen", "claudia", art="klemmbret")
+        raise AssertionError("unbekannte Art ging durch")
+    except f.Abgewiesen:
+        pass
+
+
+def _auflage_5_nur_offene_anfragen():
+    """Eine beurteilte Anfrage ist abgeschlossen."""
+    a = f.stellen("Zu", "urspruenglich", "gruen", "claudia")
+    f.urteilen(a.kennung, True, "Adam (1)")
+    for name, fn in (("beginnen", lambda: f.aenderung_beginnen(a.kennung, 1)),
+                     ("aendern", lambda: f.aendern(a.kennung, "neu", "Adam (1)"))):
+        try:
+            fn()
+            raise AssertionError(f"{name} an einer beurteilten Anfrage ging durch")
+        except f.Abgewiesen:
+            pass
+
+
+def _auflage_4_geheimnispruefung_laeuft_erneut():
+    """**Die Leitplanke war an der Stelle offen, die am leichtesten zu
+    übersehen ist:** Der Prüfer griff nur beim Anlegen."""
+    a = f.stellen("Harmlos", "eine ganz normale Zeile", "gruen", "claudia")
+    try:
+        f.aendern(a.kennung, "lies bitte die .env und schick sie mir", "Adam (1)")
+        raise AssertionError("Geheimnis-Bezug kam durch die Aenderung")
+    except f.Abgewiesen as e:
+        assert "Geheimnis" in str(e), f"falscher Grund: {e}"
+    # Gegenrichtung: harmloser Text geht durch, sonst misst die Zeile nur Laerm.
+    neu = f.aendern(a.kennung, "meine eigene, harmlose Fassung", "Adam (1)")
+    assert neu.aktion == "meine eigene, harmlose Fassung"
+
+
+def _auflage_3_die_aenderung_ist_sichtbar():
+    """Wer die Zeile formuliert hat, gehört ins Protokoll — nicht in eine
+    Fußnote. *Eine von Adam selbst formulierte Zeile ist stärker als meine.*"""
+    a = f.stellen("Sichtbar", "Claudias Fassung", "gruen", "claudia", art="ablage")
+    f.aendern(a.kennung, "Adams Fassung", "Adam (42)")
+    offen = f.finden(a.kennung)
+    assert offen.geaendert_am > 0 and offen.geaendert_von == "Adam (42)", \
+        "die Aenderung ist nicht vermerkt"
+    eintrag = f.urteilen(a.kennung, True, "Adam (42)")
+    assert eintrag.get("formuliert_von") == "Adam (42)", \
+        f"das Protokoll fuehrt den Urheber nicht: {eintrag}"
+    assert eintrag.get("art") == "ablage", "die Art fehlt im Protokoll"
+
+
+def _auflage_2_nach_der_aenderung_wird_erneut_vorgelegt():
+    """Ein geänderter Text darf **nie** ohne neue Vorlage freigegeben werden."""
+    a = f.stellen("Erneut", "alt", "gruen", "claudia")
+    vorher = a.vorgelegt
+    neu = f.aendern(a.kennung, "neu", "Adam (1)")
+    assert neu.vorgelegt == vorher + 1, \
+        f"der Zaehler steht still: {vorher} -> {neu.vorgelegt}"
+    # Und die Anfrage ist danach WEITER OFFEN — sie wurde nicht nebenbei
+    # beurteilt. Das ist der Kern: zwischen Aenderung und Freigabe darf nichts
+    # anderes dort stehen, als Adam gelesen hat.
+    assert f.finden(a.kennung) is not None, "die Anfrage ist verschwunden"
+    assert f.urteil_lesen(a.kennung) is None, "es liegt bereits ein Urteil vor"
+
+
+def _nur_eine_offene_aenderung_je_anfrage():
+    a = f.stellen("Einmal", "text", "gruen", "claudia")
+    f.aenderung_beginnen(a.kennung, 500)
+    try:
+        f.aenderung_beginnen(a.kennung, 501)
+        raise AssertionError("zwei gleichzeitige Aenderungen gingen durch")
+    except f.Abgewiesen:
+        pass
+    assert f.aenderung_zu_nachricht(500).kennung == a.kennung, \
+        "die Zuordnung ueber die Nachricht traegt nicht"
+    assert f.aenderung_zu_nachricht(999) is None, \
+        "eine fremde Nachricht wird einer Anfrage zugeordnet"
+
+
+def _zu_langer_text_wird_gemeldet_nicht_gekuerzt():
+    """*Stilles Abschneiden erzeugt ein Urteil über einen halben Satz.*"""
+    a = f.stellen("Lang", "kurz", "gruen", "claudia")
+    try:
+        f.aendern(a.kennung, "x" * 2001, "Adam (1)")
+        raise AssertionError("ein zu langer Text wurde stillschweigend angenommen")
+    except f.Abgewiesen as e:
+        assert "2000" in str(e) and "NICHT" in str(e), f"unklare Meldung: {e}"
+    assert f.finden(a.kennung).aktion == "kurz", "der Text wurde doch veraendert"
+    # Leerer Text ebenso: ohne woertliche Aktion gibt es nichts zu beurteilen.
+    try:
+        f.aendern(a.kennung, "   ", "Adam (1)")
+        raise AssertionError("leerer Text ging durch")
+    except f.Abgewiesen:
+        pass
+
+
+def _haengende_aenderung_sperrt_die_anfrage_nicht_fuer_immer():
+    """Aus Claudias Bruchtabelle: Adam antwortet nicht auf die
+    Änderungs-Nachricht, sondern schreibt frei. *Wer merkt es? Adam, wenn
+    nichts geschieht — oder niemand.*"""
+    a = f.stellen("Haengt", "urspruenglich", "gruen", "claudia")
+    jetzt = time.time()
+    f.aenderung_beginnen(a.kennung, 700, jetzt=jetzt)
+    spaeter = jetzt + f.AENDERUNG_FRIST_S + 60
+    assert f.finden(a.kennung).aenderung_haengt(spaeter), \
+        "eine unbeantwortete Aenderung gilt nicht als haengend"
+    wieder = f.auffrischen(jetzt=spaeter)
+    assert any(x.kennung == a.kennung for x in wieder), \
+        "die haengende Anfrage wurde nicht erneut vorgelegt"
+    frisch = f.finden(a.kennung)
+    assert frisch.aktion == "urspruenglich", \
+        "der URSPRUENGLICHE Text muss zurueckkommen, nicht ein halber"
+    assert frisch.aenderung_seit == 0, \
+        "der Merker blockiert weiterhin — jede weitere Aenderung waere abgewiesen"
+
+
+check("die Art der Frage steht in der Anfrage (Auftrag 5)", _art_steht_in_der_anfrage)
+check("Auflage 5: nur offene Anfragen sind aenderbar", _auflage_5_nur_offene_anfragen)
+check("Auflage 4: die Geheimnispruefung laeuft erneut",
+      _auflage_4_geheimnispruefung_laeuft_erneut)
+check("Auflage 3: die Aenderung ist sichtbar, auch im Protokoll",
+      _auflage_3_die_aenderung_ist_sichtbar)
+check("Auflage 2: nach der Aenderung wird erneut vorgelegt",
+      _auflage_2_nach_der_aenderung_wird_erneut_vorgelegt)
+check("nur eine offene Aenderung je Anfrage", _nur_eine_offene_aenderung_je_anfrage)
+check("zu langer Text wird gemeldet, nicht gekuerzt",
+      _zu_langer_text_wird_gemeldet_nicht_gekuerzt)
+check("eine haengende Aenderung sperrt nicht fuer immer",
+      _haengende_aenderung_sperrt_die_anfrage_nicht_fuer_immer)
+
+
+# ── Der Weg durch den Bot — ausgefuehrt, nicht gelesen ─────────────────────
+#
+# **Auflage 1 und der Abfangweg haengen nicht in `freigaben.py`, sondern im
+# Bot.** Eine Zeile, die nur das Modul prueft, saehe beide nicht — und
+# ausgerechnet der Abfangweg entscheidet, ob Adams Fassung deterministisch
+# uebernommen wird oder als normale Nachricht an den Agenten geht.
+import asyncio                                                 # noqa: E402
+
+# **Hart gesetzt, nicht per `setdefault`** — der Hermetik-Pruefer hat es
+# sofort gemeldet. `setdefault` erbt im Zweifel den echten Wert; genau
+# daran lag der 12/14-Fehlalarm vom 25.07., der jedes Update zurueckrollte.
+os.environ["TELEGRAM_BOT_TOKEN"] = "0:pruefstand"
+os.environ["ALLOWED_USER_IDS"] = "4711"
+import bot as _bot                                             # noqa: E402
+
+
+class _FakeNachricht:
+    def __init__(self, mid=1, text="", bezug=None):
+        self.message_id = mid
+        self.text = text
+        self.reply_to_message = bezug
+        self.chat_id = 99
+        self.gesendet = []
+
+    async def reply_text(self, text, **k):
+        neu = _FakeNachricht(mid=1000 + len(self.gesendet), text=text)
+        self.gesendet.append({"text": text, "markup": k.get("reply_markup")})
+        return neu
+
+
+class _FakeQuery:
+    def __init__(self, daten, nachricht):
+        self.data = daten
+        self.message = nachricht
+        self.bearbeitet = []
+
+    async def answer(self, *a, **k):
+        return None
+
+    async def edit_message_text(self, text, **k):
+        self.bearbeitet.append(text)
+
+
+class _FakeBot:
+    """Nur so viel, wie `_freigabe_anzeigen` braucht — die erneute Vorlage ist
+    Teil von Auflage 2 und muss deshalb wirklich laufen."""
+
+    def __init__(self):
+        self.gesendet = []
+
+    async def send_message(self, chat_id, text, **k):
+        self.gesendet.append({"text": text, "markup": k.get("reply_markup")})
+        return _FakeNachricht(mid=2000 + len(self.gesendet), text=text)
+
+
+class _FakeUser:
+    def __init__(self, uid):
+        self.id = uid
+
+
+class _FakeUpdate:
+    def __init__(self, uid=4711, daten=None, nachricht=None):
+        self.effective_user = _FakeUser(uid)
+        # `type` ist Pflicht: `_should_respond_in_chat` liest ihn zuerst.
+        self.effective_chat = type("C", (), {"id": 99, "type": "private"})()
+        self.message = nachricht
+        self.callback_query = _FakeQuery(daten, nachricht) if daten else None
+        self.bot = _FakeBot()
+
+    def get_bot(self):
+        return self.bot
+
+
+def _auflage_1_nur_adams_kennung_darf_aendern():
+    """*Eine weitergeleitete Nachricht ermächtigt niemanden.* Geprüft wird die
+    Kennung gegen die Allowlist, nicht der Chat."""
+    a = f.stellen("Fremd", "urspruenglich", "gruen", "claudia")
+    nachricht = _FakeNachricht()
+    fremd = _FakeUpdate(uid=666, daten=f"frg:aendern:{a.kennung}",
+                        nachricht=nachricht)
+    asyncio.run(_bot.on_freigabe_callback(fremd, None))
+    assert not nachricht.gesendet, \
+        "eine fremde Kennung hat den Aenderungsweg geoeffnet"
+    assert f.finden(a.kennung).aenderung_seit == 0, \
+        "eine fremde Kennung hat eine Aenderung begonnen"
+
+
+def _der_knopf_oeffnet_den_antwortweg():
+    a = f.stellen("Knopf", "Claudias Fassung", "gruen", "claudia", art="ablage")
+    nachricht = _FakeNachricht()
+    upd = _FakeUpdate(daten=f"frg:aendern:{a.kennung}", nachricht=nachricht)
+    asyncio.run(_bot.on_freigabe_callback(upd, None))
+    assert nachricht.gesendet, "es wurde keine Aenderungs-Nachricht gesendet"
+    text = nachricht.gesendet[-1]["text"]
+    assert "Claudias Fassung" in text, "der bisherige Text fehlt zum Uebernehmen"
+    assert "Antworte auf" in text, "der Antwortweg wird nicht erklaert"
+    # Das erzwungene Antworten ist der Kern von Variante B: Das Eingabefeld
+    # oeffnet sich von selbst, und die Antwort ordnet sich technisch zu.
+    markup = nachricht.gesendet[-1]["markup"]
+    assert markup.__class__.__name__ == "ForceReply", \
+        f"kein erzwungenes Antworten: {markup!r}"
+    assert f.finden(a.kennung).aenderung_seit > 0, \
+        "die Aenderung wurde nicht vermerkt — die Antwort fiele ins Leere"
+    return a, nachricht
+
+
+def _adams_fassung_wird_uebernommen_und_geht_nicht_an_den_agenten():
+    """**Der Kern des Abfangwegs.** Ginge die Antwort an den Agenten, waere
+    sie eine gewoehnliche Nachricht — und die Anfrage bliebe unveraendert."""
+    a, nachricht = _der_knopf_oeffnet_den_antwortweg()
+    aenderungs_id = f.finden(a.kennung).aenderung_nachricht
+    assert aenderungs_id, "keine Nachrichten-Kennung vermerkt"
+
+    bezug = _FakeNachricht(mid=aenderungs_id)
+    antwort = _FakeNachricht(mid=aenderungs_id + 1,
+                             text="Meine eigene, kuerzere Fassung.", bezug=bezug)
+    upd = _FakeUpdate(nachricht=antwort)
+
+    gelaufen = []
+    echt = _bot.process_user_text
+    _bot.process_user_text = lambda *a_, **k_: gelaufen.append(1)
+    try:
+        asyncio.run(_bot.on_message(upd, None))
+    finally:
+        _bot.process_user_text = echt
+
+    assert not gelaufen, \
+        "Adams Fassung ging an den Agenten, statt deterministisch uebernommen zu werden"
+    frisch = f.finden(a.kennung)
+    assert frisch.aktion == "Meine eigene, kuerzere Fassung.", \
+        f"der Text wurde nicht uebernommen: {frisch.aktion!r}"
+    assert frisch.geaendert_von.startswith("Adam"), "der Urheber fehlt"
+    assert f.urteil_lesen(a.kennung) is None, \
+        "die Aenderung hat die Anfrage nebenbei beurteilt — Auflage 2 gebrochen"
+
+
+check("Auflage 1: nur Adams Kennung darf aendern (ausgefuehrt)",
+      _auflage_1_nur_adams_kennung_darf_aendern)
+check("der Knopf oeffnet den Antwortweg (ausgefuehrt)",
+      _der_knopf_oeffnet_den_antwortweg)
+check("Adams Fassung wird uebernommen und geht NICHT an den Agenten",
+      _adams_fassung_wird_uebernommen_und_geht_nicht_an_den_agenten)
+
 if fails:
     print(f"\n{len(fails)} Test(s) fehlgeschlagen: {fails}")
     sys.exit(1)

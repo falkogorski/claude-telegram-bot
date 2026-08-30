@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from dotenv import load_dotenv
-from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, MessageEntity, ReactionTypeEmoji, ReplyKeyboardMarkup, ReplyParameters, Update
+from telegram import BotCommand, CopyTextButton, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, MessageEntity, ReactionTypeEmoji, ReplyKeyboardMarkup, ReplyParameters, Update
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application,
@@ -6214,9 +6214,21 @@ async def _freigabe_anzeigen(bot_obj, chat_id: int, a) -> None:
     etwas unterzuschieben.
     """
     sym = {"gruen": "🟢", "gelb": "🟡", "rot": "🔴"}.get(a.ampel, "⬜")
-    zeilen = [f"🗝️ {sym} Freigabe erbeten — von: {a.herkunft}", "",
+    # **`[NEU 30.08.]` Die Art steht in der Kopfzeile** — Claudias Auftrag 5.
+    # Adam am 28.08.: *„Ich verstehe nicht, was ich freigebe oder ablehne."*
+    # Das Klemmbrett für Ablage-Fragen hat er selbst gewählt; der Schlüssel
+    # bleibt für alles, was eine Handlung auslöst.
+    art_sym = a.symbol() if hasattr(a, "symbol") else "🗝️"
+    zeilen = [f"{art_sym} {sym} Freigabe erbeten — von: {a.herkunft}", "",
               f"*{a.titel}*", "", "Das würde konkret geschehen:",
               f"```\n{a.aktion[:900]}\n```"]
+    if getattr(a, "geaendert_am", 0):
+        # **Auflage 3: sichtbar, nicht still.** Wer die Zeile formuliert hat,
+        # gehört über den Text — sonst urteilt Adam über seinen eigenen
+        # Wortlaut, ohne dass er es erkennt.
+        zeilen += ["", "✏️ Von dir geändert am "
+                   + time.strftime("%d.%m. um %H:%M",
+                                   time.localtime(a.geaendert_am))]
     if a.begruendung:
         zeilen += ["", f"Warum: {a.begruendung}"]
     zeilen += ["", (f"Rückweg: {a.rueckweg}" if a.rueckweg
@@ -6230,10 +6242,26 @@ async def _freigabe_anzeigen(bot_obj, chat_id: int, a) -> None:
     zeilen += ["", f"Ohne Antwort geschieht nichts. Nach "
                    f"{int(freigabepost.FRIST_STUNDEN)} Stunden lege ich sie dir "
                    "einfach erneut vor — Schweigen ist kein Nein."]
+    # **Der dritte Knopf, in der Mitte** (Claudias Auftrag 1, Variante B).
+    # Er trägt `callback_data`, nicht `copy_text` — ein Knopf kann nur eines
+    # von beidem, und der Kopier-Knopf löst keinen Rückruf aus. Kopiert wird
+    # eine Stufe später, in der Änderungs-Nachricht selbst.
     knoepfe = [[
         InlineKeyboardButton("✅ Freigeben", callback_data=f"frg:ja:{a.kennung}"),
+        InlineKeyboardButton("✏️ Ändern", callback_data=f"frg:aendern:{a.kennung}"),
         InlineKeyboardButton("⛔ Ablehnen", callback_data=f"frg:nein:{a.kennung}"),
     ]]
+    # **Der zweite Kopierweg** (Claudias Bruchtabelle: *trägt die
+    # Zwischenablage auf einem Gerät nicht, trägt der Codeblock*). Er steht
+    # hier und nicht an der Änderungs-Nachricht, weil dort das erzwungene
+    # Antworten sitzt und beides denselben Platz belegt.
+    #
+    # **Nur bei kurzen Texten.** Die Schnittstelle deckelt den Kopiertext; ein
+    # stillschweigend gekappter Kopiertext wäre genau der Fehler, den Claudia
+    # für die Längenprüfung benennt — man merkt ihn erst, wenn die Hälfte fehlt.
+    if len(a.aktion) <= 250:
+        knoepfe.append([InlineKeyboardButton(
+            "📄 Text kopieren", copy_text=CopyTextButton(text=a.aktion))])
     await bot_obj.send_message(chat_id=chat_id, text="\n".join(zeilen),
                                reply_markup=InlineKeyboardMarkup(knoepfe),
                                parse_mode=ParseMode.MARKDOWN)
@@ -6286,6 +6314,55 @@ async def on_freigabe_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> 
     if len(teile) != 3:
         return
     _, wahl, kennung = teile
+
+    # **`[NEU 30.08.]` Der dritte Knopf — Claudias Auftrag 1, Variante B.**
+    #
+    # Anlass war ein lebender Fall: Ihre erste Ablage-Anfrage war zu weit
+    # gefasst, Adam merkte es beim Lesen — und konnte nur ablehnen und warten.
+    # **Eine von ihm selbst formulierte Protokollzeile ist stärker als ihre:**
+    # Sie ist dann kein Verständnis mehr, sondern sein Wortlaut.
+    #
+    # Warum B und nicht Adams Idealbild (ein Fenster mit Textfeld): Das
+    # bräuchte eine öffentlich erreichbare Adresse mit TLS — **eine neue
+    # Angriffsfläche für einen kleinen Zugewinn.** B kommt mit dem aus, was
+    # heute installiert ist, und die Antwort ordnet sich technisch zu, statt
+    # geraten zu werden.
+    if wahl == "aendern":
+        try:
+            a = await asyncio.to_thread(freigabepost.finden, kennung)
+        except Exception:
+            a = None
+        if a is None:
+            await query.edit_message_text(
+                "⚠️ Diese Anfrage gibt es nicht mehr — sie ist beantwortet "
+                "oder zurückgezogen. Geändert wird nur, was noch offen ist.")
+            return
+        # Zwei Kopierwege, einer genügt (aus Claudias Bruchtabelle): der
+        # Codeblock ist in Telegram durch Antippen kopierbar, der Knopf legt
+        # den Text zusätzlich in die Zwischenablage. Trägt einer der beiden
+        # auf Adams Gerät nicht, trägt der andere.
+        # **`reply_markup` trägt Knöpfe ODER erzwungenes Antworten, nicht
+        # beides.** Gemessen, nicht vermutet. Der Kopier-Knopf sitzt deshalb an
+        # der Freigabe-Box selbst (eine Reihe tiefer), das erzwungene Antworten
+        # hier — so bleiben Claudias zwei Kopierwege erhalten, ohne dass einer
+        # den anderen verdrängt.
+        gesendet = await query.message.reply_text(
+            "✏️ *Ändern* — schreib die Fassung, die du meinst.\n\n"
+            "Hier ist der bisherige Text zum Übernehmen:\n"
+            f"```\n{a.aktion[:900]}\n```\n"
+            "Antworte auf **diese** Nachricht. Danach lege ich dir die Anfrage "
+            "mit deinem Wortlaut erneut vor — freigegeben ist noch nichts.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=ForceReply(selective=True,
+                                    input_field_placeholder="Deine Fassung …"),
+        )
+        try:
+            await asyncio.to_thread(freigabepost.aenderung_beginnen,
+                                    kennung, gesendet.message_id)
+        except freigabepost.Abgewiesen as e:
+            await gesendet.edit_text(f"⚠️ {e}")
+        return
+
     try:
         eintrag = await asyncio.to_thread(
             freigabepost.urteilen, kennung, wahl == "ja",
@@ -9756,6 +9833,37 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         return
 
 
+async def _freigabe_aendern_uebernehmen(update: Update, anfrage, text: str) -> None:
+    """Übernimmt Adams Fassung und legt die Anfrage ERNEUT vor.
+
+    **Auflage 2, und sie ist die wichtigste der fünf:** Ein geänderter Text
+    wird nie ohne neue Vorlage freigegeben. Sonst könnte zwischen Änderung und
+    Freigabe etwas anderes dort stehen, als Adam gelesen hat — er urteilte über
+    einen Text, den er nicht gesehen hat.
+
+    **Auflage 1** hängt am Aufrufer: `on_message` läuft nur nach `authorized`,
+    also gegen dieselbe Allowlist wie das Urteil. Eine weitergeleitete
+    Nachricht ermächtigt niemanden.
+
+    **Auflage 4** (Geheimnisprüfung auf dem neuen Text) und **5** (nur an
+    offenen Anfragen) sitzen in `freigaben.aendern` — dort, wo sie auch ein
+    zweiter Aufrufer nicht umgehen kann.
+    """
+    try:
+        neu = await asyncio.to_thread(
+            freigabepost.aendern, anfrage.kennung, text,
+            f"Adam ({update.effective_user.id})")
+    except freigabepost.Abgewiesen as e:
+        await update.message.reply_text(
+            f"⚠️ {e}\n\nDie Anfrage bleibt unverändert offen.")
+        return
+    await update.message.reply_text(
+        "✏️ Übernommen — das ist jetzt **dein** Wortlaut. "
+        "Hier ist die Anfrage noch einmal, unverändert offen:",
+        parse_mode=ParseMode.MARKDOWN)
+    await _freigabe_anzeigen(update.get_bot(), update.effective_chat.id, neu)
+
+
 async def on_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
@@ -9769,6 +9877,22 @@ async def on_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         _AMPEL_CAPTURE.pop(update.effective_user.id, None)
         await _handle_keyboard_btn(update, text.strip())
         return
+
+    # **`[NEU 30.08.]` Adams eigene Fassung einer Freigabe-Anfrage.**
+    #
+    # Sie wird hier abgefangen, **bevor** sie als normale Nachricht an den
+    # Agenten geht — deterministisch, ohne Modell-Aufruf, wie jeder andere
+    # Freigabe-Weg. Die Zuordnung hängt technisch an der Nachricht, auf die er
+    # antwortet; nichts wird geraten. (Genau deshalb Variante B: Adams eigener
+    # Ausweichvorschlag — von Hand kopieren und frei schreiben — hätte den Bot
+    # raten lassen, worauf er sich bezieht.)
+    _bezug = getattr(update.message, "reply_to_message", None)
+    if _bezug is not None:
+        _anfrage = await asyncio.to_thread(
+            freigabepost.aenderung_zu_nachricht, _bezug.message_id)
+        if _anfrage is not None:
+            await _freigabe_aendern_uebernehmen(update, _anfrage, text.strip())
+            return
 
     # Ampel-Erfassungsmodus (/ampel → ➕): nächste Nachricht wird DETERMINISTISCH
     # als Regel übernommen — geht NIE an Claude, zählt NICHT als normale Nachricht.

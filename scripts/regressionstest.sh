@@ -199,8 +199,30 @@ run() {
     tail -3 "$LOGDATEI"
     UEBERSPRUNGEN=$((UEBERSPRUNGEN+1))
   else
-    echo "❌ $name — Log:"
-    tail -20 "$LOGDATEI"
+    # **[GEAENDERT 30.08., Engywucks Fenster-Befund] Bei Rot das GANZE
+    # Protokoll — die Kuerzung machte den Befund vom Zufall abhaengig.**
+    #
+    # Hier stand `tail -20`. Gemessen: `test_uebersprungen_a1.py` gibt 69
+    # Zeilen aus; zwanzig wurden gezeigt, neunundvierzig fielen weg. Ob die
+    # rote Zeile sichtbar war, hing allein davon ab, an welcher STELLE der
+    # Pruefer sie ausgibt — bei `test_hermetik.py` (23 Zeilen) stand sie
+    # zufaellig hinten und war da, bei einem langen Pruefer nicht.
+    #
+    # Frueher trug die Kuerzung, weil das Protokoll unter `/tmp` LIEGEN BLIEB:
+    # Wer zwanzig Zeilen zu wenig fand, konnte nachsehen. Mit dem Trap-Fix
+    # (Protokoll ins Wegwerf-Heim, damit es nur EINEN EXIT-Trap braucht) ist
+    # es nach dem Lauf weg — und damit war der Rest fuer immer verloren.
+    # **Fenster-Regel in Reinform: Die Aenderung war richtig und hat unbemerkt
+    # das Fenster geschlossen, durch das man Befunde nachlesen konnte.**
+    # Belegt am 30.08. gleich zweifach — meine eigene verlorene rote Zeile
+    # (nicht reproduzierbar, sechs Laeufe danach gruen) und Engywucks vier
+    # rote Pruefer, bei denen er keinen Grund sah und alle nachfahren musste.
+    #
+    # **Sparsamkeit ist hier fehl am Platz:** Diese Zeilen liest ueberhaupt
+    # nur jemand, wenn etwas rot ist. Der Zeilenzaehler steht dabei, damit
+    # sichtbar bleibt, dass NICHTS gekuerzt wurde.
+    echo "❌ $name — Log ($(wc -l <"$LOGDATEI" | tr -d ' ') Zeilen, vollstaendig):"
+    cat "$LOGDATEI"
     FAILS=$((FAILS+1))
   fi
 }

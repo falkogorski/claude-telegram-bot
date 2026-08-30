@@ -181,6 +181,26 @@ elif [ "$_regrc" -eq 0 ]; then
 else
   fail="$(echo "$reg" | grep '❌' | head -3 | tr '\n' ' ')"
   red "Regressionstest FEHLGESCHLAGEN: ${fail:-siehe daily-check.log}"
+  # **[NEU 30.08.] Das Versprechen [siehe daily-check.log] einloesen — es war
+  # bisher FALSCH.**
+  #
+  # Gemessen: `$reg` wurde an sechs Stellen durchsucht (grep), aber nirgends
+  # geschrieben. Im Protokoll landete allein `${lines[@]}` — also die drei
+  # gekuerzten Kopfzeilen, die Adam ohnehin per Telegram bekommt. Wer der
+  # Meldung folgte und die Datei aufschlug, fand dort GENAU DIESELBE Zeile.
+  #
+  # Das ist die zweite Haelfte von Engywucks Fenster-Befund: Der Laeufer zeigt
+  # jetzt das ganze Protokoll — hier aber verschwindet seine Ausgabe in einer
+  # Variablen, und dieser Lauf hat keinen Menschen am Bildschirm. Ohne diese
+  # Zeilen waere die Ursache eines naechtlichen Rots weiterhin nur durch
+  # Wiederholen des Laufs zu bekommen; bei einem fluechtigen Rot fuer immer weg.
+  if ! trocken; then
+    {
+      echo "----- Regressionslauf $STAMP, vollstaendige Ausgabe -----"
+      echo "$reg"
+      echo "----- Ende Regressionslauf -----"
+    } >> "$CHECKLOG"
+  fi
 fi
 
 # --- 4. Token-Alter (5.20-Sidecar) ------------------------------------------

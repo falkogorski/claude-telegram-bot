@@ -1182,3 +1182,27 @@ verloren und nicht mehr reproduzierbar** (drei Läufe danach: 69/69).
 Lauf-Ausgabe wird nie so beschnitten, dass ein Befund darin verschwinden kann.
 Dieselbe Lehre wie beim Tagescheck, der seine Befunde erst am Ende schrieb —
 nur diesmal an mir selbst.
+
+**⑤ Nachtrag zu ④, gemessen von Engywuck — meine Selbstauskunft war zu streng
+mit mir, und das ist kein Trost, sondern ein Befund.** Der `tail -2` war die
+ZWEITE Kürzung. Die erste sitzt im Läufer selbst: `run()` zeigte bei Rot nur
+`tail -20`, und `test_uebersprungen_a1.py` gibt 69 Zeilen aus — ob die rote
+Zeile sichtbar war, hing daran, an welcher STELLE ein Prüfer sie ausgibt. Die
+DRITTE ist die Fenster-Regel in Reinform: Solange das Protokoll unter `/tmp`
+liegen blieb, konnte man das Fehlende nachlesen; der Trap-Fix (Protokoll ins
+Wegwerf-Heim, damit es nur einen EXIT-Trap braucht) war strukturell richtig
+und hat genau dieses Fenster geschlossen. Niemand hat es bemerkt — bis
+Engywuck vier rote Prüfer vor sich hatte und bei keinem den Grund sah.
+
+**Was gebaut:** Bei Rot das ganze Protokoll statt `tail -20`, mit Zeilenzahl,
+damit sichtbar bleibt, dass nichts gekürzt wurde. **Kettenwirkung geprüft:**
+die vier Verbraucher des Läufers (Tagescheck, Hora, Updater, Node-Vollzug) —
+alle lesen nur einzelne Zeilen per `grep`, keiner bricht an mehr Ausgabe.
+**Tatsächlich eingetretene Nebenwirkung, und sie ist der Fund:** Beim Prüfen
+der Kette stellte sich heraus, dass die Meldung des Tagenschecks
+[siehe daily-check.log] verspricht — und das Versprechen falsch ist. `$reg`
+wurde an sechs Stellen durchsucht und nirgends geschrieben; wer der Meldung
+folgte, fand in der Datei genau dieselbe gekürzte Zeile. Eine vollständige
+Ausgabe im Läufer hätte dort nichts genützt, weil nachts niemand am Bildschirm
+sitzt. **Die Lehre: Ein Ausgabeweg ist erst repariert, wenn er an seinem
+ENDE nachgemessen wurde — nicht an seinem Anfang.**

@@ -61,6 +61,7 @@ Punktnummer und keinen Status.
 | `modell-plattform-strategie-bericht.md` | **Geführt bei Punkt 9.17** (Notfallplan) `[verschoben 31.08., Adam-Entscheid]` — er ist dessen **Eingangsmaterial**, nicht ein Papier ohne Punkt. Hier nur der Zeiger, damit ihn findet, wer im Kopf sucht: **ein Papier wird an einer Stelle gepflegt, nicht an zweien.** |
 | [`werte-charta-momo.md`](docs/entscheidungsvorlagen/werte-charta-momo.md) | Die Werte, an denen sich Bauentscheidungen messen lassen — u. a. §7 (unsichtbare Komplexität) und §3 (Datenhoheit). |
 | [`bedrohungsmodell.md`](docs/entscheidungsvorlagen/bedrohungsmodell.md) | Grundlage der Eingangs-Absicherung und der Ampel. |
+| [`automatik-regelwerk.md`](docs/automatik-regelwerk.md) `[NEU 31.08.]` | **Unter welchen Schranken Hora nachts arbeitet** — zehn am Code belegte Schranken, die Regel über allen (*keine Automatik beginnt von sich aus Arbeit*), und fünf ehrlich benannte Lücken. Entstanden aus Adams Entscheid: **Die Sicherheit kommt aus dem Regelwerk, nicht aus dem Daumen.** Berührt 9.8 (Hora), das Auftragsbuch und die AGB-Leitplanke. |
 | [`pruefraster-assistenz-basisfaehigkeiten.md`](docs/entscheidungsvorlagen/pruefraster-assistenz-basisfaehigkeiten.md) | Die Liste, gegen die sich prüfen lässt, ob eine **Basisfähigkeit** fehlt. Anlass war eine Lücke, die niemand bemerkte, *weil niemand eine Liste hatte*. |
 
 **Regel für diesen Abschnitt:** Ein Papier gehört hierher, wenn **mehr als ein
@@ -1011,6 +1012,7 @@ Absturzfall ausdrücklich auf 5.18).
 - **Verifiziert am:** —
 
 ### 9.8 Hora — der autonome Läufer `[NEU 2026-07-25]`
+- **📄 Unter welchen Schranken er arbeitet:** [`docs/automatik-regelwerk.md`](docs/automatik-regelwerk.md) `[NEU 31.08.]` — zehn Schranken am Code belegt, fünf Lücken benannt. **Adams Entscheid vom 31.08.:** Hora bleibt Läufer; F-16 ist damit verworfen. *Automatik muss laufen können; die Sicherheit kommt aus dem Regelwerk, nicht aus dem Daumen.*
 - **Status:** 🔄 GEBAUT — Zeitgeber fehlt noch (root) und die Auftragsliste ist leer
 - **Wofür:** Adam ist ab Dienstag rund **vierzehn Tage** nicht erreichbar. Ein Zeitgeber auf dem **VPS** startet zweimal täglich eine **frische**, nicht-interaktive Sitzung, die eine **vorab freigegebene** Auftragsliste abarbeitet, berichtet und endet. Niemand startet ihn; Adam füllt nur die Liste.
 - **Zwei Bauentscheidungen, die tragen:** **Nicht auf dem Mac** — ein Rechner, der vierzehn Tage wach bleiben muss, ist das zerbrechlichste Glied. Und **je Lauf eine frische Sitzung** — eine, die vierzehn Tage lebt, stirbt sicher; den Zustand liest er aus Drehbuch, Status-Zeilen, Liste und `WIEDERANLAUF.md`, also aus dem, was ohnehin die Wahrheit ist.

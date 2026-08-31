@@ -277,6 +277,19 @@ kein Ausweichen, sondern der geschützte Weg für ein weiteres Format. Bewusst
 nicht in derselben Runde gebaut: Ein Sicherheitsfix und eine Formaterweiterung
 gehören nicht in denselben Commit.
 
+**F-12 · `Path.home()` ohne Umgebungsschalter — neun Stellen** `[ERLEDIGT 31.08.2026]`
+
+> **Neu gemessen wie verlangt — die Hälfte war keine.** Vier der neun haben
+> ihren Schalter eine Zeile darüber (Postfach, Gegenleser, zweimal
+> Start-Wächter); mein erstes Raster sah nur drei Zeilen Umfeld. **Drei
+> schreiben**: Nutzungszahlen, **Adams persönliche Notizen** und der
+> **Heartbeat des Bots** — wer den überschreibt, sagt dem Wächter *er lebt*.
+> Zwei lasen an ihren eigenen Riegeln vorbei. Alle fünf haben jetzt einen
+> Schalter, die drei schreibenden stehen im Wegwerf-Riegel, und ein dritter
+> Nachweis misst am Ende, was tatsächlich ankam (`218ada2`).
+
+**Ursprünglicher Wortlaut:**
+
 **F-12 · `Path.home()` ohne Umgebungsschalter — neun Stellen** `[offen, 23.08.2026]`
 
 Aus Engywucks Differenzmesser-Auftrag, Schritt 2, Punkt 4. Er schätzte „fest
@@ -299,6 +312,18 @@ davon führen Zustand, der in einem Prüflauf geschrieben würde? Die bekommen
 einen Umgebungsschalter und fallen damit unter Differenzart B. Der Rest ist
 kein Befund.
 
+**F-13 · Die Idiom-Menge ist eingefroren** `[GEPRÜFT, NICHT GEBAUT — 31.08.2026]`
+
+> **Anlass zur Prüfung war die eigene Arbeit:** In derselben Nacht sind fünf
+> neue Ablagen entstanden (F-12). Gemessen, ob der Differenzmesser sie
+> erkennt — **er tut es**, auch in der mehrzeiligen Schreibweise
+> `Path(os.environ.get("X") or (\n    Path.home() / …))`. Die Lücke bleibt also
+> das, was Engywuck gemessen hat: `os.getenv`, Subscript und Zweitargument
+> kommen im Produktivcode nicht als Ablage vor. **Er ist morgen blind, nicht
+> heute** — und heute ist er es auch für die frischen Fälle nicht.
+
+**Ursprünglicher Wortlaut:**
+
 **F-13 · Die Idiom-Menge ist eingefroren** `[offen, 23.08.2026, Engywucks Gegenprüfung]`
 
 `_environ_get_name` in `scripts/differenz.py` kennt **genau ein** Idiom:
@@ -318,6 +343,21 @@ ihre Mitglieder auftreten können. Ich hatte die Dateimenge korrekt gebildet
 (`git ls-files` statt Endungsmuster) und dabei die Idiom-Menge eingefroren —
 dieselbe Krankheit eine Ebene tiefer, und tückischer, weil sie **nach** der
 befolgten Regel auftritt und deshalb wie Sorgfalt aussieht.
+
+**F-14 · `GEWOLLT_OFFEN`: vier Einträge, ein Grund** `[BEGRÜNDET NICHT GEBAUT — 31.08.2026]`
+
+> **Der Fix ist teurer, als der Befund vermuten lässt.** *Lesen von Schreiben
+> im Prüfer unterscheiden* verlangt eine **Datenflussanalyse**: Der Schlüssel
+> wird an eine Variable gebunden, und erst deren spätere Verwendung
+> (`write_text`, `open(…, "w")`, `mkdir`, `unlink`) entscheidet. Eine Näherung
+> darüber erzeugt Fehlalarme — und ein Prüfer mit Fehlalarmen ist binnen einer
+> Woche abgeschaltet, siehe F-10.
+>
+> **Nicht blockierend:** Die vier Einträge tragen ihre Begründung im Wortlaut
+> daneben, jede einzeln geprüft. Der Schaden wäre eine wachsende Ausnahmeliste
+> — heute fünf Zeilen. **Wenn sie wächst, ist der Zeitpunkt da.**
+
+**Ursprünglicher Wortlaut:**
 
 **F-14 · `GEWOLLT_OFFEN`: vier Einträge, ein Grund** `[offen, 23.08.2026]`
 
@@ -391,6 +431,16 @@ deklariert. Sein Einzeiler macht ihn unabhängig davon:
 ```python
 braucht_zustimmung = ampel != "gruen" or bool(auftrag.get("befehl"))
 ```
+
+**F-17 · B2 ist ein Argument, kein Messwert** `[ERLEDIGT 31.08.2026]`
+
+> Gebaut als Erreichbarkeits-Messung über den **Aufrufgraphen** des
+> Syntaxbaums, nicht über eine Textsuche — ein Umweg über eine
+> Zwischenfunktion wäre der Textsuche entgangen (`6d36047`). Mit
+> Gegenrichtung: Der Graph muss überhaupt etwas finden, sonst wäre die Zusage
+> mit einer leeren Menge zu erfüllen.
+
+**Ursprünglicher Wortlaut:**
 
 **F-17 · B2 ist ein Argument, kein Messwert** `[offen, 23.08.2026, Engywucks Gegenprüfung]`
 

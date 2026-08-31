@@ -5,6 +5,8 @@
 > **Stichtag:** 25.07.2026, 05:47 (geprüfte Zeit) · gegen den Code erhoben, nicht
 > gegen Berichte (Regel ⑫)
 > **Überholt durch:** —
+> **Zuletzt nachgezogen:** 31.08.2026 (fünf Zeilen, gegen Code und Drehbuch)
+> **Warum diese Zeile dazugehört:** Der Kopf war nach Regel ⑪ vollständig gebaut — und hat trotzdem nicht geschützt, weil er sagt, **ab wann etwas gilt, nicht ob es noch stimmt.** Ein *gültig ab* ohne *zuletzt geprüft* ist eine halbe Auskunft.
 > **Maßgeblich** bleibt die Status-Zeile des jeweiligen Punkts in `MIGRATION.md`.
 
 **Warum es dieses Raster gibt:** Anlass war die PDF-Lücke — eine
@@ -34,8 +36,8 @@ folgt danach, wenn klar ist, wonach zu suchen ist.
 | **Dateien SENDEN können** | ✅ | Boten-Postfach, PDF-Paar-Regel |
 | **Große Dateien empfangen** | 🔄 | `[K4, 28.07.]` **Bot-Seite gebaut** (5.34): Umschalter `TELEGRAM_API_BASE`, Aufräum-Pflege mit 30-GiB-Deckel, Deckel-Prüfung im 4-Uhr-Lauf. **Offen bleibt der Server-Teil** — er braucht Adams `api_id`/`api_hash` und root (Schritt 5 der Befehlsblöcke) |
 | **Kalender lesen und schreiben** | 🔄 | `[K4, 28.07.]` **Gebaut** (7.5 — bis 31.08. 7.4, `kalender.py`, CalDAV): `/termine` und `/aufgaben` stehen, sechs Prüfungen. **Wartet auf ein Ding:** Adams anwendungsspezifisches Apple-Kennwort. Ohne es meldet das Modul `NichtEingerichtet`, statt still zu schweigen |
-| **E-Mail lesen und senden** | 🔄 | `[K4, 28.07.]` **Gebaut** (9.5, `email_kanal.py`): 14 Prüfungen · Senden verlangt eine Freigabe · Kopffelder mit Steuerzeichen werden **abgewiesen statt gesäubert** · Posteingang nur-lesend · Absender nur aus einer Allowlist. **Wartet auf zwei Dinge:** die App-Kennwörter der beiden Konten |
-| **Erinnern zur richtigen Zeit** | 🔄 | 7.3 dokumentiert, nicht gebaut. Zeit-Trigger müssen ohne Modell-Aufruf laufen (AGB) |
+| **E-Mail lesen und senden** | 🔄 | `[K4, 28.07.]` **Gebaut** (9.5, `email_kanal.py`): 14 Prüfungen · Senden verlangt eine Freigabe · Kopffelder mit Steuerzeichen werden **abgewiesen statt gesäubert** · Posteingang nur-lesend · Absender nur aus einer Allowlist. **Wartet — und zwar zuerst auf etwas anderes als Kennwörter** `[BERICHTIGT 31.08.]`: Hier stand allein *die App-Kennwörter der beiden Konten*. **Davor steht Adams stehende Regel: kein Postfach, auch kein Wegwerf-Konto, solange die Erkennungsseite nicht trägt** — davor wiederum Rang 2 und 3 der Widerlegung und die Ultracode-Prüfstelle. Die alte Fassung ließ E-Mail wie ein Kennwort entfernt aussehen und lud damit ein, den letzten Schritt zu tun; **das ist die gefährliche Fehlerrichtung.** Die Kennwörter sind der letzte Handgriff, nicht der einzige |
+| **Erinnern zur richtigen Zeit** | 🔄 | `[BERICHTIGT 31.08.]` **7.2**, nicht 7.3 — 7.3 ist die Kalenderquelle. **Gebaut und ruhend** seit 20.08.: `scripts/erinnerungen.py`, 220 Zeilen, neun Prüfungen. Hier stand *dokumentiert, nicht gebaut*. Es fehlen **drei** Dinge, alle aus Adams Hand: der Kanal (7.1), der Kalenderzugang (7.3) und der Zeitgeber-Block. Zeit-Trigger laufen ohne Modell-Aufruf (AGB) |
 
 ## SOLL — macht sie brauchbar statt nur funktionsfähig
 
@@ -47,11 +49,11 @@ folgt danach, wenn klar ist, wonach zu suchen ist.
 | Sich selbst prüfen | ✅ | Selbstcheck und Regressionslauf nennen ihren Umfang selbst (Stand 26.07.: 28 Zeilen · 30 Prüfungen) — die Zahlen wachsen, deshalb hier kein fester Sollwert |
 | Sich selbst aktualisieren | ✅ | Monitor (5.21) + Updater + Nachzieher (C1) |
 | Nach Absturz sauber hochkommen | ✅ | Start-Wächter (B1), systemd `Restart=always` |
-| Mehrere Themen getrennt halten | 🔄 | Kanal-Routing gebaut (Phase 6), **vier Gruppen fehlen noch** |
+| Mehrere Themen getrennt halten | 🔄 | Kanal-Routing gebaut (Phase 6), **fünf Gruppen fehlen noch** `[BERICHTIGT 31.08.]` — vier Häuser plus der Erinnerungskanal (7.1), der **kein Zimmer** der 6.6-Struktur ist |
 | **Sammelstelle für Links/Fundstücke** | ✅ | `[K4, 28.07.]` **Gebaut** (5.14, `linkinbox.py`): Eine Nachricht, die nur aus Adressen besteht, wird abgelegt statt verarbeitet — deterministisch, ohne Modell. **Kein Netzabruf vor Adams Knopfdruck**, und der Titel ist als *abgeleitet* gekennzeichnet, nicht als gelesen |
 | **Bilder/Diagramme selbst erzeugen** | 🕳️ | Nichts vorhanden. Nicht dringend, aber bislang nie benannt |
 | **Tabellen/Rechenblätter erzeugen** | 🔄 | Rechnungs-Werkzeuge existieren extern (5.19), im Bot nicht angebunden |
-| **Mehrere Sitzungen gleichzeitig** | 🔄 | 5.1, nach Phase 3 |
+| **Mehrere Sitzungen gleichzeitig** | ⬜ | `[BERICHTIGT 31.08., eigener Fund]` Hier stand 🔄. **Im Drehbuch steht 5.1 auf OFFEN**, und das Akzeptanzkriterium verlangt *mehrere parallele Sitzungen je Nutzer, Wechsel, Persistenz über den Neustart* — davon existiert nichts. Die vorhandene `UserSession` führt **eine** Sitzung je Nutzer; das ist die Grundlage, kein Teil der Fähigkeit. **Der Kopf dieses Rasters sagt selbst, dass die Status-Zeile im Drehbuch maßgeblich ist** — ein 🔄 gegen ein OFFEN widerspricht der eigenen Hoheitsregel. Nach Phase 3 |
 | Kosten sichtbar halten | 🔄 | `/usage` zeigt Verbrauch; die 80-%-Vorwarnung ist über das Abo **nicht sauber abfragbar** — ehrliche Grenze, keine Lücke |
 
 ## KÜR — hebt sie über den Durchschnitt
@@ -67,15 +69,24 @@ folgt danach, wenn klar ist, wonach zu suchen ist.
 
 ---
 
-## Die sechs echten Lücken, nach Nutzen sortiert
+## Die offene Lücke `[NACHGEZOGEN 2026-08-31]`
 
-1. **Kalender** — die häufigste Alltagsbitte überhaupt, und es gibt nichts.
-2. **E-Mail** — „schick raus" ist Adams ausdrückliches Zielbild (9.5).
-3. **Erinnerungen zur Zeit** — dokumentiert, ungebaut; Voraussetzung fürs
-   Sekretärin-Bild.
-4. **Große Dateien** — Vorlage liegt entscheidungsreif (5.34).
-5. **Link-Sammelstelle** (5.14) — klein, hoher Alltagsnutzen.
-6. **Rechenblätter/Rechnungen im Bot** — Werkzeuge existieren, nur nicht angebunden.
+**Es ist noch eine, und das ist eine gute Nachricht.** Hier stand eine Liste
+von sechs; **fünf davon waren zum Zeitpunkt des Nachziehens von den Tabellen
+oben widerlegt** — Kalender (7.5), E-Mail (9.5), Erinnerungen (7.2), Große
+Dateien (5.34) und Link-Sammelstelle (5.14) stehen dort längst als gebaut.
+
+1. **Rechenblätter/Rechnungen im Bot** (5.19, im Drehbuch OFFEN) — die
+   Werkzeuge existieren in `~/Projects/rechnungen`, sie sind nur nicht
+   angebunden.
+
+**Warum die Liste gestrichen und nicht berichtigt wurde:** Sie war eine
+**zweite Quelle für dasselbe** — die Tabellen oben führen jeden Punkt bereits
+mit Symbol und Stand. Am 28.07. wurden die Tabellen nachgezogen, die Fußliste
+nicht, und danach behauptete dasselbe Dokument zwanzig Zeilen weiter unten das
+Gegenteil von sich selbst. **Eine Liste, die eine andere spiegelt, driftet —
+nicht vielleicht, sondern absehbar.** Die eine verbliebene Zeile steht hier,
+weil sie eine Rangfolge trägt, die in keiner Tabellenspalte steht.
 
 **Was dieses Raster bewusst NICHT tut:** Es vergleicht nicht mit anderen
 Assistenzen. Das ist der nächste Schritt — und er ist jetzt beantwortbar, weil

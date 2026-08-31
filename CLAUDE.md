@@ -693,7 +693,17 @@ danach ist es zu spät, weil dann jede weitere Runde begründbar aussieht.
 **`[VORGEMERKT 2026-08-20, Engywuck]` Zwei Zeilen fuer den ersten Kurs-Blick am 25.08.:**
 
 **① Eine stehende Stichprobe gegen die Ablage.** Je Woche **zehn zufaellige
-Ablage-Behauptungen gegen den Code** gehalten, **Falschquote berichtet**. Der
+Ablage-Behauptungen gegen den Code** gehalten, **Falschquote berichtet**.
+
+**Die Ziehungsmenge** `[NEU 2026-08-31]`: `MIGRATION.md` (Status-Zeilen) ·
+`ABHAENGIGKEITEN.md` · `CLAUDE.md` (Betriebslage und Zahlen) ·
+`docs/entscheidungsvorlagen/pruefraster-assistenz-basisfaehigkeiten.md` ·
+`docs/befund-entkernung.md` · `docs/f-befunde-reihenfolge.md`.
+Das Fähigkeiten-Raster steht hier, weil es am 31.08. **sechs falsche Zeilen**
+trug, davon eine mit sicherheitsrelevanter Fehlerrichtung — und weil sein
+Gültigkeits-Kopf vorbildlich gebaut war und trotzdem nicht geschützt hat.
+**Ein Eintrag in eine bestehende Menge ist kein neuer Wächter** (Kurs-Regel);
+ein Prüfer, der ein Papier gegen den Code misst, wäre einer. Der
 Anlass: Am 20.08. wurden an einem Tag **vier Falschaussagen** in der eigenen
 Ablage gefunden — zwei davon am selben Tag geschrieben. Die Prueferegel
 *Status ist ein Befund* trug als Prinzip; ihr fehlte der **Rhythmus**, wie

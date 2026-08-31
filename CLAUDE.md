@@ -158,6 +158,36 @@ kollidieren:** Durchlauf gilt **innerhalb** eines Auftrags, den ich habe.
 bleibt und Adam unterwegs ist. **Ungenutzte Zeit kostet Stunden; ein falsch
 abgeleiteter Bau kostet Vertrauen.**
 
+## ⏱️ SCHNELLE ENTSCHEIDUNGEN, KEIN AUFSCHUB (Adam 2026-08-31)
+
+> **Wir kommen möglichst auf schnelle Entscheidungen und schieben nicht auf.**
+> Ausnahme nur, wenn Adam ausdrücklich sagt „das legen wir hinten ran" — oder
+> wenn die Kontrolle den Aufschub **ausdrücklich empfiehlt und begründet.**
+
+**Sein Grund ist nicht Ungeduld, sondern an diesem Projekt gemessen:** *„Wir
+haben keine richtige Sortierung der Dringlichkeiten. Das fällt dann irgendwie
+hinten rüber."* **Ein vertagter Punkt ohne Dringlichkeitsordnung ist ein
+verlorener Punkt** — dieselbe Mechanik wie beim Ablageweg-Grundsatz, eine Ebene
+höher: Dort verschwindet, was keinen Weg in die Ablage hat; hier verschwindet,
+was keinen Termin und keinen Rang hat.
+
+**Anlass:** Die Kontrolle hatte die F-16-Frage vertagt („erst messen, dann
+entscheiden"), obwohl Adam sie beantworten konnte — und hat es selbst als
+Verfahrensfehler benannt. Er hat sie in einem Satz entschieden.
+
+**How to apply — für alle Instanzen:**
+
+- **Eine Frage an Adam wird gestellt, nicht aufgeschoben**, wenn er sie
+  beantworten kann. Sie zu vertagen ist die teurere Wahl, nicht die
+  vorsichtigere.
+- **Wer aufschieben will, begründet es** — und zwar mit dem, was der Aufschub
+  bringt, nicht mit dem, was er vermeidet.
+- **Das steht nicht im Widerspruch zu „nicht ableiten".** Eine Frage stellen ist
+  kein Ableiten; sie *nicht* zu stellen und stattdessen weiterzubauen wäre es.
+- **Und es hebt die Messpflicht nicht auf:** Messungen laufen weiter — aber als
+  **Zulieferung, nicht als Tor.** Wo eine Entscheidung ohne Zahlen fallen kann,
+  fällt sie; die Zahlen ergänzen sie hinterher.
+
 ## ▶️ ARBEITSMODUS — Durchlauf ist der Normalfall (Adam 2026-07-25)
 
 **Geprüft, bevor diese Regel entstand:** „Nächte arbeiten, Tage entscheiden"

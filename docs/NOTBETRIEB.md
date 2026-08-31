@@ -117,10 +117,37 @@ Notfall-Auskunft mehr.
 einem stillen Tag anschlagen, ohne dass etwas kaputt ist — und ein Wächter, der
 falsch anschlägt, ist binnen einer Woche abgeschaltet.
 
-**Gemessen am echten Verlauf (31.08.):** **805 Commits seit dem 19.08., 23:15 —
-kein einziger Abstand über zwanzig Minuten**, Median fünf Minuten. Darin liegen
-zwölf Tage einschließlich Adams zwölftägiger Abwesenheit, in der niemand dem
-Bot schrieb.
+**Gemessen am echten Verlauf** (31.08., 22:30, auf **voller** Historie —
+`git fetch --unshallow`): **3450 Commits seit dem 19.08., 23:15, größter
+Abstand 5,9 Minuten**, Median fünf. Kein einziger über sechs — **die
+Zwanzig-Minuten-Schwelle hat den mehr als dreifachen Abstand zum schlechtesten
+gemessenen Wert.** Darin liegen zwölf Tage einschließlich Adams zwölftägiger
+Abwesenheit, in der niemand dem Bot schrieb.
+
+**Die Commit-Zahl trägt einen Stichtag, weil sie alle fünf Minuten wächst** —
+das Argument ist ohnehin nicht ihre Höhe, sondern der **größte Abstand**.
+
+**`[BERICHTIGT 31.08., 22:35]` Hier stand `805`, und der Fehler ist
+lehrreicher als die Zahl.** Der Mac-Klon von `claude-bot-logs` ist **flach**
+(ältester Commit 29.08., 03:05). `--since` filtert dann innerhalb eines
+Fensters, das gar nicht so weit zurückreicht: `805` war in Wahrheit *seit dem
+29.08.*, nicht seit dem 19.08. **Ausgerechnet Adams Abwesenheit — der härteste
+Fall, den dieser Abschnitt anführt — lag komplett außerhalb der Messung.** Und
+die Zahl widersprach der eigenen Schlussfolgerung: Bei durchgehendem
+Fünf-Minuten-Takt sind über zwölf Tage rund 3456 Commits möglich; 805 wäre nur
+mit massiven Ausfällen erklärbar gewesen.
+
+**Der Handgriff vor jeder Git-Zeitmessung**, zwei Zeilen, die den ganzen Fehler
+abfangen:
+
+```bash
+git rev-parse --is-shallow-repository          # muss "false" sagen
+git log --format='%ad' --date=short | tail -1  # muss VOR dem Fensteranfang liegen
+```
+
+Gefunden hat es die Kontrolle bei der Gegenprüfung — die dieselbe Grube zuerst
+selbst getroffen und sich daran gefangen hat. **Kein neuer Prüfer:** Das ist
+ein Zahlenfehler in einem Papier, kein Loch im Code.
 
 **Und der Grund ist strukturell, nicht Glück:** In den Nacht-Commits ändert sich
 **`zustand.json`** — der Lagebericht der **Stundenblume**

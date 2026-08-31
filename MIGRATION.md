@@ -1035,7 +1035,7 @@ Absturzfall ausdrücklich auf 5.18).
 - **Verifiziert am:** —
 
 ### 6.6 Empfehlungsliste anzulegender Kanäle liefern
-- **Status:** ✅ **ENTSCHIEDEN — FINAL v3 (Audit 24.07., Adam):** [`docs/entscheidungsvorlagen/6-6-kanal-struktur-vorlage.md`](docs/entscheidungsvorlagen/6-6-kanal-struktur-vorlage.md) — **4 Häuser / 13 Zimmer** plus Bestand: 🏠 **Jakuna-San** (Bestand, nur registrieren) · 🔧 **Werkstatt** (Migration & Technik · Fanpost [Startplatz, zieht ins Handelshaus sobald Geschäft] · Rechnungen & Büro · Offene Punkte = intelligente Zwischenablage 6.1) · 🕰️ **Nirgendhaus** (Momo-Projekt-Haus: Produkt & Blaupause · Kunden & Piloten · Vertrieb & Empfehlung · Recht & Zahlen) · 🏛️ **Handelshaus** (klein eröffnet: Ideen & Chancen · Affiliate-Projekt) · 📚 **Bibliothek** (Recherchen & Referenzen · Link-Inbox→5.14 · Interessen inkl. Fußball). **v3 ersetzt v2 vollständig** (Konfliktvermerk im Vorlagen-Dokument). Anlage-Teilung: **Gruppen erstellt Adam**, **Zimmer legt der Bot** (6.5). 4.3-Ordnerspiegelung identische Namen. Blaupause-Notiz: Haus-Namen = projektspezifische Poesie über universellem Muster (Leben/Werkstatt/Produkt/Geschäfte/Bibliothek).
+- **Status:** ✅ **ENTSCHIEDEN — FINAL v3 (Audit 24.07., Adam):** [`docs/entscheidungsvorlagen/6-6-kanal-struktur-vorlage.md`](docs/entscheidungsvorlagen/6-6-kanal-struktur-vorlage.md) — **4 Häuser / 13 Zimmer** plus Bestand: 🏠 **Jakuna-San** (Bestand, nur registrieren) · 🔧 **Werkstatt** (Migration & Technik · Fanpost [Startplatz, zieht ins Handelshaus sobald Geschäft] · Rechnungen & Büro · Offene Punkte = intelligente Zwischenablage 6.1) · 🕰️ **Nirgendhaus** (Momo-Projekt-Haus: Produkt & Blaupause · Kunden & Piloten · Vertrieb & Empfehlung · Recht & Zahlen) · 🏛️ **Handelshaus** (klein eröffnet: Ideen & Chancen · Affiliate-Projekt) · 📚 **Bibliothek** (Recherchen & Referenzen · Link-Inbox→5.14 · Interessen inkl. Fußball). **v3 ersetzt v2 vollständig** (Konfliktvermerk im Vorlagen-Dokument). Anlage-Teilung: **Gruppen erstellt Adam**, **Zimmer legt der Bot** (6.5). 4.3-Ordnerspiegelung identische Namen. Blaupause-Notiz: Haus-Namen = projektspezifische Poesie über universellem Muster (Leben/Werkstatt/Produkt/Geschäfte/Bibliothek). **⚠️ Der Erinnerungskanal (7.1) gehört NICHT zu dieser Struktur** `[NEU 2026-08-31]` — er ist ein eigener Kanal, den Adam zusätzlich anlegt, kein Zimmer und kein fünftes Haus. Hier vermerkt, weil die Verwechslung sonst genau an dieser Stelle entsteht.
 - **Akzeptanzkriterium:** Vorschlagsliste mit Begründung liegt vor, Adam wählt aus. ✅ erfüllt (v3 final).
 - **Test:** — (Entscheidung getroffen; Umsetzung läuft über 6.5/6.1).
 - **Adam-Bestätigung:** ✅ Audit 24.07.
@@ -1050,7 +1050,8 @@ Absturzfall ausdrücklich auf 5.18).
 ## Phase 7 — Erinnerungskanal
 
 ### 7.1 Eigener Telegram-Erinnerungskanal
-- **Status:** OFFEN
+- **Status:** OFFEN — **wartet auf Adam** (Kanal anlegen, Bot als Admin)
+- **⚠️ Er ist KEIN Zimmer der 6.6-Struktur und auch kein fünftes Haus** `[KLARGESTELLT 2026-08-31 nach Messung]` — die 6.6-Struktur führt vier Häuser mit dreizehn Zimmern plus den Bestand *Jakuna-San*; der Erinnerungskanal kommt darin an **keiner** Stelle vor. Er ist ein **eigener Kanal, den Adam zusätzlich anlegt** — die Zimmer legt der Bot selbst an (6.5), diesen Kanal nicht. Ohne diesen Hinweis hält ihn die nächste Sitzung für ein Zimmer und wartet auf eine Anlage, die nie kommt. **Zur Bauform:** Das Akzeptanzkriterium unten verlangt „Kanal … Bot ist Admin mit Schreibrechten“ — ein Telegram-**Kanal** genügt also, es braucht keine Forum-Gruppe wie bei den Häusern.
 - **Akzeptanzkriterium:** Kanal existiert; Bot ist Admin mit Schreibrechten.
 - **Test:** Test-Erinnerung schicken, im Kanal sichtbar.
 - **Adam-Bestätigung:** —

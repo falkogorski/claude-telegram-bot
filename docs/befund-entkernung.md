@@ -85,7 +85,7 @@ sein Ausfall sähe wie Ruhe aus. Nur diese acht werden jetzt repariert:
 
 **`[ERLEDIGT 2026-08-29, nachgetragen 2026-08-31]` Rang A vollständig — alle
 acht.** Die Reparatur lief im Nachtpaket vom 29.08.; **der Vermerk hier fehlte,
-und das hat Folgen gehabt.** Am 31.08. um kurz nach drei stand dieser Block als
+und das hat Folgen gehabt.** Am 31.08. kurz nach zwei stand dieser Block als
 *substanziellste offene Arbeit im Projekt* in einem Nachtauftrag — gemessen war
 er da seit zwei Tagen erledigt. Fundstellen, jede mit Reparatur-Vermerk im Code:
 
@@ -112,6 +112,60 @@ ein Prüfer sie erreicht), oder Abwesenheit über echte `ast.Call`-Knoten samt
 fahren** — Schutz raus, rot sehen, Schutz rein, `__pycache__` vorher löschen —
 und `bash scripts/regressionstest.sh` vor jedem Commit. Jede Stelle einzeln
 committen.
+
+## Die EINE Nachprüfung — gefahren 31.08.2026, 02:1x–02:3x
+
+Vom Katalog vorgesehen: *„Nach deinem Rang-A/B-Fix folgt **eine** Nachprüfung
+(Entkernung nur der acht reparierten Stellen), dann ist Schluss."* Hiermit
+gefahren, **Ergebnis: alle acht werden bei Entkernung rot.**
+
+| # | Entkernung (im Wortlaut) | rote Zeile |
+|---|---|---|
+| 1 | Geheimnis-Zweig aus `postfach_darf_senden` entfernt | `✗ Boten-Postfach (B): falscher Grund` |
+| 2 | `darf_dauerfreigabe` → `return True` | `✗ Reibungslose Recherche (5.25): WebSearch waere pauschal dauerfreigebbar` |
+| 3 | in `send_answer_to_user`: `return sent is not None` → `delivered = True` | `✗ Zustellnachweis + TTS-Fallback: delivered wird hart auf True gesetzt` |
+| 4 | `create_task(zustell_worker(app), …)` auskommentiert | `✗ jeder Wächter wird auch gestartet: gebaut, aber beim Start nie angeworfen` |
+| 5 | `_media_eingang` auf `return None` gekürzt | `✗ Medien-Eingangsschutz (5.2): hat NICHTS gesichert` |
+| 6 | `mb.queue.appendleft(job)` entfernt | `✗ Limit-Zweig legt zurück…: die Ruecklage legt den Auftrag nicht zurueck` |
+| 7 | `if LEBENSMARKE.exists():` → `if True:` | `✗ abgekoppelt ohne Lebensnachweis → laut: meldete Erfolg ueber einem toten Waechter` |
+| 8 | hartkodiertes App-Kennwort in `kalender.py` eingefügt | `✗ keine Zugangsdaten im Quelltext: kalender.py:30` |
+
+Nach jeder Stelle `git checkout --` und `git status --porcelain` geprüft; der
+Arbeitsbaum war durchgehend sauber. `__pycache__` vor jedem Lauf gelöscht.
+
+### Die drei eigenen Messfehler — sie sind der Ertrag, nicht die Fußnote
+
+**Der erste Durchgang meldete drei blinde Prüfer. Keiner davon war blind.**
+Alle drei Fehler lagen in meiner Messung, und jeder entsprach genau einer der
+drei Auflagen aus `CLAUDE.md`:
+
+1. **Erwartung zu grob.** Für Stelle 6 hatte ich `"Limit"` notiert. Der Filter
+   schlug an — auf `✓ Limit-Meldungen erkannt, **Nachbarfehler** nicht`, weil
+   *NACHBARFEHLER* die Zeichenkette `FEHL` enthält. **Eine grüne Zeile als
+   Beleg für einen roten Prüfer.**
+2. **Erwartung falsch geschrieben.** `"Waechter"` findet `Wächter` nicht;
+   `"Detach"` steht in keiner Prüfzeile. Zwei Stellen galten als blind, weil
+   ich ihre Zeilen nicht traf.
+3. **Eingriff wirkungslos — zweimal.** Bei Stelle 3 lag meine Entkernung im
+   **Aufrufer**, während der Prüfer `getsource(send_answer_to_user)` liest. Bei
+   Stelle 7 änderte ich den **Pfad** der Lebensmarke — den der Prüfer über
+   dieselbe Modul-Variable mitzieht. Und als der Eingriff dann saß, erwartete
+   ich die **falsche Richtung**: Wer den Nachweis entfernt, macht nicht die
+   Erfolgs-Zeile rot, sondern die, die den *fehlenden* Nachweis meldet.
+
+**Alle fünf Fehlmessungen sahen wie ein Ergebnis aus.** Hätte ich nach dem
+ersten Durchgang berichtet, stünde hier: *drei Rang-A-Prüfer sind weiterhin
+blind* — und jemand hätte drei intakte Schutzzeilen „repariert".
+
+**Die Lehre über die Auflagen hinaus:** Bevor ein „grün geblieben" zum Befund
+wird, ist zu prüfen, **ob der Eingriff die Stelle getroffen hat, die der Prüfer
+liest** — nicht nur, ob er die Datei verändert hat. `assert alt in t` beweist,
+dass etwas ersetzt wurde, nicht dass es im Sichtfeld lag.
+
+**Kein Prüfer daraus.** Das war die eine vorgesehene Nachprüfung; ein
+dauerhaftes Werkzeug wäre der Wächter dritter Ordnung, den die Kurs-Regel
+verbietet. Die acht Entkernungen stehen oben im Wortlaut — reproduzierbar,
+ohne ein Skript zu hinterlassen, das niemand mehr fährt.
 
 ## Rang B — die vier Fehlalarme (klein, aber abschaltgefährdend)
 

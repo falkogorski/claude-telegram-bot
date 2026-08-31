@@ -761,6 +761,7 @@ Absturzfall ausdrücklich auf 5.18).
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+- **⚠️ Adams Miniaturbild-Idee — halb abgelegt, deshalb hier der Verweis `[NEU 2026-09-01]`:** Adam am 25.07., 23:04: *„Schau bitte gerne mal nach **oder lass recherchieren**"* — gemeint ist die Leiste mit Miniaturbildern, die beim Ziehen über die Zeitleiste erscheint, als **billiger Weg zur Video-Sichtung** statt eigener Abtastung. Der Punkt nennt bislang nur *„adaptives Sampling"*; die konkrete Idee stand nirgends. **Sie ist tatsächlich schon halb abgelegt** — im `[NEU 2026-07-26, U]`-Eintrag zu **PySceneDetect**, mit dem Vermerk, dass die Leiste im Quelltext des Abrufwerkzeugs bestätigt, praktisch aber erst **nach dem Heimtunnel** prüfbar ist. Also an einer Stelle, an der niemand sie sucht. **Nichts recherchieren, nichts bauen — der Auslöser (Tunnel) ist nicht eingetreten.**
 ### 5.13 Pinned-Nachricht → Memory-Funktion
 - **Status:** ✅ **GEBAUT (20.08.)** — `on_pinned_message` legt nach `telegram-pinned.md` ab, trennt persoenliche Notizen (`ich:`-Praefix) und traegt seit dem 20.08. den **Zitat-Bezug**: in Gruppen und Kanaelen einen anklickbaren Deep-Link auf die Originalnachricht, im **Privatchat die Nachrichtennummer allein** — dort vergibt Telegram keine adressierbare Nachricht, und ein Link ins Leere waere schlechter als keiner. **Geschwister-Regel angewandt:** der Zweig fuer persoenliche Notizen hat denselben Rueckweg bekommen. Nebenbefund mitbehoben (Dateihandle ohne `with`). Pruefer `scripts/test_pin_bezug_5_13.py` (5). **Adams Test steht aus:** eine Nachricht anpinnen, Eintrag pruefen.
 - **Akzeptanzkriterium:** Eine angepinnte Nachricht wird automatisch als Memory abgelegt (mit Zitat-Bezug).
@@ -870,6 +871,7 @@ Absturzfall ausdrücklich auf 5.18).
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+- **⚠️ Anforderung `[NEU 2026-09-01, Adam vom 10.08., 05:30]` — drei Knöpfe unter die Update-Meldung:** *„Da brauchen wir zukünftig wieder **drei Buttons** unter einer solchen Nachricht drunter mit der Auswahl: **alle updaten** — oder **später (in einem Tag) nochmal erinnert** zu werden — oder **erstmal nicht** upzudaten."* **Gemessen:** Die drei Knöpfe, die es gibt, gehören zur Link-Inbox (5.14); für die Update-Meldung ist nichts dergleichen eingetragen. **⚠️ Nicht in einem zweiten Zug bauen:** Die Bot-Sitzung arbeitet seit dem 31.08. an genau dieser Meldung (Papier *Update-Monitor entrauschen*). **Wenn dort gebaut wird, gehören die drei Knöpfe dazu** — sonst wird die Meldung zweimal angefasst.
 ### 5.22 STT-Schnellumschalter small↔medium + Tempo-Button-UX `[NEU 2026-07-14]`
 - **Status:** VERIFIZIERT (Kern) — **5.22a Threads ✅** (`efba6d9`: alle 4 Kerne, medium 47 s→25 s), **5.22b Umschalter ✅** (`3404f84`). **Adam 15.07.: „Funktioniert sehr gut."** Offen nur noch die optionale Button-Ausdünnung — **Adam 15.07.: „machen wir später"** (evtl. ohnehin zusammen mit neuen Phase-2-Features). Zurückgestellt, kein Blocker.
 - **Umsetzung 15.07.:** Neue Tastatur-Zeile `🎙️ Genau (medium) / 🎙️ Flott (small)` mit ✓ am Aktiven; Umschaltung **zur Laufzeit ohne Neustart** (globaler `_ACTIVE_STT`, in Prefs persistiert, `transcriber.set_model()` vor jeder Voice); aktives Modell auch in `/status`. Register-basiert (`_discover_stt_models` findet, was unter `models/` liegt).
@@ -1184,6 +1186,7 @@ Absturzfall ausdrücklich auf 5.18).
 - **⏳ WARTET AUF ADAM:** **Kalender-Zugangsdaten hinterlegen** — `ICLOUD_CALDAV_USER` und `ICLOUD_CALDAV_APP_PASSWORT`. Ein anwendungsspezifisches Apple-Kennwort; derselbe Handgriff entblockt zugleich 7.5.
 - **Akzeptanzkriterium:** Auf VPS lesbar/schreibbar via CalDAV (nur freigegebene Kalender/Listen); Ein-/Ausgabe systemübergreifend in iCloud sichtbar.
 - **Test:** Termin + To-do frei aufsprechen → landet richtig einsortiert in Apple Kalender/Erinnerungen UND im Telegram-Kanal.
+- **`[VERWEIS 2026-09-01]` Der „spätere eigene Punkt" für Non-Apple-Nutzer liegt bei [9.18 Weitergabe](#918-weitergabe--wer-bekommt-dieses-grundwerk-und-wie).** Dieser Punkt endet wörtlich mit *„Non-Apple-Nutzer (Produkt) = späterer eigener Punkt"* — **den Punkt gab es nie**, gemessen am 31.08. Er wird auch nicht angelegt: Es ist eine **Produktfrage**, und dafür ist 9.18 seit dem 31.08. der Ort. Damit schrumpft die Lücke auf einen fehlenden Verweis, statt zu wachsen.
 - **Adam-Bestätigung:** ✅ Quelle iCloud/CalDAV (Audit 24.07.); Bau-Details offen.
 - **Verifiziert am:** —
 
@@ -1382,6 +1385,7 @@ Zahlenformat —, nicht in einer Liste von Wörtern.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+- **⚠️ `[NEU 2026-09-01]` Bestehen wir gegen die großen Anbieter?** Adam am 24.07., 15:22: *„Bitte auch nachhalten und merken, dass wir das noch tun werden … kann ein kritischer Punkt sein."* **Gemessen: null Treffer im ganzen Repo.** Die Frage steht mit demselben Wortlaut auch bei [9.18 Weitergabe](#918-weitergabe--wer-bekommt-dieses-grundwerk-und-wie) — sie berührt beide, und welcher Punkt sie trägt, entscheidet Adam. **An beiden Stellen, damit sie nicht zwischen ihnen verschwindet.**
 ### 9.7 Hermes Agent (Nous Research) — Evaluation als mögliche Agent-Plattform `[NEU 2026-07-22]`
 - **Status:** 🔄 **PRÜFBERICHT LIEGT VOR (23.07.):** [`docs/entscheidungsvorlagen/9-7-hermes-pruefbericht.md`](docs/entscheidungsvorlagen/9-7-hermes-pruefbericht.md) — **K.-o.-Kriterium 1 greift nach aktueller Faktenlage: keine Abo-SDK-Auth erkennbar, Anthropic-Anbindung = API-Key/pay-per-token → Option A (Plattformwechsel) tot.** Empfehlung: **Option B** — drei Konzepte adaptieren (FTS5-Recall→5.11, Playbook-Gedanke→9.6, Memory-Kuratierung deterministisch), Projekt über 5.21 beobachten. Rest-Unsicherheit gekennzeichnet (Voll-Doku ungelesen). **Entscheidung bei Adam beim Phasen-Audit — nichts installiert.** `[NEU 2026-07-23]` **Adam: Option B als Arbeitsstand ✅** — finale Entscheidung erst beim Phasen-Audit, **zusammen mit dem externen Strategie-Recherchebericht** (läuft parallel in eigener Recherche-Sitzung: Abo-vs-Token-Rechnung, Alternativen-Landkarte, Unabhängigkeits-Roadmap). **Bis dahin ruht 9.7.**
 - `[HERAUSGELÖST 2026-08-31, Adam-Entscheid]` **Der Strategie-Bericht ist Eingangsmaterial von Punkt 9.17 (Notfallplan)** — er behandelt Modell- und Plattformstrategie im Ganzen und gehörte nicht unter die Bewertung einer einzelnen Plattform. **Und dieser Punkt hängt seinerseits unter 9.17:** Die Hermes-Evaluation ist eine geprüfte Option des Notfallplans, kein eigener Strang. Der Bericht bleibt hier als **Beleg**, nicht als Fundstelle.
@@ -1517,6 +1521,9 @@ Zahlenformat —, nicht in einer Liste von Wörtern.
   das übertragbare Grundwerk, die Weitergabe ist die Frage, wer es bekommt.**
 - **Der Name gehört Adam.** *Weitergabe* ist ein Vorschlag der Kontroll-Sitzung,
   keine Setzung.
+- **⚠️ Zwei Produktfragen, die hierher gehören `[NEU 2026-09-01]`:**
+  - **Hardware als Produktbestandteil** (Adam, 25.07., 20:54): Ausbaustufen, was mitgeliefert wird, Paketpreise. **Was es heute aktuell macht:** Die Hardware-Frage hängt seit dem 31.08. an drei Fäden zugleich — Heimtunnel, zweites Sicherungsziel, lokaler Vertreter (das Handlungsfähigkeits-Konzept nennt in Kapitel 5.3 Preislagen). **Was Adam für sich entscheidet, ist zugleich die Vorlage für das Produkt.**
+  - **Bestehen wir gegen die großen Anbieter?** (Adam, 24.07., 15:22): *„Bitte auch **nachhalten und merken**, dass wir das noch tun werden … **kann ein kritischer Punkt sein.**"* Eine **Produkt**-Frage, keine technische. **Sie steht mit demselben Verweis auch bei 9.6** — welcher der beiden Punkte sie trägt, ist eine Zuordnung, die Adam gehört; bis dahin steht sie an beiden, damit sie nicht zwischen ihnen verschwindet.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

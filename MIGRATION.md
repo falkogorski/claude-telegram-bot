@@ -58,7 +58,7 @@ Punktnummer und keinen Status.
 
 | Papier | Worauf es sich auswirkt |
 |---|---|
-| [`modell-plattform-strategie-bericht.md`](docs/entscheidungsvorlagen/modell-plattform-strategie-bericht.md) (22.842 Zeichen, dazu eine PDF-Fassung) | **Modell- und Plattformstrategie im Ganzen.** Grundlage der gesamten AGB-/Auth-Analyse in `CLAUDE.md` (Abschnitte A.2/D.1) — also der Frage, ob und wie der Hauptagent über das Abo laufen darf. Berührt 2.x, 9.7 und die Kostenregel. |
+| `modell-plattform-strategie-bericht.md` | **Geführt bei Punkt 9.17** (Notfallplan) `[verschoben 31.08., Adam-Entscheid]` — er ist dessen **Eingangsmaterial**, nicht ein Papier ohne Punkt. Hier nur der Zeiger, damit ihn findet, wer im Kopf sucht: **ein Papier wird an einer Stelle gepflegt, nicht an zweien.** |
 | [`werte-charta-momo.md`](docs/entscheidungsvorlagen/werte-charta-momo.md) | Die Werte, an denen sich Bauentscheidungen messen lassen — u. a. §7 (unsichtbare Komplexität) und §3 (Datenhoheit). |
 | [`bedrohungsmodell.md`](docs/entscheidungsvorlagen/bedrohungsmodell.md) | Grundlage der Eingangs-Absicherung und der Ampel. |
 | [`pruefraster-assistenz-basisfaehigkeiten.md`](docs/entscheidungsvorlagen/pruefraster-assistenz-basisfaehigkeiten.md) | Die Liste, gegen die sich prüfen lässt, ob eine **Basisfähigkeit** fehlt. Anlass war eine Lücke, die niemand bemerkte, *weil niemand eine Liste hatte*. |
@@ -1275,7 +1275,7 @@ Absturzfall ausdrücklich auf 5.18).
 
 ### 9.7 Hermes Agent (Nous Research) — Evaluation als mögliche Agent-Plattform `[NEU 2026-07-22]`
 - **Status:** 🔄 **PRÜFBERICHT LIEGT VOR (23.07.):** [`docs/entscheidungsvorlagen/9-7-hermes-pruefbericht.md`](docs/entscheidungsvorlagen/9-7-hermes-pruefbericht.md) — **K.-o.-Kriterium 1 greift nach aktueller Faktenlage: keine Abo-SDK-Auth erkennbar, Anthropic-Anbindung = API-Key/pay-per-token → Option A (Plattformwechsel) tot.** Empfehlung: **Option B** — drei Konzepte adaptieren (FTS5-Recall→5.11, Playbook-Gedanke→9.6, Memory-Kuratierung deterministisch), Projekt über 5.21 beobachten. Rest-Unsicherheit gekennzeichnet (Voll-Doku ungelesen). **Entscheidung bei Adam beim Phasen-Audit — nichts installiert.** `[NEU 2026-07-23]` **Adam: Option B als Arbeitsstand ✅** — finale Entscheidung erst beim Phasen-Audit, **zusammen mit dem externen Strategie-Recherchebericht** (läuft parallel in eigener Recherche-Sitzung: Abo-vs-Token-Rechnung, Alternativen-Landkarte, Unabhängigkeits-Roadmap). **Bis dahin ruht 9.7.**
-- `[HERAUSGELÖST 2026-08-31]` **Der Strategie-Bericht steht jetzt bei den Grundlagen-Papieren im Kopf dieses Drehbuchs** — er behandelt Modell- und Plattformstrategie im Ganzen und gehört nicht unter die Bewertung einer einzelnen Plattform. Hier bleibt er als **Beleg für diesen Punkt** stehen, nicht mehr als seine einzige Fundstelle.
+- `[HERAUSGELÖST 2026-08-31, Adam-Entscheid]` **Der Strategie-Bericht ist Eingangsmaterial von Punkt 9.17 (Notfallplan)** — er behandelt Modell- und Plattformstrategie im Ganzen und gehörte nicht unter die Bewertung einer einzelnen Plattform. **Und dieser Punkt hängt seinerseits unter 9.17:** Die Hermes-Evaluation ist eine geprüfte Option des Notfallplans, kein eigener Strang. Der Bericht bleibt hier als **Beleg**, nicht als Fundstelle.
 - `[NEU 2026-07-23]` **Strategie-Bericht liegt vor** ([`docs/entscheidungsvorlagen/modell-plattform-strategie-bericht.md`](docs/entscheidungsvorlagen/modell-plattform-strategie-bericht.md), kontrollgeprüft + freigegeben): K.-o. bestätigt und verschärft — Anthropic-Anbindung in Hermes offiziell nur per bezahltem API-Key; Abo-Wege sind ungemergte Community-PRs mit hohem Stabilitäts- UND AGB-Risiko (Drittanbieter-Routing seit 04/2026 verboten + technisch blockiert). Audit-Empfehlung: **Beibehalten + Erweitern.** **Faktenkorrektur:** Hermes-Repo ist laut GitHub-API ~1 Jahr alt (angelegt 22.07.2025), nicht erst seit Feb. 2026 (das war vermutlich der öffentliche Start, ungeprüft).
 - **Anstoß:** Adam wurde am 22.07. auf Hermes (Open-Source-Agent-Framework von Nous Research) hingewiesen; Tendenz zu Option A ist notiert, steht aber unter dem K.-o.-Vorbehalt.
 - **K.-o.-Kriterium 1 (💰 Kostenregel, zuerst prüfen):** Kann der Claude-Hauptagent weiterhin über das **Abo-SDK** (`CLAUDE_CODE_OAUTH_TOKEN`) laufen? Hermes erwartet OpenAI-kompatible Endpoints — liefe die Haupt-Inferenz darüber, wäre das die **bezahlte API = rote Linie**. Falls Hermes nur per API-Schlüssel kann: **Option A (Plattformwechsel) ist tot**; dann allenfalls **Option B** — Konzepte adaptieren (Memory-Schicht/FTS5, Skill-System, GEPA-Ideen) in unserem Bau.
@@ -1347,6 +1347,67 @@ Absturzfall ausdrücklich auf 5.18).
   danach scharfgestellt.
 - **Test:** `.venv/bin/python scripts/test_gegenleser.py` → alle Zeilen grün,
   darunter sieben, die belegen, dass das Modul **keinen** Anbieter aufruft.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
+### 9.17 Zweiter Weg für den Hauptagenten — Notfallplan `[NEU 2026-08-31, Adam-Entscheid]`
+- **Status:** OFFEN
+- **Der Entscheid, und er ist die Hälfte des Punktes:** Der zweite Weg wird
+  **geplant, nicht gebaut.** Ein gebauter zweiter Weg wären Wochen Versicherung
+  gegen ein Ereignis, das vielleicht nie eintritt; **ein Plan deckt das Risiko:
+  Geht der Abo-Weg zu, fängt Adam nicht bei null an.**
+- **Akzeptanzkriterium:** *Ein schriftlicher Plan existiert und ist aktuell* —
+  ausdrücklich **nicht** „ein zweiter Weg ist gebaut".
+- **Warum es diesen Punkt braucht:** Phase 2 deckt Ausfallsicherheit **nur für
+  die Neben-Inferenzen** ab (2.3 Ollama, 2.4 Groq — Rückfälle für Ampel, Labels,
+  Zusammenfassungen). **Für den Hauptagenten gab es keinen zweiten Weg und
+  keinen Punkt, der einen fordert.** Das Fähigkeitsraster führte die Kapazität
+  als eigene Zeile, das Drehbuch nicht — dieselbe Klasse wie jedes andere
+  Arbeitsfeld ohne Ort: *Was keinen Punkt hat, wird nicht abgearbeitet.*
+- **📄 Eingangsmaterial:**
+  [`modell-plattform-strategie-bericht.md`](docs/entscheidungsvorlagen/modell-plattform-strategie-bericht.md)
+  (22.842 Zeichen, dazu eine PDF-Fassung). **Hier ist seine richtige Hängung** —
+  er lag bis zum 31.08. als Unterpunkt unter *9.7 Hermes Agent*, also unter der
+  Bewertung **einer einzelnen Plattform**. Wer nach *Modellstrategie* suchte,
+  fand nichts. Er ist zugleich die Quelle der AGB-/Auth-Auslegung in
+  `CLAUDE.md` (A.2/D.1).
+- **Darunter gehört auch 9.7** (Hermes-Evaluation): eine geprüfte Option des
+  Notfallplans, kein eigener Strang.
+- **⚠️ Erster Inhalt dieses Punktes ist ein Befund, kein Plan `[31.08.]`:**
+  `CLAUDE.md` behauptete, ein **AGB-Wachposten** überwache die Legal-Seite auf
+  Änderungen der Auth-Passage. **Gemessen: es gab ihn nicht** — die Zeichenkette
+  `legal-and-compliance` kam in keiner versionierten Code-Datei vor,
+  `wachposten.py` enthält keine URL. Berichtigt am 31.08.; die Seite steht
+  seither als `manual`-Eintrag in [`components.json`](components.json) und wird
+  im Monatsrhythmus **vorgelegt, nicht abgerufen**.
+- **Adam-Bestätigung:** Entscheid vom 31.08. (planen statt bauen)
+- **Verifiziert am:** —
+
+### 9.18 Weitergabe — wer bekommt dieses Grundwerk, und wie? `[NEU 2026-08-31, Adam-Entscheid]`
+- **Status:** OFFEN, **ausdrücklich nicht terminiert.** Er existiert, damit es
+  nicht verloren geht — nicht, um jetzt bearbeitet zu werden.
+- **⚠️ Der Punkt trägt nur Status und Verweis.** Die Ausarbeitung entsteht
+  **extern**, und das ist Adams ausdrücklicher Wunsch: **Geschäft und Technik
+  gehören getrennt.**
+- **Was hierher gehört:** was aus diesem Projekt wird, **wenn es trägt** —
+  Weitergabe an Menschen, möglicherweise Open Source, irgendwann vielleicht
+  Monetarisierung. Adams Neigung ist Open Source; **dieser Punkt hält das offen
+  und entscheidet es nicht.**
+- **Was NICHT hierher gehört `[Adams Korrektur vom 31.08.]`:** Seine laufenden
+  Einkommensprojekte — womit er heute Geld verdient. Andere Projekte, eigener
+  Ort. **Der frühere Name *Einkommensstrang* war falsch und wird nicht mehr
+  verwendet:** *„Das hier ist noch weit weg von Einkommensgenerierung."*
+- **📄 Verwiesen wird auf:**
+  [`momo-business-skizze.md`](docs/entscheidungsvorlagen/momo-business-skizze.md)
+  und [`momo-gruendungserzaehlung.md`](docs/entscheidungsvorlagen/momo-gruendungserzaehlung.md)
+  — die beiden Papiere, die bis zum 31.08. **ohne jeden Drehbuch-Eintrag**
+  dastanden. Der Kurs-Blick hatte fünf Wochen ohne Erlösbezug gemessen und die
+  Ursache im Arbeitsverhalten gesucht; sie lag in der Ablage.
+- **Nachbarschaft ist Absicht:** direkt bei
+  [9.6 Blaupause](#96-blaupause-das-übertragbare-grundwerk). **Die Blaupause ist
+  das übertragbare Grundwerk, die Weitergabe ist die Frage, wer es bekommt.**
+- **Der Name gehört Adam.** *Weitergabe* ist ein Vorschlag der Kontroll-Sitzung,
+  keine Setzung.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

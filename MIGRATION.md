@@ -69,6 +69,53 @@ Punkt** sich darauf stützt — sonst gehört es zu seinem Punkt. Wer ein Papier
 hier einträgt, prüft zuerst, ob es nicht doch einem Punkt gehört; eine Liste,
 die alles aufnimmt, ordnet nichts.
 
+### Drei ausgearbeitete Konzepte ohne Drehbuch-Bezug `[NEU 2026-09-01]`
+
+**Gemessen am 31.08.:** `fliessender-dialog`, `entwicklungskette` und
+`konzept-handlungsfaehigkeit` kamen in diesem Drehbuch **null Mal** vor —
+**661 Zeilen ausgearbeitete Arbeit, fünf Wochen alt, von hier nicht
+erreichbar.** Kontrolle und Bot-Sitzung haben denselben Befund unabhängig
+gemacht.
+
+| Papier | Umfang | Inhalt | Hängung — **Vorschlag der Kontrolle, nicht entschieden** |
+|---|---|---|---|
+| [`2026-07-26_konzept-handlungsfaehigkeit.md`](docs/auftraege/2026-07-26_konzept-handlungsfaehigkeit.md) | 342 Z. | Reserve-Topf mit Zahlen · **Sparmodus** · Vertreter · Dirigent · Stufenplan | berührt **5.31** und **9.17** |
+| [`2026-07-27_konzept-fliessender-dialog.md`](docs/auftraege/2026-07-27_konzept-fliessender-dialog.md) | 151 Z. | Vermittlerin · Gedächtnis · Weglegbarkeit · Werte-Termin · Interface | berührt **9.4** |
+| [`2026-07-28_konzept-entwicklungskette-automatisieren.md`](docs/auftraege/2026-07-28_konzept-entwicklungskette-automatisieren.md) | 168 Z. | Auftragsbuch zwischen den Sitzungen, drei Stufen | berührt **9.4** |
+
+**Das hier sind Verweise, keine Punkte** — keine Nummer, kein Status. **Wo die
+drei wirklich hängen, entscheidet Adam.** Der Verweis ist trotzdem der erste
+Schritt und nicht das Bauen: *Ohne ihn meldet jede Sitzung aufs Neue als
+fehlend, was dort ausgearbeitet steht* — die Kontrolle hat am 31.08. mehrere
+Stunden genau damit verbracht.
+
+## Offene Wiedervorlagen — Termine, die niemand einholt `[NEU 2026-09-01]`
+
+**Warum dieser Abschnitt entsteht:** In den Bot-Protokollen wurden **zwei
+Termine gefunden, die Adam selbst gesetzt hat und die beide vorbei sind.**
+Keiner stand an einer Stelle, die ihn eingeholt hätte. Damit die frische
+Vertagung vom 31.08. nicht die dritte wird, steht sie hier — **als Eintrag,
+nicht als Zusage.**
+
+Das ist derselbe Ablageweg-Gedanke eine Ebene weiter: *Eine Entscheidung ohne
+Weg in die Ablage ist verloren* — und **ein Termin ohne Ort, der ihn einholt,
+ebenso.**
+
+| Wiedervorlage | Adams Wortlaut | Stand |
+|---|---|---|
+| **Fließender Dialog** — die fünf offenen Punkte aus Kapitel 7 | *„Fließender-Dialog-Entscheidungen vertagen, bitte wieder vorlegen, falls ich nicht selbst aktiv werde!"* (31.08., ~23:55) | **offen**, frisch vertagt. Die Kontrolle hat zusätzlich einen Wecker auf den **05.09.** gesetzt — **ein Wecker überlebt seine Sitzung nicht, dieser Eintrag schon.** |
+| **Werte-Termin** | *„dass wir uns **Mitte August** mal hinsetzen … dass wir wirklich definieren, was unsere Werte alle so beinhalten"* (27.07., 00:00); dazu am 26.07.: *„lass uns nochmal definieren, **was** wir optimieren, **wohin** wir es optimieren wollen"* | **⚠️ Frist verstrichen.** Der Termin steht im Konzept (Kapitel 6), aber an keiner Stelle, die ihn einholt. |
+| **Modellwahl festmachen** | *„dass du ansonsten immer das höchste Modell wählst, das hatten wir eigentlich so verankert. Kannst du festhalten, **machen wir dann, wenn ich wieder da bin, fest.**"* (29.07., 12:06) | **⚠️ Frist verstrichen** — er war Mitte August zurück, es wurde nicht festgemacht. **Geltungsbereich offen: Bot oder Sitzungen?** |
+
+**Zur Modellwahl ausdrücklich keine Auflösung, und das ist Absicht.** Gemessen:
+`immer das höchste Modell` hat **null Treffer** im Repo, während `CLAUDE.md`
+seit dem 28.07. die Modell-Autonomie mit *„Runterschalten ist ausdrücklich
+erwünscht"* und *„kein Dauermaximum"* trägt. **Ob sich beides widerspricht,
+hängt am Geltungsbereich** — Adams Satz richtet sich an den **Bot**, die Regel
+gilt den **Sitzungen**. Das hat niemand entschieden, und eine Sitzung, die es
+im Vorbeigehen auslegt, entscheidet es faktisch. **Hier steht deshalb nur, dass
+es offen ist.**
+
 ---
 
 **Dokument-Hoheit:** Diese Repo-Version (`MIGRATION.md` im Bot-Repo) ist ab 2026-07-12 der Master. **Führender Branch: `mac-produktivstand`** — dort liegt der gepflegte Stand; jede Sitzung macht vor Arbeitsbeginn `git fetch` und liest/pflegt von diesem Branch. Die Telegram-Sitzung übernimmt diese Fassung als ihr Arbeitsdokument (Punkt 0.8) und pflegt Status-Updates darin; andere Sitzungen lesen vor Arbeitsbeginn den aktuellen Stand aus dem Repo.

@@ -55,6 +55,19 @@ er nur in seiner Sitzung schreibt, nicht. Und der Spiegel läuft **beim
 Sitzungsstart**, nicht nach der Uhr — ein LaunchAgent scheiterte an der
 iCloud-Freigabe und meldete drei Monate lang still nichts.
 
+### 2b. **`[BERICHTIGT 01.09.]` Claudia → Mick läuft, und zwar beschrieben**
+
+**Hier stand vorhin nur der iCloud-Spiegel, und das war zu wenig gemessen.**
+Es gibt einen zweiten, ausdrücklich verabredeten Weg:
+[`docs/kurier-abmachung.md`](kurier-abmachung.md) (19.08.). Claudia legt unter
+`~/workspace/an-mick/` ab, der **stündliche** Log-Abgleich trägt es nach
+`logsync/claude-bot-logs/ausarbeitungen/`. **Beschrieben und gebaut.**
+
+Ich hatte danach nicht gesucht, weil ich vom iCloud-Ordner ausgegangen bin —
+also von dem Weg, über den die Papiere **mich** erreichen. Dass es die Antwort
+schon gab, hat die Kontrolle gemeldet. **Dieselbe Klasse Fehler, die dieses
+Papier beschreibt:** Wer nur einen Weg kennt, hält ihn für den einzigen.
+
 ### 3. Entscheidungen — **9.4**, Phase A gebaut
 
 Deckt den Weg für **Entscheidungen** ab (Freigabe-Postfach → datierte
@@ -69,13 +82,16 @@ Drehbuchzeile). **Nicht** den für Papiere zwischen Sitzungen.
 | Richtung | Weg | Adams Zutun |
 |---|---|---|
 | Bot → Log-Repo | `log_sync.sh` | keins |
-| Engywuck → Mick | iCloud-Spiegel | **er legt die Datei ab** |
+| **Claudia → Mick** | **Kurier-Abmachung, stündlich** | **keins** `[berichtigt 01.09.]` |
+| Engywuck → Mick | iCloud-Spiegel | **er kopiert von Hand** |
 | Mick → Engywuck | — | **er kopiert von Hand** |
 | Entscheidung → Drehbuch | 9.4 Phase A | keins |
 
 **Der Rückweg von hier zur Kontrolle ist der, den Adam ausdrücklich nennt** —
 *„dass es durchkontrolliert wird, das muss alleine gehen"* — und genau der
-existiert nicht.
+existiert nicht. **Ebensowenig der Hinweg von der Kontrolle zu mir:** Deshalb
+hat Adam die Papiere dieser Nacht um Mitternacht von Hand kopiert. **Die
+Lücke liegt auf beiden Seiten der Kontrollsitzung, nicht bei Claudia.**
 
 ## Die offene Frage
 

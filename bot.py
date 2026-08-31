@@ -3730,6 +3730,32 @@ def _ist_suchwerkzeug(name: str) -> bool:
 
     Der Standardweg ist der MCP-Server ``suche``; die unqualifizierten Namen
     bleiben als Rueckfall fuer die anbietereigene Suche stehen.
+
+    ## `[GEPRUEFT UND NICHT GEWEITET 31.08., F-9]` — bitte nicht "reparieren"
+
+    Der F-Listen-Befund sagt, diese Funktion werde **an einer von drei
+    Stellen** benutzt, und schlaegt vor, sie an den beiden anderen nachzuziehen.
+    **Gemessen ist das die falsche Reparatur, und sie waere teuer:**
+
+    - `bot.py` **Freigabe-Zweig**: Dort steht ``tool_name == _SEARCH_TOOL_NAME``
+      und gibt **automatisch frei**. Diese Funktion fasst die lokale Suche mit
+      ``WebSearch`` zusammen — und ``WebSearch`` steht in ``_COST_TOOLS``
+      (~1 Cent je Suche, Anthropic-Werkzeuggebuehr). Wer hier weitet, **gibt
+      ein kostenpflichtiges Werkzeug ohne Rueckfrage frei** und bricht die
+      💰-Regel.
+    - `bot.py` **Anzeige-Zweig**: Dort stehen absichtlich **zwei verschiedene
+      Texte** — [🔎 recherchiere] fuer die kostenfreie lokale Suche,
+      [🌐 Anthropic-Websuche (💰 kostenpflichtig)] fuer die andere. Zusammenfassen
+      hiesse, Adam genau die Unterscheidung zu nehmen, die er braucht.
+
+    **Die eine Aufrufstelle ist die richtige Menge:** Beim Sammeln der
+    Such-Kennungen fuer die Herkunftsliste ist es gleich, welche Suche die
+    Treffer geliefert hat — dort gehoeren beide zusammen. An den beiden
+    anderen Stellen ist der Unterschied die Funktion.
+
+    **Lehre:** Dieselbe Frage kann an drei Stellen stehen und an zweien eine
+    andere Bedeutung haben. Eine Zaehlung [1 von 3] misst die Schreibweise,
+    nicht die Absicht.
     """
     return name in (_SEARCH_TOOL_NAME, "WebSearch", "web_search")
 

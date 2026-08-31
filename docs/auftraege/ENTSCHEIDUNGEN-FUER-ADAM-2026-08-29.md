@@ -211,3 +211,51 @@ Der Update-Auftrag verlangt ausdrücklich mehr als einen grünen Lauf: ein PDF
 selbst ist ausgeführt geprüft** (erzeugt, ausgelesen, Umlaute erhalten); die
 Zustellung hätte dir um vier Uhr morgens eine Nachricht geschickt. Ein Wort
 von dir, und ich löse sie aus.
+
+---
+
+# Nachgetragen am 31.08.2026 — drei Fragen, die nur du entscheiden kannst
+
+Alle drei sind **vorgelegt, nicht vorbereitet**. Es liegt kein Entwurf daneben,
+den ein Ja auslösen würde — das ist Absicht: Bei diesen dreien wäre ein Entwurf
+schon die halbe Entscheidung.
+
+## ⑪ Wo bekommt der zweite Weg für den Hauptagenten seinen Platz?
+
+**Der Befund:** Phase 2 deckt Ausfallsicherheit **nur für die
+Neben-Inferenzen** ab — 2.3 (Ollama) und 2.4 (Groq) sind Rückfälle für Ampel,
+Labels und Zusammenfassungen. **Für den Hauptagenten gibt es keinen zweiten
+Weg und keinen Punkt, der einen fordert.** Das Fähigkeiten-Raster führt die
+Kapazität als eigene Zeile („Zwei Wege für alles"), das Drehbuch nicht.
+
+**Warum das keine Kleinigkeit ist:** Es ist dieselbe Klasse wie die
+Momo-Papiere — *ein Arbeitsfeld ohne Ort wird nicht abgearbeitet.* Und es ist
+dieselbe Art Entscheidung: **Phase 2 erweitern, oder eine eigene Phase.**
+
+**Nicht abgeleitet, nicht vorbereitet.** Sag, wohin er gehört, dann bekommt er
+seinen Punkt.
+
+## ⑫ Soll Hora jeden Befehl vorlegen, statt ihn auszuführen?
+
+Der F-16-Einzeiler ist in der Nacht zum 31.08. **gebaut, gemessen und
+zurückgenommen** worden. Gemessen: Er stellt **jeden ausführbaren Auftrag**
+unter Zustimmungspflicht — jeder Auftrag, der etwas tut, trägt einen Befehl.
+**Fünf abgenommene Prüfzeilen brachen sofort.**
+
+Das ist keine Riegel-Härtung, sondern die Entscheidung, dass **Hora ein
+Vorschlagender wird statt ein Läufer.** Sie kann richtig sein — dafür ist das
+Freigabe-Postfach gebaut. Wenn ja, sind fünf Prüfstände mitzuziehen.
+
+**Es eilt nicht:** Hora ist derzeit ruhend (kein Zeitgeber am Mac, keine
+Auftragsliste). Vollständige Messung in `docs/f-befunde-reihenfolge.md` bei F-16.
+
+## ⑬ Der Gegenleser wartet auf drei Handgriffe, und der erste kostet Geld
+
+Er hat seit dem 31.08. einen Punkt (**9.16**) — vorher stand er außerhalb des
+Plans, obwohl sein Register-Eintrag eine Kostenauflage trägt.
+
+**Die Auflage im Wortlaut:** Ausgabenlimit **beim Anbieter** setzen
+(10/10/5 EUR, Deckel 30 — dein Entscheid vom 28.08.), dann ZDR, dann Rauchtest.
+Erst danach scharfstellen. Das Modul ruft von sich aus nichts auf; solange du
+nichts tust, kostet es nichts.
+

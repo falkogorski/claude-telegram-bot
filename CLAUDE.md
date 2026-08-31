@@ -611,6 +611,34 @@ wir nicht geprüft haben.
 der **Rückweg bleibt offen**, und der Punkt ist als **„später prüfen"
 vermerkt** — sonst wird aus „für jetzt" stillschweigend „für immer".
 
+### Und der Schritt davor: **Löst es sich von selbst?** `[NEU 2026-09-01, Adam vom 25.08.]`
+
+**Adam im Wortlaut:** *„Zukünftig muss von dir **sofort als Erstes** geprüft
+werden: haben wir dazu sowieso schon was vor, was wir ändern wollen, und ist
+das Problem dann vielleicht gar nicht mehr existent?"* — eingebettet in seine
+Grundsatzkritik desselben Tages: *„Es ist gerade überhaupt nicht flexibel, was
+wir machen, sondern total eingefahren."*
+
+> **Bevor an einer Stelle nachgebessert wird: prüfen, ob ein ohnehin geplanter
+> Schritt das Problem entfallen lässt.**
+
+**Der Musterfall, an dem es gemessen wurde:** Das Zahlen-Vorlesen wurde in
+einer Wortliste immer weiter nachgeschärft — während Punkt 9.1 (TTS-Wechsel
+mit SSML) die nötige Unterscheidung *mitbringt*: `digits`, `cardinal`,
+`characters`. **Die richtige Erledigung ist dort möglicherweise, die Stelle
+entfallen zu lassen, nicht sie zu verbessern.**
+
+**Warum das hier steht und nicht als eigener Abschnitt:** Es ist der Schritt
+**vor** „Fremdes nehmen". Dort geht es um *nimm Vorhandenes statt selbst zu
+bauen*; hier um *bau vielleicht gar nichts*. Ein eigener Abschnitt wäre
+Wildwuchs — die Regel gehört an die, die sie fortsetzt.
+
+**Bemerkenswert, und es gehört dazu:** Die Bot-Sitzung wendet den Grundsatz
+seit dem 31.08. an — ihr Update-Monitor-Papier führt *„Notwendigkeit: Braucht
+es den Umbau überhaupt, oder erledigt ihn ein ohnehin geplanter Schritt?"* als
+eigenes Prüfkriterium. **Sie hat ihn übernommen, ohne dass er irgendwo
+stand.**
+
 ## ⚖️ EINE REGEL, DIE NIEMAND BEFOLGEN KANN, IST SCHLECHTER ALS KEINE
 
 Verallgemeinerung des R4-Prüfsteins. **Vor jeder neuen Regel prüfen:** Deckt

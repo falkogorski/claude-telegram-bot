@@ -720,6 +720,20 @@ _BTN_EFFORT_MAX_ACTIVE = "🚀 Max ✓"
 # Flott"), und die Bot-Bestätigung fettet den neuen Zustand.
 _BTN_STT_ACC_TO_FAST = "🎙️ Genau ✓ → Flott"   # medium aktiv; Tipp → small
 _BTN_STT_FAST_TO_ACC = "🎙️ Flott ✓ → Genau"   # small aktiv; Tipp → medium
+
+# 5.27 (Teil): Genehmigungs-Umschalter. Ein Knopf, zwei Zustaende, nach dem
+# Muster des STT-Toggles: Der Knopf zeigt den AKTIVEN Zustand und wohin der
+# Tipp fuehrt.
+#
+# **Warum es diesen Knopf ueberhaupt geben muss** (Engywucks Auflage A,
+# 31.08.): Er ist die GANZE Rechtfertigung dafuer, dass `Bash` die
+# Dauerfreigabe-Sperre verlassen darf. Eine Dauerfreigabe fuer das
+# maechtigste Werkzeug ist nur tragbar, solange sie **sichtbar** ist und
+# sich mit einem Griff zuruecknehmen laesst. Knopf und Sperre gehoeren
+# deshalb in EINEN Commit -- getrennt gebaut entstuende genau der Zustand,
+# gegen den die Sperre errichtet wurde.
+_BTN_GENEHM_TO_AUTO = "🔐 Genehmigen ✓ → Auto"   # Rueckfrage aktiv; Tipp → Auto
+_BTN_AUTO_TO_GENEHM = "⚡ Auto ✓ → Genehmigen"       # Auto aktiv; Tipp → Rueckfrage
 # Alt-Beschriftungen (bis 23.07.): bleiben gemappt, weil Telegram-Tastaturen
 # client-seitig weiterleben, bis der Client eine neue bekommt.
 _BTN_STT_TO_FAST = "🎙️ Genau → Flott"
@@ -817,6 +831,7 @@ _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_FABLE,
                       _BTN_STT_ACCURATE, _BTN_STT_FAST,
                       _BTN_STT_ACCURATE_ACTIVE, _BTN_STT_FAST_ACTIVE,
                       _BTN_THOROUGH, _BTN_THOROUGH_ACTIVE,
+                      _BTN_GENEHM_TO_AUTO, _BTN_AUTO_TO_GENEHM,
                       _BTN_KONTINGENT}
 # Aliase statt fester Versionen → Bot nutzt automatisch das jeweils
 # höchstwertige aktuelle Modell, Label muss bei neuen Versionen nicht angepasst werden.
@@ -1100,6 +1115,44 @@ def _stt_label(name: str) -> str:
     return _STT_LABELS.get(name, name)
 
 
+def _bash_auto_on(user_id: int | None) -> bool:
+    """Ist der Auto-Modus fuer Bash an?
+
+    **Ein Zustand, zwei Bedienwege** (Claudias Auftrag, 31.08.): Der Knopf
+    liest und schreibt **dieselbe** Ablage wie der Knopf „immer genehmigen"
+    unter einer Anfrage -- `prefs["always_allow"]`. Zwei getrennte Zustaende
+    fuer dieselbe Sache waeren die naechste Stelle, an der die Anzeige etwas
+    anderes behauptet als die Wirkung.
+    """
+    if user_id is None:
+        return False
+    return "Bash" in set(_USER_PREFS.get(str(user_id), {}).get("always_allow", []))
+
+
+def _set_bash_auto(user_id: int, an: bool) -> None:
+    """Auto-Modus setzen -- dauerhaft und in der laufenden Sitzung zugleich.
+
+    Beide Seiten sind noetig: `prefs` ueberlebt den Neustart, die Sitzung
+    entscheidet den naechsten Aufruf. Wer nur eine pflegt, baut einen Knopf,
+    der erst nach dem Neustart wirkt -- oder einen, der nach dem Neustart
+    stillschweigend zurueckfaellt.
+    """
+    prefs = _USER_PREFS.setdefault(str(user_id), {})
+    gespeichert = set(prefs.get("always_allow", []))
+    if an:
+        gespeichert.add("Bash")
+    else:
+        gespeichert.discard("Bash")
+    prefs["always_allow"] = sorted(gespeichert)
+    _save_prefs(_USER_PREFS)
+    sess = SESSIONS.get(user_id)
+    if sess is not None:
+        if an:
+            sess.always_allowed_tools.add("Bash")
+        else:
+            sess.always_allowed_tools.discard("Bash")
+
+
 def _main_keyboard(tts_on: bool, model: str, effort: str | None = None,
                    user_id: int | None = None) -> ReplyKeyboardMarkup:
     # Layout Y (Adam-Entscheid 22.07.): Zeile 1+2 = Dauer-Zustand (Modelle,
@@ -1141,6 +1194,12 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None,
         rows.append([stt_toggle, _gruendlich_btn, _BTN_KONTINGENT])
     else:
         rows.append([_gruendlich_btn, _BTN_KONTINGENT])
+    # Eigene Zeile statt Anhaengen an Zeile 3: Der Genehmigungs-Zustand ist
+    # eine Sicherheitsaussage und soll nicht zwischen Tempo-Knoepfen
+    # untergehen. Er wird IMMER gezeichnet -- ein Umschalter, der je nach
+    # Lage verschwindet, laesst den Zustand im Ungewissen.
+    rows.append([_BTN_AUTO_TO_GENEHM if _bash_auto_on(user_id)
+                 else _BTN_GENEHM_TO_AUTO])
     return ReplyKeyboardMarkup(
         rows,
         resize_keyboard=True,
@@ -2278,7 +2337,21 @@ _COST_TOOLS = {
 #
 # Der Preis ist eine Rückfrage je Aufruf. Bewusst bezahlt (Adam 22.08.).
 # ══════════════════════════════════════════════════════════════════════════
-_NO_ALWAYS_TOOLS = ({"WebFetch", "Bash", "Write", "Edit", "MultiEdit",
+#
+# **`[GEAENDERT 01.09.2026, Adams Freigabe]` `Bash` ist heraus -- und der
+# Grund ist nicht, dass seine Wirkung harmloser geworden waere.** Das
+# Aufnahmekriterium oben lautet: *ein einziger Klick gilt danach UNSICHTBAR
+# fort.* Genau diese Haelfte ist entfallen: Seit 5.27 traegt die Tastatur
+# einen Umschalter, der den Zustand **dauerhaft anzeigt** und ihn mit einem
+# Griff zuruecknimmt. Was bleibt, ist die Wirkung -- und die faengt nicht
+# diese Liste ab, sondern die Schranken davor: Repo-Schreibsperre (8.7),
+# `bashfreigabe.entscheiden`, Geheimnis-Marker. Alle drei stehen im
+# Rueckruf **vor** dem Dauerfreigabe-Kurzschluss und bleiben unberuehrt.
+#
+# **Wer diese Zeile rueckgaengig macht, nimmt auch den Knopf zurueck.**
+# Ein Knopf, der einen Zustand anzeigt, den es nicht mehr gibt, ist
+# schlimmer als kein Knopf.
+_NO_ALWAYS_TOOLS = ({"WebFetch", "Write", "Edit", "MultiEdit",
                      "NotebookEdit"} | set(_COST_TOOLS))
 
 
@@ -4961,7 +5034,7 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "anschauen, ✍ 👨‍💻 🏆 = merk dir das, 😴 = später, ❤️ 🎉 👏 💯 🍓 🍌 = "
         "Wertschätzung). Auf offene Fragen ist die Reaktion die Antwort. "
         "Nummerierte Optionslisten bekommen 1️⃣–9️⃣-Knöpfe.\n\n"
-        "📌 Buttons in der Tastatur (10):\n"
+        "📌 Buttons in der Tastatur (11):\n"
         "🟣 Haiku / 🟡 Sonnet / 🔵 Opus / 🟠 Fable — Modell wechseln\n"
         "⚡ Schnell / ⚖️ Normal / 🚀 Max — Denk-Tiefe\n"
         "🎙️ Genau ✓ → Flott (bzw. umgekehrt) — Transkriptions-Tempo: ✓ markiert "
@@ -4971,7 +5044,13 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "ihn aus; der Haken zeigt dir, ob er läuft\n"
         "📉 Kontingent — zeigt, wie viel vom Fünf-Stunden- und vom "
         "Wochenfenster aufgebraucht ist, mit Ampel und genauer Uhrzeit, ab "
-        "wann wieder frei ist. Die Abfrage kostet kein Kontingent\n\n"
+        "wann wieder frei ist. Die Abfrage kostet kein Kontingent\n"
+        "\U0001f510 Genehmigen ✓ → Auto (bzw. umgekehrt) — Umschalter für "
+        "Bash-Rückfragen. Bei „Genehmigen“ fragt jeder Befehl außerhalb der "
+        "Positivliste nach; bei „Auto“ läuft Bash ohne Rückfrage. Was sich "
+        "dadurch NICHT ändert: Schreibversuche ins Repo werden weiter "
+        "abgelehnt, Geheimnis-Pfade bleiben zu, Kosten-Werkzeuge fragen "
+        "weiter. Der Knopf erspart die Rückfrage, nicht die Ablehnung\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
     )
     await update.message.reply_text(text)
@@ -8024,9 +8103,28 @@ def run_self_check() -> tuple[bool, list[str]]:
         # Quelltext, die **drei Kommentarzeilen erfuellen**. Wer die Sperre aus
         # dem Always-Zweig nahm und den Namen im Kommentar liess, bekam einen
         # gruenen Pruefer und eine pauschal dauerfreigebbare WebSearch.
-        for teuer in ("WebSearch", "WebFetch", "Bash", "Write", "Edit"):
+        #
+        # `[ANGEPASST 01.09.2026, Adams Freigabe]` **Bash ist heraus, und die
+        # Zeile darunter faengt es auf.** Der Grund fuer seine Aufnahme war
+        # die Unsichtbarkeit einer Dauerfreigabe; seit 5.27 zeigt die
+        # Tastatur den Zustand an. Die anderen vier bleiben unveraendert --
+        # fuer sie gibt es keinen Umschalter, und bei WebSearch haengt die
+        # 💰-Kostenschranke daran.
+        for teuer in ("WebSearch", "WebFetch", "Write", "Edit"):
             assert not darf_dauerfreigabe(teuer), \
                 f"{teuer} waere pauschal dauerfreigebbar — die Kostenschranke faellt"
+        # **Und der Gegenhalt zu Bash:** dauerfreigebbar ja, aber nur solange
+        # der Umschalter existiert, der den Zustand sichtbar macht. Faellt er
+        # weg, ist die Dauerfreigabe wieder unsichtbar -- und dann gehoert
+        # Bash zurueck auf die Liste.
+        assert darf_dauerfreigabe("Bash"), \
+            "Bash ist zurueck auf der Nie-dauerhaft-Liste — dann gehoert der Umschalter zurueckgebaut"
+        _tastatur = [b.text for _r in _main_keyboard(False, "opus", None, user_id=4711).keyboard
+                     for b in _r]
+        assert (_BTN_GENEHM_TO_AUTO in _tastatur or _BTN_AUTO_TO_GENEHM in _tastatur), \
+            ("der Genehmigungs-Umschalter fehlt auf der Tastatur, waehrend Bash "
+             "dauerfreigebbar ist — genau die unsichtbare Dauerfreigabe, gegen "
+             "die die Sperre gebaut war")
         # Gegenrichtung: harmlose Werkzeuge duerfen es, sonst waere die Sperre
         # kein Riegel, sondern eine Mauer.
         assert darf_dauerfreigabe("Read"), "Read ist nicht mehr dauerfreigebbar"
@@ -9632,6 +9730,33 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         # als sein Befehl, waere die naechste Stelle, an der zwei Pfade
         # auseinanderlaufen.
         await cmd_kontingent(update, None)
+        return
+
+    if text in (_BTN_GENEHM_TO_AUTO, _BTN_AUTO_TO_GENEHM):
+        # Auf BEIDE Beschriftungen pruefen -- sonst kaeme ein Druck auf die
+        # gerade sichtbare Fassung als Frage beim Agenten an (der Knopf-Bug
+        # vom 23.07., der zur Tastatur-Vollstaendigkeitspruefung gefuehrt hat).
+        neu_an = not _bash_auto_on(user_id)
+        _set_bash_auto(user_id, neu_an)
+        _p = _USER_PREFS.get(str(user_id), {})
+        sess = SESSIONS.get(user_id)
+        tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
+        cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
+        if neu_an:
+            antwort = (
+                "⚡ **Auto ist an** — Bash laeuft ohne Rueckfrage.\n\n"
+                "Was sich dadurch **nicht** aendert, und das ist der Punkt: "
+                "Schreibversuche ins Repo werden weiter **abgelehnt**, "
+                "Geheimnis-Pfade bleiben zu, Kosten-Werkzeuge fragen weiter. "
+                "Der Knopf erspart die Rueckfrage, nicht die Ablehnung.\n\n"
+                "Der Haken auf dem Knopf zeigt dir, dass er laeuft.")
+        else:
+            antwort = ("\U0001f510 **Genehmigen ist an** — jeder Bash-Aufruf "
+                       "ausserhalb der Positivliste fragt wieder nach.")
+        await update.message.reply_text(
+            antwort, parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_main_keyboard(tts_on, cur_model, _p.get("effort"),
+                                        user_id=user_id))
         return
 
     if text in (_BTN_THOROUGH, _BTN_THOROUGH_ACTIVE):

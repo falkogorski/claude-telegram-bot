@@ -124,7 +124,12 @@ else:
 # Varianten (✓/Pfeile) genügt der Kern-Marker.
 marker = {"🟣 Haiku", "🟡 Sonnet", "🔵 Opus", "🟠 Fable",
           "⚡ Schnell", "⚖️ Normal", "🚀 Max", "🎙️", "🎯 Gründlich",
-          "📉 Kontingent"}
+          "📉 Kontingent",
+          # 5.27: Der Genehmigungs-Umschalter traegt zwei Beschriftungen
+          # („Genehmigen ✓ → Auto" und „Auto ✓ → Genehmigen"). Als Kern-Marker
+          # genuegt das Wort, das in beiden vorkommt — sonst muesste diese
+          # Menge bei jeder Umbenennung des Zustands mitgepflegt werden.
+          "Genehmigen"}
 fehlende_marker = [mk for mk in marker if mk not in hilfe_src]
 if fehlende_marker:
     fail(f"Tastatur-Marker fehlen in /hilfe: {fehlende_marker}")

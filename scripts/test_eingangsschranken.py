@@ -681,10 +681,26 @@ check("die Warnung erreicht Adam", _die_warnung_erreicht_adam)
 # --------------------------------------------------------------------------
 
 def _bash_steht_auf_der_nie_dauerhaft_liste():
-    assert "Bash" in bot._NO_ALWAYS_TOOLS, \
-        "Bash ist wieder dauerfreigebbar - ein Klick wuerde unsichtbar fortgelten"
-    assert "WebFetch" in bot._NO_ALWAYS_TOOLS, \
-        "WebFetch ist aus der Liste gefallen"
+    """**`[UMGESTELLT 01.09.2026, Adams Freigabe]` Bash ist bewusst heraus.**
+
+    Die alte Fassung verlangte `"Bash" in _NO_ALWAYS_TOOLS`. Der Grund dafuer
+    war nie die Maechtigkeit allein, sondern die **Unsichtbarkeit**: *ein
+    Klick gilt danach unsichtbar fort.* Diese Haelfte ist mit dem
+    Genehmigungs-Umschalter (5.27) entfallen -- der Zustand steht auf der
+    Tastatur und ist mit einem Griff zurueckgenommen.
+
+    **Die Zeile wird deshalb nicht geloescht, sondern umgedreht:** Sie haelt
+    fest, dass Bash **absichtlich** heraus ist und die anderen fuenf
+    **drin bleiben**. Ohne sie liesse sich morgen ein weiteres Werkzeug
+    herausnehmen, und niemand faende die Stelle.
+    """
+    assert "Bash" not in bot._NO_ALWAYS_TOOLS, \
+        ("Bash steht wieder auf der Nie-dauerhaft-Liste - dann gehoert auch "
+         "der Umschalter zurueckgebaut, sonst zeigt er einen Zustand an, den "
+         "es nicht mehr gibt")
+    for werkzeug in ("WebFetch", "Write", "Edit", "MultiEdit", "NotebookEdit"):
+        assert werkzeug in bot._NO_ALWAYS_TOOLS, \
+            f"{werkzeug} ist aus der Liste gefallen - dafuer gibt es keinen Umschalter"
 
 
 def _eine_alte_bash_freigabe_greift_nicht_mehr():
@@ -714,13 +730,35 @@ def _eine_alte_bash_freigabe_greift_nicht_mehr():
     # **Der Unterschied ums Ganze:** Eine Dauerfreigabe waeltigt jeden Befehl
     # unbesehen. Die Positivliste prueft jeden einzeln und weist im Zweifel
     # ab. Wer beides gleichsetzt, haelt eine Schranke fuer eine Luecke.
+    # **`[UMGEDREHT 01.09.2026, Adams Freigabe]` -- und hier steht die
+    # Konsequenz, die man wissen muss, bevor man den Knopf drueckt.**
+    #
+    # Im Auto-Modus geht `curl` durch. Das ist **kein Versehen**, sondern die
+    # Bedeutung des Knopfs: „Bash gilt als dauerfreigegeben". Auch ein Weg
+    # nach draussen laeuft dann ohne Rueckfrage -- die Positivliste haette
+    # ihn erfragt.
+    #
+    # Was **nicht** durchgeht, misst die Zeile darunter und die 5.27-Zeile
+    # weiter oben: Repo-Schreibversuche, Geheimnis-Pfade, Kosten-Werkzeuge.
+    # **Der Knopf erspart die Rueckfrage, nicht die Ablehnung** -- deshalb
+    # steht der Zustand sichtbar auf der Tastatur und nicht in einer Datei.
     ergebnis = asyncio.run(rueckruf(
         "Bash", {"command": "curl https://example.com"}, _Ctx()))
-    assert not isinstance(ergebnis, PermissionResultAllow), \
-        ("eine gefuehrte Bash-Dauerfreigabe wurde durchgewunken - der Klick "
-         "gilt unsichtbar weiter")
-    # Hier ist der Dialog der eigentliche Beweis: Die Freigabe soll nicht
-    # stillschweigend verweigert, sondern erneut ERFRAGT werden.
+    assert isinstance(ergebnis, PermissionResultAllow), \
+        ("der Auto-Modus wirkt nicht mehr - entweder ist Bash zurueck auf der "
+         "Nie-dauerhaft-Liste oder der Kurzschluss ist zerbrochen")
+    assert not sess.bot.dialoge, \
+        "trotz Auto-Modus wurde gefragt - der Knopf waere wirkungslos"
+
+    # Und die Gegenrichtung im selben Atemzug: **ohne** Auto-Modus fragt
+    # derselbe Befehl wieder. Ohne diese Haelfte bliebe offen, ob der Dialog
+    # ueberhaupt noch existiert.
+    sess.always_allowed_tools.discard("Bash")
+    sess.bot.dialoge.clear()
+    ohne = asyncio.run(rueckruf(
+        "Bash", {"command": "curl https://example.com"}, _Ctx()))
+    assert not isinstance(ohne, PermissionResultAllow), \
+        "ohne Auto-Modus wurde ein Weg nach draussen ohne Rueckfrage erlaubt"
     assert sess.bot.dialoge, \
         "niemand wurde gefragt - das Deny kam aus einem Fehlschlag, nicht aus der Schranke"
 
@@ -763,17 +801,23 @@ def _eine_gespeicherte_bash_freigabe_wird_rueckwirkend_geraeumt():
 
     "Ohne diese Zeile haengt die Rueckwirkung an einer Annahme."
     """
-    vorlieben = {"always_allow": ["Bash", "Read"]}
+    # **`[UMGEDREHT 01.09.2026]` Genau diese Raeumung darf Bash NICHT mehr
+    # treffen** -- sonst loescht der Sitzungsstart jedes Mal still den
+    # Zustand, den Adam am Knopf gesetzt hat. Ein Umschalter, der nach dem
+    # Neustart zurueckfaellt, ist schlimmer als keiner: Er behauptet einen
+    # Zustand, den es nicht gibt.
+    vorlieben = {"always_allow": ["Bash", "WebFetch", "Read"]}
     bereinigt = bot.freigaben_bereinigen(4711, vorlieben)
-    assert "Bash" not in bereinigt, \
-        "eine gespeicherte Bash-Freigabe ueberlebt den Sitzungsstart"
+    assert "Bash" in bereinigt, \
+        ("die Bash-Freigabe wird beim Sitzungsstart geraeumt - Adams "
+         "Knopfzustand ueberlebt den Neustart nicht")
+    assert "WebFetch" not in bereinigt, \
+        "eine gespeicherte WebFetch-Freigabe ueberlebt den Sitzungsstart"
     assert "Read" in bereinigt, \
         "harmlose Dauerfreigaben wurden mitgeraeumt - zu scharf"
-    # Und sie ist auch aus den Vorlieben verschwunden, nicht nur aus der
-    # Rueckgabe: sonst kaeme sie beim naechsten Start wieder.
     zurueck = bot._USER_PREFS.get("4711", {}).get("always_allow", [])
-    assert "Bash" not in zurueck, \
-        f"Bash steht weiter in den gespeicherten Vorlieben: {zurueck}"
+    assert "WebFetch" not in zurueck, \
+        f"WebFetch steht weiter in den gespeicherten Vorlieben: {zurueck}"
 
 
 check("gespeicherte Bash-Freigabe wird geraeumt",
@@ -1596,7 +1640,12 @@ def _auch_schreibende_werkzeuge_sind_nicht_dauerfreigebbar():
     zaehlt vierzehn Werkzeuge auf, die ein Lauf mit Fremdinhalt nie braucht.
     Davon standen genau drei auf dieser Liste.
     """
-    for werkzeug in ("Bash", "Write", "Edit", "NotebookEdit", "WebFetch"):
+    # `[ANGEPASST 01.09.2026]` **Bash ist hier heraus, die anderen bleiben** --
+    # und der Unterschied ist nicht Maechtigkeit, sondern Sichtbarkeit: Fuer
+    # Bash gibt es seit 5.27 einen Umschalter auf der Tastatur, fuer Write und
+    # Edit nicht. Die Begruendung dieser Zeile (*Wirkung ueber die Sitzung
+    # hinaus*) gilt fuer sie unveraendert weiter.
+    for werkzeug in ("Write", "Edit", "NotebookEdit", "WebFetch"):
         assert werkzeug in bot._NO_ALWAYS_TOOLS, \
             f"{werkzeug} ist dauerfreigebbar - ein Klick gilt unsichtbar fort"
 
@@ -1856,6 +1905,71 @@ def _entscheidung_und_grund_koennen_nicht_driften():
         "Sicherheitsschranke (F-8)")
 
 
+def _dauerfreigabe_erspart_die_rueckfrage_nicht_die_ablehnung():
+    """**Auflage B, Engywuck 31.08. — der Prueferschutz zum Bash-Knopf.**
+
+    Er misst **Verhalten**, nicht Text, und der Grund steht im Docstring von
+    `darf_dauerfreigabe`: Der alte Pruefer verlangte
+    `src.count("_NO_ALWAYS_TOOLS") >= 3` -- **drei Kommentarzeilen erfuellten
+    die Schwelle.** Wer die Sperre aus dem Zweig entfernte und den Namen im
+    Kommentar stehen liess, bekam einen gruenen Pruefer und eine pauschal
+    freigegebene WebSearch.
+
+    Gemessen wird deshalb der Rueckruf selbst, in beide Richtungen:
+    Die Dauerfreigabe **wirkt** (sonst waere der Knopf eine Attrappe) und sie
+    **hebt die Repo-Sperre nicht auf** (sonst waere sie gefaehrlich).
+    """
+    from claude_agent_sdk import PermissionResultAllow
+    sess = _sitzung(always_allowed_tools={"Bash"})
+    bot._USER_PREFS["4711"] = {"always_allow": ["Bash"]}
+    rueckruf = bot.make_permission_callback(4711)
+
+    class _Ctx:
+        suggestions = None
+
+    def frage(cmd):
+        return asyncio.run(rueckruf("Bash", {"command": cmd}, _Ctx()))
+
+    # ① Der Knopf wirkt: ein harmloser Befehl laeuft ohne Dialog durch.
+    harmlos = frage("echo hallo")
+    assert isinstance(harmlos, PermissionResultAllow), \
+        "die Bash-Dauerfreigabe wirkt nicht - der Knopf waere eine Attrappe"
+    assert not sess.bot.dialoge, \
+        "trotz Dauerfreigabe wurde gefragt"
+
+    # ② Und er hebt die Repo-Sperre NICHT auf. **Das ist die Zeile, die bei
+    # der Gegenprobe rot werden muss**, wenn man den `_is_repo_write_cmd`-
+    # Zweig aus `make_permission_callback` entfernt.
+    # **Der Pfad muss absolut sein, und das ist selbst ein Befund.** Der
+    # erste Anlauf pruefte `git commit -am test` und schlug fehl -- nicht
+    # weil die Sperre versagte, sondern weil `WORKDIR` im Pruefbetrieb
+    # `~` ist: Ein relativer Pfad liegt dann gar nicht im Repo, und
+    # `_is_repo_write_cmd` sagt korrekt Nein. Eine falsch konstruierte
+    # Gegenprobe sieht aus wie ein Befund (Rang B (d), 29.08.).
+    schreibend = frage(f"git -C {bot._REPO_DIR} commit -am test")
+    assert not isinstance(schreibend, PermissionResultAllow), \
+        ("die Repo-Schreibsperre (8.7) wurde von der Bash-Dauerfreigabe "
+         "ueberholt - genau der Fall, gegen den Auflage A und B stehen")
+
+    # ③ Und der Zustand ist EINER: Was `_set_bash_auto` schreibt, liest
+    # `_bash_auto_on` -- und der Knopf auf der Tastatur zeigt es.
+    bot._set_bash_auto(4711, False)
+    assert not bot._bash_auto_on(4711), "Ausschalten wirkte nicht"
+    labels = [b.text for r in bot._main_keyboard(False, "opus", None, user_id=4711).keyboard
+              for b in r]
+    assert bot._BTN_GENEHM_TO_AUTO in labels, \
+        "der Knopf zeigt den Aus-Zustand nicht an"
+    bot._set_bash_auto(4711, True)
+    labels = [b.text for r in bot._main_keyboard(False, "opus", None, user_id=4711).keyboard
+              for b in r]
+    assert bot._BTN_AUTO_TO_GENEHM in labels, \
+        ("der Knopf zeigt den An-Zustand nicht an - eine unsichtbare "
+         "Dauerfreigabe ist genau das, was die Sperre verhindern sollte")
+    bot._USER_PREFS.pop("4711", None)
+
+
+check("Dauerfreigabe erspart die Rueckfrage, nicht die Ablehnung (5.27)",
+      _dauerfreigabe_erspart_die_rueckfrage_nicht_die_ablehnung)
 check("der Lesegrund nennt den echten Grund (F-8)", _der_lesegrund_nennt_den_echten_grund)
 check("Entscheidung und Grund koennen nicht driften (F-8)",
       _entscheidung_und_grund_koennen_nicht_driften)

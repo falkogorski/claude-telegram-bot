@@ -577,6 +577,71 @@ check("hidden ohne Wert verbirgt (Befund 4)",
 check("ein fuenfter Mechanismus kostet EINE Zeile (Engywucks Pruefstein)",
       _ein_fuenfter_mechanismus_kostet_eine_zeile)
 
+# ── F-17: aus einem Argument einen Messwert machen ─────────────────────────
+#
+# **Der Satz [kein Weg zu `task_origins`] war wahr — und ungemessen.** Er gilt,
+# solange niemand den Mail-Pfad an `process_user_text` haengt; nichts hielt
+# diese Abwesenheit fest. Die vorhandene Zeile prueft nur, dass die Namen im
+# Berichtspfad selbst nicht vorkommen.
+#
+# **Gemessen wird die ERREICHBARKEIT ueber den Syntaxbaum**, nicht die
+# Schreibweise: Von den Mail-Einstiegen aus darf `process_user_text` nicht
+# aufgerufen werden — auch nicht ueber eine Zwischenfunktion. Ein Kommentar
+# mit dem Namen zaehlt im Baum nicht.
+
+def _mailpfad_erreicht_die_hauptsitzung_nicht():
+    import ast
+    from pathlib import Path as _P
+    quelle = (_P(__file__).resolve().parent.parent / "bot.py").read_text(encoding="utf-8")
+    baum = ast.parse(quelle)
+
+    # Aufrufgraph: welche Funktion ruft welche? Nur echte Call-Knoten.
+    graph, funktionen = {}, {}
+    for k in ast.walk(baum):
+        if isinstance(k, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            funktionen[k.name] = k
+            gerufen = set()
+            for kind in ast.walk(k):
+                if isinstance(kind, ast.Call):
+                    f = kind.func
+                    name = getattr(f, "id", None) or getattr(f, "attr", None)
+                    if name:
+                        gerufen.add(name)
+            graph[k.name] = gerufen
+
+    start = [n for n in funktionen if n.startswith("on_mail") or n == "mail_zusammenfassen"]
+    assert start, "kein Mail-Einstieg gefunden — die Menge waere leer und die Zeile wertlos"
+
+    gesehen, rand, weg = set(), list(start), {}
+    while rand:
+        n = rand.pop()
+        if n in gesehen:
+            continue
+        gesehen.add(n)
+        for z in graph.get(n, ()):
+            weg.setdefault(z, n)
+            if z not in gesehen:
+                rand.append(z)
+
+    assert "process_user_text" not in gesehen, (
+        "vom Mail-Pfad aus ist die HAUPTsitzung erreichbar (ueber "
+        f"{weg.get('process_user_text')}) — fremder Mailtext kaeme damit in "
+        "einen Lauf mit vollem Werkzeugsatz")
+
+    # Gegenrichtung: Der Graph muss ueberhaupt etwas finden, sonst waere die
+    # Zusage oben mit einer leeren Menge zu erfuellen.
+    assert len(gesehen) > 5, (
+        f"der Aufrufgraph erreicht nur {len(gesehen)} Funktionen — die Messung "
+        "traegt nicht")
+
+
+try:
+    _mailpfad_erreicht_die_hauptsitzung_nicht()
+    print("✓ vom Mail-Pfad ist die Hauptsitzung nicht erreichbar (F-17)")
+except AssertionError as e:
+    print(f"✗ vom Mail-Pfad ist die Hauptsitzung nicht erreichbar (F-17): {e}")
+    fails.append("Mailpfad erreicht die Hauptsitzung")
+
 print()
 if fails:
     print(f"❌ {len(fails)} Korpus-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

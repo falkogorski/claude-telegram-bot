@@ -489,7 +489,7 @@ Fehlalarm des Start-Wächters kam genau daher.
 
 ## 🧹 ENTRÜMPELUNG — terminiert, nicht jetzt (R5, 2026-07-25)
 
-`bot.py` ist auf **über 7000 Zeilen** gewachsen. Gesucht wird beim
+`bot.py` ist auf **12.628 Zeilen** gewachsen `[NACHGEMESSEN 2026-08-31]` — hier stand *über 7000*, seit dem 25.07. unverändert, während die Datei sich fast verdoppelt hat. **Eine Zahl in einer Regel altert schneller als die Regel**, und eine zu kleine lässt das Aufräumen unwichtiger aussehen, als es ist. Alle eigenen Module zusammen: 19.002 Zeilen. Gesucht wird beim
 Abschluss-Audit (Phase 10), **nicht zwischendurch**: tote Pfade aus revidierten
 Entscheidungen · sich aufhebende Parameter · doppelte Regeln.
 

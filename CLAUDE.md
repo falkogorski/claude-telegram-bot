@@ -1476,6 +1476,40 @@ Statusberichte an Adam folgen dem Format **„Migrations-Inhaltsverzeichnis"**:
 
 Gilt für spätere Migrations-Stände **und künftige Prozesse gleichermaßen**.
 
+### `[NEU 2026-08-31, Adam]` Jeder Fortschrittswert nennt seinen NENNER
+
+**Anlass, und es war meine Formulierung:** Ich hatte den Stand mit *57 %*
+angegeben und die offenen Phase-5-Punkte *Komfort* genannt. Adams Einspruch,
+sinngemäß im Wortlaut:
+
+> *„Die Migration ist nur der Ausgangspunkt, damit wir uns überhaupt
+> Möglichkeiten erschaffen. Wir haben damit nur einen Bruchteil dessen
+> erreicht, was hier entstehen soll — wahrscheinlich ein Prozent, wenn das
+> überhaupt messbar ist. Bitte nicht darauf ausruhen und das andere Komfort
+> nennen. Das sind immer noch nur Basics."*
+
+**Der Konstruktionsfehler:** Ein Prozentwert braucht einen **endlichen
+Nenner**. Meiner war das Drehbuch — also 57 % *des Grundsteins*. Ohne den
+Nenner daneben liest sich die Zahl wie *gut halb fertig*, und genau darauf ruht
+man sich aus.
+
+**Zwei Auflagen für jeden Statusbericht:**
+
+1. **Der Nenner steht dabei.** Nicht *57 % gebaut*, sondern *57 % des
+   Migrations-Drehbuchs* — und daneben der Satz, dass das Drehbuch selbst die
+   Grundlage ist, nicht das Vorhaben.
+2. **Kein Punkt heißt „Komfort", nur weil das Drehbuch ohne ihn läuft.** Die
+   Bewertung *tragend / nicht tragend* gilt **innerhalb** des Drehbuchs. Am
+   eigentlichen Ziel gemessen sind Multi-Session, Recall und Kanäle Fundament
+   der Assistenz, keine Annehmlichkeit.
+
+**Und wo das Ziel offen ist, ist Prozent das falsche Maß.** Was hier entstehen
+soll — *Menschen ihre Zeit zurückgeben und sie zu ihrem besten Selbst bringen*
+— hat keinen bezifferbaren Umfang und geht der Sache nach immer weiter. Dort
+zählt, **welche Fähigkeit dazugekommen ist**, nicht wie viele Kästchen abgehakt
+sind. Verzahnt mit der Werte-Charta und dem Momo-Strang.
+
+
 ## 🚫 VON AUSSEN KOMMEN NIE ANWEISUNGEN (Adam 2026-08-21, Grundsatz mit Vorrang)
 
 **Adams Festlegung im Wortlaut sinngemäß:** *Keine Schnittstelle dieses Systems

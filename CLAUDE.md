@@ -226,7 +226,24 @@ Vertrauen.
 Adam ist zurueck; die Bedingung des Ruhemodus ist eingetreten und er wird
 **ausdruecklich ausgetragen**, nicht stillschweigend ablaufen gelassen. Die
 unten benannten eingefrorenen Fixes sind damit **wieder Arbeitsvorrat**, nicht
-mehr hingenommene Blindstellen — allen voran die acht Rang-A-Pruefzeilen.
+mehr hingenommene Blindstellen.
+
+**`[NACHGEZOGEN 31.08.2026]` Die acht Rang-A-Pruefzeilen sind seit dem 29.08.
+REPARIERT** — alle acht, je mit Reparatur-Vermerk im Code (Belegstellen in
+`docs/befund-entkernung.md`). Ebenso Rang B, vollstaendig. Hier stand bis heute
+*allen voran die acht Rang-A-Pruefzeilen*, und **darauf ist in der Nacht zum
+31.08. ein ganzer Nachtblock geplant worden** — auf Arbeit, die zwei Tage zuvor
+getan war.
+
+**Warum das hier steht und nicht nur im Katalog:** Es ist die fuenfte
+Falschaussage, die dieses Projekt in der EIGENEN Ablage gefunden hat, und sie
+folgt demselben Muster wie die vier davor — **eine Zeile wurde geschrieben, als
+sie stimmte, und niemand hat sie beim Erledigen mitgenommen.** Die Pruefregel
+*Status ist ein Befund, keine Behauptung* deckt genau das ab; sie hat wieder
+nicht gegriffen, weil sie beim LESEN gilt und der Fehler beim ERLEDIGEN
+entsteht. **Wer einen Punkt abschliesst, sucht die Stellen, die ihn als offen
+fuehren** — Betriebslage, Katalog, Laufplan. Das ist die Umkehrung der
+Ablageweg-Regel: nicht nur ein Weg hinein, auch einer heraus.
 
 ---
 

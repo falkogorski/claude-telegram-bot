@@ -83,6 +83,28 @@ sein Ausfall sähe wie Ruhe aus. Nur diese acht werden jetzt repariert:
 | 7 | test_start_waechter_b1.py:167 | im `--detach`-Betrieb meldet der Wächter „sauber hochgekommen" über einem toten Bot |
 | 8 | test_kalender_caldav.py:178 | hartkodiertes App-Passwort passiert die Geheimnis-Suche |
 
+**`[ERLEDIGT 2026-08-29, nachgetragen 2026-08-31]` Rang A vollständig — alle
+acht.** Die Reparatur lief im Nachtpaket vom 29.08.; **der Vermerk hier fehlte,
+und das hat Folgen gehabt.** Am 31.08. um kurz nach drei stand dieser Block als
+*substanziellste offene Arbeit im Projekt* in einem Nachtauftrag — gemessen war
+er da seit zwei Tagen erledigt. Fundstellen, jede mit Reparatur-Vermerk im Code:
+
+| # | Wo die Reparatur steht |
+|---|---|
+| 1 | `bot.py:6739` (herausgezogene Funktion) + `bot.py:8092` (ausgeführt statt gelesen) |
+| 2 | `bot.py:2285` + `bot.py:7960` (ausgeführt statt gezählt) |
+| 3 | `bot.py:7783` (der Name genügt nicht) |
+| 4 | `bot.py:8145` (über den Syntaxbaum, nicht über den Text) |
+| 5 | `bot.py` `_c_medien_eingang` (Verhalten **und** echte Aufrufknoten) |
+| 6 | `bot.py:944` + `scripts/test_session_limit_h2.py:102/126` |
+| 7 | `scripts/start_waechter.py:54` + `scripts/test_start_waechter_b1.py:178` |
+| 8 | `scripts/test_kalender_caldav.py:93` (samt Gegenprobe, dass die Suche *finden kann*) |
+
+**Die Lehre ist die des Katalogs selbst, eine Ebene höher:** Ein Prüfer, der
+grün meldet, ohne gemessen zu haben, und eine Ablage, die offen meldet, ohne
+nachgesehen zu haben, sind derselbe Fehler. Der zweite kostet keine Sicherheit,
+aber Arbeitszeit — und Vertrauen in jede andere Zeile derselben Ablage.
+
 **Bauform je Fix — die zwei tragfähigen Formen, keine dritte:** Verhalten
 ausführen (nötigenfalls die Entscheidung in eine eigene Funktion ziehen, damit
 ein Prüfer sie erreicht), oder Abwesenheit über echte `ast.Call`-Knoten samt

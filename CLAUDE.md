@@ -900,6 +900,29 @@ ausdrücklichen Zeile, was *nicht* gemeint ist.
 Adam schickt, feuert kein Hook. Die Regel trägt allein die Disziplin — sie
 besteht deshalb aus **zwei Wörtern in der ersten Zeile**, damit sie das kann.
 
+### Und sie tragen das Datum vorn `[NEU 2026-08-31, Adam vom 27.07.]`
+
+**Adam am 27.07., 11:56 im Wortlaut:** *„Alle Dateien, die du hier produzierst
+— das soll eine feste Regel sein — müssen durchnummeriert sein, und zwar am
+Anfang. Gerne einfach mit Datum, und zwar erst Jahr, dann Monat, dann Tag,
+sodass sie in jedem Ordner sortierbar sind."*
+
+> **`JJJJ-MM-TT-<name>.md`** — für **Konzept- und Weitergabe-Papiere**.
+> **Nicht** für Alltags-Zusammenfassungen und Checklisten; die Eingrenzung ist
+> Adams eigene: *„Da geht es nur um Sachen, die für unser Konzept wichtig sind,
+> die ich auch weitergeben will."*
+
+**Der Grund ist ein Unterschied zwischen zwei Ablagen:** Der Telegram-Verlauf
+sortiert chronologisch von selbst, **ein Ordner tut das nicht.** Dieselbe Datei
+ist im Chat auffindbar und im Ordner verloren.
+
+**Was diese Regel NICHT umfasst, damit sie nicht ins Uferlose wächst:**
+versionierte Repo-Dateien mit gewachsenen, referenzierten Namen (`MIGRATION.md`,
+`bot.py`, die `docs/`-Papiere). Deren Namen werden **aus Commits, Drehbuch und
+anderen Papieren heraus referenziert** — sie umzubenennen wäre nach *Struktur
+über Namen* eine Abhängigkeits-Änderung, kein Formatieren. Gemeint sind die
+Dateien, die **den Weg zu Adam gehen**.
+
 ## 📌 SYSTEMWEITE ENTSCHEIDUNGEN GEHÖREN INS DREHBUCH (Bot-Sitzung 10.08.2026, nachgetragen 30.08.)
 
 **Die Regel im Wortlaut, wie sie damals formuliert wurde:**

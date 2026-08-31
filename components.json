@@ -121,6 +121,12 @@
       "venv": "/home/claudebot/claude-telegram-bot/.venv",
       "ref": "caldav",
       "note": "Kalender- und Erinnerungs-Anbindung an iCloud (25.07.2026, aus Phase 7 vorgezogen). Freies Paket, iCloud im Apple-Konto enthalten — keine Kosten."
+    },
+    {
+      "name": "anthropic-legal",
+      "kind": "manual",
+      "note": "AGB-/AUTH-PASSAGE (nicht Version): code.claude.com/docs/en/legal-and-compliance, Abschnitt [Authentication and credential use]. Sie ist die GRUNDLAGE des Abo-Betriebs dieses Projekts — dort steht, dass OAuth-Auth nur die gewoehnliche Einzelnutzung von Claude Code deckt und Drittanbieter-Routing verboten ist (seit 04.04.2026 technisch durchgesetzt, Sperrungen ohne Vorankuendigung). AENDERT SICH DIESE PASSAGE, aendert sich die Grundlage. Beim Monitorlauf Adam VORLEGEN zum Nachsehen — der Monitor kann sie nicht abrufen und soll es nicht: Ein Abruf waere ein Netzzugriff aus einem zeitgesteuerten Lauf. NACHGETRAGEN 31.08.2026, weil CLAUDE.md bis dahin behauptete, ein AGB-Wachposten ueberwache die Seite. Es gab ihn nicht. Quelle der Auslegung: docs/entscheidungsvorlagen/modell-plattform-strategie-bericht.md (A.2/D.1).",
+      "intervall_tage": 30
     }
   ],
   "_faelligkeit": "manual-Eintraege melden sich nach intervall_tage von selbst (Standard 90). Der Zaehler startet beim ERSTEN Lauf, nicht rueckwirkend, und wird nach jeder Meldung zurueckgesetzt - eine Erinnerung, die jede Woche wiederkommt, wird nicht gelesen. Stand siehe logs/version-monitor-gesehen.json."

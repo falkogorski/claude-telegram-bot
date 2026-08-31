@@ -3274,8 +3274,8 @@ def make_permission_callback(user_id: int):
                             f"Hier greift das nicht: {_grund}\n\n{body}")
         rows = [
             [
-                InlineKeyboardButton("✅ Allow", callback_data=f"p:{request_id}:allow"),
-                InlineKeyboardButton("❌ Deny", callback_data=f"p:{request_id}:deny"),
+                InlineKeyboardButton("✅ Genehmigen", callback_data=f"p:{request_id}:allow"),
+                InlineKeyboardButton("❌ Verweigern", callback_data=f"p:{request_id}:deny"),
             ],
         ]
         # „Always allow" NICHT für 💰-Tools und WebFetch anbieten (_NO_ALWAYS_TOOLS).
@@ -3292,7 +3292,7 @@ def make_permission_callback(user_id: int):
         elif darf_dauerfreigabe(tool_name):
             rows.append([
                 InlineKeyboardButton(
-                    f"🔓 Always allow {tool_name}",
+                    f"🔓 {tool_name} immer genehmigen",
                     callback_data=f"p:{request_id}:always:{tool_name}",
                 ),
             ])
@@ -3300,7 +3300,7 @@ def make_permission_callback(user_id: int):
         try:
             sent = await sess.bot.send_message(
                 chat_id=sess.chat_id,
-                text=f"🔐 Permission request\n\n{body}",
+                text=f"🔐 Genehmigungs-Anfrage\n\n{body}",
                 reply_markup=keyboard,
                 parse_mode=None,
                 message_thread_id=sess.thread_id,
@@ -3321,7 +3321,7 @@ def make_permission_callback(user_id: int):
             try:
                 await sess.bot.send_message(
                     chat_id=sess.chat_id,
-                    text="⌛ Permission request nach 30 min abgelaufen — verweigert. Schick die Anfrage nochmal.",
+                    text="⌛ Genehmigungs-Anfrage nach 30 Minuten abgelaufen — verweigert. Schick die Anfrage nochmal.",
                     message_thread_id=sess.thread_id,
                 )
             except Exception:
@@ -3996,7 +3996,7 @@ async def cmd_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/verbose — Tipp-Indikator wieder an (🔧-Spur ist immer sichtbar)\n"
         "/status — Session-Info\n"
         "/whoami — Deine Telegram-User-ID\n\n"
-        "Permission-Anfragen: Buttons *oder* 👍 (Allow) / 👎 (Deny) als Reaktion.",
+        "Genehmigungs-Anfragen: Knöpfe *oder* 👍 (genehmigen) / 👎 (verweigern) als Reaktion.",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboard,
     )

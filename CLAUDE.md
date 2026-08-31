@@ -67,9 +67,26 @@ applications"; die Abo-Limits decken ausdrücklich „ordinary, individual usage
 of Claude Code and the Agent SDK". **Verboten ist Drittanbieter-Routing** „on
 behalf of their users" (seit 04.04.2026 auch technisch durchgesetzt, Sperrungen
 „without prior notice"). **Unser Einzelnutzer-Eigenbetrieb über die offizielle
-CLI/SDK ist die verträglichste Lesart — Restrisiko nicht null.** Der
-AGB-Wachposten (5.21) überwacht die Legal-Seite auf Änderungen der
-Auth-Passage. Als Bau-Leitplanke gilt:
+CLI/SDK ist die verträglichste Lesart — Restrisiko nicht null.** **⚠️ `[BERICHTIGT 2026-08-31]` Hier stand: *Der AGB-Wachposten (5.21)
+überwacht die Legal-Seite auf Änderungen der Auth-Passage.* **Das war
+falsch — es gab ihn nicht.** Gemessen: Die Zeichenkette
+`legal-and-compliance` kommt in **keiner** versionierten `.py`, `.sh`,
+`.json` oder `.toml` vor; `scripts/wachposten.py` liest Log-Zeilen und
+enthält **keine einzige URL**; 5.21 ist der Versions-Monitor über
+`components.json`.
+
+**Warum diese Falschaussage schwerer wiegt als die anderen, die dieses
+Projekt in der eigenen Ablage gefunden hat:** Sie steht in `CLAUDE.md`,
+das **jede Sitzung beim Start liest** — und sie beruhigt ausgerechnet in
+der Frage, in der Anthropic seit 04/2026 *„without prior notice"* sperrt.
+Eine Regel, die ihren eigenen Prüfer erfindet, ist schlimmer als eine ohne
+Prüfer: Die eine lässt eine Lücke, die andere verdeckt sie.
+
+**Stand seit 31.08.:** Die Legal-Seite steht als `manual`-Eintrag im
+Komponenten-Register (`components.json`), und der wöchentliche
+Versions-Monitor legt sie im vorhandenen Meldeweg vor. **Das ist eine
+Vorlage zum Nachsehen, keine automatische Überwachung** — genau so viel,
+wie hier stehen darf. Als Bau-Leitplanke gilt:
 
 - **Erlaubt (Abo):** mensch-initiierte Steuerung — Adam schickt eine Nachricht,
   daraus folgt ein Modell-Aufruf. Genau so arbeitet der Bot heute.

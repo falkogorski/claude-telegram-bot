@@ -938,7 +938,8 @@ Absturzfall ausdrücklich auf 5.18).
 - **Adam-Bestätigung:** ✅ 25.07.2026, 14:30 — Tempo spürbar schneller (kurze Probe; die Neun-Minuten-Messung von 80 s statt 146 s steht aus meinem Lauf).
 - **Verifiziert am:** 25.07.2026
 
-### 7.4 Kalender und Erinnerungen über CalDAV (iCloud) `[NEU 2026-07-25, aus Phase 7 vorgezogen]`
+### 7.5 Kalender und Erinnerungen über CalDAV (iCloud) `[NEU 2026-07-25, aus Phase 7 vorgezogen]` `[UMNUMMERIERT 2026-08-31: trug bis dahin die 7.4]`
+- **Warum die Nummer wechselte:** **7.4 war doppelt vergeben** — dieser Punkt und *Direkte Links in Erinnerungen* (Phase 7) trugen dieselbe. Gewechselt hat **dieser**, weil am anderen **sechs Prüfzeilen im Code** hängen (`scripts/test_kalender_caldav.py`, Zeilen 278–283, jede mit `7.4:` im Text); hier hing ein einzelner Doku-Verweis. **Wer zwei gleiche Nummern auflöst, verschiebt die mit den wenigsten Bezügen** — sonst wandert der Fehler in den Code statt aus der Ablage. In der Änderungshistorie (Eintrag vom 25.07.) steht er noch als 7.4; historische Einträge werden nicht umgeschrieben, sonst verliert der Verlauf seine Beweiskraft.
 - **Status:** 🔄 GEBAUT — wartet auf Adams Zugangsdaten (ein Handgriff, siehe unten)
 - **Warum vorgezogen (Conni/Adam 25.07.):** Der Prüfraster-Befund nannte den Kalender „die einzige Lücke, die Adam **täglich** trifft" — Aufgaben aufsprechen, Erinnerungen, Termine; er fragt seit Tagen danach, Phase 7 stand bei null. Die Richtungsentscheidung war längst gefallen (**iCloud, nicht Google**), und Kalender und Erinnerungen laufen über **dasselbe** CalDAV-Verfahren: ein Bau statt zwei. Vorgezogen **vor** 5.14 und 9.4.
 - **Verifiziert statt angenommen:** Der Mac-Weg über AppleScript **existiert auf Linux nicht** — deshalb CalDAV (`caldav.icloud.com`), das Apple offiziell anbietet und überall läuft.

@@ -33,7 +33,7 @@ folgt danach, wenn klar ist, wonach zu suchen ist.
 | Eigene Fehler melden statt schweigen | ✅ | `_notify_job_failed`, `bot-errors.log`, Selbstcheck |
 | **Dateien SENDEN können** | ✅ | Boten-Postfach, PDF-Paar-Regel |
 | **Große Dateien empfangen** | 🔄 | `[K4, 28.07.]` **Bot-Seite gebaut** (5.34): Umschalter `TELEGRAM_API_BASE`, Aufräum-Pflege mit 30-GiB-Deckel, Deckel-Prüfung im 4-Uhr-Lauf. **Offen bleibt der Server-Teil** — er braucht Adams `api_id`/`api_hash` und root (Schritt 5 der Befehlsblöcke) |
-| **Kalender lesen und schreiben** | 🔄 | `[K4, 28.07.]` **Gebaut** (7.4, `kalender.py`, CalDAV): `/termine` und `/aufgaben` stehen, sechs Prüfungen. **Wartet auf ein Ding:** Adams anwendungsspezifisches Apple-Kennwort. Ohne es meldet das Modul `NichtEingerichtet`, statt still zu schweigen |
+| **Kalender lesen und schreiben** | 🔄 | `[K4, 28.07.]` **Gebaut** (7.5 — bis 31.08. 7.4, `kalender.py`, CalDAV): `/termine` und `/aufgaben` stehen, sechs Prüfungen. **Wartet auf ein Ding:** Adams anwendungsspezifisches Apple-Kennwort. Ohne es meldet das Modul `NichtEingerichtet`, statt still zu schweigen |
 | **E-Mail lesen und senden** | 🔄 | `[K4, 28.07.]` **Gebaut** (9.5, `email_kanal.py`): 14 Prüfungen · Senden verlangt eine Freigabe · Kopffelder mit Steuerzeichen werden **abgewiesen statt gesäubert** · Posteingang nur-lesend · Absender nur aus einer Allowlist. **Wartet auf zwei Dinge:** die App-Kennwörter der beiden Konten |
 | **Erinnern zur richtigen Zeit** | 🔄 | 7.3 dokumentiert, nicht gebaut. Zeit-Trigger müssen ohne Modell-Aufruf laufen (AGB) |
 

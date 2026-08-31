@@ -1320,6 +1320,7 @@ Absturzfall ausdrücklich auf 5.18).
 ## Phase 10 — Abschluss-Audit
 
 ### 10.1 Gesamtaudit
+- **📋 Fundliste liegt bereit — nicht neu erheben:** [`docs/standsuebersicht-2026-08-30.md`](docs/standsuebersicht-2026-08-30.md) `[NEU 2026-08-31]` (Rolle `standsuebersicht`). Fünf Prüfmethoden der Kontroll-Sitzung plus die Gegenprüfung der Bau-Sitzung. Sie trägt, was dieses Audit sonst von vorn messen müsste: **25 Papiere ohne Punkt · 13 Bausteine ohne Drehbuch-Eintrag · 18 Punkte ohne Akzeptanzkriterium · 8 auf VERIFIZIERT ohne Datum · die Ordnerspiegelung ohne Nummer.** **Maßgeblich bleiben die Status-Zeilen hier**, nicht die Übersicht — sie ist eine Momentaufnahme vom 30.08. und veraltet mit jedem Statuswechsel.
 - **Status:** OFFEN
 - **Akzeptanzkriterium:** Drehbuch von oben durchgegangen; jeder Punkt VERIFIZIERT oder explizit in „Nacharbeiten" verschoben.
 - **Das Gesamtaudit liefert den Input für 9.6 (Blaupause)** `[NEU 2026-07-20]` — beim Durchgang wird je Punkt mitgeprüft, ob sein Mechanismus universell, anpassbar oder plattformgebunden ist; die Befunde gehen nach [`blaupause-notizen.md`](blaupause-notizen.md).

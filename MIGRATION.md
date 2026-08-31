@@ -85,6 +85,8 @@ die alles aufnimmt, ordnet nichts.
 > abgelesenen Pin-Zeilen). **Kein Postfach vor Ultracode, auch kein
 > Wegwerf-Konto.**
 
+- **2026-08-31 (47)** — **Ein Auftrag vom 27.07. bekommt nach fuenf Wochen einen Ort: Modell-Souveraenitaet.** Neuer Phase-9-Punkt **ohne Nummer** (`9.NN`, Platzhalter — die Nummer gehoert Adam, gleiche Handhabung wie beim GPS-Gedanken). **Gegengemessen vor dem Anlegen:** `eigene KI`, `freie KI`, `unvorbelastet`, `Adam-Code` ergeben im ganzen Repo **einen einzigen Treffer** — einen Nebensatz in 9.6, wonach das Grundwerk uebertragbar sein solle *„auf … spaeter eigene KIs"*. **Das ist ein Zielsystem, kein Vorhaben.** Der Punkt traegt **Auftrag und Revision zusammen**, weil der alte Auftrag allein falsch waere: Am 27.07. wollte Adam *„meine eigene KI bauen"*; am 31.08. revidiert er wegen der noetigen Rechenleistung auf **Komposition** — *„wir nutzen Sachen, die's schon gibt, aber wir machen uns so frei wie moeglich … und nehmen uns Modelle, die moeglichst wenig vorgepraegt sind."* **Keine Ruecknahme, sondern die eigene Regel angewandt** (*Fremdes nehmen, wo es nicht ans Herz geht*): das Modell ist fremd, die Werteschicht ist unsere — der Satz steht im Punkt, damit er nicht beim naechsten Lesen als „wollten wir mal, ging nicht" gilt. Drei Bestandteile: Konzept · Vergleichsauftrag (von Adam als Fable-Ultracode benannt, **notiert und ausdruecklich nicht gestartet** — die Ultracode-Regel verlangt vorhandenen Code, ein Modellvergleich ist Recherche) · Begruendung **Unabhaengigkeit und Werte-Treue, nicht Ausfallsicherheit**. Abgrenzungstabelle gegen 2.3 und 9.17 mit hineingeschrieben, weil die Verwechslung schon einmal eine falsche Antwort an Adam gekostet hat. Akzeptanzkriterium wie bei 9.17: *ein Konzept existiert*, **nicht** *ein Modell laeuft*. Kein Code, keine Recherche, keine Kostenquelle. Lauf 70/70.
+
 - **2026-08-29 (46)** — **Engywucks Nachtpaket vollstaendig; Lauf 61/61.** Reihenfolge gegen das Paket geaendert und begruendet: Der Update-Auftrag sperrt den SDK-Block ausdruecklich, bis Rang A steht (*[Ein Netz mit bekannter Masche darf nicht gespannt werden, waehrend man darueber laeuft]*) — das Nachtpaket hob die Vorbedingung nicht auf, also gilt sie. **Reihenfolge: SDK-Notizen lesen → ① Bash → Rang A → ② Updates → Rang 8/9.** **SDK-Notizen vorab gelesen** (Engywucks Verschaerfung) und **es hat sich bezahlt:** Ab 0.2.140 wirft das SDK `ResultError` mit strukturierter Nutzlast; steht der Anbietertext nur in `data`, sah `str(exc)` nur noch [Command failed] — **ein kippender Zugang waere unerkannt geblieben**, die Zugangs-Ruecklage A1 haette nicht gegriffen und der Anmelde-Waechter waere stumm geblieben. Im Regressionslauf nie sichtbar, weil dort keine echte SDK-Ausnahme entsteht. Gefixt ueber `fehlertext_vollstaendig()` (eine Stelle fuer alle drei Leser) plus `_api_status` — **401/403 als erster wortlautunabhaengiger Beleg**, den wir je hatten. **① Bash-Positivliste** (`bashfreigabe.py`, 87 Pruefzeilen): drei Ausgaenge statt zwei, Geheimnis-Schranke hereingereicht statt nachgebaut, Auflage A (`.claude` zu, `memory` lesend frei). Der Bau fand drei stille Luecken — Bereichspfade wurden nicht aufgeloest (*im Betrieb eine Freigabe, die nie greift, ohne dass jemand den Grund saehe*), `git -C <pfad> log` galt als nicht lesend, und `printf x > <postfach>/datei` fand keinen Pfad. **Die Entkernungs-Gegenprobe deckte zwei blinde Pruefzeilen auf:** Meine Nutzlast war `curl https://…` — deren Schraegstrich wurde von der BEREICHSpruefung gefangen, die Zeilen massen also einen anderen Schutz als gedacht. **Rang A: alle acht Stellen** von Lesen auf Ausfuehren. Stelle 6 war ein Pruefer, der **sich selbst mass** (er legte den Job eigenhaendig an den Kopf der Schlange und stellte fest, dass er dort liegt); Stelle 7 war **der Start-Waechter selbst** — im abgekoppelten Betrieb meldete er Erfolg, sobald der Kindprozess gestartet war, nicht ob er lebt: *genau der Waechter, der den SDK-Sprung absichern soll*. Stelle 8 **konnte nichts finden** (`passwort="` ohne Leerzeichen, ueber genau eine Datei). **② Updates:** pymupdf 1.28.2 samt `fitz`→`pymupdf`-Ablaufdatum; SDK 0.2.148 im Klon geprueft (58/59, die eine rote Zeile ist die Pin-Divergenz — der Waechter bei der Arbeit), **Pin bewusst NICHT nachgezogen**, weil .148 statt .144 eine Entscheidung ist. **Rang 8 Gegenleser gebaut, ausdruecklich nicht scharfgestellt** — kein Schluessel, kein Netz, keine Kosten; der Kern ist, dass alle drei Versagensarten von aussen wie Erfolg aussehen. **Rang 9: die Begruendung im Auftrag stimmte nicht** — die Claude-CLI ist eine ELF-Binaerdatei ohne Node-Bindung und laeuft in einer Umgebung ohne node; dazu **doppelt installiert**, was ein globales Update stillschweigend halbieren kann. **Der Differenzmesser fing dreimal etwas, das niemand suchte** (HOME, GEGENLESER_HEIM, und beim Klon-Lauf zwei nicht-hermetische Pruefer). Dazu **iCloud-Spiegel** und **Log-Repo-Klon** — beide Papierwege laufen nicht mehr ueber Adams Hand. **Bei Adam:** `docs/auftraege/ENTSCHEIDUNGEN-FUER-ADAM-2026-08-29.md`.
 
 - **2026-08-28 (45)** — **Engywucks Arbeitspaket, Rang 0 bis 6 im Durchlauf; Lauf steht wieder auf 57/57.** Jeder Punkt einzeln committet, jede Gegenprobe mit verifiziertem Eingriff gefahren. **Rang 0** Ablage geradegezogen (Betriebslage ausgetragen, Statuskopf berichtigt, Ueberholt-Vermerk im Logs-Repo). **Rang 1** `anthropic` aus den direkten Anforderungen — Kostenregel-Punkt, kein Aufraeumen; eine Abweichung von Engywucks Messung benannt (es IST installiert, Mac 0.109.1 / VPS 0.120.0). **Rang 2** Die Websuche meldet ihren Ausfall: [gesucht, nichts gefunden] und [gar nicht gesucht] haben nicht mehr denselben Rueckgabewert — die Klasse, nicht der Anlass. Dazu ein taeglicher Waechter mit Zwei-Tage-Daempfung, modellfrei. **Rang 3a** Der Freigabedialog nennt jetzt Angabe der Sitzung (behauptet, in Anfuehrung), Einstufung aus dem Werkzeugnamen, Maschinen-Angabe der CLI (gemessen) und die Rohform — Engywucks Befund halbierte den Auftrag, die CLI-Felder kamen bereits an und wurden nur nie ausgelesen. **Rang 3b ANGEHALTEN**, Befund `docs/auftraege/BEFUND-bash-sitzungsfreigabe.md`: Die vorgeschlagene Bauform waere **wirkungslos** — `_is_repo_read_cmd` gibt seit dem 24.07. schon Allow, und alle **352** Bash-Anfragen der letzten sieben Tage liefen daran vorbei. Eine Erweiterung ist eine Sicherheitsabwaegung und gehoert Adam. **Rang 4** Stundenblume vollstaendig: Auslagerung nach Aktivitaet statt Bestand, `p:`-Praefix fuer technische Befunde, Melden bei Aenderung statt nach Zeit, Entprellung in beide Richtungen, `--lage` im Tagescheck. **Rang 5** vollstaendig: vier Anfuehrungspaare geschlossen (Lauf erstmals seit 25.08. wieder gruen), Riegel neu scharf bis 09.09. mit nachgeholter Probewochen-Auswertung, `auftragsbuch.erledigen()` als fehlende Tuer fuer gelbe Auftraege, Linktext bleibt in der Sprachausgabe, Bildunterschrift reisst keine Ueberschrift mehr ab, Postfach-Grenze je Absender. **Rang 6 laeuft: 4 von 8** sicherheitstragenden Pruefzeilen von Lesen auf Ausfuehren umgestellt (Boten-Postfach-Geheimnisschranke, WebSearch-Kostenschranke, Zustellnachweis, Waechter-Start). **Drei Funde ueber den Auftrag hinaus:** (a) **23 Auftraege im Endlager** statt der gemeldeten drei, vom 24.07. bis 28.08. **19:45** — Ursache `daten["versuche"]` auf ein Feld, das im Drosselungsfall nie gesetzt wird; der KeyError schob ins Endlager. Die Rueckstellung, die retten sollte, hat weggeworfen. Behoben; die 23 liegen unangetastet, Zustellen waere Laerm aus fuenf Wochen, Loeschen waere Verlust — **Adams Entscheidung**. (b) **Ein Loch im Auftrag:** Die beauftragte Entprellung haette die **Kettenluecke** nie wieder melden lassen — sie ist ein Ereignis, kein Zustand. Geloest mit einem `!`-Praefix am Befund selbst. (c) **Zweimal an einem Tag dieselbe Fehlerklasse gebaut, waehrend ich sie reparierte** (K3, Schwelle statt Zuordnung) — beide Male gruen, beide Male nur von der Gegenprobe gefangen.
@@ -1411,6 +1413,80 @@ Absturzfall ausdrücklich auf 5.18).
 - **Der Name gehört Adam.** *Weitergabe* ist ein Vorschlag der Kontroll-Sitzung,
   keine Setzung.
 - **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
+### 9.NN Modell-Souveränität — frei komponieren statt selbst bauen `[NEU 2026-08-31, NUMMER OFFEN]`
+- **⚠️ Die Nummer gehört Adam, nicht dieser Sitzung.** `9.NN` ist ein
+  Platzhalter, damit der Punkt auffindbar im Drehbuch steht, ohne dass eine
+  Sitzung eine Nummer vergibt, die sie nicht vergeben darf. Gleiche Handhabung
+  wie bei [`gedanke-gps-standort.md`](docs/gedanke-gps-standort.md). Der
+  Titel ist ebenfalls ein Vorschlag.
+- **Status:** OFFEN
+- **Akzeptanzkriterium:** *Ein schriftliches Konzept existiert und ist aktuell*
+  — ausdrücklich **nicht** „ein eigenes Modell läuft". Gleiche Bauform wie
+  9.17: **planen statt bauen**, weil ein gebautes Fundament Wochen gegen ein
+  ungewisses Ereignis wären.
+
+**Der Auftrag, und seine Revision — beides gehört zusammen**
+
+Adam am **27.07., 01:27**: *„ich will meine eigene KI bauen … besser: ein
+eigenes Projekt draus machen, weil das wird zukünftig auch die Grundlage sein
+von dem, was wir hier haben … Dann leg das bitte an, halte es fest."* Die
+Begründung eine Stunde vorher: *„weil ich eine **freie** KI haben will … Du
+bist vorgeprägt, du hast blinde Flecken … Ich kann dich nicht umprogrammieren,
+aber wir können dir einen neuen Code schreiben, das ist der **Adam-Code**."*
+
+Adam am **31.08. abends**, revidiert: *„Die eigene KI zu bauen — das haben wir
+insofern revidiert, weil da einfach eine immense Rechenleistung nötig ist …
+**wir nutzen Sachen, die's schon gibt, aber wir machen uns so frei wie möglich
+und komponieren weiter, lassen eigene Werte mit einfließen** — und nehmen uns
+KI-Modelle, die **möglichst wenig Vortraining haben oder vorgeprägt sind**."*
+
+**Der Punkt ist damit nicht „eigene KI bauen", sondern:**
+
+> **Modell-Souveränität durch Komposition** — vorhandene Modelle nutzen, die
+> Freiheitsgrade maximieren, die eigene Werteschicht selbst bauen, und bei der
+> Modellwahl **Vorprägung als Auswahlkriterium** führen.
+
+**Und das ist keine Rücknahme, sondern eine bestehende Regel angewandt.**
+`CLAUDE.md`, *„Fremdes nehmen, wo es nicht ans Herz geht"*: **ohne**
+Werte-Berührung nimmt man Vorhandenes, **mit** Werte-Berührung baut man selbst.
+Genau diese Trennlinie zieht die Revision — **das Modell ist fremd, die
+Werteschicht ist unsere.** Der Satz steht hier, damit der Punkt beim nächsten
+Lesen nicht als *„wollten wir mal, ging nicht"* gilt.
+
+**Die drei Bestandteile**
+
+1. **Das Konzept** — was *„so frei wie möglich"* konkret heißt: welche Schichten
+   fremd sein dürfen (Modell, Laufzeit) und welche unsere sein müssen (Werte,
+   Regeln, Gedächtnis, Freigaben).
+2. **Der Vergleichsauftrag** — offene Modelle nach *Offenheit · Freiheit ·
+   Reife · Vorprägung*. Adam hat ihn am 27.07. ausdrücklich als
+   **Fable-Ultracode-Lauf** benannt. ⚠️ **Notiert, nicht gestartet:** Nach der
+   Ultracode-Regel in `CLAUDE.md` braucht dieses Werkzeug **vorhandenen Code**
+   — ein Modellvergleich ist Recherche, kein Code-Review. **Die Werkzeugwahl
+   ist damit offen**, und starten dürfte ihn ohnehin nur die Kontrolle.
+   💰 Modellvergleiche laufen über Herstellerdokumentation und Abo; taucht
+   irgendwo eine Gebühr auf, ist das ein eigener 💰-Dialog mit Adam.
+3. **Die Begründung** — **Unabhängigkeit und Werte-Treue.** Ausdrücklich
+   **nicht** Ausfallsicherheit; das ist 9.17 und ein anderer Zweck.
+
+**Abgrenzung, weil die Verwechslung schon einmal passiert ist**
+
+| | Was es ist | Stand |
+|---|---|---|
+| **2.3 Ollama/Phi-4** | Neben-Inferenzen lokal (Ampel, Zusammenfassungen) | ✅ verifiziert 15.07. |
+| **9.17 Notfallplan** | was tun, **wenn der Abo-Weg zugeht** — Versicherung | OFFEN seit 31.08. |
+| **dieser Punkt** | **Unabhängigkeit und Werte-Treue** als eigenes Ziel | OFFEN |
+
+- **Warum es diesen Punkt überhaupt braucht:** Gemessen am 31.08. ergaben
+  `eigene KI`, `freie KI`, `eigenes Modell`, `unvorbelastet`, `Adam-Code` **einen
+  einzigen Treffer** im ganzen Repo — einen Nebensatz in 9.6, wonach das
+  Grundwerk übertragbar sein solle *„auf andere KI-Modelle … später eigene
+  KIs"*. **Das ist ein Zielsystem, kein Vorhaben.** Ein Auftrag vom 27.07. lag
+  damit fünf Wochen ohne Ort — dieselbe Klasse wie die beiden
+  Momo-Einkommenspapiere: *Was keinen Punkt hat, wird nicht abgearbeitet.*
+- **Adam-Bestätigung:** Auftrag 27.07., **revidiert und bestätigt 31.08.**
 - **Verifiziert am:** —
 
 ### 9.10 Modularisierung von `bot.py` — nicht Entrümpelung `[NEU 2026-07-25]`

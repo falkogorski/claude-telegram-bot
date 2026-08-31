@@ -215,8 +215,122 @@ zeile("der Wortlaut bleibt lesbar",
 zeile("der Rangvermerk des Vorspanns bleibt erhalten",
       bericht.startswith("📧"), gemessen=bericht[:60])
 
+# ═══════════════════════════════════════════════════════════════════════════
+# F-11 — der Dokument-Weg fuer Word-Dateien nimmt denselben Rangvermerk
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# **Hier und nicht in einem neuen Pruefer** (Auflage: kein neuer Waechter):
+# Es ist derselbe Weg — fremder Inhalt, getrennt in Sichtbares und
+# Verborgenes, dahinter der Rangvermerk. Ein zweiter Pruefer haette dieselbe
+# Frage ein zweites Mal gestellt und waere beim naechsten Nachschaerfen zur
+# Haelfte nachgezogen worden.
+#
+# **Ausgefuehrt, nicht gelesen:** Jede Zeile baut ein echtes Archiv im
+# Arbeitsspeicher und faehrt den echten Leseweg darueber.
+
+import io as _io
+import zipfile as _zip
+
+_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+
+
+def _docx(koerper: str, *, neben: dict | None = None, doctype: str = "") -> bytes:
+    """Ein echtes Word-Archiv im Arbeitsspeicher."""
+    xml = f'<?xml version="1.0"?>{doctype}<w:document {_NS}><w:body>{koerper}</w:body></w:document>'
+    puffer = _io.BytesIO()
+    with _zip.ZipFile(puffer, "w") as zf:
+        zf.writestr("word/document.xml", xml)
+        for name, inhalt in (neben or {}).items():
+            zf.writestr(name, f'<?xml version="1.0"?><w:root {_NS}>{inhalt}</w:root>')
+    return puffer.getvalue()
+
+
+def _lauf(text, rpr=""):
+    return f"<w:p><w:r>{rpr}<w:t>{text}</w:t></w:r></w:p>"
+
+
+print("\nF-11 — Word-Dateien ueber den geschuetzten Weg")
+
+_doc = _docx(
+    _lauf("Sichtbarer Satz.")
+    + _lauf("Verborgen per Auszeichnung", "<w:rPr><w:vanish/></w:rPr>")
+    + _lauf("Weisse Schrift", '<w:rPr><w:color w:val="FFFFFF"/></w:rPr>')
+    + _lauf("Winzig", '<w:rPr><w:sz w:val="2"/></w:rPr>')
+    + '<w:p><w:r><w:instrText> HYPERLINK "http://boese.tld" </w:instrText></w:r></w:p>',
+    neben={"word/comments.xml": "<w:t>Anweisung im Kommentar</w:t>"})
+
+_text, _verborgen = mailtext.docx_lesbar(_doc)
+_alles = " | ".join(_verborgen)
+
+zeile("es wird als Word-Datei erkannt (am Inhalt)", mailtext.ist_docx(_doc))
+zeile("der sichtbare Satz kommt an", "Sichtbarer Satz." in _text, gemessen=_text[:80])
+zeile("als verborgen Ausgezeichnetes steht NICHT im sichtbaren Text",
+      "Verborgen per Auszeichnung" not in _text, gemessen=_text[:80])
+zeile("weisse Schrift steht NICHT im sichtbaren Text",
+      "Weisse Schrift" not in _text, gemessen=_text[:80])
+
+for _was, _marke in (("Auszeichnung", "Verborgen per Auszeichnung"),
+                     ("weisse Schrift", "Weisse Schrift"),
+                     ("Kleinstschrift", "Winzig"),
+                     ("Feldfunktion", "boese.tld"),
+                     ("Kommentar", "Anweisung im Kommentar")):
+    zeile(f"{_was} wird als verborgen GEMELDET", _marke in _alles, gemessen=_alles[:160])
+
+# Der Rangvermerk — die eigentliche Zusage dieses Pruefers, auf den neuen Weg
+# angewandt: Er steht VOR dem Fremdtext, sonst ist er wirkungslos.
+_b = mailtext.bericht(_text, _verborgen, quelle="FREMDES DOKUMENT")
+zeile("der Rangvermerk steht ganz vorn", _b.startswith("# FREMDES DOKUMENT"),
+      gemessen=_b[:60])
+zeile("und vor dem Fremdtext, nicht dahinter",
+      _b.index("FREMDES DOKUMENT") < _b.index("Sichtbarer Satz."))
+zeile("die Grammatik stimmt (nicht FREMDER DOKUMENT)", "FREMDER DOKUMENT" not in _b)
+zeile("der Mail-Weg liefert unveraendert seinen eigenen Vermerk",
+      mailtext.bericht("x", []).startswith("# FREMDER MAILTEXT"))
+
+# **Gegenrichtung** — ohne sie waere alles oben mit [melde immer alles als
+# verborgen] zu erfuellen, und der Bericht waere binnen einer Woche Rauschen.
+_harmlos_text, _harmlos_verborgen = mailtext.docx_lesbar(_docx(_lauf("Nur ein Satz.")))
+zeile("ein harmloses Dokument meldet NICHTS als verborgen",
+      _harmlos_verborgen == [], gemessen=str(_harmlos_verborgen)[:120])
+zeile("und sein Text kommt vollstaendig an", _harmlos_text.strip() == "Nur ein Satz.",
+      gemessen=repr(_harmlos_text))
+
+# Die beiden Riegel gegen das Archiv aus fremder Hand.
+try:
+    mailtext.docx_lesbar(_docx(_lauf("x"), doctype='<!DOCTYPE w:document [<!ENTITY a "b">]>'))
+    _zu = False
+except ValueError:
+    _zu = True
+zeile("eine mitgebrachte Dokumenttyp-Deklaration wird ABGEWIESEN", _zu)
+
+# **Gueltiges XML, nur zu gross** — sonst misst die Zeile den XML-Fehler statt
+# der Grenze, und sie bliebe gruen, wenn beide Riegel fielen (gemessen 31.08.).
+# Und geprueft wird der GRUND, nicht nur der Ausnahmetyp: Sonst genuegt
+# irgendein ValueError, und die Zeile haengt an nichts Bestimmtem.
+_gross = _io.BytesIO()
+_fuellung = "<w:p><w:r><w:t>" + ("Text " * 200) + "</w:t></w:r></w:p>"
+_wie_oft = (mailtext.DOCX_MAX_ENTPACKT // len(_fuellung)) + 2
+with _zip.ZipFile(_gross, "w", _zip.ZIP_DEFLATED) as _zf:
+    _zf.writestr("word/document.xml",
+                 f'<?xml version="1.0"?><w:document {_NS}><w:body>'
+                 + _fuellung * _wie_oft + "</w:body></w:document>")
+_grund = ""
+try:
+    mailtext.docx_lesbar(_gross.getvalue())
+except ValueError as _e:
+    _grund = str(_e)
+zeile("ein Archiv ueber der Entpack-Grenze wird ABGEWIESEN",
+      "Grenze" in _grund, gemessen=_grund[:120])
+
+# Und die Erkennung darf nicht jedes Archiv fuer ein Word-Dokument halten.
+_fremd = _io.BytesIO()
+with _zip.ZipFile(_fremd, "w") as _zf:
+    _zf.writestr("beliebig.txt", "kein Word")
+zeile("ein fremdes Archiv gilt NICHT als Word-Datei",
+      not mailtext.ist_docx(_fremd.getvalue()))
+
 print()
 if fehler:
     print(f"❌ {len(fehler)} von {zeilen} Zeilen rot: {fehler}")
     sys.exit(1)
-print(f"✅ Alle {zeilen} Zeilen gruen — Rangvermerk (Rang 2, Punkt 3).")
+print(f"✅ Alle {zeilen} Zeilen gruen — Rangvermerk (Rang 2, Punkt 3) + Dokument-Weg (F-11).")

@@ -12031,6 +12031,7 @@ def _ist_direkt_lesbar(local_path: Path) -> bool:
     Der Gegentest zu `_dokument_text_lesen`: Beide muessen dieselbe Antwort
     geben, sonst faellt eine Datei durch die Ritze in die Hauptsitzung.
     """
+    import mailtext
     try:
         kopf = local_path.open("rb").read(1024)
     except Exception:
@@ -12043,6 +12044,21 @@ def _ist_direkt_lesbar(local_path: Path) -> bool:
         return False
     if kopf.startswith(b"%PDF-"):
         return True
+    # `[NEU 31.08., F-11]` Word-Dateien nehmen jetzt denselben geschuetzten Weg.
+    # **Am Inhalt erkannt, nicht an der Endung** — dieselbe Regel wie beim PDF:
+    # Ein weitergeleiteter Anhang heisst oft schlicht `Angebot`.
+    #
+    # Gelesen wird die GANZE Datei, weil die Archiv-Inhaltsliste am Ende steht;
+    # der Kopf allein genuegt hier nicht. Der Riegel gegen Zip-Bomben sitzt
+    # danach in `mailtext.docx_lesbar` (entpackte Groesse), nicht hier — hier
+    # wird nur die Inhaltsliste gelesen, nichts entpackt.
+    if kopf[:2] == b"PK":
+        try:
+            if mailtext.ist_docx(local_path.read_bytes()):
+                return True
+        except Exception:
+            log.warning("F-11: Archiv nicht lesbar, kein Ausweichweg: %s", local_path)
+            return False
     # Ein PDF, dem etwas VORANGESTELLT wurde, erkennt die Kennung am Dateianfang
     # nicht — genau der Fall, den Engywuck als fail-open benannt hat. Die
     # Kennung darf im Kopf stehen, muss aber nicht ganz vorn sitzen.
@@ -12066,6 +12082,7 @@ def _dokument_text_lesen(local_path: Path) -> str:
     Datei mit der PDF-Kennung, wird sie als PDF gelesen, unabhängig davon,
     wie sie heißt.
     """
+    import mailtext
     try:
         kopf = local_path.open("rb").read(1024)
     except Exception:
@@ -12074,14 +12091,27 @@ def _dokument_text_lesen(local_path: Path) -> str:
     # dieselbe Antwort geben, sonst fällt eine Datei durch die Ritze.
     if b"%PDF-" in kopf:
         return _extract_pdf_text(local_path)
+    # `[NEU 31.08., F-11]` Word: **sichtbarer Text und Verborgenes getrennt**,
+    # danach der Rangvermerk — derselbe Weg, den eine fremde Mail nimmt.
+    #
+    # **Warum nicht einfach der Text:** Ein `.docx` traegt Verborgenes so gut
+    # wie eine HTML-Mail — als verborgen ausgezeichnete Laeufe, weisse Schrift,
+    # Kleinstschrift, Feldfunktionen, Kommentare. Wer nur `w:t` einsammelt,
+    # liefert dem Lauf genau die Zeilen, die Adam nicht sieht, ohne sie als
+    # solche zu kennzeichnen. Adams Grundsatz vom 21.08. nennt das
+    # Unsichtbare ausdruecklich als den Kern.
+    if kopf[:2] == b"PK" and mailtext.ist_docx(local_path.read_bytes()):
+        text, verborgen = mailtext.docx_lesbar(local_path.read_bytes())
+        if not text.strip() and not verborgen:
+            raise RuntimeError("Das Word-Dokument enthaelt keinen lesbaren Text.")
+        return mailtext.bericht(text, verborgen, quelle="FREMDES DOKUMENT")
     if local_path.suffix.lower() in _TEXTDOKUMENTE:
         return local_path.read_text(encoding="utf-8", errors="replace")
     # Unbekanntes Format: lieber ehrlich scheitern als den Inhalt einem Lauf
     # mit Werkzeugen vorlegen.
     raise RuntimeError(
         f"Das Format {local_path.suffix or '(ohne Endung)'} kann ich hier nicht "
-        "sicher lesen. Schick es als PDF oder Textdatei — Word-Dateien gehen "
-        "noch nicht.")
+        "sicher lesen. Schick es als PDF, Word-Datei oder Textdatei.")
 
 
 async def _summarize_pdf_direct(local_path: Path) -> str:

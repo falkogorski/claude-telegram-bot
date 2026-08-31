@@ -1287,6 +1287,41 @@ Absturzfall ausdrücklich auf 5.18).
 - **Reihenfolge im Skript ist Absicht:** erst den neuen Stand schreiben, **dann** alte abräumen — andersherum stünde man nach einem Fehlschlag ohne alles da.
 - **Adam-Bestätigung:** —
 
+### 9.16 Gegenleser — ein zweites Urteil vor heiklen Schritten `[NEU 2026-08-31, nachgetragen]`
+- **Status:** 🔄 **GEBAUT, NICHT SCHARFGESTELLT (29.08.2026)** — `gegenleser.py`
+  (267 Zeilen, ROLLE `gegenleser`), Prüfer `scripts/test_gegenleser.py`,
+  Ablage `~/.claude/gegenleser/` (`GEGENLESER_DIR`, im Läufer geriegelt).
+- **⏳ WARTET AUF ADAM:** **Drei Handgriffe, und der erste ist eine
+  Kostenentscheidung** — siehe die Auflage unten. Ohne sie bleibt das Modul
+  ruhend; es ruft von sich aus nichts auf.
+- **💰 KOSTENAUFLAGE, wörtlich und vor dem ersten echten Aufruf:**
+  **Ausgabenlimit BEIM ANBIETER setzen (10/10/5 EUR, Deckel 30 — Adams
+  Entscheid 28.08.), dann ZDR, dann Rauchtest.** `gpt-oss-120b` bleibt draußen
+  (Adams Leitplanke; die enge Auslegung ist die sichere).
+- **Warum dieser Punkt nachgetragen wurde `[31.08.]`:** Der Baustein war seit
+  dem 29.08. gebaut, im Register vollständig geführt — und hatte **im ganzen
+  Drehbuch keinen Punkt.** Seine einzige Erwähnung stand in einer
+  Changelog-Zeile. **Ein Baustein, der Geld kosten kann, stand damit außerhalb
+  des Plans**, und die Kostenregel ist die höchstrangige Regel dieses Projekts.
+  Die Auflage steht deshalb hier **im Wortlaut** und nicht nur als Verweis ins
+  Register: Wer den Punkt liest, muss sie sehen, ohne nachzuschlagen.
+- **Was er kann — und warum er dreifach abgesichert ist:** Ein Gegenleser kann
+  auf drei Arten versagen, und **alle drei sehen von außen wie Erfolg aus.**
+  (1) Der Dienst ist ausgefallen und fühlt sich an wie *keine Einwände* →
+  eigener Zustand `AUSGEFALLEN`, der als OFFEN zählt, nie als grün. (2) Das
+  Modell stimmt höflich zu → `zustimmung_ohne_substanz()` misst **zwei**
+  Merkmale zusammen (kurz **und** ohne Bezug auf seltene Wörter der Vorlage).
+  (3) Der Befund erreicht niemanden → `ablegen()` meldet das Misslingen, statt
+  es zu verschlucken.
+- **Akzeptanzkriterium:** Ausgabenlimit beim Anbieter nachweislich gesetzt ·
+  ZDR geklärt (`zdr_lage`: **beantragt ist nicht bewilligt** — zwei Felder
+  statt eines Hakens) · Rauchtest mit einem echten Aufruf bestanden · erst
+  danach scharfgestellt.
+- **Test:** `.venv/bin/python scripts/test_gegenleser.py` → alle Zeilen grün,
+  darunter sieben, die belegen, dass das Modul **keinen** Anbieter aufruft.
+- **Adam-Bestätigung:** —
+- **Verifiziert am:** —
+
 ### 9.10 Modularisierung von `bot.py` — nicht Entrümpelung `[NEU 2026-07-25]`
 - **Status:** OFFEN · **Wichtigkeit: hoch · Dringlichkeit: mittel** (früher als R5, aber nicht jetzt)
 - **Der Unterschied, auf den es ankommt (Conni 25.07.):** **Entrümpeln verlangt zu wissen, was tot ist — Aufteilen nicht.** Eine Datei in Module zu schneiden **entfernt nichts** und braucht **kein Urteil** über Notwendigkeit. Deshalb darf Modularisierung **nicht** mit R5 verheiratet werden, das bewusst bis Phase 10 wartet.

@@ -13,6 +13,23 @@ metadata:
 
 **Start:** 2026-06-23 14:29 Uhr
 **Status-Werte:** OFFEN · LÄUFT · VERIFIZIERT · BLOCKIERT
+**Zusatzfeld `⏳ WARTET AUF ADAM`** `[NEU 2026-08-31]`: Eine **eigene Zeile**
+direkt unter dem Status, wo der Bau steht und nur noch ein Handgriff Adams
+fehlt — Gruppe anlegen, Zugangsdaten hinterlegen, ein Wort sprechen, root.
+Sie nennt **wörtlich, was er tut**, nicht bloß dass gewartet wird.
+
+**Warum ein eigenes Feld und nicht ein Statuswert:** Die Kategorie existierte
+längst, aber nur im **Fließtext** der Punkte — und war damit für jedes Raster
+unsichtbar. Genau daran ist die Standsübersicht vom 30.08. zuerst
+vorbeigelaufen: Zehn fertige Punkte, die zusammen rund fünf Prozentpunkte
+tragen, tauchten in keiner Auswertung auf, weil kein Feld sie führte. **Was
+keinen Platz in der Struktur hat, wird nicht gezählt** — dieselbe Klasse wie
+*was keinen Punkt hat, wird nicht abgearbeitet.*
+
+**Warum als Zusatz statt im Status:** Der Status sagt, wie weit der **Bau**
+ist; das hier sagt, **wer am Zug** ist. Zwei verschiedene Fragen — ein
+Statuswert `WARTET` würde die erste Auskunft überschreiben, und man wüsste
+nicht mehr, ob gebaut ist. Auffindbar mit `grep "WARTET AUF ADAM"`.
 **Zwei Achsen je Punkt** `[NEU 2026-07-25]`: Neben dem Status trägt jeder Punkt
 künftig **Wichtigkeit** (ändert sich fast nie) und **Dringlichkeit** (ändert sich
 ständig). Grund: „Status: OFFEN" allein lässt alles gleich dringend wirken, und
@@ -676,6 +693,7 @@ Absturzfall ausdrücklich auf 5.18).
 
 ### 5.14 Link-Inbox (Zusammenfassen / Vertiefen / Volltranskript)
 - **Status:** ✅ GEBAUT (25.07.2026) — wartet auf Adams drei Testlinks
+- **⏳ WARTET AUF ADAM:** **Drei Testlinks schicken.** Gebaut seit 25.07., wartet allein auf Material.
 - **Umsetzung:** Eine Nachricht, die **nur** aus Adressen besteht, wird **abgelegt statt verarbeitet** — deterministisch, ohne Modell-Aufruf und **ohne jeden Netzabruf**. Der Eintrag entsteht allein aus der Adresse: Quelle (YouTube, Instagram, GitHub …), Art (Video, Beitrag, Artikel, Code, Audio) und ein Behelfstitel. Drei Knöpfe bieten die Verarbeitung an: **Zusammenfassen · Vertiefen · Volltranskript** (letzteres nur bei Video/Audio), dazu **Nur ablegen**. `/links` zeigt die Ablage.
 - **Die Weiche ist `_text_ohne_links()`:** Schreibt Adam ein sinntragendes Wort dazu („schau mal", „fass zusammen"), ist es ein **Auftrag** und geht den gewohnten Weg — die Absicht steht dann ja im Text. Satz- und Sonderzeichen zählen nicht als Text; ein vorangestellter Pfeil hat den Test beim ersten Lauf gekippt und die Zeichenliste erweitert.
 - **Zwei Ehrlichkeits-Griffe:** Der Titel ist aus der Adresse **abgeleitet, nicht gelesen** — das steht in der Nachricht, damit er nicht wie ein gelesener wirkt (Beleg-Grundsatz). Und nichtssagende Pfade fallen auf den Adressnamen zurück, statt Unsinn zu behaupten.
@@ -913,6 +931,7 @@ Absturzfall ausdrücklich auf 5.18).
 
 ### 5.34 Anbindung für große Dateien (eigener Bot-API-Server) `[NEU 2026-07-25]`
 - **Status:** 🔄 **BOT-SEITE GEBAUT · WARTET AUF ADAM (root)** `[BERICHTIGT 2026-08-31 nach Messung am Code]` — hier stand *OFFEN — Entscheidungspunkt, bewusst noch nicht gebaut*. **Beides war falsch, und zwar in beide Richtungen:** Die Bot-Seite ist seit dem 25.07. gebaut (acht Stellen in `bot.py`, Register-Eintrag, Selbstcheck-Zeile `✓ Große Dateien (5.34)` grün im Lauf gemessen) — der Zusatz *bewusst noch nicht gebaut* widersprach dem eigenen Blocktext drei Zeilen weiter unten. **Fertig ist der Punkt deshalb aber nicht:** Der Bot-API-Server ist auf dem VPS nicht installiert, das braucht root und damit Adams Hand. Wer die Zeile nur auf VERIFIZIERT gesetzt hätte, hätte einen nicht installierten Dienst als fertig ausgewiesen
+- **⏳ WARTET AUF ADAM:** **root: den Bot-API-Server installieren und einschalten.** Befehlsblock geht über das Postfach. Die Bot-Seite steht seit 25.07.
 - **Anlass (Adam 25.07., nach dem ersten Video-Test):** „Wir brauchen auf jeden Fall eine Funktion, wo auch große Videos und große Fotos oder Dateien generell hochgeladen werden." Die heutige Grenze ist **nicht** unsere: Telegram gibt Bots über die öffentliche Schnittstelle höchstens **20 MB** pro Datei heraus.
 - **Der Weg:** Telegram stellt den Bot-API-Server als **quelloffene Software zum Selbstbetrieb** bereit; damit steigt die Grenze auf **2 GB** pro Datei. Der Bot spricht dann statt `api.telegram.org` den eigenen Dienst an — eine Adresse in der Konfiguration, kein Umbau der Handler.
 - **💰 Kostenlage (Stand der Prüfung, teils ungeprüft — vor dem Bau verbindlich nachmessen):** Die Software selbst ist **kostenfrei**, ebenso die dafür nötigen Zugangsdaten von `my.telegram.org`. Es entstehen **keine Gebühren an Telegram**. Was tatsächlich kostet, ist **Serverleistung**: der Dienst braucht Arbeitsspeicher und vor allem **Plattenplatz**, weil er heruntergeladene Dateien zwischenlagert — bei 2-GB-Videos schnell zweistellige Gigabyte. Ob der bestehende Netcup-Server das ohne Aufrüstung trägt, ist **noch nicht gemessen**; erst diese Messung erlaubt die präzise Kostenangabe, die Adam verlangt.
@@ -941,6 +960,7 @@ Absturzfall ausdrücklich auf 5.18).
 ### 7.5 Kalender und Erinnerungen über CalDAV (iCloud) `[NEU 2026-07-25, aus Phase 7 vorgezogen]` `[UMNUMMERIERT 2026-08-31: trug bis dahin die 7.4]`
 - **Warum die Nummer wechselte:** **7.4 war doppelt vergeben** — dieser Punkt und *Direkte Links in Erinnerungen* (Phase 7) trugen dieselbe. Gewechselt hat **dieser**, weil am anderen **sechs Prüfzeilen im Code** hängen (`scripts/test_kalender_caldav.py`, Zeilen 278–283, jede mit `7.4:` im Text); hier hing ein einzelner Doku-Verweis. **Wer zwei gleiche Nummern auflöst, verschiebt die mit den wenigsten Bezügen** — sonst wandert der Fehler in den Code statt aus der Ablage. In der Änderungshistorie (Eintrag vom 25.07.) steht er noch als 7.4; historische Einträge werden nicht umgeschrieben, sonst verliert der Verlauf seine Beweiskraft.
 - **Status:** 🔄 GEBAUT — wartet auf Adams Zugangsdaten (ein Handgriff, siehe unten)
+- **⏳ WARTET AUF ADAM:** **Dieselben Kalender-Zugangsdaten wie 7.3** — ein Handgriff für beide Punkte.
 - **Warum vorgezogen (Conni/Adam 25.07.):** Der Prüfraster-Befund nannte den Kalender „die einzige Lücke, die Adam **täglich** trifft" — Aufgaben aufsprechen, Erinnerungen, Termine; er fragt seit Tagen danach, Phase 7 stand bei null. Die Richtungsentscheidung war längst gefallen (**iCloud, nicht Google**), und Kalender und Erinnerungen laufen über **dasselbe** CalDAV-Verfahren: ein Bau statt zwei. Vorgezogen **vor** 5.14 und 9.4.
 - **Verifiziert statt angenommen:** Der Mac-Weg über AppleScript **existiert auf Linux nicht** — deshalb CalDAV (`caldav.icloud.com`), das Apple offiziell anbietet und überall läuft.
 - **Gebaut:** `kalender.py` (Termine und Aufgaben lesen und anlegen, menschenlesbare Ausgabe mit Wochentag), Befehle **`/termine`** (optional mit Tagezahl) und **`/aufgaben`**, `/hilfe` und Befehlsmenü im selben Commit nachgezogen (Doku-Spiegel).
@@ -953,6 +973,7 @@ Absturzfall ausdrücklich auf 5.18).
 
 ### 5.36 Wartungsfenster (B2 + B3) — Probelauf zuerst `[NEU 2026-07-25]`
 - **Status:** 🔄 GEBAUT, läuft als **Probelauf** — scharf erst nach Adams Wort
+- **⏳ WARTET AUF ADAM:** **Ein Wort.** Läuft als Probelauf; scharf erst nach Adams Freigabe.
 - **Freigabe:** Conni/Adam 25.07. („JA, mit Auflage"). B2 (Auto-Neustart nach Gelb/Rot) und B3 (Kopplung an den 04:00-Hygiene-Neustart) sind zusammen gebaut, weil B2 ohne Fenster kein Zeitfenster hätte.
 - **Die Auflage, die den Unterschied macht:** B1 ist grün, hat aber **noch nie in einer echten Lage gehandelt** — seine drei Schwächen kamen aus einem Trockenlauf. Ein scharfes Fenster hieße, dass sein erster Ernstfall nachts um vier stattfindet, während Adam schläft. Deshalb: **die ersten Läufe als Probelauf in Produktion** — das Fenster prüft, entscheidet und meldet, **was es getan hätte**, spielt aber nichts ein. Das kostet drei Nächte und ist die R4-Regel auf den Zeitablauf angewandt.
 - **Die drei B3-Auflagen, alle umgesetzt:** (a) Vorgemerktes ist in `/updates` **sichtbar und stornierbar** (neue Knöpfe „🌙 04:00" und „🗑 Storno"); (b) **Nachprüfung zur Ausführungszeit** — genau die freigegebene Fassung, sonst wird nicht eingespielt, sondern neu gefragt (dieselbe Regel wie A3); (c) **Morgenmeldung auch dann, wenn nichts lief** — Stille wäre nicht von „Fenster kaputt" zu unterscheiden. Grün bleibt sofort einspielbar.
@@ -1002,6 +1023,7 @@ Absturzfall ausdrücklich auf 5.18).
 
 ### 6.1 Ausgabekanal generisch für ALLE Auswertungen
 - **Status:** 🔄 **FUNDAMENT GEBAUT (24.07.):** Routing-Auflösung `channels.resolve_route`/`route_target()` + Ausgangs-Thema-Führung (`QueuedJob.output_thread_id` überlebt Cross-Chat) live und getestet — Routing-Tabelle Status→Werkstatt/Migration&Technik, Recherche→Bibliothek/Recherchen&Referenzen, Unzugeordnet→Werkstatt/Offene Punkte. **Kein Falsch-Fallback** (kein Ziel-Zimmer → bleibt im Bot-Chat). **Offen (braucht Adams Live-Gruppen zur E2E-Verdrahtung):** die konkrete Delivery-Umlenkung von PDF-/Recherche-Ausgaben in die Zimmer + intelligente Zwischenablage „Offene Punkte". `[NEU 2026-07-22]` Bei der Ausgestaltung mitdenken: **intelligentes Zwischenablagesystem** (Bot-Sitzung 22.07.) — eine Ablage-Zwischenstufe, aus der Fundstücke gezielt in Kanäle/Ordner weiterwandern, statt alles sofort final einzusortieren (Feinkonzept mit Phase 6 + 4.3). `[NEU 2026-07-22]` Bei der Ausgestaltung mitdenken: **intelligentes Zwischenablagesystem** (Bot-Sitzung 22.07.) — eine Ablage-Zwischenstufe, aus der Fundstücke gezielt in Kanäle/Ordner weiterwandern, statt alles sofort final einzusortieren (Feinkonzept mit Phase 6 + 4.3).
+- **⏳ WARTET AUF ADAM:** **Kein eigener Handgriff** — braucht die Zimmer aus 6.5, also mittelbar 6.6.
 - `[NEU 2026-07-24]` **Boten-Postfach (Marschordnung II Teil B):** vereinigt „Ausgangsordner" + „Instanzen-Postfach". **AUSGANG GEBAUT (24.07.):** `postfach_worker` stellt Aufträge aus `~/postfach/outbox/` zu (Ziel + Text/Datei + Caption); Token bleibt nur im Bot; Ziel-Allowlist + Geheimnis-Schutz; Doku [`docs/boten-postfach.md`](docs/boten-postfach.md). **EINGANG (offen, hier):** Umkehrrichtung — Repo-Inbox → Zustellung in definierte Telegram-Topics (Jakuna-San-Pins). Verzahnt mit Kanal-/Topic-Routing + Log-Sync (4.2). Ausarbeitung beim Phase-6-Bau.
 - **Test:** Je eine Auswertung pro Typ.
 - **Adam-Bestätigung:** —
@@ -1009,6 +1031,7 @@ Absturzfall ausdrücklich auf 5.18).
 
 ### 6.2 Fix: Deep-Link via `tg://privatepost`
 - **Status:** 🔄 **ZENTRALISIERT (20.08.), Abnahme offen** — alle **fuenf** Textlink-Stellen laufen jetzt ueber `_channel_title_link_html`; drei taten es schon, zwei bauten den Anchor von Hand, eine dritte kam beim Pruefen dazu. **Berichtigung meines eigenen Befunds von vorhin:** Das war keine vergessene Verdrahtung, sondern eine **Gabelung** — zwei Wege fuer dieselbe Sache, und keiner war als der richtige ausgewiesen. ⚠️ **Offene Sachfrage, die nur Adam am iPhone entscheiden kann:** Der Kommentar an `_channel_post_markup` haelt fest, dass **tg://-Textlinks einen „Link oeffnen?“-Dialog ausloesen**, Inline-Knoepfe dagegen nicht. Damit ist der Deep-Link im Text **nicht zweifelsfrei besser** als `https://t.me/c/` — er spart den Browser-Umweg, kostet aber einen Tipp. **Jetzt ist es eine Zeile**, falls Adam den anderen Weg will. Pruefer `scripts/test_kanal_links_6_2.py` (5).
+- **⏳ WARTET AUF ADAM:** **Eine Entscheidung am iPhone** zum Deep-Link-Verhalten. Die Umsetzung ist danach eine Zeile.
 - **Akzeptanzkriterium:** Links öffnen auf iPhone direkt in der Telegram-App, kein Browser-Umweg; Fallback `t.me/c` bleibt optional.
 - **Test:** Vom iPhone tappen, ohne Web-Login direkt im Kanal landen.
 - **Adam-Bestätigung:** —
@@ -1030,12 +1053,14 @@ Absturzfall ausdrücklich auf 5.18).
 
 ### 6.5 (Ausbau) Kanal/Topic pro Projekt, Bot legt Topics selbst an
 - **Status:** 🔄 **GEBAUT + DEPLOY-BEREIT (24.07.):** `_provision_house` legt bei erkannter Forum-Gruppe die Zimmer via `create_forum_topic` selbst an (ratenbegrenzt ~1/Sek, 429-Backoff, idempotent über gespeicherte Topic-IDs); Haus-Erkennung `channels.detect_house` am Gruppennamen (emoji-/schreibweisentolerant, Jakuna-San bewusst ausgenommen). Verhaltenstest `scripts/test_channels_6.py` (7/7), Selbstcheck-Zeile 19/19. **E2E-Verifikation wartet auf Adams Live-Gruppen** (Gruppe anlegen → Forum-Modus an → Bot einladen → Zimmer erscheinen). `[NEU 2026-07-23]` **Ausbauwunsch (Adam):** Vom Projekt-Topic direkt in die zugehörige Code-Sitzung springen — **vorerst gelöst über einen gepinnten Link je Topic** (noch offen).
+- **⏳ WARTET AUF ADAM:** **Kein eigener Handgriff** — entblockt sich mit 6.6. Sobald eine Forum-Gruppe erkannt wird, legt `_provision_house` die Zimmer selbst an.
 - **Test:** Forum-Gruppe „🔧 Werkstatt" anlegen, Bot einladen → vier Zimmer erscheinen in Minuten.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
 ### 6.6 Empfehlungsliste anzulegender Kanäle liefern
 - **Status:** ✅ **ENTSCHIEDEN — FINAL v3 (Audit 24.07., Adam):** [`docs/entscheidungsvorlagen/6-6-kanal-struktur-vorlage.md`](docs/entscheidungsvorlagen/6-6-kanal-struktur-vorlage.md) — **4 Häuser / 13 Zimmer** plus Bestand: 🏠 **Jakuna-San** (Bestand, nur registrieren) · 🔧 **Werkstatt** (Migration & Technik · Fanpost [Startplatz, zieht ins Handelshaus sobald Geschäft] · Rechnungen & Büro · Offene Punkte = intelligente Zwischenablage 6.1) · 🕰️ **Nirgendhaus** (Momo-Projekt-Haus: Produkt & Blaupause · Kunden & Piloten · Vertrieb & Empfehlung · Recht & Zahlen) · 🏛️ **Handelshaus** (klein eröffnet: Ideen & Chancen · Affiliate-Projekt) · 📚 **Bibliothek** (Recherchen & Referenzen · Link-Inbox→5.14 · Interessen inkl. Fußball). **v3 ersetzt v2 vollständig** (Konfliktvermerk im Vorlagen-Dokument). Anlage-Teilung: **Gruppen erstellt Adam**, **Zimmer legt der Bot** (6.5). Ordnerspiegelung mit identischen Namen. **⚠️ `[BERICHTIGT 2026-08-31]` Hier stand *4.3-Ordnerspiegelung* — Punkt 4.3 ist aber *Memory + Configs in privates git-Repo* und hat mit den Kanälen nichts zu tun** (am Drehbuch gemessen, und `git log -S` zeigt: 4.3 hieß nie anders). **Die Ordnerspiegelung hat überhaupt keinen eigenen Punkt** — sie gehört damit zu den Vorhaben, die nur im Fließtext existieren, und wandert in die Fundliste für das Abschluss-Audit (10.1). Ein Punkt wird ihr hier NICHT zugewiesen: Welche Nummer sie bekommt, ist eine Entscheidung, keine Ableitung. Blaupause-Notiz: Haus-Namen = projektspezifische Poesie über universellem Muster (Leben/Werkstatt/Produkt/Geschäfte/Bibliothek). **⚠️ Der Erinnerungskanal (7.1) gehört NICHT zu dieser Struktur** `[NEU 2026-08-31]` — er ist ein eigener Kanal, den Adam zusätzlich anlegt, kein Zimmer und kein fünftes Haus. Hier vermerkt, weil die Verwechslung sonst genau an dieser Stelle entsteht.
+- **⏳ WARTET AUF ADAM:** **Vier Telegram-Gruppen anlegen** — 🔧 Werkstatt · 🕰️ Nirgendhaus · 🏛️ Handelshaus · 📚 Bibliothek. Je Gruppe den **Forum-Modus** einschalten und den Bot einladen. Die dreizehn Zimmer legt der Bot dann selbst an (6.5). *Jakuna-San besteht bereits und wird nur registriert.* Rund 25 Minuten — **der größte Hebel der ganzen Liste**, er entblockt 6.5, 6.1 und die Ordnerspiegelung.
 - **Akzeptanzkriterium:** Vorschlagsliste mit Begründung liegt vor, Adam wählt aus. ✅ erfüllt (v3 final).
 - **Test:** — (Entscheidung getroffen; Umsetzung läuft über 6.5/6.1).
 - **Adam-Bestätigung:** ✅ Audit 24.07.
@@ -1051,6 +1076,7 @@ Absturzfall ausdrücklich auf 5.18).
 
 ### 7.1 Eigener Telegram-Erinnerungskanal
 - **Status:** OFFEN — **wartet auf Adam** (Kanal anlegen, Bot als Admin)
+- **⏳ WARTET AUF ADAM:** **Erinnerungskanal anlegen** und den Bot als Admin mit Schreibrecht eintragen. Ein **Kanal**, keine Forum-Gruppe (siehe Hinweis unten).
 - **⚠️ Er ist KEIN Zimmer der 6.6-Struktur und auch kein fünftes Haus** `[KLARGESTELLT 2026-08-31 nach Messung]` — die 6.6-Struktur führt vier Häuser mit dreizehn Zimmern plus den Bestand *Jakuna-San*; der Erinnerungskanal kommt darin an **keiner** Stelle vor. Er ist ein **eigener Kanal, den Adam zusätzlich anlegt** — die Zimmer legt der Bot selbst an (6.5), diesen Kanal nicht. Ohne diesen Hinweis hält ihn die nächste Sitzung für ein Zimmer und wartet auf eine Anlage, die nie kommt. **Zur Bauform:** Das Akzeptanzkriterium unten verlangt „Kanal … Bot ist Admin mit Schreibrechten“ — ein Telegram-**Kanal** genügt also, es braucht keine Forum-Gruppe wie bei den Häusern.
 - **Akzeptanzkriterium:** Kanal existiert; Bot ist Admin mit Schreibrechten.
 - **Test:** Test-Erinnerung schicken, im Kanal sichtbar.
@@ -1059,6 +1085,7 @@ Absturzfall ausdrücklich auf 5.18).
 
 ### 7.2 Scheduler (24/7 auf VPS)
 - **Status:** 🔄 **GEBAUT UND RUHEND (20.08.2026)** — `scripts/erinnerungen.py`, neun Prüfungen. **Kein Zeitgeber eingespielt**; die Unit-Vorlage liegt in [`docs/befehlsbloecke-root.md`](docs/befehlsbloecke-root.md) mit dem Vermerk „NOCH NICHT EINSPIELEN". **Zwei Dinge fehlen, beide bei Adam:** der iCloud-Zugang (7.3) und der Erinnerungskanal (7.1) — **ohne Kanal hat der Läufer kein Ziel**; bis dahin legt er in den Bot-Chat und **nennt das ausdrücklich**. ⚠️ **Kein Modell im Pfad** (durch Prüfzeile abgesichert): Ein Zeit-Trigger, der ein Modell startet, wäre AGB-Grauzone. ⚠️ **Eine Meldung je Lauf**, nicht eine je Termin — sonst hielte die Postfach-Obergrenze ausgerechnet die Erinnerung zurück. **Regel ①a ist erfüllt:** Die Widerlegungs-Gegenprüfung erfolgte am 20.08. nachmittags durch Engywuck — der Läufer **darf scharf**, sobald der Timer-Block eingespielt ist. **Sinnvoll wird das erst nach 7.3**, vorher meldet er pflichtgemäß Blindheit.
+- **⏳ WARTET AUF ADAM:** **Drei Dinge, alle drei aus Adams Hand** — der Kanal (7.1), der Kalender-Zugang (7.3) und der Zeitgeber-Block, der mit dem Vermerk *NOCH NICHT EINSPIELEN* in [`docs/befehlsbloecke-root.md`](docs/befehlsbloecke-root.md) liegt. **Der Läufer ist gebaut und ruht** — mit einem allein wird er nicht fertig.
 - **Akzeptanzkriterium:** APScheduler oder systemd-Timer plant Jobs; läuft auch ohne Mac.
 - **Test:** Erinnerung für 5 Minuten später anlegen → kommt pünktlich.
 - **Adam-Bestätigung:** —
@@ -1066,6 +1093,7 @@ Absturzfall ausdrücklich auf 5.18).
 
 ### 7.3 Serverfähige Kalenderquelle (Google Calendar oder CalDAV)
 - **Status:** 🔄 **GEBAUT, wartet auf Adams Zugang** `[BERICHTIGT 2026-08-20 nach Messung am Code]` — die Zeile stand auf OFFEN, obwohl der Bau seit dem **25.07.** steht: [`kalender.py`](kalender.py) (207 Zeilen) liest **und** schreibt Termine wie Aufgaben über CalDAV, `/termine` und `/aufgaben` sind registriert, das Paket `caldav` 3.2.1 ist auf dem VPS installiert, und `scripts/test_kalender_caldav.py` läuft im Regressionslauf mit (sechs Zeilen, **ausdrücklich ohne Netz und ohne Zugangsdaten** — geprüft werden Formatierung und Fehlerverhalten, nicht die Verbindung). **Es fehlt genau eines:** `ICLOUD_CALDAV_USER` und `ICLOUD_CALDAV_APP_PASSWORT` in der geschützten Umgebung; `zugang_vorhanden()` meldet heute `False`. Ohne sie arbeitet das Modul **nicht halb, sondern gar nicht** und sagt es — ein halb verbundener Kalender wäre schlimmer als keiner. In [`docs/adam-liste.md`](docs/adam-liste.md) eingetragen. `[ENTSCHIEDEN 2026-07-24]` **Adam: iCloud, nicht Google.** To-dos → **Apple Erinnerungen**, Termine → **Apple Kalender**, angebunden **via CalDAV**. Die frühere Google-Begründung ist überholt. ⚠️ **CalDAV-für-Erinnerungen als _wahrscheinlich_, nicht sicher behandeln** — am Bau neu bewerten (Apple Reminders über CalDAV ist möglich, aber fragiler als Kalender; Fallback prüfen). **Bedienung: freies Aufsprechen** — Adam spricht frei ein, der Bot sortiert selbst in Erinnerung vs. Termin ein. Der **Telegram-Erinnerungskanal** (7.1) ist die chronologische Übersichts-Ebene _obendrauf_; Einträge landen **zusätzlich systemübergreifend in iCloud** (Mac/iPhone/iPad). **Non-Apple-Nutzer** (Produkt) = späterer eigener Punkt.
+- **⏳ WARTET AUF ADAM:** **Kalender-Zugangsdaten hinterlegen** — `ICLOUD_CALDAV_USER` und `ICLOUD_CALDAV_APP_PASSWORT`. Ein anwendungsspezifisches Apple-Kennwort; derselbe Handgriff entblockt zugleich 7.5.
 - **Akzeptanzkriterium:** Auf VPS lesbar/schreibbar via CalDAV (nur freigegebene Kalender/Listen); Ein-/Ausgabe systemübergreifend in iCloud sichtbar.
 - **Test:** Termin + To-do frei aufsprechen → landet richtig einsortiert in Apple Kalender/Erinnerungen UND im Telegram-Kanal.
 - **Adam-Bestätigung:** ✅ Quelle iCloud/CalDAV (Audit 24.07.); Bau-Details offen.

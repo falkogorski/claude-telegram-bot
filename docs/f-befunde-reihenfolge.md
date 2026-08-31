@@ -390,6 +390,39 @@ Messung hat sie bestätigt und die Reihenfolge vorgegeben.
 
 **F-16 · `hora.py`: der Riegel hängt an der Disziplin künftiger Schreiber** `[GEBAUT, GEMESSEN, ZURÜCKGENOMMEN — 31.08.2026]`
 
+> ### `[MESSAUFTRAG 31.08., Adams Entscheid: erst messen, dann entscheiden]`
+>
+> **Die vier Zahlen sind auf diesem Rechner NICHT messbar — und das ist das
+> Ergebnis, nicht eine Ausrede.** Gemessen:
+>
+> - `~/.claude/hora/` existiert am Mac **nicht** (kein Protokoll `laeufe.jsonl`,
+>   keine Auftragsliste).
+> - `~/.claude/auftragsbuch/` existiert am Mac **nicht**.
+> - Das Log-Archiv (`~/Projects/claude-bot-logs`) enthält Gespräche,
+>   Tagescheck, Versions- und Wachposten-Protokoll — **kein Auftragsbuch, kein
+>   Hora-Protokoll.**
+>
+> **Der Grund steht im Abgleich selbst und ist der eigentliche Fund:**
+> `scripts/log_sync.sh` sichert `logs/conversations` und die Ausarbeitungen.
+> **Das Auftragsbuch und Horas Protokoll kommen darin nicht vor.** Sie liegen
+> ausschließlich auf dem VPS.
+>
+> **Damit ist die Entscheidungsgrundlage für F-16 nicht gesichert.** Fällt der
+> Server aus, ist sie weg — und mit ihr jede Möglichkeit, im Nachhinein zu
+> messen, was der autonome Läufer getan hat. *Ein Läufer, der Befehle ausführt,
+> und ein Protokoll, das nur an einem Ort liegt.*
+>
+> **Was hier belegbar ist, aus den Bot-Protokollen (10.08.):** In Adams
+> zwölftägiger Abwesenheit hat Hora **nichts ausgeführt** — Ursache laut
+> Protokoll: keine freigegebenen Aufträge in der Warteschlange, und zwar
+> absichtlich. Dazu die Aussage: *„Es gibt bisher keine einzige Automatik, die
+> ein Modell startet. Hora führt nur Skripte aus."* **Das ersetzt die vier
+> Zahlen nicht** — es sagt nur, dass die Menge im fraglichen Zeitraum klein
+> gewesen sein dürfte.
+>
+> **Nichts an Hora geändert**, wie beauftragt.
+
+
 > **`[BEFUND 31.08.]` Der Einzeiler ist gebaut worden und wieder draußen. Er
 > trägt nicht als Riegel-Härtung — er ist eine Architekturentscheidung.**
 >

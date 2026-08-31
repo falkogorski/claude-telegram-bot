@@ -23,11 +23,49 @@ müsste hinterher raten, wer geantwortet hat und was es gekostet hat.
 
 | Weg | Ampel | Was er bedeutet |
 |---|---|---|
-| **A — API-Zweitweg** | 🟢 | Derselbe Anbieter, anderer Geldtopf: `ANTHROPIC_API_KEY` statt Abo-Token. Technisch der kürzeste Weg, weil der Code beide Wege ohnehin kennt. 💰 **Kostet pro Token** — nur mit ausdrücklicher Freigabe und Ausgabengrenze. |
+| **A — API-Zweitweg** | 🟢 | Derselbe Anbieter, anderer Geldtopf: `ANTHROPIC_API_KEY` statt Abo-Token. Technisch der kürzeste Weg, weil der Code beide Wege ohnehin kennt. 💰 **Kostet pro Token** — nur mit ausdrücklicher Freigabe und Ausgabengrenze. **Trägt Adams Stopp-Auflage vom 26.07. (siehe unten).** |
 | **B — lokales Modell** | 🟢 | Ollama läuft bereits auf dem VPS. Datenschutzfreundlich und kostenfrei, aber der Server hat **keine GPU**; für ein Modell, das den Hauptagenten ersetzen könnte, fehlt schlicht die Rechenleistung. Taugt für Neben-Inferenzen, nicht als Vertretung. |
 | **C — Zweit-Konto** | 🟡 | Ein zweites Abo verdoppelt das Kontingent. Kostet eine weitere Grundgebühr und wirft die Frage auf, ob zwei Konten für eine Person im Sinne der Nutzungsbedingungen sind. |
 | **D — Fremdanbieter** | 🟡–🔴 | Anderer Hersteller über LiteLLM. Neuer Datenabfluss, neue Vertragslage, andere Antwortqualität — und die Ampel-Regeln müssten für ihn neu durchdacht werden. |
-| **E — Zusatzguthaben** | 🟡 | Adams eigene Ergänzung: Kontingent zukaufen statt ausweichen. Der ehrlichste Weg, weil nichts am Verhalten geändert wird — 💰 aber vor jedem Kauf eine Kostenschätzung. |
+| **E — Zusatzguthaben** | 🟡 | Adams eigene Ergänzung: Kontingent zukaufen statt ausweichen. Der ehrlichste Weg, weil nichts am Verhalten geändert wird — 💰 aber vor jedem Kauf eine Kostenschätzung. **Trägt Adams Auflage vom 26.07. (siehe unten).** |
+
+## Adams Auflagen an die Wege A und E `[NACHGETRAGEN 2026-08-31]`
+
+Beide stammen aus dem Bot-Chat vom **26.07.2026** und sind über einen Monat
+alt — sie standen bis heute nirgends in der Ablage. Herkunft: die Gesamtprüfung
+der Bot-Protokolle, Wortlaut aus dem Protokoll gelesen.
+
+### Weg E darf nur im Notfall an — *weil man sein Greifen nicht sieht*
+
+**Adam am 26.07., 15:33:**
+
+> *„Das wäre natürlich ein wichtiger Punkt. Das zu wissen. Und wenn man das
+> nicht weiß, kann man damit halt so … natürlich nicht arbeiten. Das heißt,
+> man muss es deaktiviert lassen. Nur als Notfall einschalten sozusagen."*
+
+**Die Auflage:** Zusatzguthaben bleibt **deaktiviert** und wird **nur als
+Notfall eingeschaltet**. **Die Begründung ist der eigentliche Wert:** Weil
+nicht sichtbar ist, wann der Zukauf greift. **Ein Ausweichweg, dessen Greifen
+man nicht sieht, ist nicht benutzbar** — dieselbe Logik wie bei der ehrlichen
+Grenze der Vorwarnung weiter unten: eine Zahl, die vertrauenswürdig aussieht
+und es nicht ist, ist schlimmer als keine.
+
+### Laufende Prozesse stoppen — bei A und E, nicht bei Ebene 1
+
+**Adam am 26.07., 15:11:**
+
+> *„Das halt laufende Prozesse, die … größeres Kontingent verbrauchen,
+> möglichst automatisch gestoppt werden … weil das dann schlicht einfach nur
+> das Geld verpulvert."*
+
+**Der Unterschied zu 5.31, und er ist der Punkt:** Für **Ebene 1 ist das
+erfüllt** — der Auftrag geht zurück in die Warteschlange, der Worker schläft.
+Solange nur pausiert wird, kostet Weiterlaufen nichts.
+
+**Sobald ein bezahlter Topf dahinterliegt, läuft die Uhr mit Geld.** Genau
+dafür steht die Auflage bislang nirgends. Sie gehört an die **Wege A und E** —
+als Bedingung ihrer Einrichtung, nicht als eigener Bauauftrag: Wer A oder E
+scharfstellt, baut im selben Zug das Stoppen laufender Prozesse mit ein.
 
 ## Ehrliche Grenze bei der Vorwarnung
 

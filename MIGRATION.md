@@ -43,6 +43,33 @@ Die Phasen bleiben (Adam-Entscheid), es kommt nur die Achse dazu. Schreibweise:
 **Audit-Rhythmus** `[GEÄNDERT 2026-08-19]`: Die Zwischen-Audit-Funktion übernimmt der **wöchentliche Kurs-Blick** (fester Bestandteil: die Phasen-Statustabelle im Format vom 19.08.). **Phasen-Audits nur noch bei echtem Phasen-Abschluss**, nicht mehr nach jedem Punkt; das **Gesamtaudit in Phase 10** bleibt unberührt. Erstes Zwischen-Audit: **25.08.2026** (Probewochen-Auswertung + Kompass-Eichung + Wochenplan). Der Strategie-Recheck nach jeder Phase bleibt.
 **Zusätzlich verbindlich:** Die Regeln aus `CLAUDE.md` (💰 Kostenregel, Nutzer-Workflow: ein Schritt pro Nachricht, keine `#`-Kommentare in zsh-Blöcken, pbpaste-Reihenfolge, Secrets nie in den Chat, jede Anweisung mit „Erwartete Ausgabe").
 
+## Grundlagen-Papiere — quer zu allen Phasen `[NEU 2026-08-31]`
+
+**Warum dieser Abschnitt existiert:** Der Modell- und Plattform-Strategiebericht
+lag als **Unterpunkt unter 9.7 „Hermes Agent"** — einem Punkt, der die Bewertung
+*einer einzelnen Plattform* betrifft. Wer im Drehbuch nach *Modellstrategie*
+suchte, fand nichts; wer nach *Hermes* suchte, fand alles. **Das war kein
+Schreibfehler, sondern ein falscher Ort**, und er hat genau das bewirkt, was
+dieses Drehbuch sonst über fehlende Punkte sagt: Das Thema war unauffindbar.
+
+Hier stehen Papiere, die **keinem einzelnen Punkt gehören**, weil mehrere sich
+auf sie stützen. Sie sind **Quellen, keine Vorhaben** — deshalb tragen sie keine
+Punktnummer und keinen Status.
+
+| Papier | Worauf es sich auswirkt |
+|---|---|
+| [`modell-plattform-strategie-bericht.md`](docs/entscheidungsvorlagen/modell-plattform-strategie-bericht.md) (22.842 Zeichen, dazu eine PDF-Fassung) | **Modell- und Plattformstrategie im Ganzen.** Grundlage der gesamten AGB-/Auth-Analyse in `CLAUDE.md` (Abschnitte A.2/D.1) — also der Frage, ob und wie der Hauptagent über das Abo laufen darf. Berührt 2.x, 9.7 und die Kostenregel. |
+| [`werte-charta-momo.md`](docs/entscheidungsvorlagen/werte-charta-momo.md) | Die Werte, an denen sich Bauentscheidungen messen lassen — u. a. §7 (unsichtbare Komplexität) und §3 (Datenhoheit). |
+| [`bedrohungsmodell.md`](docs/entscheidungsvorlagen/bedrohungsmodell.md) | Grundlage der Eingangs-Absicherung und der Ampel. |
+| [`pruefraster-assistenz-basisfaehigkeiten.md`](docs/entscheidungsvorlagen/pruefraster-assistenz-basisfaehigkeiten.md) | Die Liste, gegen die sich prüfen lässt, ob eine **Basisfähigkeit** fehlt. Anlass war eine Lücke, die niemand bemerkte, *weil niemand eine Liste hatte*. |
+
+**Regel für diesen Abschnitt:** Ein Papier gehört hierher, wenn **mehr als ein
+Punkt** sich darauf stützt — sonst gehört es zu seinem Punkt. Wer ein Papier
+hier einträgt, prüft zuerst, ob es nicht doch einem Punkt gehört; eine Liste,
+die alles aufnimmt, ordnet nichts.
+
+---
+
 **Dokument-Hoheit:** Diese Repo-Version (`MIGRATION.md` im Bot-Repo) ist ab 2026-07-12 der Master. **Führender Branch: `mac-produktivstand`** — dort liegt der gepflegte Stand; jede Sitzung macht vor Arbeitsbeginn `git fetch` und liest/pflegt von diesem Branch. Die Telegram-Sitzung übernimmt diese Fassung als ihr Arbeitsdokument (Punkt 0.8) und pflegt Status-Updates darin; andere Sitzungen lesen vor Arbeitsbeginn den aktuellen Stand aus dem Repo.
 
 ---
@@ -1248,6 +1275,7 @@ Absturzfall ausdrücklich auf 5.18).
 
 ### 9.7 Hermes Agent (Nous Research) — Evaluation als mögliche Agent-Plattform `[NEU 2026-07-22]`
 - **Status:** 🔄 **PRÜFBERICHT LIEGT VOR (23.07.):** [`docs/entscheidungsvorlagen/9-7-hermes-pruefbericht.md`](docs/entscheidungsvorlagen/9-7-hermes-pruefbericht.md) — **K.-o.-Kriterium 1 greift nach aktueller Faktenlage: keine Abo-SDK-Auth erkennbar, Anthropic-Anbindung = API-Key/pay-per-token → Option A (Plattformwechsel) tot.** Empfehlung: **Option B** — drei Konzepte adaptieren (FTS5-Recall→5.11, Playbook-Gedanke→9.6, Memory-Kuratierung deterministisch), Projekt über 5.21 beobachten. Rest-Unsicherheit gekennzeichnet (Voll-Doku ungelesen). **Entscheidung bei Adam beim Phasen-Audit — nichts installiert.** `[NEU 2026-07-23]` **Adam: Option B als Arbeitsstand ✅** — finale Entscheidung erst beim Phasen-Audit, **zusammen mit dem externen Strategie-Recherchebericht** (läuft parallel in eigener Recherche-Sitzung: Abo-vs-Token-Rechnung, Alternativen-Landkarte, Unabhängigkeits-Roadmap). **Bis dahin ruht 9.7.**
+- `[HERAUSGELÖST 2026-08-31]` **Der Strategie-Bericht steht jetzt bei den Grundlagen-Papieren im Kopf dieses Drehbuchs** — er behandelt Modell- und Plattformstrategie im Ganzen und gehört nicht unter die Bewertung einer einzelnen Plattform. Hier bleibt er als **Beleg für diesen Punkt** stehen, nicht mehr als seine einzige Fundstelle.
 - `[NEU 2026-07-23]` **Strategie-Bericht liegt vor** ([`docs/entscheidungsvorlagen/modell-plattform-strategie-bericht.md`](docs/entscheidungsvorlagen/modell-plattform-strategie-bericht.md), kontrollgeprüft + freigegeben): K.-o. bestätigt und verschärft — Anthropic-Anbindung in Hermes offiziell nur per bezahltem API-Key; Abo-Wege sind ungemergte Community-PRs mit hohem Stabilitäts- UND AGB-Risiko (Drittanbieter-Routing seit 04/2026 verboten + technisch blockiert). Audit-Empfehlung: **Beibehalten + Erweitern.** **Faktenkorrektur:** Hermes-Repo ist laut GitHub-API ~1 Jahr alt (angelegt 22.07.2025), nicht erst seit Feb. 2026 (das war vermutlich der öffentliche Start, ungeprüft).
 - **Anstoß:** Adam wurde am 22.07. auf Hermes (Open-Source-Agent-Framework von Nous Research) hingewiesen; Tendenz zu Option A ist notiert, steht aber unter dem K.-o.-Vorbehalt.
 - **K.-o.-Kriterium 1 (💰 Kostenregel, zuerst prüfen):** Kann der Claude-Hauptagent weiterhin über das **Abo-SDK** (`CLAUDE_CODE_OAUTH_TOKEN`) laufen? Hermes erwartet OpenAI-kompatible Endpoints — liefe die Haupt-Inferenz darüber, wäre das die **bezahlte API = rote Linie**. Falls Hermes nur per API-Schlüssel kann: **Option A (Plattformwechsel) ist tot**; dann allenfalls **Option B** — Konzepte adaptieren (Memory-Schicht/FTS5, Skill-System, GEPA-Ideen) in unserem Bau.

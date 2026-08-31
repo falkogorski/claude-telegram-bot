@@ -68,6 +68,24 @@ also von dem Weg, über den die Papiere **mich** erreichen. Dass es die Antwort
 schon gab, hat die Kontrolle gemeldet. **Dieselbe Klasse Fehler, die dieses
 Papier beschreibt:** Wer nur einen Weg kennt, hält ihn für den einzigen.
 
+**`[NACHGEMESSEN 01.09., 01:0x]` Und der Weg trägt weiter, als beide dachten.**
+Die Kontrolle schrieb, Claudias Originale lägen zwar unter `ausarbeitungen/`,
+**erreichten mich aber nicht.** Gemessen im lokalen Klon
+(`~/Projects/claude-bot-logs`, nach `git fetch`): **106 Dateien, darunter alle
+fünf Bauaufträge vom 31.08.** samt Notiz — mit Zeitstempel `Sep 1 00:57`.
+
+**Damit ist die Kette Claudia → Mick vollständig und beidseitig belegt**, und
+Adam muss dafür nichts kopieren. **Was fehlt, ist allein die Kontrollsitzung:**
+Sie hat weder einen Weg herein noch hinaus. **Zwei von vier Kanten fehlen, und
+beide hängen an derselben Instanz** — das ist präziser als *„der Rückweg
+fehlt"* und macht sichtbar, wo ein Bau ansetzen müsste.
+
+**Die Lehre über den Einzelfall hinaus:** Ich habe die Nichterreichbarkeit
+**geglaubt statt gemessen**, obwohl der Klon einen `ls`-Aufruf entfernt lag.
+Ein *„geht nicht"*, das aus zweiter Hand übernommen wird, ist keine Diagnose —
+und genau das sagt die Regel *ein gescheiterter Weg beweist keine
+Unmöglichkeit*.
+
 ### 3. Entscheidungen — **9.4**, Phase A gebaut
 
 Deckt den Weg für **Entscheidungen** ab (Freigabe-Postfach → datierte

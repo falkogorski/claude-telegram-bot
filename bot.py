@@ -11184,6 +11184,18 @@ def _normalize_doppelpunkt_zahlen(text: str) -> str:
                   _verhaeltnis, text)
 
 
+# ⚠️ **BEVOR HIER NACHGESCHAERFT WIRD, LIES DIESE VIER ZEILEN** `[NEU 01.09.2026]`
+#
+# Diese Wortlisten sind viermal in fuenf Wochen nachgeschaerft worden, jedes
+# Mal nach einer Beschwerde Adams -- Tausenderpunkte, Ziffernfolgen, Mengen,
+# Kurse. **Punkt 9.1 (TTS-Wechsel mit SSML) bringt die noetige Unterscheidung
+# mit** (`digits`, `cardinal`, `characters`); Adam am 25.08.: *„Wenn wir auf
+# Azure wechseln, dann hat sich das ganze Thema aufgeloest."*
+#
+# **Die richtige Erledigung ist deshalb moeglicherweise, diese Stelle
+# ENTFALLEN zu lassen, nicht sie zu verbessern.** Wer hier den naechsten
+# Sonderfall eintraegt, verlaengert ein Provisorium, dessen Ersatz geplant
+# ist. Der Themenkreis steht vollstaendig bei 9.1 im Drehbuch.
 def _normalize_tausenderpunkte(text: str) -> str:
     """Gliederungspunkte in grossen Zahlen durch Leerzeichen ersetzen.
 

@@ -1278,6 +1278,53 @@ Absturzfall ausdrücklich auf 5.18).
 - **Status:** OFFEN
 - **Akzeptanzkriterium:** Azure-Stimme aktiv; SSML-Tags trennen deutsch/englisch sauber; Mischtext klingt korrekt. `[NEU 2026-07-12]` 💰 Azure ist ein bezahlter Dienst — vor Einrichtung Kosten mit Adam bestätigen (Kostenregel).
 - **Test:** Drei Mischtexte vorlesen lassen.
+
+#### 🔊 Der Zahlen-Themenkreis — **ein Eintrag, nicht vier** `[NEU 2026-09-01]`
+
+**Warum zusammengeführt:** Es sind vier Beschwerden Adams aus fünf Wochen über
+**dieselbe Sache**, und sie wurden bisher einzeln nachgeschärft. Genau davor
+warnt der neue Grundsatz *„Löst es sich von selbst?"* in `CLAUDE.md` — wer sie
+getrennt ablegt, schärft sie wieder getrennt nach.
+
+| Fall | Adams Wortlaut | Datum |
+|---|---|---|
+| **Tausenderpunkte** | *„800.000 ist achthunderttausend … bitte berücksichtigen und abspeichern"* | 17.07., 16:20 |
+| **Ziffernfolgen** | *„Du liest die Teile-Nummer nicht als 9 Millionen …, sondern 9-2-9-0-1-3-1. Beim Ablaufstutzen machst du das automatisch, wahrscheinlich weil es mit einer 0 beginnt."* | 27.07., 00:21 |
+| **Mengen** | *„2.000 bitte als **zweitausend** lesen, nicht 2 Punkt Null Null Null!! Hatten wir doch schon."* · *„5400 lies ebenfalls als fünftausend im Mengenkontext"* | 29.07., 10:57/10:59 |
+| **Kurse** | *„Unzenpreise bitte der Übersicht halber **als Zahlen ausgeben, nicht ausgeschrieben!**"* | 15.08., 23:23 |
+
+**Adams eigener Ausweg, und er ist der Kern dieses Eintrags** *(25.08., 12:32)*:
+
+> *„Wenn wir auf **Azure** wechseln, dann hat sich das ganze Thema aufgelöst."*
+
+**Er hat recht, und das ist am Verfahren belegbar:** SSML kennt
+`<say-as interpret-as="digits">`, `"cardinal"` und `"characters"` — **genau die
+Unterscheidung, an der eine Wortliste scheitern muss.** Alle vier Fälle sind
+damit Kandidaten, mit dem TTS-Wechsel **zu entfallen** statt behoben zu werden.
+
+**Adams eigene Beobachtung nennt sogar den Hebel:** Bei führender Null liest
+der Bot **von selbst** ziffernweise. Die Unterscheidung sitzt dort — im
+Zahlenformat —, nicht in einer Liste von Wörtern.
+
+- 💰 **Das ändert die Kostenabwägung, entscheidet sie aber nicht.** Bisher
+  stand bei 9.1 nur *Klang*; jetzt steht auch *löst eine Fehlerklasse auf*.
+  **Die Entscheidung gehört Adam** — hier steht nur der vollständige
+  Sachverhalt.
+- **⚠️ Unerledigt und bewusst so:** Adams Anweisung vom 25.08.
+  (*„das bitte rausstreichen und intelligenter lösen"*) ist offen. **Die
+  richtige Erledigung ist möglicherweise, die Stelle entfallen zu lassen** —
+  deshalb wurde hier nichts am Filter gebaut.
+- **Was gebaut ist und wo es steht** (N-21, gemessen 31.08.):
+  `_normalize_tausenderpunkte` und `_normalize_jahreszahlen` in `bot.py`,
+  Prüfzeilen in `scripts/test_vorlese_b5.py`. Sie hatten **null Treffer in
+  drei Ablagen** — `MIGRATION.md`, `CLAUDE.md`, `ABHAENGIGKEITEN.md`.
+- **Und die Grenze des Register-Prüfers, die das erklärt:** Die
+  Selbstcheck-Zeile *Register-Vollständigkeit* prüft **Module, nicht
+  Fähigkeiten innerhalb eines Moduls.** Ein Filter, der in `bot.py` wohnt, ist
+  für sie unsichtbar, weil `bot.py` eingetragen ist. **Das ist keine
+  Aufforderung, den Prüfer umzubauen** (Konvergenz-Bremse), sondern die
+  ehrliche Angabe, was er nicht leistet — damit sich niemand darauf verlässt.
+
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
@@ -1285,6 +1332,7 @@ Absturzfall ausdrücklich auf 5.18).
 - **Status:** OFFEN
 - **Akzeptanzkriterium:** Eine lokale Stimme verfügbar, läuft auf VPS-CPU, Qualität akzeptabel.
 - **Test:** Eine deutsche Probe lokal sprechen lassen.
+- **⚠️ Anforderung `[NEU 2026-09-01, Adam vom 25.08., 13:45]` — die Stimme IST das Signal:** *„Ich glaube, dass es gar nicht verkehrt ist, wenn man dann zwei Varianten hat, **auch zwei unterschiedliche Sprecher**. Damit wird sofort klar, wenn etwas über Rot läuft und wenn etwas grün ist."* — Der Punkt hieß bisher nur *Rot-Backend*: die **Trennung** war verplant, **dass der Unterschied hörbar sein soll, stand nirgends.** Das ist der eigentliche Gewinn: kein Hinweis zum **Lesen**, sondern ein Unterschied zum **Hören**. Wer die lokale Stimme später nur nach Qualität auswählt, verfehlt die Anforderung.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 

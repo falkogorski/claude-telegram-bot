@@ -1206,3 +1206,51 @@ folgte, fand in der Datei genau dieselbe gekürzte Zeile. Eine vollständige
 Ausgabe im Läufer hätte dort nichts genützt, weil nachts niemand am Bildschirm
 sitzt. **Die Lehre: Ein Ausgabeweg ist erst repariert, wenn er an seinem
 ENDE nachgemessen wurde — nicht an seinem Anfang.**
+
+---
+
+## Nacht zum 31.08. — Gegenprüfung einer Übersicht, und was dabei herauskam
+
+**Was gebaut:** Fünf Ablage-Eingriffe aus Engywucks Standsübersicht, das Feld
+`⏳ WARTET AUF ADAM`, die Übersicht ins Repo. **Kettenwirkung geprüft:** je
+Eingriff die Geschwisterstellen (Register, Prüfraster, 6.6↔7.1 in beide
+Richtungen). **Tatsächlich eingetretene Nebenwirkung — und sie ist der ganze
+Ertrag dieser Nacht:**
+
+**① Das Tor hat sich selbst gerechtfertigt.** Der Auftrag verlangte, jeden
+Befund zu prüfen, *bevor* er ausgeführt wird — mit der Begründung, wer ihn
+zuerst ausführe, habe ihn damit angenommen. Genau das trat ein: Der
+5.34-Befund stimmte, aber seine Umsetzung hätte einen **nicht installierten
+Dienst als fertig ausgewiesen**. Und ein zweiter Befund kippte ganz — 4.3 ist
+nicht die Ordnerspiegelung. **Zwei von fünf Befunden hätten Schaden angerichtet,
+wären sie mechanisch abgearbeitet worden.**
+
+**② Der Nachtblock war seit zwei Tagen erledigt.** Sein Hauptstück — acht
+sicherheitstragende Prüfzeilen, beschrieben als *substanziellste offene Arbeit
+im Projekt* — war am 29.08. repariert worden. Drei Dokumente sagten offen: die
+Betriebslage, der Katalog, und der darauf gebaute Auftrag. **Die Prüfregel
+*Status ist ein Befund* deckt das LESEN ab; dieser Fehler entsteht beim
+ERLEDIGEN.** Daraus die Umkehrung des Ablageweg-Grundsatzes: *Wer einen Punkt
+abschließt, sucht die Stellen, die ihn als offen führen.* Nicht nur ein Weg
+hinein — auch einer heraus.
+
+**③ Fünf Fehlmessungen, die alle wie ein Ergebnis aussahen.** Die
+Nachprüfung meldete im ersten Durchgang drei blinde Prüfer. **Keiner war
+blind** — die Fehler lagen sämtlich in meiner Messung: eine zu grobe Erwartung
+(`Limit` traf `Nachbarfehler`, weil dort `FEHL` steckt), zwei falsch
+geschriebene (`Waechter` findet `Wächter` nicht), zwei wirkungslose Eingriffe
+(im Aufrufer statt in der gelesenen Funktion; ein Pfad, den der Prüfer
+mitzieht) und eine falsche Richtung. **Ergänzung zu den drei Auflagen:
+`assert alt in t` beweist, dass etwas ersetzt wurde — nicht, dass es im
+Sichtfeld des Prüfers lag.**
+
+**④ Wer zwei gleiche Nummern auflöst, verschiebt die mit den wenigsten
+Bezügen.** Bei 7.4 hingen an der einen sechs Prüfzeilen im Code, an der
+anderen ein Doku-Verweis. Andersherum wäre der Fehler aus der Ablage in den
+Code gewandert. *Universell — gilt für jede Kollision von Bezeichnern.*
+
+**⑤ Fremde Arbeit wird nicht hineinkorrigiert.** Die Gegenprüfung liegt als
+eigener Abschnitt **neben** der Übersicht, nicht in ihr. Wer korrigierend
+hineinschreibt, macht seine Messung und die fremde hinterher
+ununterscheidbar.
+

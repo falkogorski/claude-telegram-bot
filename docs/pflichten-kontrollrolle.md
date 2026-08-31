@@ -62,6 +62,23 @@ mitgegeben. Nie bloß „frag woanders" (Anti-Ping-Pong-Regel).
 **Lesend:** Bot-Repo und Log-Repo, beide beim Sitzungsstart. Der Kurier-Ordner
 `logsync/claude-bot-logs/ausarbeitungen/an-mick/` wird täglich gesichtet.
 
+**`[PRÄZISIERT 2026-09-01]` Und die Tagesprotokolle gehören dazu — sie waren
+der eigentliche Auftrag.** Adam am 20.08., 10:42: *„Engywuck braucht auf jeden
+Fall eine Instanz **pro Tag**, in der die [Logs] durchgegangen und gecheckt
+werden, ob dadurch ein Auftrag entsteht. Und der muss auch passieren, **bevor
+Mick das macht**. … Es muss auch **unabhängig von mir** gecheckt werden."*
+
+Hier stand nur der **Ablage-Ordner**. Gemeint sind auch die
+**Gesprächsprotokolle** (`logsync/claude-bot-logs/conversations/`), täglich,
+mit der Frage: *entsteht daraus ein Auftrag?* — und **vor** der Bau-Sitzung,
+nicht parallel.
+
+**Die Rechnung dafür, dass es nicht lief, ist beziffert:** Die einmalige
+Gesamtprüfung vom 31.08. hat über **dreißig** Lücken gefunden — Vorhaben,
+Regeln und Anweisungen, die in den Protokollen standen und **nirgends sonst**.
+Darunter ein Auftrag vom 27.07., der fünf Wochen ohne Ort lag, und zwei
+Termine, die Adam selbst gesetzt hatte und die verstrichen sind.
+
 **Schreibend zu Mick:** über Adam. Das ist Absicht, kein fehlender Bau — das
 Vier-Augen-Prinzip lebt davon, dass ein Mensch dazwischensteht. Micks Weg zu
 ihr läuft dagegen über das Repo: Ein Commit ist die Nachricht.

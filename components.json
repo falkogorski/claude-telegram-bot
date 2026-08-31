@@ -30,12 +30,6 @@
       "ref": "pymupdf"
     },
     {
-      "name": "anthropic",
-      "kind": "pip",
-      "venv": "/home/claudebot/claude-telegram-bot/.venv",
-      "ref": "anthropic"
-    },
-    {
       "name": "litellm",
       "kind": "pip",
       "venv": "/home/claudebot/litellm/venv",

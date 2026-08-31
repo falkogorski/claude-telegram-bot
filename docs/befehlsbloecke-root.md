@@ -592,3 +592,67 @@ Steht dort **nicht** `0`, sind die Werte schon da — dann nichts anhaengen
 **Danach zum Pruefen** — im Bot `/termine` tippen. Erwartet: entweder
 Termine oder die ehrliche Auskunft, dass keine anstehen. Kommt weiterhin
 "Kalender-Zugang fehlt", stimmt einer der beiden Werte nicht.
+
+---
+
+## Schritt: `anthropic` aus der venv entfernen `[NEU 01.09.2026]`
+
+**Kein root nötig** — dieser Schritt läuft als `claudebot`. Er steht trotzdem
+hier, weil er derselben Klasse angehört: **ein Eingriff auf dem Server, den
+nach 8.7 nur Adam auslöst.** Der Repo-Teil (Registereintrag) ist bereits
+committet; hier fehlt nur die Bibliothek selbst.
+
+**Was der Schritt tut und was nicht:** Er entfernt die Bibliothek der
+**kostenpflichtigen** Schnittstelle aus der Umgebung des Bots. Das Abo läuft
+über `claude-agent-sdk`. 💰 **Er spart nichts und kostet nichts** — er räumt
+auf, damit der Weg zur Abrechnung pro Zeichen nicht offensteht, ohne dass ihn
+jemand braucht.
+
+**Gemessen vor dem Streichen** (von der Bot-Sitzung und von der Kontrolle
+unabhängig): kein einziger `import anthropic` im Repo · `claude-agent-sdk
+0.2.127` verlangt nur `anyio`, `mcp`, `sniffio` · LiteLLM zieht `anthropic` in
+manchen Zusammenstellungen mit, liegt aber in **einer eigenen venv**
+(`/home/claudebot/litellm/venv`) und wird davon nicht berührt.
+
+**⚠️ Reihenfolge nicht abkürzen.** Wird der SDK-Sprung auf `0.2.148` vorher
+vollzogen, ist die Messung veraltet — eine neuere Fassung kann Abhängigkeiten
+hinzugefügt haben. Genau das fängt Schritt 2 unten ab.
+
+**Schritt 1 — entfernen:**
+
+```bash
+ssh claudebot@159.195.195.82 '/home/claudebot/claude-telegram-bot/.venv/bin/pip uninstall -y anthropic'
+```
+
+**Schritt 2 — nachweisen, dass nichts zerbrochen ist:**
+
+```bash
+ssh claudebot@159.195.195.82 '/home/claudebot/claude-telegram-bot/.venv/bin/pip check'
+```
+
+Erwartet: `No broken requirements found.` Steht dort etwas anderes, **hier
+aufhören** und den Rückweg gehen.
+
+**Schritt 3 — Regressionslauf auf dem Server, dann Neustart:**
+
+```bash
+ssh claudebot@159.195.195.82 'cd /home/claudebot/claude-telegram-bot && bash scripts/regressionstest.sh | tail -3'
+```
+
+```bash
+sudo systemctl restart claude-telegram-bot
+```
+
+**Schritt 4 — echter Durchlauf:** Im Bot eine beliebige Frage stellen. Kommt
+eine Antwort, ist der Nachweis erbracht — der Agent läuft über das SDK, nicht
+über die entfernte Bibliothek.
+
+**Rückweg, falls irgendein Schritt klemmt:**
+
+```bash
+ssh claudebot@159.195.195.82 '/home/claudebot/claude-telegram-bot/.venv/bin/pip install anthropic==0.120.0'
+```
+
+**Kein Ersatzeintrag im Register.** Das Paket soll dort nicht mehr geführt
+werden — ein Eintrag „bewusst entfernt" wäre eine Karteileiche, und die
+Begründung steht bereits in `requirements.txt`.

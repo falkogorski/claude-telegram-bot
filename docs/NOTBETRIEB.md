@@ -95,6 +95,53 @@ gestartet hat, und kann sich nicht selbst verwechseln. (Der Start-Wächter aus B
 filtert aus demselben Grund seinen eigenen Prozess ausdrücklich heraus; dass
 dieser Griff nötig war, ist mit dem heutigen Befund belegt statt nur vermutet.)
 
+## 3a. „Ich bin unterwegs und will nur wissen: lebt er?" `[NEU 2026-08-31]`
+
+> **GitHub-App (oder Browser) öffnen → privates Repo `claude-bot-logs` → Zeit
+> des letzten Commits ansehen.** Der Log-Abgleich schreibt **alle fünf
+> Minuten**; ist der letzte Commit älter als **zwanzig Minuten**, stimmt etwas
+> nicht — Server, Abgleich oder Netz. **Das Ausbleiben der Commits ist selbst
+> der Alarm**; dieser Blick braucht weder Bot noch Terminal.
+
+**Warum zwanzig und nicht zwei Stunden.** Der Wert stammt aus einem Archivstand
+vom 18.08., als der Abgleich stündlich lief. **Seit dem 19.08., 23:15 läuft er
+alle fünf Minuten** (`docs/befehlsbloecke-root.md` führt die stündliche Setzung
+ausdrücklich als *überholt*). Mit zwei Stunden wären **vierundzwanzig
+ausgefallene Läufe** nötig, bevor die Zeile etwas sagt — das ist keine
+Notfall-Auskunft mehr.
+
+### Warum die Zeile nicht an einem ruhigen Tag falsch anschlägt
+
+**Die Sorge war berechtigt und ist gemessen:** `scripts/log_sync.sh` committet
+**nicht**, wenn sich nichts geändert hat. Eine enge Schwelle könnte also an
+einem stillen Tag anschlagen, ohne dass etwas kaputt ist — und ein Wächter, der
+falsch anschlägt, ist binnen einer Woche abgeschaltet.
+
+**Gemessen am echten Verlauf (31.08.):** **805 Commits seit dem 19.08., 23:15 —
+kein einziger Abstand über zwanzig Minuten**, Median fünf Minuten. Darin liegen
+zwölf Tage einschließlich Adams zwölftägiger Abwesenheit, in der niemand dem
+Bot schrieb.
+
+**Und der Grund ist strukturell, nicht Glück:** In den Nacht-Commits ändert sich
+**`zustand.json`** — der Lagebericht der **Stundenblume**
+(`scripts/stundenblume.py`). Sie schreibt fortlaufend, unabhängig davon, ob
+jemand den Bot benutzt. **Der Herzschlag, den es zu bauen gälte, existiert
+bereits** — er heißt Belegkette.
+
+**⚠️ Was diese Zusicherung trägt, und wo sie endet:** Sie hängt **an der
+Stundenblume**. Steht die still — das ist am 20.08. vorgekommen —, fällt der
+Herzschlag weg, und die Zwanzig-Minuten-Zeile schlägt an.
+
+**Das ist kein Fehlalarm, sondern ein zusätzlicher echter Fall:** Eine stehende
+Belegkette *ist* eine Störung, und zwar eine, die von außen wie Ruhe aussieht.
+Die Notfall-Zeile erkennt damit drei Dinge statt zwei — Server, Abgleich, Netz
+**und** eine stille Wache.
+
+**Kein Herzschlag ist deshalb zu bauen.** Wer später einen einbaut, sollte
+wissen, dass er damit genau diese dritte Erkennung wieder abschaltet.
+
+---
+
 ## 4. Was Stufe 2 auslöst — der Auslöser, nicht die Route
 
 Stufe 2 wird **nicht vorgebaut**. Sie beginnt, wenn eines davon eintritt:

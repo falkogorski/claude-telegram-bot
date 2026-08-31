@@ -1750,6 +1750,68 @@ check("der Pruefstand fasst die echten Vorlieben nicht an",
       _der_pruefstand_schreibt_nicht_in_die_echten_vorlieben)
 check("keine Betriebsablage wird angefasst", _keine_betriebsablage_wird_angefasst)
 
+
+# ── F-10: der Warnfilter fuer scharfe Befehle ──────────────────────────────
+#
+# **Hier und nicht in einem eigenen Pruefer** (Auflage: kein neuer Waechter) —
+# `presend` wird bereits von dieser Datei gemessen.
+#
+# **Gemessen wird an einer Menge, die nicht dem Erbauer einfaellt**, sondern
+# aus dem Bestand kommt: den echten Dateinamen dieses Repos. Eine
+# handverlesene Beispielliste haette genau die Faelle enthalten, an die ich
+# beim Bauen gedacht habe — und die 48 % Fehlalarm nie gezeigt.
+
+def _kein_fehlalarm_auf_echten_dateinamen():
+    """Die Ist-Menge kommt aus `git ls-files`, nicht aus meinem Kopf."""
+    import subprocess
+    import presend
+    namen = sorted({n.split("/")[-1] for n in subprocess.run(
+        ["git", "ls-files"], capture_output=True, text=True,
+        cwd=str(Path(__file__).resolve().parent.parent)).stdout.split()})
+    assert len(namen) > 100, f"Menge zu klein, Messung waere wertlos: {len(namen)}"
+    falsch = [n for n in namen
+              if any(m.search(f"rm {n}") for m, _ in presend._SCHARFE_MUSTER)]
+    assert not falsch, (
+        f"{len(falsch)} von {len(namen)} echten Dateinamen loesen die "
+        f"rm-Warnung faelschlich aus - ein Filter mit dieser Quote ist "
+        f"abgeschaltet, auch wenn er laeuft: {falsch[:5]}")
+
+
+def _die_echten_formen_treffen_alle():
+    """Die Gegenrichtung — ohne sie waere alles mit einem toten Muster erfuellt.
+
+    `--recursive` und `--force` stehen ausdruecklich dabei: Sie wurden von der
+    alten Fassung **verfehlt**, und das stand in keinem Befund.
+    """
+    import presend
+    for zeile in ("rm -rf /", "rm -r ordner", "rm -f datei", "rm -R ordner",
+                  "rm -vrf x", "rm --recursive x", "rm --force x", "rm datei -rf"):
+        assert any(m.search(zeile) for m, _ in presend._SCHARFE_MUSTER), \
+            f"scharfer Befehl nicht erkannt: {zeile}"
+
+
+def _codebloecke_in_allen_drei_formen():
+    """Zaunzeile: mit Sprach-Hint, mit Wagenruecklauf, einzeilig.
+
+    Ausgefuehrt ueber den echten Einstieg `_scharfe_befehle`, nicht ueber den
+    Regex allein — sonst misst die Zeile eine Schreibweise statt der Wirkung.
+    """
+    import presend
+    for probe, wie in (("```bash\nrm -rf /\n```", "mit Sprach-Hint"),
+                       ("```\r\nrm -rf /\r\n```", "mit Wagenruecklauf"),
+                       ("```rm -rf /```", "einzeilig"),
+                       ("```\nrm -rf /\n```", "ohne Hint")):
+        assert presend._scharfe_befehle(probe), f"Codeblock {wie} nicht erfasst"
+    # Und die Gegenrichtung: Fliesstext ist kein Befehl. Eine Warnung darueber
+    # waere genau das Rauschen, das die Warnung entwertet.
+    assert not presend._scharfe_befehle("Ich habe rm -rf nie benutzt."), \
+        "Fliesstext loest die Warnung aus - das entwertet sie"
+
+
+check("kein Fehlalarm auf echten Dateinamen (F-10)", _kein_fehlalarm_auf_echten_dateinamen)
+check("alle echten rm-Formen treffen (F-10)", _die_echten_formen_treffen_alle)
+check("Codebloecke in allen drei Formen (F-10)", _codebloecke_in_allen_drei_formen)
+
 print()
 if fails:
     print(f"❌ {len(fails)} Schranken-Pruefung(en) fehlgeschlagen: {', '.join(fails)}")

@@ -86,7 +86,25 @@ _RE_TENTATIV = re.compile(
 # ausführt**. Nicht aufgenommen: `git`, `ls`, `cat`, `systemctl` — die stehen
 # in fast jedem Block, den wir uns gegenseitig schicken.
 _SCHARFE_MUSTER = (
-    (re.compile(r"\brm\s+(-\w+\s+)*-?\w*[rf]", re.I), "rm mit -r oder -f (löscht Verzeichnisse)"),
+    # `[BERICHTIGT 31.08., F-10]` **Ein Filter mit 48 % Fehlalarm ist bereits
+    # abgeschaltet, auch wenn er noch läuft.** Hier stand `-?\w*[rf]` — das
+    # Fragezeichen machte den Bindestrich **optional**, und damit traf das
+    # Muster jedes Wort mit einem `r` oder `f` darin. Gemessen an den 311
+    # echten Dateinamen dieses Repos: **151 Fehlalarme**, darunter jede Datei
+    # namens `bericht`, `ANTWORT-SPIEGEL.md`, `bauauftrag-*`.
+    #
+    # **Und die Gegenrichtung war ebenso kaputt, das stand in keinem Befund:**
+    # `\w` kennt keine Bindestriche, also verfehlte das Muster `rm --recursive`
+    # und `rm --force` vollständig — die ausgeschriebenen Formen derselben
+    # Gefahr. Ein Filter, der die Hälfte der Dateinamen anschlägt und die
+    # Langform durchlässt, ist in beide Richtungen falsch.
+    #
+    # Jetzt muss ein Wort **mit einem Bindestrich beginnen**, um als Flag zu
+    # zählen. Gemessen nach der Änderung: **0 von 311** Fehlalarmen, und alle
+    # acht echten Formen treffen (`-rf`, `-r`, `-f`, `-R`, `-vrf`,
+    # `--recursive`, `--force`, Flag hinter dem Dateinamen).
+    (re.compile(r"\brm\b(?:\s+[^\s;|&]+)*?\s+-{1,2}[a-z]*[rf]", re.I),
+     "rm mit -r oder -f (löscht Verzeichnisse)"),
     (re.compile(r"\b(curl|wget)\b[^\n|]*\|\s*(ba)?sh", re.I), "Herunterladen und direkt Ausführen"),
     (re.compile(r"\bbase64\s+-d\b[^\n|]*\|", re.I), "Entschlüsseln und Weiterleiten"),
     (re.compile(r"\bchmod\s+(-\w+\s+)*[0-7]*777", re.I), "chmod 777 (Rechte für alle)"),
@@ -99,7 +117,16 @@ _SCHARFE_MUSTER = (
 # Codeblöcke — nur dort wird gesucht. Fließtext, der „rm" erwähnt, ist kein
 # Befehl, und eine Warnung darüber wäre genau das Rauschen, das die Warnung
 # entwertet.
-_RE_CODEBLOCK = re.compile(r"```[a-zA-Z]*\n(.*?)```", re.S)
+# `[BERICHTIGT 31.08., F-10]` Der Zaun verlangte einen Zeilenumbruch **direkt**
+# nach den drei Strichen. Damit fielen zwei Formen durch: ein Block mit
+# Wagenrücklauf (`\r\n`, so schreibt jedes Windows-Werkzeug) und der
+# **einzeilige** Block ```rm -rf /```. Beides sind gültige Codeblöcke, und der
+# einzeilige ist die naheliegendste Form für genau einen Befehl.
+#
+# Der Sprach-Hint zählt nur noch als solcher, **wenn ihm ein Umbruch folgt** —
+# sonst hätte ```rm -rf /``` das `rm` als Sprachnamen verschluckt und der
+# Inhalt begänne bei `-rf`. Die Warnung wäre ausgeblieben, und zwar leise.
+_RE_CODEBLOCK = re.compile(r"```(?:[a-zA-Z]+[ \t]*\r?\n|\r?\n|)(.*?)```", re.S)
 
 
 def _scharfe_befehle(text: str) -> list[str]:

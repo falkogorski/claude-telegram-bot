@@ -348,7 +348,37 @@ berechnet und **fallen gelassen** — F-15 wäre als erste solche Art sofort ein
 Attrappe gewesen. Genau die Sorge, die ich beim Bauen geäußert hatte; Engywucks
 Messung hat sie bestätigt und die Reihenfolge vorgegeben.
 
-**F-16 · `hora.py`: der Riegel hängt an der Disziplin künftiger Schreiber** `[offen, 23.08.2026]`
+**F-16 · `hora.py`: der Riegel hängt an der Disziplin künftiger Schreiber** `[GEBAUT, GEMESSEN, ZURÜCKGENOMMEN — 31.08.2026]`
+
+> **`[BEFUND 31.08.]` Der Einzeiler ist gebaut worden und wieder draußen. Er
+> trägt nicht als Riegel-Härtung — er ist eine Architekturentscheidung.**
+>
+> Gemessen: `braucht_zustimmung = ampel != "gruen" or bool(auftrag.get("befehl"))`
+> stellt **jeden ausführbaren Auftrag** unter Zustimmungspflicht — jeder Auftrag,
+> der etwas tut, trägt einen `befehl`. Hora führte danach nichts mehr autonom
+> aus, sondern legte alles vor. **Fünf abgenommene Prüfzeilen brachen sofort:**
+> Kette arbeitet die Liste leer (A1) · geparkte Frage hält den Läufer nicht auf
+> (B2) · abhängiger Auftrag wird übersprungen (B2) · Kontingent-Halt hakt nichts
+> ab · nur ein Lauf zugleich.
+>
+> **Das ist nicht das, was der Befund versprach** („macht ihn unabhängig von der
+> Selbstauskunft des Schreibers"). Es ist die Entscheidung, dass Hora ohne
+> Adams Urteil gar nichts mehr ausführt. Die kann richtig sein — dafür ist das
+> Freigabe-Postfach gebaut —, aber **sie gehört Adam, nicht einem Nachtblock.**
+>
+> **Auch die naheliegende Nebenkorrektur trägt nicht:** Ich hatte die
+> Ausführbarkeits-Prüfung vor die Zustimmung gezogen, damit ein Auftrag ohne
+> Befehl nicht vorgelegt statt gemeldet wird. Zwei weitere Zeilen brachen —
+> denn **ein Auftrag ohne Befehl ist nicht unbrauchbar, er kann eine Frage
+> sein** (so stellt der Wachposten seine Befunde ein). Die vorhandene
+> Reihenfolge ist richtig.
+>
+> **Offen für Adam und die Kontrolle:** Soll Hora jeden Befehl vorlegen? Wenn
+> ja, sind fünf Prüfstände mitzuziehen, und Hora ist danach kein autonomer
+> Läufer mehr, sondern ein Vorschlagender. Hora ist derzeit **ruhend** (kein
+> Zeitgeber am Mac, keine Auftragsliste) — es eilt nicht.
+
+
 
 **Kein Loch — Engywuck hat den Befund selbst gefahren.** Die Kette bricht
 zweimal: Der Wachposten schreibt gar keinen `befehl` (null Vorkommen im ganzen

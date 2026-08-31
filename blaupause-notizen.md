@@ -1254,3 +1254,47 @@ eigener Abschnitt **neben** der Übersicht, nicht in ihr. Wer korrigierend
 hineinschreibt, macht seine Messung und die fremde hinterher
 ununterscheidbar.
 
+---
+
+## Nacht zum 31.08., zweiter Block — elf F-Befunde, und was sie über Befunde lehren
+
+**Was gebaut:** F-7, F-8, F-10, F-11, F-12, F-15, F-17 plus der Raster-Nachtrag.
+**Kettenwirkung geprüft:** je Punkt die Geschwisterstellen; bei F-12 alle
+Produktivmodule über den Syntaxbaum. **Tatsächlich eingetretene Nebenwirkung —
+und diesmal ist sie ein Muster, kein Einzelfall:**
+
+**① Drei von elf Befunden stimmten so nicht, und alle drei in dieselbe
+Richtung: Sie waren zu klein beschrieben.** F-10 war nicht ein Filter mit
+Fehlalarm, sondern in **beide** Richtungen falsch (`rm --recursive` wurde
+verfehlt). F-7 war nicht eine falsche Zahl, sondern **sechzehn**. F-8 war nicht
+eine tote Funktion, sondern eine tote Funktion **mit falscher Zusage** — sie
+behauptete im Docstring, dieselbe Antwort wie die Entscheidung zu geben, und
+tat es nicht. *Ein Befund ist eine Beobachtung, keine Vermessung. Wer ihn
+umsetzt, ohne nachzumessen, repariert die halbe Sache.*
+
+**② Zwei von elf hätten Schaden angerichtet.** F-9 hätte die 💰-Kostenschranke
+gebrochen (`WebSearch` steht in `_COST_TOOLS`, die Funktion fasst beide Suchen
+zusammen). F-16 stellt **jeden ausführbaren Auftrag** unter Zustimmungspflicht
+und brach fünf abgenommene Prüfzeilen — gebaut, gemessen, zurückgenommen. **Der
+Rückweg war ein `git checkout`, wie vorgesehen.**
+
+**③ Der teuerste eigene Fehler war eine Shell-Form, keine Unachtsamkeit.**
+`lauf | tail -1 && git commit` — **die Pipe maskiert den Fehlschlag**, weil der
+Rückgabewert der einer erfolgreichen `tail` ist. Ein Commit ging mit 68/69
+hinaus. Gestern war es ein Zeilenumbruch statt `&&`, heute eine Pipe. **Beide
+Male half die Absicht nicht, die Form schon:** Der Lauf schreibt ohne Pipe in
+eine Datei, danach wird gelesen, danach committet.
+
+**④ Und der rote Lauf enthielt einen echten Fund** — eine Prüfzeile mit fest
+verdrahtetem VPS-Pfad, die am Mac etwas anderes maß und dort nur *zufällig*
+grün war. Sie fiel erst auf, als die Grund-Funktion vollständig wurde. *Ein
+Fehler, der etwas findet, ist ein guter Tag.*
+
+**⑤ Drei Messfehler in eigenen Gegenproben, alle sahen wie ein Ergebnis aus:**
+eine zu grobe Erwartung (`Limit` traf die grüne Zeile *Nachbarfehler*, weil
+dort `FEHL` steckt), zwei falsch geschriebene (`Waechter` findet `Wächter`
+nicht), ein wirkungsloser Eingriff. **Und ein frisch gebauter Nachweis war
+blind:** Er verglich `ls -l`, und das ist minutengenau — ein Lauf dauert dreißig
+Sekunden, der Heartbeat ist immer gleich lang. *Gefunden von der Gegenprobe,
+bevor er in den Lauf ging.*
+

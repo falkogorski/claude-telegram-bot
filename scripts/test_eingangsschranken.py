@@ -1808,6 +1808,57 @@ def _codebloecke_in_allen_drei_formen():
         "Fliesstext loest die Warnung aus - das entwertet sie"
 
 
+# ── F-8: der Erklaertext hat einen Aufrufer, und er stimmt ─────────────────
+
+def _der_lesegrund_nennt_den_echten_grund():
+    """Ausgefuehrt: vier Faelle, vier verschiedene Gruende.
+
+    Der dritte ist der wichtige — er war bis zum 31.08. **falsch**: Die
+    Grund-Funktion kannte die ausfuehrenden Schalter nicht und haette bei
+    `find … -delete` [kein Grund] gesagt, also die beruhigende Richtung.
+    """
+    faelle = [
+        ("find ~/Projects/claude-telegram-bot -name '*.py' -delete", "ausfuehrender Schalter"),
+        ("cat ~/Projects/claude-telegram-bot/README.md /etc/passwd", "aus dem Repo hinaus"),
+        ("cat ~/Projects/claude-telegram-bot/README.md && rm x", "Zeichen"),
+        ("ls -la", "kein Repo-Pfad"),
+    ]
+    for befehl, erwartet in faelle:
+        grund = bot._repo_read_grund(befehl)
+        assert erwartet in grund, \
+            f"Grund fuer {befehl!r} nennt nicht {erwartet!r}, sondern {grund!r}"
+    frei = "cat ~/Projects/claude-telegram-bot/README.md"
+    assert bot._repo_read_grund(frei) == "", \
+        f"ein erlaubter Lesebefehl bekommt einen Grund genannt: {bot._repo_read_grund(frei)!r}"
+
+
+def _entscheidung_und_grund_koennen_nicht_driften():
+    """Beide Antworten stammen aus EINER Quelle — gemessen, nicht behauptet.
+
+    Und der Erklaertext wird **wirklich aufgerufen**: gezaehlt werden echte
+    Aufrufknoten im Syntaxbaum, nicht Vorkommen des Namens. Ein Kommentar mit
+    dem Namen zaehlt dort nicht — genau daran ist Rang A, Stelle 4 gescheitert.
+    """
+    import ast
+    from pathlib import Path as _P
+    for befehl in ("cat ~/Projects/claude-telegram-bot/README.md",
+                   "find ~/Projects/claude-telegram-bot -delete",
+                   "ls -la", "rm -rf ~/Projects/claude-telegram-bot"):
+        assert bot._is_repo_read_cmd(befehl) == (bot._repo_read_grund(befehl) == ""), \
+            f"Entscheidung und Grund widersprechen sich bei {befehl!r}"
+    quelle = (_P(__file__).resolve().parent.parent / "bot.py").read_text(encoding="utf-8")
+    rufe = [k for k in ast.walk(ast.parse(quelle))
+            if isinstance(k, ast.Call)
+            and getattr(k.func, "id", None) == "_repo_read_grund"]
+    assert len(rufe) >= 2, (
+        f"_repo_read_grund wird nur {len(rufe)}-mal wirklich aufgerufen — ein "
+        "Erklaertext ohne Leser altert unbemerkt, und dieser erklaert eine "
+        "Sicherheitsschranke (F-8)")
+
+
+check("der Lesegrund nennt den echten Grund (F-8)", _der_lesegrund_nennt_den_echten_grund)
+check("Entscheidung und Grund koennen nicht driften (F-8)",
+      _entscheidung_und_grund_koennen_nicht_driften)
 check("kein Fehlalarm auf echten Dateinamen (F-10)", _kein_fehlalarm_auf_echten_dateinamen)
 check("alle echten rm-Formen treffen (F-10)", _die_echten_formen_treffen_alle)
 check("Codebloecke in allen drei Formen (F-10)", _codebloecke_in_allen_drei_formen)

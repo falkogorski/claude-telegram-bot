@@ -2624,6 +2624,18 @@ def _repo_read_grund(cmd: str) -> str:
         return "ein Schreibmuster"
     if _is_sensitive_ref(c, schreibend=False):
         return "ein Geheimnis-Pfad — der bleibt auch fürs Lesen zu"
+    # `[ERGAENZT 31.08., F-8]` **Diese beiden Pruefungen fehlten hier** — und
+    # der Docstring oben behauptet [leer = er ist es]. Gemessen war das falsch:
+    # `_is_repo_read_cmd` prueft zusaetzlich die ausfuehrenden Schalter (H6:
+    # `find -exec` ist eine Shell, `find -delete` ein Loeschwerkzeug) und ob
+    # ALLE Pfade im Repo liegen (Befund D/E). Bei `find /repo -exec …` haette
+    # diese Funktion also [kein Grund] gesagt — eine falsche Auskunft an einer
+    # Sicherheitsschranke, und zwar die beruhigende Richtung.
+    if _AUSFUEHRENDE_SCHALTER.search(c):
+        return ("ein ausfuehrender Schalter (find -exec, -delete und Verwandte) "
+                "— das ist kein Lesen mehr")
+    if not _alle_pfade_im_repo(_ohne_harmlose_umleitung(c)):
+        return "mindestens ein Pfad zeigt aus dem Repo hinaus"
     if not _REPO_READ_VERBS.match(c):
         return "kein bekanntes Lese-Verb am Anfang"
     return ""
@@ -2666,32 +2678,20 @@ def _is_repo_read_cmd(cmd: str) -> bool:
     damit stärker als das, was ⑩ am Vortag geschlossen hat — und die
     Kernzusage von ⑩ („eine Rückfrage je Bash-Befehl") war schlicht falsch.
     """
-    c = cmd or ""
-    if not _ist_repo_bezug(c):
-        return False
-    if _SHELL_META_RE.search(_ohne_harmlose_umleitung(c)):
-        return False               # keine Verkettung/echte Umleitung
-    if _AUSFUEHRENDE_SCHALTER.search(c):
-        return False               # find -exec/-delete & Co. sind kein Lesen
-    if _is_repo_write_cmd(c):
-        return False               # doppelter Boden gegen Schreiben
-    # G (23.08.): `schreibend=False` — Geheimnisse bleiben zu, aber der
-    # Gedaechtnis-Ordner und CLAUDE.md sind ausdruecklich LESBAR (8.7). Vorher
-    # widersprach diese Zeile dem System-Prompt, der genau das zusagt.
-    if _is_sensitive_ref(c, schreibend=False):
-        return False               # Geheimnis-Pfade bleiben auch fürs Lesen zu
-    # **ALLE** Pfade müssen ins Repo zeigen, nicht nur einer. Ein zweiter,
-    # fremder Pfad daneben war der bequemste Weg nach draußen.
+    # `[ZUSAMMENGELEGT 31.08., F-8]` **Hier stand derselbe Prueflauf ein
+    # zweites Mal** — und die beiden Fassungen waren bereits auseinander:
+    # `_repo_read_grund` fehlten die ausfuehrenden Schalter und die
+    # Alle-Pfade-Pruefung, waehrend sie im Docstring zusagte, dieselbe Antwort
+    # zu geben. Eine tote Funktion faellt nicht auf; eine tote Funktion, die
+    # eine falsche Zusage traegt, ist eine Falle fuer den Naechsten.
     #
-    # Geprüft wird der Befehl **ohne die harmlose Fehlerumleitung**: `2>/dev/null`
-    # trägt einen Pfad, der naturgemäß nicht im Repo liegt. Die erste Fassung
-    # dieses Riegels hat daran genau die Zeile gebrochen, die Claudia am 18.08.
-    # mit dreizehn Beobachtungen belegt hat — der Regressionslauf hat es sofort
-    # gefangen. **Das ist der Grund, warum ein Sicherheitsfix nie ohne den
-    # vollen Lauf committet wird; ich hatte hier zu früh committet.**
-    if not _alle_pfade_im_repo(_ohne_harmlose_umleitung(c)):
-        return False
-    return bool(_REPO_READ_VERBS.match(c))
+    # Jetzt gibt es **eine** Quelle: Die Entscheidung IST [es gibt keinen
+    # Grund]. Damit kann nichts mehr driften, und der Text faellt als
+    # Nebenprodukt ab, statt daneben gepflegt werden zu muessen.
+    #
+    # Die belegten Gruende der einzelnen Zeilen stehen jetzt dort, wo sie
+    # geprueft werden — in `_repo_read_grund`.
+    return _repo_read_grund(cmd) == ""
 
 
 def _alle_pfade_im_repo(cmd: str) -> bool:
@@ -3250,6 +3250,25 @@ def make_permission_callback(user_id: int):
                 f"{format_tool_call(tool_name, tool_input, context)}")
         if tool_name in _COST_TOOLS:
             body = f"💰 {_COST_TOOLS[tool_name]}\n\n{body}"
+        # `[NEU 31.08., F-8]` **Warum dieser Repo-Befehl trotzdem fragt.**
+        #
+        # `_repo_read_grund` gab es seit dem 18.08. und **niemand rief sie auf**
+        # — ein Erklaertext, den niemand liest, altert unbemerkt, und dieser
+        # erklaert eine Sicherheitsschranke. Claudias belegter Fall: Sie wollte
+        # im Repo lesen, wurde gefragt, hat daraufhin eine **falsche Ursache**
+        # diagnostiziert und einen Ausweg fuer richtig gehalten, der nur
+        # zufaellig funktionierte.
+        #
+        # **Nur bei Repo-Bezug**, sonst stuende [kein Repo-Pfad im Befehl] unter
+        # jedem gewoehnlichen Bash-Aufruf — und ein Hinweis, der immer da ist,
+        # wird nicht gelesen.
+        if tool_name == "Bash":
+            _bfl = str(tool_input.get("command") or "")
+            if _ist_repo_bezug(_bfl):
+                _grund = _repo_read_grund(_bfl)
+                if _grund:
+                    body = (f"ℹ️ Lesen im Repo waere ohne Rueckfrage frei (8.7). "
+                            f"Hier greift das nicht: {_grund}\n\n{body}")
         rows = [
             [
                 InlineKeyboardButton("✅ Allow", callback_data=f"p:{request_id}:allow"),

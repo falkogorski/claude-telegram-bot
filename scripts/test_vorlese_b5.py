@@ -264,7 +264,7 @@ def _tausenderpunkte():
 
 
 def _tausenderregel_greift_nicht_ins_datum():
-    """Der Filter laesst Datum und Fassungsnummer in Ruhe — **aus sich heraus**.
+    r"""Der Filter laesst Datum und Fassungsnummer in Ruhe — **aus sich heraus**.
 
     **`[BERICHTIGT 29.08.]` Diese Zeile hiess erst [die Stellung in der Kette]
     und behauptete, ohne die richtige Reihenfolge griffe die Tausenderregel

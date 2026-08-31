@@ -239,6 +239,74 @@ def module_differenz_gegenprobe() -> None:
     assert not leer.fehlend, "die Art meldet ohne Luecke"
 
 
+def registerleichen_differenz(*, ist: set[str] | None = None,
+                              soll: set[str] | None = None) -> Befund:
+    """Die **andere Richtung**: eine Registerzeile für ein Modul, das es nicht
+    mehr gibt.
+
+    `[NEU 31.08., F-15 — Engywucks eigener Fund]` Differenzart A misst
+    `ist - soll`: jedes Modul braucht eine Zeile. Sie kann eine **Karteileiche**
+    nicht sehen — eine Zeile, deren Datei längst gelöscht ist. **Das ist genau
+    die Richtung, mit der Adam angefangen hat** (Auftrag gegen Karteileichen).
+
+    **Härte `MELDET`, nicht `BRICHT`**, nach dem Kriterium dieses Moduls:
+    *bricht, wenn etwas Wirkendes ungeschützt ist; meldet, wenn etwas
+    Unwirksames herumliegt.* Eine Registerzeile ohne Datei führt einen Leser in
+    die Irre — sie bricht nichts.
+
+    **Die Vorbedingung war zu prüfen und ist erfüllt:** Der `MELDET`-Ausgang
+    steht seit dem 23.08. im Selbstcheck. Vorher wurde eine `MELDET`-Differenz
+    berechnet und **fallen gelassen**; diese Art wäre als erste ihrer Sorte
+    sofort eine Attrappe gewesen.
+
+    **Die Ist-Menge ist hier eine andere als bei Art A** — dort nur die
+    Wurzelmodule, hier **jede versionierte `.py`**, denn das Register nennt
+    auch Prüfer und Betriebsskripte. Wer beide Mengen gleichsetzt, meldet
+    fünfzig Skripte als Leichen.
+    """
+    if ist is None:
+        ist = _alle_versionierten_pythondateien()
+    if soll is None:
+        soll = _register_tabellenzeilen()
+    return Befund(
+        fehlend=soll - ist,
+        haerte=MELDET,
+        was="Registerzeilen für Dateien, die es nicht (mehr) gibt",
+        hinweis=("Zeile entfernen oder den Namen berichtigen. Ein Register, das "
+                 "Verschwundenes fuehrt, kostet beim Lesen mehr als es nuetzt."),
+    )
+
+
+def registerleichen_differenz_gegenprobe() -> None:
+    """Die Leiche kuenstlich erzeugen — die Art MUSS sie finden."""
+    b = registerleichen_differenz(ist={"da.py"}, soll={"da.py", "weg.py"})
+    assert b.fehlend == {"weg.py"}, f"die Art findet die Leiche nicht: {b.fehlend}"
+    assert b.haerte == MELDET, "eine Leiche bricht nichts — sie meldet"
+    # Gegenrichtung: keine Leiche, kein Befund. Ohne diese Zeile waere alles
+    # oben mit einem [melde immer alles] zu erfuellen.
+    leer = registerleichen_differenz(ist={"da.py"}, soll={"da.py"})
+    assert not leer.fehlend, "die Art meldet ohne Leiche"
+    # Und sie darf NICHT die Richtung von Art A messen: ein Modul ohne Zeile
+    # ist ihr Fall nicht.
+    andere = registerleichen_differenz(ist={"da.py", "ohne_zeile.py"}, soll={"da.py"})
+    assert not andere.fehlend, "die Art misst die Richtung von Art A mit"
+
+
+def _alle_versionierten_pythondateien() -> set[str]:
+    """Jede versionierte `.py` im Repo, nur der Dateiname.
+
+    Bewusst **alle**, nicht nur die Wurzel: Das Register fuehrt auch Pruefer
+    und Betriebsskripte in seiner ersten Spalte.
+    """
+    import subprocess
+    try:
+        aus = subprocess.run(["git", "-C", str(WURZEL), "ls-files", "*.py"],
+                             capture_output=True, text=True, timeout=20)
+    except Exception:
+        return set()
+    return {Path(z).name for z in aus.stdout.split()}
+
+
 def _versionierte_wurzelmodule() -> set[str]:
     import subprocess
     try:

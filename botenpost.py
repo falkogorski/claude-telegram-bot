@@ -66,8 +66,11 @@ def ziel_finden() -> str:
     if ziel.isdigit():
         return ziel
     try:
-        prefs = json.loads((Path.home() / ".config" / "claude-telegram-bot"
-                            / "prefs.json").read_text(encoding="utf-8"))
+        # `[SCHALTER 31.08., F-12]` Der Riegel des Laeufers setzt
+        # `USER_PREFS_FILE`; diese Stelle las daran vorbei die echte Datei.
+        _pf = Path(os.environ.get("USER_PREFS_FILE") or (
+            Path.home() / ".config" / "claude-telegram-bot" / "prefs.json"))
+        prefs = json.loads(_pf.read_text(encoding="utf-8"))
         return next((str(k) for k in prefs if str(k).isdigit()), "")
     except Exception:
         return ""

@@ -62,6 +62,13 @@ export PENDING_DIR="$PRUEFHEIM/pending"
 # Zugaenge aermer, die der Testlauf schon „gesehen" hat.
 export AUSARBEITUNGEN_DIR="$PRUEFHEIM/ausarbeitungen"
 export AUSARBEITUNGEN_STAND="$PRUEFHEIM/ausarbeitungen-stand.json"
+# `[NEU 31.08., F-12]` Drei Ablagen, die **geschrieben** werden und bisher
+# keinen Schalter hatten — gefunden beim Nachmessen der neun `Path.home()`.
+# Die dritte ist die heikelste: Wer den Lebensnachweis des Bots ueberschreibt,
+# sagt dem Waechter [er lebt], waehrend er tot sein koennte.
+export USAGE_FILE="$PRUEFHEIM/usage.json"
+export PERSONAL_NOTES_FILE="$PRUEFHEIM/telegram-notes.md"
+export HEARTBEAT_PATH="$PRUEFHEIM/bot-heartbeat.txt"
 # `[NEU 2026-08-23]` Und die Liste war weiter unvollstaendig — genau so, wie es
 # der Absatz darueber vorhergesagt hat. Engywucks Befund L: `USER_PREFS_FILE`
 # fehlte hier, zwoelf Testdateien setzten es einzeln, und `bot.py` LAS es gar
@@ -133,6 +140,26 @@ POST_VORHER="$(ls -A "$ECHTPOST" 2>/dev/null | wc -l | tr -d ' ')"
 # darf durch einen Pruflauf nicht wachsen.
 ECHTBUCH="${HOME:-/home/claudebot}/.claude/auftragsbuch/eingang"
 BUCH_VORHER="$(ls -A "$ECHTBUCH" 2>/dev/null | wc -l | tr -d ' ')"
+# `[NEU 31.08., F-12]` Dritter Nachweis: drei Dateien, die ein Mensch bzw. ein
+# Waechter liest. **Gemessen wird die Aenderungszeit VOR und NACH dem Lauf** —
+# nicht die Konfiguration (Wirkungs-Regel). Ein Schalter, den niemand
+# nachmisst, ist eine Absicht.
+ECHTHEART="${HOME:-/home/claudebot}/.claude/bot-heartbeat.txt"
+ECHTNOTIZ="${HOME:-/home/claudebot}/notes/telegram-notes.md"
+ECHTUSAGE="${HOME:-/home/claudebot}/.config/claude-telegram-bot/usage.json"
+# **Pruefsumme, nicht Zeitstempel** `[BERICHTIGT 31.08., aus der eigenen
+# Gegenprobe]`. Hier stand `ls -l | awk` mit Monat, Tag, Uhrzeit — und `ls`
+# gibt die Uhrzeit **minutengenau**. Ein Regressionslauf dauert etwa dreissig
+# Sekunden; eine Aenderung innerhalb derselben Minute war damit unsichtbar.
+# Beim Heartbeat kommt hinzu, dass er **immer gleich lang** ist: gleiche
+# Groesse, gleiche Minute, kein Unterschied. Der Nachweis haette praktisch nie
+# angeschlagen — ein Waechter, der nicht anschlagen kann, ist schlimmer als
+# keiner. Gemessen und nachgestellt, bevor er in den Lauf ging.
+#
+# `cksum` ist POSIX und liegt auf Mac wie VPS; fehlt es doch, sagt der
+# Nachweis das, statt gruen zu melden.
+_stempel() { for f in "$@"; do cksum "$f" 2>/dev/null; done; }
+STEMPEL_VORHER="$(_stempel "$ECHTHEART" "$ECHTNOTIZ" "$ECHTUSAGE")"
 
 FAILS=0
 # GESAMT wird GEZAEHLT, nicht getippt. Vorher stand die Zahl fest im
@@ -342,6 +369,19 @@ if [ "$BUCH_NACHHER" -gt "$BUCH_VORHER" ]; then
   FAILS=$((FAILS+1))
 else
   echo "✅ Wegwerf-Umgebung: keine Pruefung hat ins echte Auftragsbuch geschrieben"
+fi
+
+GESAMT=$((GESAMT+1))
+if ! command -v cksum >/dev/null 2>&1; then
+  echo "⏭️  Wegwerf-Umgebung (Heartbeat/Notizen/Nutzung): NICHT GEMESSEN — cksum fehlt"
+  UEBERSPRUNGEN=$((UEBERSPRUNGEN+1))
+elif [ "$(_stempel "$ECHTHEART" "$ECHTNOTIZ" "$ECHTUSAGE")" != "$STEMPEL_VORHER" ]; then
+  echo "❌ Eine Pruefung hat eine ECHTE Ablage veraendert (Heartbeat, Notizen"
+  echo "   oder Nutzungszahlen). Der Heartbeat ist der schwerste Fall: Wer ihn"
+  echo "   schreibt, sagt dem Waechter [der Bot lebt] — auch wenn er tot ist."
+  FAILS=$((FAILS+1))
+else
+  echo "✅ Wegwerf-Umgebung: Heartbeat, Notizen und Nutzungszahlen unberuehrt"
 fi
 
 # **Uebersprungenes zaehlt nicht als bestanden** (30.08.). Die Bestanden-Zahl

@@ -134,7 +134,10 @@ _USER_PREFS: dict = _load_prefs()
 
 # ---------- usage tracking ----------
 
-_USAGE_FILE = Path.home() / ".config" / "claude-telegram-bot" / "usage.json"
+# `[SCHALTER 31.08., F-12]` **Diese Datei wird GESCHRIEBEN.** Ohne Schalter
+# schreibt jeder Prueflauf in Adams echte Nutzungszahlen.
+_USAGE_FILE = Path(os.environ.get("USAGE_FILE") or (
+    Path.home() / ".config" / "claude-telegram-bot" / "usage.json"))
 
 
 def _load_usage() -> dict:
@@ -4072,7 +4075,10 @@ def _blumen_zeile() -> str:
 
     Kein Modell-Aufruf, kein Netz — reines Ablesen einer Datei.
     """
-    kette = Path.home() / ".claude" / "stundenblumen" / "kette.jsonl"
+    # `[SCHALTER 31.08., F-12]` Nur lesend — aber ein Pruefer, der die ECHTE
+    # Belegkette liest, misst Adams Betrieb statt seines Pruefstands.
+    kette = Path(os.environ.get("BLUMEN_DIR") or (
+        Path.home() / ".claude" / "stundenblumen")) / "kette.jsonl"
     try:
         with kette.open("rb") as f:
             f.seek(0, 2)
@@ -6497,7 +6503,12 @@ async def cmd_stopp(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             "notfalls hilft /reset.")
 
 
-_PERSONAL_NOTES_FILE = Path.home() / "notes" / "telegram-notes.md"
+# `[SCHALTER 31.08., F-12]` **Adams persoenliche Notizen.** Von den neun
+# Fundstellen war das die unangenehmste: Ein Prueflauf haette hier in eine
+# Datei geschrieben, die ein Mensch liest — dieselbe Klasse wie der Vorfall
+# vom 26.07. um 01:44, nur eine Ablage weiter.
+_PERSONAL_NOTES_FILE = Path(os.environ.get("PERSONAL_NOTES_FILE") or (
+    Path.home() / "notes" / "telegram-notes.md"))
 _PERSONAL_PREFIX = "ich:"
 
 
@@ -6624,7 +6635,13 @@ async def on_telegram_error(update: object, context: ContextTypes.DEFAULT_TYPE) 
 # trotz lebendem Prozess als hängend (Wedge) und wird hart neu gestartet.
 # Damit fangen wir die Lücke, die der interne watchdog (siehe unten) bei
 # Mac-Schlaf gelegentlich nicht greift, weil er selbst mit im Wedge hängt.
-HEARTBEAT_PATH = Path.home() / ".claude" / "bot-heartbeat.txt"
+# `[SCHALTER 31.08., F-12]` **Der Lebensnachweis des Bots — und damit die
+# heikelste der neun.** Ein Prueflauf, der hier schreibt, sagt dem Waechter
+# [der Bot lebt], waehrend er tot sein koennte. Das ist kein veraenderter
+# Zustand, das ist ein **stillgelegter Waechter**, und der Ausfall saehe aus
+# wie Ruhe.
+HEARTBEAT_PATH = Path(os.environ.get("HEARTBEAT_PATH") or (
+    Path.home() / ".claude" / "bot-heartbeat.txt"))
 HEARTBEAT_INTERVAL_S = 30
 
 

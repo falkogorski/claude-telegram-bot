@@ -701,11 +701,30 @@ def _statuszeile_meldet_stillstand():
     sys.path.insert(0, str(Path(sb.__file__).resolve().parent.parent))
     import bot
 
+    # `[GEAENDERT 31.08., F-12]` **Der Pruefstand haengte an `Path.home`.**
+    # Seit bot.py die Belegkette ueber `BLUMEN_DIR` liest — dieselbe Quelle,
+    # die `stundenblume.py` schon immer benutzt —, greift eine Attrappe an
+    # `Path.home` daran vorbei. Das ist kein Verlust, sondern der Gewinn:
+    # **Ein Pruefstand, der die echte Konfigurationsquelle benutzt, misst den
+    # echten Weg**; einer, der `Path.home` faelscht, misst einen Umweg, den es
+    # im Betrieb so nicht gibt.
     echt = bot.Path.home
     heim = Path(_TMP / "heim")
     (heim / ".claude" / "stundenblumen").mkdir(parents=True, exist_ok=True)
     bot.Path.home = staticmethod(lambda: heim)
-    kette = heim / ".claude" / "stundenblumen" / "kette.jsonl"
+    # Die Kette liegt dort, wo `BLUMEN_DIR` sie erwartet — dieselbe Quelle wie
+    # im Betrieb. Die `Path.home`-Attrappe bleibt fuer alles ANDERE stehen, was
+    # diese Funktion sonst noch am Heimatpfad sucht.
+    # **Ein EIGENES Verzeichnis fuer diese Zeile.** Die Zeilen davor schreiben
+    # in dieselbe Ablage; Fall (1) prueft aber [noch keine Glieder] und maesse
+    # sonst deren Kette statt seiner eigenen. Sichtbar geworden durch die
+    # Umstellung: Vorher lag der Pruefstand hinter einer `Path.home`-Attrappe
+    # in einem frischen Verzeichnis und teilte sich nichts.
+    _blumen_vorher = _os.environ.get("BLUMEN_DIR")
+    _eigen = Path(_TMP / "blumen-statuszeile")
+    _eigen.mkdir(parents=True, exist_ok=True)
+    _os.environ["BLUMEN_DIR"] = str(_eigen)
+    kette = _eigen / "kette.jsonl"
     try:
         # (1) Keine Kette → ehrlich gesagt, nicht beschoenigt.
         assert "noch keine Glieder" in bot._blumen_zeile()
@@ -730,6 +749,10 @@ def _statuszeile_meldet_stillstand():
         assert "2.0 GiB" in bot._blumen_zeile()
     finally:
         bot.Path.home = echt
+        if _blumen_vorher is None:
+            _os.environ.pop("BLUMEN_DIR", None)
+        else:
+            _os.environ["BLUMEN_DIR"] = _blumen_vorher
 
 
 check("Statuszeile benennt den Stillstand (Ueberblick auf Abruf)",

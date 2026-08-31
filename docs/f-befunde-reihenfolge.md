@@ -217,7 +217,30 @@ Ergänzt, dazu `PENDING_DIR` und ein zweiter Nachweis am Laufende.
 Sichtung für den 20.08. steht ohnehin an. Ein gültiger Eintrag wird nicht
 entfernt, weil sein Entstehungsweg unsauber war.
 
-### F-7 bis F-10 · Rang 5 aus Engywucks Ultracode-Befund `[offen, 23.08.2026]`
+### F-7 bis F-11 · Rang 5 aus Engywucks Ultracode-Befund `[ERLEDIGT 31.08.2026]`
+
+**Alle fünf in der Nacht zum 31.08. abgearbeitet — vier gebaut, einer gekippt.**
+Was dabei über den Befund hinaus gefunden wurde, steht je Punkt dabei; es ist
+in drei von fünf Fällen mehr als das Gemeldete.
+
+| | Ergebnis | über den Befund hinaus |
+|---|---|---|
+| **F-7** | gebaut (`1e5f47b`) | Nicht eine falsche Zahl, **sechzehn** — eine davon driftete in derselben Nacht durch meine eigene Arbeit |
+| **F-8** | gebaut (`5c3deff`) | Die tote Funktion trug eine **falsche Zusage**: Ihr fehlten zwei Prüfungen, die die Entscheidung hat. Beide Fassungen sind jetzt **eine** |
+| **F-9** | **GEKIPPT** (`b3af4f5`) | Die Reparatur hätte die 💰-Kostenschranke gebrochen — `WebSearch` steht in `_COST_TOOLS`, die Funktion fasst beide Suchen zusammen |
+| **F-10** | gebaut (`bc130e4`) | Der Filter war in **beide** Richtungen falsch: 48 % Fehlalarm **und** `rm --recursive` wurde verfehlt |
+| **F-11** | gebaut (`42f2ced`) | — der einzige Punkt der Liste, der Adam etwas zurückgibt |
+
+**Ein Nachtrag, der nicht in die Tabelle passt:** Der Commit zu F-8 ging mit
+**68/69** hinaus. Ursache war nicht Unachtsamkeit allein, sondern eine Form:
+`lauf | tail -1 && git commit` — **die Pipe maskiert den Fehlschlag**, weil der
+Rückgabewert der einer erfolgreichen `tail` ist. Berichtigt in `111923b`; der
+rote Lauf hatte einen echten Fund enthalten (ein Prüfer mit fest verdrahtetem
+VPS-Pfad, der am Mac etwas anderes maß).
+
+---
+
+### Der ursprüngliche Wortlaut des Befunds `[Stichtag 23.08.2026]`
 
 Aus `BEFUND ULTRACODE 9456f16..d596269` (Engywuck, 23.08., 02:10). Er hat sie
 selbst als „nicht in dieser Runde" eingestuft; Rang 1 bis 4 ist geschlossen und

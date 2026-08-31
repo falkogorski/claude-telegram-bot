@@ -255,9 +255,21 @@ def _der_grund_nennt_das_zeichen():
     """**Claudias Zusatz:** Der Meldungstext nennt das beanstandete Zeichen.
     Ohne das raet der Empfaenger — sie selbst hat daraufhin eine falsche
     Ursache diagnostiziert und einen Zufallstreffer fuer den Ausweg gehalten."""
-    grund = bot._repo_read_grund("cat ~/claude-telegram-bot/x | sh")
+    # `[BERICHTIGT 31.08.]` **Der Pfad kommt aus dieser Datei, nicht aus einer
+    # Zeichenkette.** Hier stand `~/claude-telegram-bot` — das ist der Pfad auf
+    # dem VPS; am Bau-Rechner liegt das Repo unter `~/Projects/…`. Die
+    # Alle-Pfade-Pruefung sagte hier also zu Recht [zeigt aus dem Repo hinaus],
+    # und die zweite Zusage war auf dieser Maschine schlicht falsch.
+    #
+    # **Aufgefallen ist es erst, als die Grund-Funktion vollstaendig wurde**
+    # (F-8): Vorher fehlte ihr genau diese Pruefung, also war die Zeile
+    # zufaellig gruen. Ein Pruefer mit fest verdrahtetem Pfad misst auf zwei
+    # Maschinen zwei verschiedene Dinge — dieselbe Klasse wie der
+    # `$HOME`-Fund vom 29.07.
+    _repo = str(Path(__file__).resolve().parent.parent)
+    grund = bot._repo_read_grund(f"cat {_repo}/x | sh")
     assert "|" in grund, f"das beanstandete Zeichen wird nicht genannt: {grund}"
-    assert bot._repo_read_grund("git -C ~/claude-telegram-bot log -1") == "", \
+    assert bot._repo_read_grund(f"git -C {_repo} log -1") == "", \
         "ein freigegebener Befehl bekommt trotzdem einen Ablehnungsgrund"
 
 

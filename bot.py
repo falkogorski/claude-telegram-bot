@@ -2287,6 +2287,19 @@ _COST_TOOLS = {
     "WebSearch": "⚠️ kostet ~1 Cent pro Suche (Anthropic-Werkzeuggebühr) — erlauben?",
 }
 
+
+# Befehle, die nach draussen sprechen. Sie fallen **auch bei gesetzter
+# Bash-Dauerfreigabe** in den Dialog (Adams Bedingung vom 31.08., 12:00 —
+# „wenn die Sperren vorher als Verbotsregeln hinterlegt werden").
+#
+# Am Wortanfang verankert, damit `curlify` oder ein Dateiname `scp-notiz.md`
+# nicht anschlaegt; ohne hintere Wortgrenze waere jeder zweite Dateiname ein
+# Fehlalarm, und eine Bremse mit staendigen Fehlalarmen ist binnen einer Woche
+# abgeschaltet. Der Preis ist die Zeile darueber: eine Aufzaehlung, kein
+# Erkennungsverfahren.
+_AUSGEHENDE_BEFEHLE = re.compile(
+    r"(?:^|[\s;|&(])(curl|wget|nc|ssh|scp|telnet)(?=[\s;|&)]|$)", re.IGNORECASE)
+
 # Werkzeuge, die NIE pauschal dauerfreigebbar sind (23.07., Adam-Entscheid nach
 # Live-Fund): 💰-Tools sowieso — und WebFetch, weil ein pauschales Always genau
 # den einen Wächter entfernt, den die Herkunfts-Schranke darstellt (fremde
@@ -3173,6 +3186,9 @@ def make_permission_callback(user_id: int):
             if _erg.urteil == bashfreigabe.FREI:
                 return PermissionResultAllow()
             # Alles Übrige fällt weiter unten in den Dialog — mit dem Grund,
+            # **ausser die Bash-Dauerfreigabe greift** (5.27, seit 01.09.).
+            # Dieser Satz stand hier aus der Zeit, als Bash gesperrt war;
+            # ausgehende Befehle sind davon ausgenommen (`_AUSGEHENDE_BEFEHLE`).
             # den `entscheiden` mitgibt, damit die verbleibenden ~40 Fragen je
             # Woche auf einen lesbaren Text treffen (Rang 3a).
             _bash_freigabe_grund = _erg.grund
@@ -3207,6 +3223,37 @@ def make_permission_callback(user_id: int):
         # entkaeme ihr — der Feld-Fix von F haette den H-Fix ausgehebelt.
         _ref = "\n".join(str(tool_input.get(f) or "") for f in _felder).strip()
         sensitive = _is_sensitive_ref(_ref)
+        # **Der Weg nach draussen bleibt im Dialog — auch im Auto-Modus.**
+        # Adams Bedingung fuer den Auto-Modus am 31.08., 12:00 woertlich:
+        # *„Die Baukastenstufe ja. Gerne, wenn die Sperren vorher als
+        # Verbotsregeln hinterlegt werden."* Gemessen war sie zur Haelfte
+        # offen: `curl` und `wget` kommen in `bashfreigabe.py` nicht vor, ein
+        # unbekannter Befehl faellt dort in den DIALOG — und genau den ersetzt
+        # die Dauerfreigabe weiter unten durch Erlauben.
+        #
+        # **Warum das Merkmal HIER steht und nicht in `bashfreigabe.py`:** Ein
+        # DIALOG-Urteil von dort waere wirkungslos, weil es in dieselbe Zeile
+        # faellt, die die Dauerfreigabe abfaengt. Und `ABWEISEN` waere falsch
+        # in die andere Richtung — Adam will **Rueckfrage**, nicht Verbot; er
+        # soll einen `curl` bewusst freigeben koennen.
+        #
+        # Gebaut wie der Geheimnis-Schutz eine Zeile darueber: ein Merkmal aus
+        # demselben `_ref`, und der Kurzschluss verlangt es ausdruecklich.
+        #
+        # ⚠️ **Die ehrliche Grenze: Das ist eine Aufzaehlung, kein
+        # Erkennungsverfahren.** Ein ausgehender Weg, der morgen dazukommt und
+        # hier nicht steht, ist **nicht** erfasst. Bewusst so — eine Erkennung
+        # „spricht das nach draussen?" muesste Inhalt pruefen, und Inhalt
+        # laesst sich tarnen. Die vollstaendige Antwort ist die
+        # Eingangs-Absicherung, nicht diese Liste.
+        #
+        # Und die Mengen-Regel richtig herum, wie bei `POSTFACH_GRENZEN`:
+        # **eingetragen wird, wer mehr darf, nie wer weniger darf** — deshalb
+        # nennt die Liste die gesperrten Befehle ausdruecklich.
+        #
+        # Knapp aus Absicht: Adams Ausgangspunkt war, dass das Druecken
+        # aufhoert. Eine lange Liste hoehlt den Auto-Modus wieder aus.
+        spricht_nach_draussen = bool(_AUSGEHENDE_BEFEHLE.search(_ref))
         # **Engywucks Nachtrag ① (23.08.): G war halb zu.** Die Zwei-Wege-Logik
         # stimmte und der Bash-Weg nutzte sie — der Read-Zweig nicht. Er nahm
         # dieselbe strenge Berechnung von oben, und damit öffnete `Read` auf
@@ -3238,7 +3285,8 @@ def make_permission_callback(user_id: int):
         # (_NO_ALWAYS_TOOLS): 💰 wegen der Kostenregel, WebFetch wegen der
         # Herkunfts-Schranke. Alt-Einträge werden beim Session-Aufbau gefiltert.
         if (tool_name in sess.always_allowed_tools
-                and darf_dauerfreigabe(tool_name) and not sensitive):
+                and darf_dauerfreigabe(tool_name) and not sensitive
+                and not spricht_nach_draussen):
             return PermissionResultAllow()
 
         # 5.25 (a) WebFetch mit Herkunfts-Schranke: kostenfrei + lesend, aber nur
@@ -5050,7 +5098,9 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "Positivliste nach; bei „Auto“ läuft Bash ohne Rückfrage. Was sich "
         "dadurch NICHT ändert: Schreibversuche ins Repo werden weiter "
         "abgelehnt, Geheimnis-Pfade bleiben zu, Kosten-Werkzeuge fragen "
-        "weiter. Der Knopf erspart die Rückfrage, nicht die Ablehnung\n\n"
+        "weiter — und **Befehle, die nach draußen sprechen** (curl, wget, "
+        "nc, ssh, scp, telnet) fragen auch im Auto-Zustand nach. Der Knopf "
+        "erspart die Rückfrage, nicht die Ablehnung\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
     )
     await update.message.reply_text(text)
@@ -9747,7 +9797,9 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
                 "⚡ **Auto ist an** — Bash laeuft ohne Rueckfrage.\n\n"
                 "Was sich dadurch **nicht** aendert, und das ist der Punkt: "
                 "Schreibversuche ins Repo werden weiter **abgelehnt**, "
-                "Geheimnis-Pfade bleiben zu, Kosten-Werkzeuge fragen weiter. "
+                "Geheimnis-Pfade bleiben zu, Kosten-Werkzeuge fragen weiter "
+                "— und Befehle nach draussen (curl, wget, nc, ssh, scp, "
+                "telnet) fragen ebenfalls weiter. "
                 "Der Knopf erspart die Rueckfrage, nicht die Ablehnung.\n\n"
                 "Der Haken auf dem Knopf zeigt dir, dass er laeuft.")
         else:

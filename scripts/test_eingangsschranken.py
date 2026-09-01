@@ -742,8 +742,14 @@ def _eine_alte_bash_freigabe_greift_nicht_mehr():
     # weiter oben: Repo-Schreibversuche, Geheimnis-Pfade, Kosten-Werkzeuge.
     # **Der Knopf erspart die Rueckfrage, nicht die Ablehnung** -- deshalb
     # steht der Zustand sichtbar auf der Tastatur und nicht in einer Datei.
+    # **`[GEAENDERT 01.09.]` Hier stand `curl`.** Seit der Verbotsliste fuer
+    # ausgehende Befehle waere das der falsche Vertreter: `curl` fragt jetzt
+    # aus einem ZWEITEN Grund, und die Zeile koennte gruen bleiben, obwohl der
+    # Auto-Modus zerbrochen ist. Gebraucht wird ein Befehl, der **nur** wegen
+    # der Positivliste dialogpflichtig ist -- `chmod` ist einer (gemessen:
+    # „steht nicht auf der Positivliste").
     ergebnis = asyncio.run(rueckruf(
-        "Bash", {"command": "curl https://example.com"}, _Ctx()))
+        "Bash", {"command": "chmod 644 notiz.txt"}, _Ctx()))
     assert isinstance(ergebnis, PermissionResultAllow), \
         ("der Auto-Modus wirkt nicht mehr - entweder ist Bash zurueck auf der "
          "Nie-dauerhaft-Liste oder der Kurzschluss ist zerbrochen")
@@ -756,7 +762,7 @@ def _eine_alte_bash_freigabe_greift_nicht_mehr():
     sess.always_allowed_tools.discard("Bash")
     sess.bot.dialoge.clear()
     ohne = asyncio.run(rueckruf(
-        "Bash", {"command": "curl https://example.com"}, _Ctx()))
+        "Bash", {"command": "chmod 644 notiz.txt"}, _Ctx()))
     assert not isinstance(ohne, PermissionResultAllow), \
         "ohne Auto-Modus wurde ein Weg nach draussen ohne Rueckfrage erlaubt"
     assert sess.bot.dialoge, \
@@ -1968,6 +1974,61 @@ def _dauerfreigabe_erspart_die_rueckfrage_nicht_die_ablehnung():
     bot._USER_PREFS.pop("4711", None)
 
 
+def _der_weg_nach_draussen_bleibt_im_dialog():
+    """**Adams Bedingung fuer den Auto-Modus, ausgefuehrt gemessen.**
+
+    Am 31.08., 12:00 im Wortlaut: *„Die Baukastenstufe ja. Gerne, wenn die
+    Sperren vorher als Verbotsregeln hinterlegt werden."* Fuer einen
+    Auto-Modus ist der ausgehende Kanal die naheliegendste davon.
+
+    **Zwei Richtungen, und die zweite ist noetig:** Ohne sie belegt der
+    Pruefer nur, dass etwas blockiert -- nicht, dass der Auto-Modus noch
+    funktioniert. Ein Schutz, der alles sperrt, besteht jede einseitige
+    Pruefung.
+    """
+    from claude_agent_sdk import PermissionResultAllow
+    sess = _sitzung(always_allowed_tools={"Bash"})
+    bot._USER_PREFS["4711"] = {"always_allow": ["Bash"]}
+    rueckruf = bot.make_permission_callback(4711)
+
+    class _Ctx:
+        suggestions = None
+
+    def frage(cmd):
+        return asyncio.run(rueckruf("Bash", {"command": cmd}, _Ctx()))
+
+    # ① Der Weg nach draussen fragt -- **das ist die Zeile, die bei der
+    # Gegenprobe rot werden muss**, wenn man `and not spricht_nach_draussen`
+    # aus dem Kurzschluss entfernt.
+    raus = frage("curl https://example.com")
+    assert not isinstance(raus, PermissionResultAllow), \
+        ("ein ausgehender Befehl wurde trotz gesetzter Dauerfreigabe ohne "
+         "Rueckfrage erlaubt - Adams Bedingung vom 31.08. ist nicht erfuellt")
+    assert sess.bot.dialoge, \
+        "niemand wurde gefragt - das Deny kam aus einem Fehlschlag, nicht aus der Schranke"
+
+    # ② Und der Auto-Modus funktioniert weiter. Ohne diese Haelfte waere ein
+    # Schutz, der alles sperrt, ununterscheidbar von einem, der wirkt.
+    sess.bot.dialoge.clear()
+    harmlos = frage("cat README.md")
+    assert isinstance(harmlos, PermissionResultAllow), \
+        "der Auto-Modus ist mitgesperrt worden - die Liste greift zu breit"
+    assert not sess.bot.dialoge, \
+        "ein gewoehnlicher Lesebefehl loeste trotz Auto-Modus einen Dialog aus"
+
+    # ③ Die Grenze der Erkennung, in beide Richtungen belegt: Der Befehl muss
+    # ein Befehl sein, kein Namensbestandteil. `scp-notiz.md` hat den Pruefer
+    # beim Bauen einmal falsch anschlagen lassen -- mit `\b` als hinterer
+    # Grenze, weil ein Bindestrich eine Wortgrenze ist.
+    assert not bot._AUSGEHENDE_BEFEHLE.search("cat scp-notiz.md"), \
+        "Fehlalarm auf einem Dateinamen - eine Bremse mit Fehlalarmen wird abgeschaltet"
+    assert bot._AUSGEHENDE_BEFEHLE.search("ls | wget http://x"), \
+        "ein Befehl hinter einer Pipe wurde nicht erkannt"
+    bot._USER_PREFS.pop("4711", None)
+
+
+check("der Weg nach draussen bleibt im Dialog (Auto-Modus)",
+      _der_weg_nach_draussen_bleibt_im_dialog)
 check("Dauerfreigabe erspart die Rueckfrage, nicht die Ablehnung (5.27)",
       _dauerfreigabe_erspart_die_rueckfrage_nicht_die_ablehnung)
 check("der Lesegrund nennt den echten Grund (F-8)", _der_lesegrund_nennt_den_echten_grund)

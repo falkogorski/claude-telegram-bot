@@ -542,6 +542,9 @@ Versionsverlauf mit Datum + Stichpunkt — neueste oben. Inline werden Änderung
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+- **⚠️ Zwei Anforderungen Adams `[NEU 2026-09-01]`, beide zur Quellenvielfalt:**
+  - **Andere Suchanbieter aufnehmen, ausdrücklich auch russische und chinesische** (27.08., 16:09) — Begründung im Wortlaut: *„eine andere Sicht auf gewisse Dinge zu bekommen."* **Mit derselben Bestätigungsregel wie Google und Bing**, also keine Sonderbehandlung in die eine oder andere Richtung. SearxNG kann mehrere Anbieter führen; es ist eine Einstellung, kein Bau.
+  - **Nicht immer dieselben Quellen** (27.08., 14:26): Wikipedia trägt bei Sachdaten, bei politisch bewerteten Gegenständen ist sie eine Stimme unter mehreren. Das ergänzt die **Mehrquellen-Regel (5.25 e)** um die Richtung *Vielfalt*, wo diese bisher nur *mehr als eine* verlangt.
 ### Phasen-Audit 2 → 3
 - **Audit-Status:** ✅ 16.07.2026 — Phase 2 im Kern abgeschlossen. **VERIFIZIERT:** 2.1 LiteLLM, 2.3 Ollama+Phi-4-Mini, 2.5 kein OpenAI, 2.7 SearxNG (private kostenfreie Suche, Anthropic-WebSearch deaktiviert). **2.4** bewusst übersprungen (Groq, jederzeit nachrüstbar). **Laufende/offene Fäden (bewusst, keine Blocker):** 2.2 Datenschutz-Ampel in Beobachtungsphase (zeitgesteuert bis **~16.08.2026 / 444 Nachrichten** → dann Auswertung + Enforcement); 2.6 Neben-Inferenzen Kern fertig, **lange Zusammenfassungen verschoben nach 5.14**. Querschnitt: 💰-Kostenregel in CLAUDE.md universell verschärft; Antwortqualität + 🎯 Gründlich + robuste Kontext-Recovery umgesetzt.
 - **Strategie-Recheck:** ✅ 16.07.2026 — **Adam-Entscheid zur Folge-Reihenfolge (weicht bewusst von der Nummerierung ab):**
@@ -718,6 +721,12 @@ Absturzfall ausdrücklich auf 5.18).
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+- **🔍 `[GEMESSEN 01.09.2026, N-30]` Warum die Überschriften-Regel weiter bricht — Befund, kein Neubau.** Adam hat sie am 31.08., 11:45 erneut angemahnt: *„Überschrift für den nächsten Absatz in der nächsten **(Sprach-)Nachricht** … wieder am Ende der Nachricht. Bitte endlich nachhaltig und verlässlich ändern! Überschriften/**Einleitungen** gehören in die Nachricht, in der auch der weitere Inhalt dazu steht — selbst wenn die Nachricht davor dadurch gekürzt wird!!!"* Gemessen wurde in dieser Reihenfolge:
+  - **Die Trennlogik selbst arbeitet korrekt.** `_find_safe_cut` rückt über Überschriften zurück; an einem Beispiel ausgeführt, die Überschrift wandert mit.
+  - **Der Fix für den Sprachweg existiert** — der harte 1024er-Schnitt ist seit `857e21e` (**28.08., 19:57**) durch `_find_safe_cut` ersetzt. Sein eigener Kommentar nennt den Grund, warum es dort auffällt: *fast jede inhaltliche Antwort ist länger als 1024 Zeichen, der Schnitt greift praktisch immer, sobald die Sprachausgabe an ist.*
+  - **Er lag auch produktiv vor:** VPS-Stand `5d2590d` (29.08.), der Dienst startet täglich um 04:00 neu. Am 31.08. um 11:45 lief der Fix also. **Das ist der eigentliche Befund: nicht ein fehlender Fix, sondern ein Fall, den er nicht deckt.**
+  - **Die verbleibende Lücke ist benennbar:** `_text_ends_with_heading` erkennt **zwei** Formen — Markdown-Heading und alleinstehende Fett-Zeile. Adam nennt *„Überschriften/Einleitungen"*. **Ein Einleitungssatz ohne Auszeichnung ist keine der beiden Formen** und wird korrekt-nach-Regel, aber falsch-nach-Absicht getrennt. Dazu die im Code bereits benannte Grenze: Ein zusammenhängender Absatz über 1024 Zeichen bleibt beim harten Schnitt.
+  - **Nicht gebaut, weil die Richtung eine Entscheidung ist:** Eine Erkennung, die auch unausgezeichnete Einleitungen fasst, arbeitet mit Vermutung — sie müsste raten, ob ein Satz zum Folgenden gehört. Das kann in beide Richtungen falsch liegen, und die Fehlerrichtung *zu früh trennen* ist neu. **Adams Satz gibt allerdings die Richtung vor:** *„selbst wenn die Nachricht davor dadurch gekürzt wird"* — er nimmt kurze erste Nachrichten in Kauf.
 ### 5.9 Emoji-Reaktionen (Ja/Nein/erledigt)
 - **Status:** ✅ **VERIFIZIERT (23.07.2026)** — Adam: „Der Mikrofonknopf wechselt sauber hin und her. Die Emojis funktionieren." (Erst-Bestätigung nach Live-Test; weitere Alltagsnutzung beobachtet Feinheiten wie Widerruf/Mehrfach-Reaktionen mit.)
 - **Adam-Bestätigung:** 23.07.2026
@@ -942,6 +951,8 @@ Absturzfall ausdrücklich auf 5.18).
 - **Ein Zustand, zwei Bedienwege:** Der Knopf liest und schreibt **dieselbe** Ablage wie „immer genehmigen" unter einer Anfrage (`prefs["always_allow"]`). Zwei getrennte Zustände für dieselbe Sache wären die nächste Stelle, an der die Anzeige etwas anderes behauptet als die Wirkung.
 - **Die Leitplanke hat gehalten:** kein `bypassPermissions` — der Rückruf würde nie gerufen, alle Schranken fielen weg (der Fehler ist am 22.08. schon einmal gemacht worden). Die Auto-Stufe sitzt **im** Rückruf, hinter Repo-Sperre, `bashfreigabe`-Abweisung und Geheimnis-Marker.
 - **⚠️ Was der Knopf im Auto-Zustand durchlässt, und es gehört benannt:** auch `curl` — einen Weg nach draußen, den die Positivliste erfragt hätte. Das ist die Bedeutung von *„Bash gilt als dauerfreigegeben"*, kein Versehen. **Nicht** durch kommen weiterhin: Repo-Schreibversuche, Geheimnis-Pfade, Kosten-Werkzeuge.
+- **🔴 `[VORGELEGT 01.09., NICHT GEBAUT]` Eine Lücke im Auto-Zustand — Adams Freigabe fehlt dafür.** Adams Bedingung vom 31.08., 12:00 lautete, der Auto-Modus setze voraus, dass *„die Sperren vorher als Verbotsregeln hinterlegt werden."* **Gemessen in `bashfreigabe.py`: `curl` und `wget` kommen dort überhaupt nicht vor.** Ein unbekannter Befehl fällt in den **Dialog** — und genau den ersetzt die Dauerfreigabe durch Erlauben. **Der Weg nach draußen hat also keine Verbotsregel**, und das ist die Hälfte seiner Bedingung. Es berührt zugleich seinen Grundsatz vom 21.08. in der Richtung *hinaus*: *„Sensible Daten verlassen das System nicht über unverschlüsselte Kanäle."*
+- **Der Vorschlag dazu, knapp gehalten:** eine kurze Liste, die der Kurzschluss **nicht** überschreiben kann — `curl`, `wget`, `nc`, `ssh`, `scp`, `telnet` fallen auch im Auto-Zustand in den Dialog. **Knapp aus Absicht:** Eine lange Liste höhlt den Nutzen des Auto-Modus wieder aus, und Adams Ausgangspunkt war, dass das Drücken aufhören soll. Für Neuzugänge gilt dasselbe Muster wie bei `POSTFACH_GRENZEN`: **eingetragen wird, wer mehr darf, nie wer weniger darf.** Prüfer: ein `curl`-Befehl **bei gesetzter Dauerfreigabe** landet im Dialog; Gegenprobe durch Entfernen der Liste. **Nicht gebaut — der Umschalter ist freigegeben, diese Ergänzung nicht.**
 - **⏳ WARTET AUF ADAM:** einmal antippen und sehen, ob der Haken den Zustand richtig zeigt — und ob „Auto" sich im Alltag richtig anfühlt.
 - **Offen: der Plan-Modus.** Er hängt **nicht** an den Freigaben, sondern an `permission_mode` in den Sitzungsoptionen — ein Wechsel braucht einen Sitzungs-Neuaufbau und ist damit ein eigener Schritt. **Bewusst nicht mitgebaut**, statt ihn halb einzubauen; die Sicherheitsbegründung des Umschalters trägt ohne ihn vollständig.
 - **Prüfer (Engywucks Auflage B, verhaltensbasiert):** `scripts/test_eingangsschranken.py`, Zeile *„Dauerfreigabe erspart die Rueckfrage, nicht die Ablehnung (5.27)"* — sie führt den echten Rückruf aus und misst beides: dass die Freigabe **wirkt** (sonst wäre der Knopf eine Attrappe) und dass sie die **Repo-Sperre nicht überholt**. **Gegenprobe gefahren**, `__pycache__` gelöscht, Eingriff verifiziert, erwartete rote Zeile vorher hingeschrieben: Entkernt man den `_is_repo_write_cmd`-Zweig, wird genau diese Zeile rot, mit genau der erwarteten Meldung.
@@ -1309,6 +1320,27 @@ damit Kandidaten, mit dem TTS-Wechsel **zu entfallen** statt behoben zu werden.
 der Bot **von selbst** ziffernweise. Die Unterscheidung sitzt dort — im
 Zahlenformat —, nicht in einer Liste von Wörtern.
 
+**Drei Wege stehen nebeneinander — die Wahl gehört Adam** `[N-26, 01.09.]`
+
+| Weg | Was er bedeutet | Stand |
+|---|---|---|
+| **① Weiter wie bisher** | Die sieben Umschreiber in `bot.py` nachschärfen: `_normalize_doppelpunkt_zahlen`, `_tausenderpunkte`, `_number_ranges`, `_dates`, `_jahreszahlen`, `_kennnummern`, `_versions` (Zeilen 11106–11510, gemessen 01.09.) | gebaut, viermal nachgeschärft |
+| **② Ein fertiges Regelwerk** | `num2words`, `inflect`, `babel` — vorhandene Bibliotheken statt Eigenbau | **gemessen: null im Repo, in keiner Anforderungsliste** |
+| **③ 9.1 Azure/SSML** | `digits`, `cardinal`, `characters` bringen die Unterscheidung mit | 💰 bezahlter Dienst |
+
+**Adam hat Weg ② zweimal verlangt** — am 25.08. und noch einmal am 29.08., 00:05:
+
+> *„Da gab es doch ein Regelwerk für, was wir implementieren wollten. **Wieso
+> hast du das schon wieder vergessen?** … Das war eine feste Regel, dass wir uns
+> da nicht reinfuchsen, sondern Sachen hinzunehmen. Es ist viel schlauer, ein
+> Haus aus verschiedenen Bauelementen zu bauen, die es schon gibt."*
+
+Der Weg wurde nie geprüft. Er ist derselbe Gedanke wie *Fremdes nehmen, wo es
+nicht ans Herz geht* — beim Vorlesen berührt nichts das Herz.
+
+**② und ③ schließen sich nicht aus:** Ein Regelwerk arbeitet am Text, SSML an
+der Aussprache. Wer ③ wählt, braucht ② vermutlich nicht mehr.
+
 - 💰 **Das ändert die Kostenabwägung, entscheidet sie aber nicht.** Bisher
   stand bei 9.1 nur *Klang*; jetzt steht auch *löst eine Fehlerklasse auf*.
   **Die Entscheidung gehört Adam** — hier steht nur der vollständige
@@ -1463,6 +1495,7 @@ Zahlenformat —, nicht in einer Liste von Wörtern.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+- **🚫 Entscheidung Adams `[27.08.2026, 19:22]` — kein absichtlich eingebauter Fehler als Prüfmittel:** *„Das ist alles manipulativ."* Der Gedanke, die Güte eines Gegenlesers dadurch zu messen, dass man ihm einen bekannten Fehler unterschiebt, ist damit **abgelehnt** — nicht vertagt. Er steht hier, damit ihn niemand als naheliegende Prüfidee neu vorschlägt. Was bleibt, ist die ehrliche Messung: **Ein Gegenleser, der nie etwas findet, ist selbst der Befund** — dieselbe Aussage ohne Täuschung.
 ### 9.17 Zweiter Weg für den Hauptagenten — Notfallplan `[NEU 2026-08-31, Adam-Entscheid]`
 - **Status:** OFFEN
 - **Der Entscheid, und er ist die Hälfte des Punktes:** Der zweite Weg wird
@@ -1598,6 +1631,7 @@ Lesen nicht als *„wollten wir mal, ging nicht"* gilt.
   KIs"*. **Das ist ein Zielsystem, kein Vorhaben.** Ein Auftrag vom 27.07. lag
   damit fünf Wochen ohne Ort — dieselbe Klasse wie die beiden
   Momo-Einkommenspapiere: *Was keinen Punkt hat, wird nicht abgearbeitet.*
+- **⚠️ Offener Auftrag, nicht ausgearbeitet `[NEU 2026-09-01]`:** Adam am 27.08., 15:21 — eine **Ausarbeitung zu einem offenen Modell** (er nannte *„AIDA/Aider"* und war sich beim Namen selbst unsicher): Nutzen, Einbindung, Vor- und Nachteile. **Hier nur notiert.** Eine Ausarbeitung wäre Recherche, und die Werkzeugwahl für den Modellvergleich ist in diesem Punkt ohnehin offen.
 - **Adam-Bestätigung:** Auftrag 27.07., **revidiert und bestätigt 31.08.**
 - **Verifiziert am:** —
 

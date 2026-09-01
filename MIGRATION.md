@@ -1167,6 +1167,7 @@ Absturzfall ausdrücklich auf 5.18).
 - **Adam-Bestätigung:** ✅ Audit 24.07.
 - **Verifiziert am:** 2026-07-24
 
+- **📄 Verwandter Gedanke ohne Punktnummer `[NEU 2026-09-02]`:** [`gedanke-zweiter-chat-und-auswerten-knopf.md`](docs/gedanke-zweiter-chat-und-auswerten-knopf.md) — Adams **zweiter Chat als Alltagsbegleiter** (31.08., 10:15): Die Werkstatt bleibt, daneben ein Chat für Kalender, Mail und Alltag **ohne Auto-Bash**, den die Werkstatt **lesen** kann. **Berührt diesen Punkt unmittelbar** (Häuser und Zimmer) und den fließenden Dialog, dessen Entscheidungen bis zum 05.09. vertagt sind. **Die offene Frage, ohne die nicht gebaut wird:** trennt der zweite Chat die *Sitzung* oder nur die *Ansicht*? Davon hängt ab, ob „ohne Auto-Bash" eine Schranke ist oder bloß eine Anzeigeregel.
 ### Phasen-Audit 6 → 7
 - **Audit-Status:** —
 - **Strategie-Recheck:** —

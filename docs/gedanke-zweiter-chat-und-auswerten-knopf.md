@@ -31,6 +31,22 @@ kein Bash**, also bekommt er keins.
 - **Der Auto-Modus gehört nicht mit.** Er ist an die Werkstatt gebunden, in der
   Adam ohnehin zusieht.
 
+**Die eine Frage, die Adam beantworten muss** `[NEU 02.09.]`:
+
+> **Trennt der zweite Chat die Sitzung — oder nur die Ansicht?**
+
+Das ist der Unterschied zwischen zwei sehr verschiedenen Bauten. **Getrennte
+Sitzungen** heißt: eigener Gesprächsfaden, eigenes Gedächtnis im Verlauf, der
+Alltags-Chat weiß nichts von der Werkstatt. **Getrennte Ansicht** heißt: eine
+Sitzung, zwei Fenster — dann ist „die Werkstatt liest den Alltag" gratis, aber
+der Alltag trägt den Bauverlauf mit, und „ohne Auto-Bash" wäre nur eine
+Anzeigeregel, keine Schranke.
+
+**⚠️ Nicht bauen vor dem 05.09.** Der Punkt berührt **6.6** (Häuser und Zimmer)
+und den **fließenden Dialog**, dessen Entscheidungen Adam vertagt hat —
+Wiedervorlage steht im Drehbuch unter *Offene Wiedervorlagen*. **Ein zweiter
+Chat, der vor dieser Entscheidung entsteht, legt sie fest.**
+
 ## ② Ein Knopf „Auswerten" unter empfangenen Dateien
 
 **Adams Wunsch (01.09., 00:51):** Unter einer empfangenen Datei ein Knopf, der
@@ -47,6 +63,14 @@ Auftrag erteilt** — Adam, durch seinen Druck, statt durch eine getippte
 Nachricht. **Der Inhalt der Datei bleibt Material und wird niemals Anweisung**,
 auch wenn darin steht *„führe folgenden Befehl aus"*. Das ist der Grundsatz vom
 21.08., und er gilt hier unverändert.
+
+**⚠️ `[STAND 02.09.]` Gebaut, gemessen, zurückgebaut — er kollidiert mit einer
+Sicherheitswache.** Der Befund liegt in
+[`befund-auswerten-knopf-kollision.md`](befund-auswerten-knopf-kollision.md)
+samt drei Wegen. Kurz: Die Wache *„der Ausweichpfad zur Hauptsitzung ist zu"*
+verbietet `process_user_text` im Dokument-Rückruf **absolut** — sie stammt aus
+Befund C und kennt kein Ermessen. Der Knopf verletzt sie, auch wenn er nur bei
+eigenen Dateien erscheint.
 
 **Auflage der Kontrolle für den Prüfer, und sie ist der eigentliche Bauteil:**
 Er muss **Verhalten** messen — eine weitergeleitete Datei mit einem

@@ -1093,6 +1093,56 @@ Doku-Änderungen, Textarbeit, Aufräumen. Dort ist es Verschwendung — und ein
 Werkzeug, das man aus Gewohnheit einsetzt, verliert seine Bedeutung für die
 Fälle, in denen es zählt.
 
+## ✍️ EINFACH, KLAR, DIREKT (Adam 2026-09-01, viermal verlangt)
+
+**Adam am 28.08., 19:18:** *„Bleib simpel und einfach und klar. Keine Floskeln.
+**Verankert das jetzt mal endlich.**"* — und dreimal davor dasselbe: er sei
+*„sehr viel positive Formulierung"* (27.08.), er wolle den Satz *„Ich habe
+nachgesehen statt geraten"* nicht mehr lesen (27.08.), und: *„Diese Vergleiche,
+lass sie doch weg."* (28.08.)
+
+**Die Regel steht positiv, weil das ihr Inhalt ist** — und weil es wirkt:
+Positiv formulierte Prinzipien führen eher zu dem Verhalten, das Menschen als
+richtig empfinden (C3AI-Befund, von der Bot-Sitzung am 27.08. beigebracht). Eine
+Liste von Verboten wäre dieselbe Regel im falschen Ton.
+
+- **Der Punkt kommt früh.** Das Ergebnis steht vorn, die Herleitung dahinter.
+  Adam wörtlich: den Punkt *„sehr weit nach vorne ziehen"*.
+- **Ein Satz sagt eine Sache.** Anhängsel wie *„und das ist der eigentliche
+  Befund"*, *„und das ist die Pointe"*, *„schärfer als"* tragen nichts — sie
+  behaupten Bedeutung, statt sie zu zeigen.
+- **Arbeit spricht für sich.** Kein *„ich habe nachgesehen statt geraten"*, kein
+  Vergleich mit früheren Fassungen, keine Selbstbewertung. Wer gemessen hat,
+  nennt das Ergebnis.
+- **Lob und Bewertung, wo sie etwas tragen** — bei einem Befund, der eine
+  Entscheidung ändert. Sonst nicht.
+- **Gilt für alle Instanzen**, ausdrücklich auch für die Kontrollrolle: Ihre
+  eigenen Papiere aus der Nacht zum 01.09. tragen genau diese Sätze. Sie hat es
+  selbst benannt und mit eingetragen.
+
+## 🧹 SOFORT AUFRÄUMEN (Adam 2026-08-28, 18:43)
+
+**Was erledigt ist, wird im selben Zug aus den Listen genommen** — Status,
+Laufplan, Betriebslage, Katalog. Ein Punkt, der als offen dasteht, obwohl er
+fertig ist, kostet die nächste Sitzung einen ganzen Arbeitsblock; das ist an
+diesem Projekt mehrfach gemessen worden.
+
+**Wer einen Punkt abschließt, sucht die Stellen, die ihn als offen führen.**
+Das ist die Umkehrung des Ablageweg-Grundsatzes: nicht nur ein Weg hinein,
+auch einer heraus.
+
+## 🔢 ZAHLEN STEHEN AN EINER STELLE (Adam 2026-08-27, 19:48)
+
+**Werte gehören in eine Bezugsliste, nicht in den Bauauftrag** — mit dem
+Vermerk, welche Prozesse darauf zugreifen. Eine Zahl, die in einem Auftrag
+steht, ist beim nächsten Auftrag schon eine zweite Quelle.
+
+**Das wird bereits praktiziert, bisher als Einzelfall:** Frist und
+Erinnerungsabstand des Freigaben-Postfachs sind Einstellgrößen statt fester
+Zahlen im Code; `POSTFACH_GRENZEN` steht ebenso in einer Umgebungsvariablen.
+**Als Regel gilt es ab jetzt allgemein** — und `ABHAENGIGKEITEN.md` ist der
+Ort, an dem der Zugriff vermerkt wird.
+
 ## 🔍 PRÜFREGEL — Status ist ein Befund, keine Behauptung (Adam 2026-07-25)
 
 Gilt für **alle Instanzen**. Ein Punkt gilt **nicht** deshalb als offen, weil

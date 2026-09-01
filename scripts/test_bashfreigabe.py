@@ -419,6 +419,38 @@ zeile("die eine erlaubte cd-Form bleibt unangetastet",
       e(f"cd {ws} && ls -la").urteil == bf.FREI,
       gemessen=e(f"cd {ws} && ls -la").grund)
 
+# ---------------------------------------------------------------- A2
+print()
+print("== cd-Ziel als Aufloesungsbasis (A2, 02.09.) ==")
+
+# **Der Kern in einem Satz:** Vorher urteilte die Pruefung ueber einen anderen
+# Pfad als den, den die Shell liest. Ein relativer Pfad nach `cd X` wurde gegen
+# das Arbeitsverzeichnis des Bot-Prozesses aufgeloest.
+zeile("ein relativer Pfad loest gegen das cd-Ziel auf",
+      bf._aufloesen("unterordner/x.txt", ws) == (ws / "unterordner/x.txt"),
+      gemessen=str(bf._aufloesen("unterordner/x.txt", ws)))
+zeile("ein absoluter Pfad bleibt von der Basis unberuehrt",
+      bf._aufloesen(f"{ws}/x.txt", Path("/etc")) == (ws / "x.txt"))
+zeile("ohne Basis bleibt es beim Arbeitsverzeichnis (keine stille Aenderung)",
+      bf._aufloesen("x.txt") == Path("x.txt").expanduser().resolve())
+
+# **Die Zeile fuer die Gegenprobe.** Sie misst die Wirkung im echten Pfad:
+# `cd <bereich> && cat <relativ>` ist frei, WEIL der relative Pfad jetzt im
+# Bereich landet. Ohne A2 fiele er ausserhalb und ergaebe einen Dialog.
+# **`[BERICHTIGT beim Gegenproben]` Diese Zeile mass zuerst nur das URTEIL —
+# und blieb bei entkernter Basis-Aufloesung gruen.** Der Grund ist lehrreich:
+# Ohne Basis loest `datei.txt` gegen das Arbeitsverzeichnis auf, und **das ist
+# selbst ein erlaubter Bereich**. Das Urteil war also aus dem falschen Grund
+# richtig. Gemessen wird jetzt der PFAD, ueber den geurteilt wurde.
+# Ein Argument MIT Schraegstrich, denn nur solche prueft `_pfad_artig` —
+# beim Gegenproben aufgefallen: `datei.txt` wird uebersprungen, die Zeile
+# haette dann eine leere Pfadliste gemessen und nie etwas belegt.
+_nach_cd = e(f"cd {ws} && cat unterordner/datei.txt")
+zeile("nach cd wird der relative Pfad im richtigen Bereich gemessen",
+      _nach_cd.urteil == bf.FREI
+      and any(str(ws) in _p for _p in _nach_cd.pfade),
+      gemessen=f"{_nach_cd.urteil} · Pfade: {_nach_cd.pfade}")
+
 print()
 if fehler:
     print(f"❌ {len(fehler)} von {zeilen} Zeilen rot:")

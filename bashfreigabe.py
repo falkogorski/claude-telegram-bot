@@ -242,16 +242,31 @@ def _ohne_harmlose_umleitung(cmd: str) -> str:
     return HARMLOSE_UMLEITUNG.sub(" ", cmd or "")
 
 
-def _aufloesen(roh: str) -> Path | None:
+def _aufloesen(roh: str, basis: Path | None = None) -> Path | None:
     """Pfad aufloesen — `..` und symbolische Verweise mit.
 
     **Aufloesen, nicht vergleichen** (Befund D/E, Engywuck 23.08.): Ein `..`
     hebt jede Zusage auf, ohne die Zeichenkette anzutasten. Gemessen liefen
     damals `cat <repo>/../../../etc/passwd` und `cat $X/proc/self/environ`
     ohne Dialog durch.
+
+    **`basis` `[NEU 02.09.2026, A2]`: das `cd`-Ziel, wenn eines vorangeht.**
+    Ohne sie loeste ein relativer Pfad im zweiten Glied von `cd X && cat y`
+    gegen das **Arbeitsverzeichnis des Bot-Prozesses** auf — also gegen einen
+    anderen Boden als den, auf dem die Shell den Befehl ausfuehrt.
+
+    **Heute kam dadurch nichts durch**, weil die Aufloesung in der Praxis
+    *hoeher* landet als gemeint und damit aus den Bereichen faellt — die
+    sichere Fehlerrichtung. **Aber ein Pruefer, der zufaellig richtig liegt,
+    ist kein Pruefer**, und derselbe Zufall koennte mit einer anderen
+    Bereichslage kippen. Die Pruefung urteilt jetzt ueber den Pfad, der
+    tatsaechlich gelesen wird.
     """
     try:
-        return Path(roh).expanduser().resolve()
+        p = Path(roh).expanduser()
+        if basis is not None and not p.is_absolute():
+            p = Path(basis) / p
+        return p.resolve()
     except Exception:
         return None
 
@@ -280,8 +295,18 @@ def _pfad_artig(wort: str) -> bool:
 
     Argumente ohne `/` und ohne `~` werden uebersprungen: Suchmuster, Verben,
     Zahlen. **Ein Ausbruch braucht einen Pfad, und ein Pfad hat einen
-    Schraegstrich**; ein blosser Dateiname loest sich gegen das
-    Arbeitsverzeichnis auf, das wir selbst setzen.
+    Schraegstrich.**
+
+    **`[BERICHTIGT 02.09.2026, A2]` Hier stand als Begruendung: *ein blosser
+    Dateiname loest sich gegen das Arbeitsverzeichnis auf, das wir selbst
+    setzen.* Nach einem `cd` setzen wir es nicht selbst** — dann loest ein
+    blosser Dateiname gegen das cd-Ziel auf.
+
+    **Gemessen ist das keine Luecke**, und der Grund ist die Reihenfolge: Das
+    cd-Ziel wird vorher gegen die erlaubten Bereiche geprueft. Ein Dateiname
+    ohne Schraegstrich kann diesen Bereich nicht verlassen — dafuer braeuchte
+    er ein `..` oder einen Schraegstrich, und beides macht ihn pfad-artig.
+    **Die Zusage gilt also weiter; nur ihre Begruendung war ueberholt.**
     """
     return ("/" in wort or wort.startswith("~")) and not wort.startswith("-")
 
@@ -328,8 +353,13 @@ def _schlaf_ok(teile: list[str]) -> bool:
 
 
 def _ein_befehl(teile: list[str], roh: str, bereiche,
-                ist_geheimnis, umgelenkt_nach: str = "") -> Entscheid:
-    """Ein einzelner Befehl, bereits zerlegt und ohne Verkettung."""
+                ist_geheimnis, umgelenkt_nach: str = "",
+                basis: Path | None = None) -> Entscheid:
+    """Ein einzelner Befehl, bereits zerlegt und ohne Verkettung.
+
+    `basis` ist das geprüfte `cd`-Ziel, falls eines vorangeht (A2) — relative
+    Pfade werden dagegen aufgeloest statt gegen das Arbeitsverzeichnis.
+    """
     verb = teile[0]
     art = Path(verb).name          # `/bin/ls` protokolliert als `ls`
 
@@ -387,7 +417,7 @@ def _ein_befehl(teile: list[str], roh: str, bereiche,
     for wort in teile[1:]:
         if not _pfad_artig(wort):
             continue
-        p = _aufloesen(wort)
+        p = _aufloesen(wort, basis)
         if p is None:
             return Entscheid(DIALOG, f"Pfad nicht aufloesbar: {wort}", art)
         gefunden.append(str(p))
@@ -576,11 +606,18 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
         if _bereich_von(ziel, bereiche) is None and not in_claude:
             return Entscheid(DIALOG, f"cd-Ziel ausserhalb der Bereiche: {ziel}")
         rest = stuecke[1]
+        # **A2:** Das cd-Ziel ist hier bereits gegen die Bereiche geprueft.
+        # Genau deshalb darf es als Aufloesungsbasis dienen — ein ungeprueftes
+        # Ziel waere die Umkehrung des Schutzes.
+        _cd_ziel = ziel
     else:
         rest = stuecke[0]
+        _cd_ziel = None
 
     teile = _teile(rest)
     if not teile:
         return Entscheid(DIALOG, "Befehl nicht zerlegbar")
 
-    return _ein_befehl(teile, roh, bereiche, ist_geheimnis, umgelenkt_nach)
+    # `ziel` ist das **bereits geprueffte** cd-Ziel (oder None ohne `cd`).
+    return _ein_befehl(teile, roh, bereiche, ist_geheimnis, umgelenkt_nach,
+                       basis=_cd_ziel)

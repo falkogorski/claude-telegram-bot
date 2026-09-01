@@ -197,6 +197,37 @@ ERSETZUNG = re.compile(r"\$\(|`|<\(|\$\{|\$[A-Za-z_]")
 # Verkettungen ausser dem einen erlaubten `&&`. Auftrag 4.
 WEITERE_VERKETTUNG = re.compile(r"[;|]|\n|\|\|")
 
+# ══════════════════════════════════════════════════════════════════════════
+# **ZERLEGEN IST ERLAUBT, SOLANGE KEIN GLIED DEN BODEN VERSCHIEBT.**
+#
+# In den Dialog faellt jedes Glied, das den Zustand der FOLGENDEN Pruefungen
+# aendert: `cd`, `pushd`/`popd`, `export`, `set`, `source` und `.`, sowie
+# Zuweisungen der Form `NAME=wert`.
+#
+# **Warum diese Regel hier steht, obwohl heute nichts durchkommt** — und das
+# ist der eigentliche Grund, nicht ein Loch:
+#
+# Diese Befehle fallen heute in den Dialog, **weil sie in keiner Freiliste
+# stehen** — nicht, weil jemand entschieden haette, dass zustandsveraendernde
+# Befehle nicht zerlegt werden duerfen. **Der Schutz ist ein Zufall, keine
+# Entscheidung.** Wer morgen die Freiliste erweitert — und genau darauf zielt
+# die Zerlegung, weniger Rueckfragen — hebt ihn auf, ohne es zu merken.
+#
+# Der Zusammenhang, an dem es haengt: `_aufloesen` loest relative Pfade gegen
+# das Arbeitsverzeichnis des Bot-Prozesses auf. Ein `cd` in einem frueheren
+# Glied verschiebt den Boden, auf dem jede folgende Pfadpruefung steht — die
+# Pruefung urteilte dann ueber einen anderen Pfad als den, der gelesen wird.
+# Dieselbe Fehlerform wie die `..`-Umgehung vom 23.08., nur ueber die
+# Verkettung statt ueber den Pfad.
+#
+# **Und das ist zugleich die Antwort, warum `cd … && …` genau EINMAL erlaubt
+# ist:** Die Eins ist keine Zahl, sondern eine Form. `cd` darf den Boden
+# verschieben, weil sein Ziel dabei **geprueft** wird — ganz vorn, einmal,
+# gegen die erlaubten Bereiche. Ein Maß, zwei Anwendungen.
+_BODEN_BEFEHLE = re.compile(
+    r"^\s*(?:cd|pushd|popd|export|set|source|\.)(?=\s|$)"
+    r"|^\s*[A-Za-z_][A-Za-z_0-9]*=", re.IGNORECASE)
+
 # Wie in bot.py: eine reine FEHLERumleitung schreibt nichts und darf bleiben.
 HARMLOSE_UMLEITUNG = re.compile(r"\s*2>\s*(?:&1|/dev/null|/tmp/[\w.\-/]+)")
 
@@ -480,6 +511,41 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
                              "schreibbaren Bereiche")
         umgelenkt_nach = str(ziel)
         ohne = ohne.replace(treffer.group(0), " ")
+
+    # ---- Zerlegung an `;`, `|` und `||` (Adams Freigabe 01.09.)
+    #
+    # **Jedes Glied einzeln durch dieselbe Pruefung; frei nur, wenn jedes Glied
+    # frei ist.** Ein einziges Dialog- oder Abweis-Urteil entscheidet fuer den
+    # ganzen Befehl, mit dem Grund des betroffenen Glieds. Das erspart die
+    # Rueckfrage bei `grep … | head` und aehnlichem Alltag.
+    #
+    # **Zeilenumbruch bleibt Dialog** — er stand in derselben Menge, ist aber
+    # nicht beauftragt. Die konservative Richtung, wo nichts entschieden wurde.
+    if "\n" in ohne:
+        return Entscheid(DIALOG,
+                         "ein Zeilenumbruch im Befehl — bitte in einzelne "
+                         "Befehle teilen")
+    _glieder = [s.strip() for s in re.split(r"\|\||[;|]", ohne) if s.strip()]
+    if len(_glieder) > 1:
+        # Das Geheimnis einmal ueber den GANZEN Befehl, bevor zerlegt wird:
+        # Ein Marker, der ueber eine Gliedgrenze reicht, waere sonst in keinem
+        # einzelnen Glied vollstaendig.
+        if ist_geheimnis(roh):
+            return Entscheid(DIALOG, "ein Geheimnis-Marker im Befehl")
+        _strengste = None
+        for _g in _glieder:
+            if _BODEN_BEFEHLE.search(_g):
+                return Entscheid(DIALOG,
+                                 f"ein Glied verschiebt den Boden fuer die "
+                                 f"folgenden Pruefungen: [{_g.strip()[:40]}]")
+            _e = entscheiden(_g, ist_geheimnis=ist_geheimnis, bereiche=bereiche)
+            if _e.urteil == ABWEISEN:
+                return _e
+            if _e.urteil == DIALOG and _strengste is None:
+                _strengste = _e
+        return _strengste or Entscheid(
+            FREI, "", befehlsart=(_glieder[0].split() or [""])[0],
+            bereich="mehrgliedrig")
 
     if WEITERE_VERKETTUNG.search(ohne):
         return Entscheid(DIALOG,

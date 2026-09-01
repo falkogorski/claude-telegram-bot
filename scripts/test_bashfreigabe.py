@@ -385,6 +385,40 @@ zeile("Protokoll legt genau vier Felder ab",
 zeile("Protokoll enthaelt KEINEN Grund und KEINE Pfade",
       "grund" not in _z and str(ws) not in protokoll.read_text(encoding="utf-8"))
 
+# ---------------------------------------------------------------- Zerlegung
+#
+# **Ausgefuehrt, nicht gelesen.** Eine Zeile, die `_BODEN_BEFEHLE` im Quelltext
+# sucht, ist umgehbar — acht von acht gemessenen Faellen. Hier laeuft der Pfad.
+print()
+print("== Zerlegung an ; und | (01.09.) ==")
+
+zeile("eine harmlose Pipe ist frei",
+      e(f"grep x {ws}/datei.txt | head -5").urteil == bf.FREI,
+      gemessen=e(f"grep x {ws}/datei.txt | head -5").grund)
+zeile("ein Semikolon zwischen zwei freien Gliedern ist frei",
+      e(f"cat {ws}/datei.txt ; ls -la {ws}").urteil == bf.FREI)
+zeile("ein einziges dialogpflichtiges Glied entscheidet fuer den ganzen Befehl",
+      e(f"grep x {ws}/datei.txt | chmod 644 {ws}/datei.txt").urteil == bf.DIALOG)
+
+# **Die Zeile, die bei der Gegenprobe rot werden muss.** Ohne die
+# Boden-Bedingung wuerde `cd /etc` als eigenes Glied gepruft, faende sich
+# nicht auf der Positivliste und ergaebe von selbst einen Dialog — deshalb
+# misst diese Zeile den GRUND, nicht nur das Urteil.
+_boden = e("cd /etc | cat passwd")
+zeile("ein bodenverschiebendes Glied faellt aus dem RICHTIGEN Grund in den Dialog",
+      _boden.urteil == bf.DIALOG and "verschiebt den Boden" in _boden.grund,
+      gemessen=f"{_boden.urteil} · {_boden.grund[:60]}")
+_zuweisung = e("X=1 ; env")
+zeile("auch eine Zuweisung verschiebt den Boden",
+      _zuweisung.urteil == bf.DIALOG and "verschiebt den Boden" in _zuweisung.grund,
+      gemessen=f"{_zuweisung.urteil} · {_zuweisung.grund[:60]}")
+
+zeile("ein Zeilenumbruch bleibt Dialog (nicht beauftragt, konservativ)",
+      e(f"ls {ws}\ncat {ws}/datei.txt").urteil == bf.DIALOG)
+zeile("die eine erlaubte cd-Form bleibt unangetastet",
+      e(f"cd {ws} && ls -la").urteil == bf.FREI,
+      gemessen=e(f"cd {ws} && ls -la").grund)
+
 print()
 if fehler:
     print(f"❌ {len(fehler)} von {zeilen} Zeilen rot:")

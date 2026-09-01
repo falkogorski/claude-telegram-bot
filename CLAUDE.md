@@ -705,6 +705,26 @@ Fehlt der dritte Teil, ist es keine Diagnose, sondern eine Aufgabe. Umgekehrt
 gilt: Wenn wirklich alle geprüften Wege scheitern, ist **der ehrliche Fehlschlag
 das Ergebnis** — kein Ersatzbau, der so tut, als ginge es doch.
 
+### Und was weitergereicht wird, ist selbst gemessen `[NEU 2026-09-01, Adam]`
+
+**Eine Aussage einer anderen Sitzung wird nachgemessen, bevor sie als Befund
+weitergegeben wird** — auch und gerade, wenn sie von einer Sitzung kommt, der
+man vertraut. **Übernehmen ist Weitergeben, und Weitergeben macht die Aussage
+zur eigenen.**
+
+Wo eine Messung nicht möglich ist, wird sie als **Fremdaussage gekennzeichnet**
+und die Grenze benannt: *wer es gesagt hat, und was ich selbst geprüft habe.*
+
+**Drei Belege, alle aus derselben Nacht:** Die Bau-Sitzung übernahm eine
+Nichterreichbarkeit, *obwohl der Klon einen `ls`-Aufruf entfernt lag*. Die
+Kontrolle nahm genau diese Aussage, baute eine Landkarte darauf und legte sie
+Adam vor — falsch, und **einen Befehl entfernt überprüfbar**. Und in die andere
+Richtung: Sie fand einen echten Bezugsrahmen-Bruch und erklärte ihn zum
+**Loch**, ohne den Weg zu Ende zu gehen; es war keins.
+
+**Daraus die Erweiterung dieser Regel:** *Ein „geht nicht" aus zweiter Hand ist
+keine Diagnose* — **und ein „geht doch" ohne Gegenprobe ebenso wenig.**
+
 ## 💶 ERLÖSBEZUG MITPRÜFEN (W, 2026-07-25)
 
 **Adams wirtschaftliche Lage ist ein gleichrangiger Grund, kein Nebenmotiv:
@@ -1705,6 +1725,32 @@ man sich aus.
    Bewertung *tragend / nicht tragend* gilt **innerhalb** des Drehbuchs. Am
    eigentlichen Ziel gemessen sind Multi-Session, Recall und Kanäle Fundament
    der Assistenz, keine Annehmlichkeit.
+
+### Und jede Lieferung nennt ihren Nenner `[NEU 2026-09-01, Adam]`
+
+**Wer über eine Menge berichtet, nennt ihre Größe.** Jede Lieferung sagt, **über
+wie viele Dinge** sie redet und **wie viele davon angefasst** wurden: geprüfte
+Kandidaten, gelesene Papiere, abgearbeitete Punkte. Wo die Zahlen
+auseinandergehen, steht der Rest ausdrücklich da.
+
+**Der Ort ist die Übergabe, nicht die Arbeit.** Dort ist die Aufmerksamkeit am
+niedrigsten — dieselbe Stelle wie bei der Durchlauf-Wache: Die Regel wird am
+Anfang gelesen, der Fehler passiert am Ende.
+
+**Wer den Nenner nicht nennen kann, hat die Menge nicht gemessen.**
+
+**Der Anlass ist gezählt:** In der Nacht zum 01.09. hat Adam **fünfmal**
+nachgehakt und **fünfmal** etwas gefunden — vier fehlende Ablage-Einträge, fünf
+Juli-Lücken ohne Auftrag, drei von sieben Berichten mit Auftragspapier, eine gar
+nicht ausgewertete Sitzung, ein zu einem Viertel geprüftes Papier. **Nichts
+davon war falsch, alles war unvollständig** — und Unvollständigkeit ist
+bauartbedingt unsichtbar: Ein Bericht mit vier Befunden sieht aus wie einer mit
+vier von neun. *Fünf Papiere, eins zu einem Viertel geprüft* fällt auf, sobald
+die Fünf dasteht. **Es kostet eine Zeile und ersetzt eine Rückfrage.**
+
+**Ehrliche Grenze:** Das fängt Unvollständigkeit, nicht Falschheit. Wer selbst
+misst und dabei das Falsche misst, braucht die Gegenprüfung durch eine frische
+Sitzung — die bleibt nötig.
 
 **Und wo das Ziel offen ist, ist Prozent das falsche Maß.** Was hier entstehen
 soll — *Menschen ihre Zeit zurückgeben und sie zu ihrem besten Selbst bringen*

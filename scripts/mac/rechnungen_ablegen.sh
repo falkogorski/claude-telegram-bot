@@ -63,7 +63,13 @@ set -u
 # Daran starb am 29.07. ein Waechter, einundzwanzig Tage unbemerkt.
 : "${HOME:?HOME ist nicht gesetzt — als Dienst ohne User= gestartet?}"
 
-SSH_HOST="${RECHNUNGEN_SSH_HOST:-claudebot@vps}"
+# Der Name kommt aus `~/.ssh/config` (Eintrag `claudebot`, User claudebot),
+# NICHT aus einer erfundenen Adresse. `vps_backup.sh` macht es mit
+# `claudevps` (root) genauso. **Am 02.09. stand hier `claudebot@vps` —
+# ein Name, den dieser Rechner nicht aufloest.** Haelfte 1 haette still
+# jedes Mal "uebersprungen" protokolliert, und niemand haette gemerkt,
+# dass es nie am Server lag: der Ausfall haette wie Ruhe ausgesehen.
+SSH_HOST="${RECHNUNGEN_SSH_HOST:-claudebot}"
 FERN="${RECHNUNGEN_FERN:-/home/claudebot/workspace/rechnungen/ausgang/}"
 LOKAL="${RECHNUNGEN_LOKAL:-$HOME/VPS-Backup/rechnungen}"
 ZIEL="${RECHNUNGEN_ICLOUD:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Business/Deko/DEKO-Service/_Aus-dem-Server}"
@@ -81,17 +87,31 @@ sag() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"; }
 # Fehler, gegen den dieses ganze Skript gebaut ist.
 mkdir -p "$LOKAL" 2>/dev/null || { sag "FEHLER: Uebergabeordner nicht anlegbar — $LOKAL"; exit 78; }
 
-if command -v rsync >/dev/null 2>&1; then
-  if rsync -az --timeout=20 -e "ssh -o BatchMode=yes -o ConnectTimeout=10" \
-      "$SSH_HOST:$FERN" "$LOKAL/" 2>>"$LOG"; then
-    sag "Haelfte 1: vom Server geholt ($SSH_HOST:$FERN)"
-  else
-    sag "Haelfte 1 UEBERSPRUNGEN: Server nicht erreichbar oder Ordner fehlt"
-    sag "        (Solange das Rechnungsprojekt nicht umgezogen ist, ist das"
-    sag "         der Normalfall — nicht der Alarm.)"
-  fi
-else
+# **Erreichbarkeit ZUERST, und getrennt** — sonst tragen zwei sehr
+# verschiedene Lagen dieselbe Meldung: *Server weg* ist ein Alarm, *Ordner
+# fehlt noch* ist vor dem Umzug der Normalfall. Eine Sammelzeile
+# („nicht erreichbar oder Ordner fehlt") liesse den echten Ausfall wie den
+# Normalfall aussehen — genau die Fehlerklasse, gegen die dieses Skript
+# gebaut ist.
+#
+# **Der Anlass ist gemessen und war peinlich genug, um ihn hinzuschreiben:**
+# Am 02.09. stand hier der Hostname `claudebot@vps`, den dieser Rechner nicht
+# aufloest. Haelfte 1 haette **jeden Lauf** mit der Sammelzeile quittiert, und
+# niemand haette gemerkt, dass es nie am Server lag.
+if ! command -v rsync >/dev/null 2>&1; then
   sag "Haelfte 1 UEBERSPRUNGEN: rsync fehlt auf diesem Rechner"
+elif ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_HOST" true 2>>"$LOG"; then
+  sag "Haelfte 1 FEHLER: [$SSH_HOST] antwortet nicht — Name in ~/.ssh/config?"
+  sag "        Das ist KEIN Normalfall. Ohne den Server kommen keine"
+  sag "        Rechnungen an, auch wenn Haelfte 2 gleich sauber durchlaeuft."
+elif ! ssh -o BatchMode=yes "$SSH_HOST" "test -d '$FERN'" 2>>"$LOG"; then
+  sag "Haelfte 1 uebersprungen: Server da, Ausgangsordner fehlt noch ($FERN)"
+  sag "        Normalfall, solange das Rechnungsprojekt nicht umgezogen ist."
+elif rsync -az --timeout=20 -e "ssh -o BatchMode=yes -o ConnectTimeout=10" \
+        "$SSH_HOST:$FERN" "$LOKAL/" 2>>"$LOG"; then
+  sag "Haelfte 1: vom Server geholt ($SSH_HOST:$FERN)"
+else
+  sag "Haelfte 1 FEHLER: Ordner da, Uebertragung gescheitert — siehe oben"
 fi
 
 # ---------------------------------------------------------------- Haelfte 2

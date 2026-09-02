@@ -61,7 +61,7 @@ der Deploy heute nicht bis morgen warten sollte.**
 ## Schritt 1 — Deploy
 
 ```bash
-ssh claudebot@vps 'cd ~/claude-telegram-bot && git pull --ff-only && bash scripts/regressionstest.sh 2>&1 | tail -5'
+ssh claudebot 'cd ~/claude-telegram-bot && git pull --ff-only && bash scripts/regressionstest.sh 2>&1 | tail -5'
 ```
 
 **Prüfzeile:** Am Ende muss `== Ergebnis: 70/70 bestanden ==` stehen. Steht dort
@@ -71,7 +71,7 @@ schicken. Ein roter Lauf auf dem Server ist genau der Fall, für den er da ist.
 Danach der Neustart:
 
 ```bash
-ssh root@vps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
+ssh claudevps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
 ```
 
 **Prüfzeile:** `active`. Danach schreib dem Bot irgendetwas — er soll antworten.
@@ -93,7 +93,7 @@ Neustarts erhalten**, und derselbe Knopf schaltet zurück.
 nichts kopieren musst:
 
 ```bash
-rsync -az --exclude '.venv' --exclude '__pycache__' --exclude 'output' ~/Projects/rechnungen/ claudebot@vps:~/workspace/rechnungen/
+rsync -az --exclude '.venv' --exclude '__pycache__' --exclude 'output' ~/Projects/rechnungen/ claudebot:~/workspace/rechnungen/
 ```
 
 **Warum `~/workspace/` und nicht `~/rechnungen/`:** Es gibt auf dem Server genau
@@ -108,7 +108,7 @@ Mac gebunden (65 MB), und `output` ist Erzeugtes, kein Quellmaterial.
 **Prüfzeile:**
 
 ```bash
-ssh claudebot@vps 'ls ~/workspace/rechnungen/ ~/workspace/rechnungen/daten/ | head -30'
+ssh claudebot 'ls ~/workspace/rechnungen/ ~/workspace/rechnungen/daten/ | head -30'
 ```
 
 Es müssen `scripts/`, `templates/`, `daten/`, `assets/` da sein und in `daten/`
@@ -128,7 +128,7 @@ eine einzelne statische Binärdatei, quelloffen, **kostenfrei**, wenige
 Megabyte.
 
 ```bash
-ssh claudebot@vps 'mkdir -p ~/.local/bin && cd /tmp && curl -fsSL https://github.com/typst/typst/releases/latest/download/typst-x86_64-unknown-linux-musl.tar.xz -o typst.tar.xz && tar -xf typst.tar.xz && mv typst-x86_64-unknown-linux-musl/typst ~/.local/bin/ && rm -rf typst.tar.xz typst-x86_64-unknown-linux-musl && ~/.local/bin/typst --version'
+ssh claudebot 'mkdir -p ~/.local/bin && cd /tmp && curl -fsSL https://github.com/typst/typst/releases/latest/download/typst-x86_64-unknown-linux-musl.tar.xz -o typst.tar.xz && tar -xf typst.tar.xz && mv typst-x86_64-unknown-linux-musl/typst ~/.local/bin/ && rm -rf typst.tar.xz typst-x86_64-unknown-linux-musl && ~/.local/bin/typst --version'
 ```
 
 **Prüfzeile:** eine Versionsnummer, etwa `typst 0.x.y`.
@@ -141,7 +141,7 @@ Positivliste ja und die Shell *command not found*. Das ist die Klasse *am Mac
 lief alles* vom 29.07.
 
 ```bash
-ssh root@vps 'systemctl show claude-telegram-bot -p Environment | grep -o "PATH=[^ ]*" || echo "kein PATH gesetzt -- erbt den Standard"'
+ssh claudevps 'systemctl show claude-telegram-bot -p Environment | grep -o "PATH=[^ ]*" || echo "kein PATH gesetzt -- erbt den Standard"'
 ```
 
 Steht `~/.local/bin` bzw. `/home/claudebot/.local/bin` **nicht** darin: sag
@@ -159,13 +159,13 @@ Erzeuge eine **bestehende** Rechnung auf dem Server neu und halte sie gegen die
 Mac-Fassung:
 
 ```bash
-ssh claudebot@vps 'cd ~/workspace/rechnungen && mkdir -p output ausgang && python3 scripts/generate_rechnung.py daten/rechnung_012-26.json && ls -la output/'
+ssh claudebot 'cd ~/workspace/rechnungen && mkdir -p output ausgang && python3 scripts/generate_rechnung.py daten/rechnung_012-26.json && ls -la output/'
 ```
 
 Dann herunterholen und ansehen:
 
 ```bash
-rsync -az claudebot@vps:~/workspace/rechnungen/output/ ~/Downloads/rechnung-servertest/ && open ~/Downloads/rechnung-servertest/
+rsync -az claudebot:~/workspace/rechnungen/output/ ~/Downloads/rechnung-servertest/ && open ~/Downloads/rechnung-servertest/
 ```
 
 **Prüfzeile:** Die PDF sieht aus wie die vom Mac — Logo, Unterschrift,
@@ -175,7 +175,7 @@ auf dem Server Schriften, und das ist eine eigene Sache, keine Kleinigkeit.
 **Danach aufräumen — Claudias Provisorium darf keine zweite Wahrheit werden:**
 
 ```bash
-ssh claudebot@vps 'ls ~/rechnungen-uebergang 2>/dev/null && echo "^ das kann weg, wenn der Vergleichslauf stimmt"'
+ssh claudebot 'ls ~/rechnungen-uebergang 2>/dev/null && echo "^ das kann weg, wenn der Vergleichslauf stimmt"'
 ```
 
 Löschen erst nach deinem Blick darauf, und erst wenn Schritt 4 stimmt.

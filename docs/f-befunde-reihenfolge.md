@@ -307,6 +307,31 @@ etwas mitreißt. **Vermerkt statt getan.**
 
 ---
 
+### F-21 · `echo` steht in zwei Listen und erzeugt dadurch Dialoge `[offen, klein, 02.09.2026]`
+
+Gemessen beim Bau von U-3b: **`echo fertig` fällt in den Dialog**, Grund
+*„Schreibbefehl ohne erkennbaren Pfad"*. Ursache: `echo` steht **sowohl** in
+`SCHREIBEN` als auch in `ZUSTAND`. `schreibt` wird dadurch wahr, und ein
+Schreibbefehl ohne Pfad ist absichtlich dialogpflichtig.
+
+**Vorbestehend** (gegen `395de2b` gemessen), **nicht durch die Zerlegung
+entstanden** — sie macht es nur sichtbarer, weil `ls && echo fertig` jetzt
+zerlegt wird und am zweiten Glied hängenbleibt.
+
+**Warum es hier steht und nicht behoben ist:** Es ist eine Änderung an der
+Positivliste, und die ist ein Bauauftrag, keine Zeile nebenbei — so steht es
+im Kopf von `bash_dialog_auswertung.py`. Der richtige Zeitpunkt ist die
+Nachmessung nach dem Deploy: **Erst dann ist belegt, wie oft `echo` unter
+Claudias verbliebenen Dialogen wirklich auftaucht.** Vorher wäre es geraten.
+
+**Die Richtung, falls es sich lohnt:** `echo` aus `SCHREIBEN` nehmen. Es
+schreibt nur zusammen mit einer Umlenkung, und die wird eine Ebene höher
+ohnehin gegen die schreibbaren Bereiche geprüft — die Doppelung bringt dort
+keinen Schutz, den die Umlenkungs-Prüfung nicht schon leistet. **Zu messen,
+nicht zu glauben.**
+
+---
+
 ### F-19 · Dokument mit Beschriftung geht in die Hauptsitzung `[offen, eingetragen 02.09.2026]`
 
 **Der Befund ist vom 23.08. Er stand nie hier, obwohl der Changelog ihn hierher

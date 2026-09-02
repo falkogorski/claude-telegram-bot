@@ -486,6 +486,33 @@ check("Geheimnis-Sperre faengt alle Wege", _geheimnis_sperre_faengt_alle_wege)
 check("Geheimnis-Sperre ohne Fehlalarm", _geheimnis_sperre_ohne_fehlalarm)
 
 
+# 5.19 (02.09.): Die Stammdaten des Rechnungsprojekts tragen Steuernummer und
+# Bankverbindung. Der Marker greift auf den BEFEHLSTEXT - das ist hier kein
+# Mangel, sondern der Zuschnitt: Wer die Datei NENNT, wird gefragt; der
+# Generator nennt sie nicht und liest sie selbst.
+#
+# Beide Richtungen sind Pflicht. Nur die erste Haelfte waere eine Sperre, die
+# den Arbeitsvorgang miterschlaegt, fuer den die Datei da ist - und eine
+# Sperre, die die taegliche Arbeit blockiert, wird abgeschaltet.
+def _stammdaten_gesperrt_generator_frei():
+    for ref in ("cat ~/workspace/rechnungen/daten/stammdaten.json",
+                "less daten/stammdaten.json",
+                "grep IBAN stammdaten.json"):
+        # schreibend=False, weil GERADE das Lesen die Gefahr ist.
+        assert bot._is_sensitive_ref(ref, schreibend=False), \
+            f"Stammdaten offen beim Lesen: {ref}"
+    for ref in ("python3 scripts/generate_rechnung.py rg_koeln",
+                "python3 scripts/generate_aufstellung.py auf_koeln",
+                "ls ~/workspace/rechnungen/output"):
+        assert not bot._is_sensitive_ref(ref, schreibend=False), \
+            (f"Fehlalarm im Rechnungslauf: {ref} - der Generator nennt die "
+             "Stammdaten nicht, er liest sie selbst")
+
+
+check("Stammdaten gesperrt, der Generator laeuft (5.19)",
+      _stammdaten_gesperrt_generator_frei)
+
+
 # --------------------------------------------------------------------------
 # (5) Der Rueckweg vom Protokoll in den Systemrang
 # --------------------------------------------------------------------------

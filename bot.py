@@ -2478,7 +2478,19 @@ _GEHEIMNIS_MARKER = (".env", "credentials", "token", "secret", "_key", "key.",
                      # gar nichts mehr.
                      "/proc/", "/environ",
                      ".bash_history", ".zsh_history", ".python_history",
-                     ".sh_history", "authorized_keys", ".netrc", ".pgpass")
+                     ".sh_history", "authorized_keys", ".netrc", ".pgpass",
+                     # 5.19 (02.09.): Adams Steuernummer und Bankverbindung
+                     # liegen in `daten/stammdaten.json` des Rechnungsprojekts.
+                     # **Vor dem Umzug eingetragen, nicht danach** — sonst ist
+                     # die Datei zwischen Ankunft und Riegel offen.
+                     #
+                     # Der Zuschnitt ist der Grund, warum das trägt: Der Marker
+                     # greift auf den BEFEHLSTEXT. `cat …/stammdaten.json`
+                     # nennt die Datei und fällt in den Dialog; der Generator
+                     # nennt sie NICHT und läuft durch — er liest sie selbst.
+                     # Damit ist die Datei geschützt, ohne den Arbeitsvorgang
+                     # zu behindern, für den sie da ist.
+                     "stammdaten")
 
 # Nur beim SCHREIBEN dialogpflichtig — beim Lesen ausdrücklich frei (8.7).
 #

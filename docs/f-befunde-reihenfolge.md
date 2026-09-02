@@ -1,7 +1,9 @@
 <!-- ROLLE: f-befunde-reihenfolge -->
 # F-Befunde der Gegenprüfung — Reihenfolge und Stand
 
-**Stichtag:** 2026-08-23 · **Stand: F-1 bis F-6 erledigt · F-7 bis F-17 offen · F-18 erledigt**
+**Stichtag:** 2026-09-02 · **Stand: F-1 bis F-11 erledigt · F-12 bis F-17 offen ·
+F-18 erledigt · F-19 offen** (nachgetragen 02.09., stand seit dem 23.08. nur im
+Changelog)
 · **überholt durch:** — · **maßgeblich ist diese Datei** (Volltext der Befunde:
 `docs/gegenpruefung-2026-08-18.md`; die neuen aus
 `BEFUND ULTRACODE 9456f16..d596269`, Engywuck 23.08.)
@@ -237,6 +239,69 @@ in drei von fünf Fällen mehr als das Gemeldete.
 Rückgabewert der einer erfolgreichen `tail` ist. Berichtigt in `111923b`; der
 rote Lauf hatte einen echten Fund enthalten (ein Prüfer mit fest verdrahtetem
 VPS-Pfad, der am Mac etwas anderes maß).
+
+---
+
+### F-19 · Dokument mit Beschriftung geht in die Hauptsitzung `[offen, eingetragen 02.09.2026]`
+
+**Der Befund ist vom 23.08. Er stand nie hier, obwohl der Changelog ihn hierher
+verwies** — `MIGRATION.md`, Eintrag `2026-08-23 (41)`, im Wortlaut:
+
+> *„**Bewusst offen (F-Liste):** Dokument **mit Beschriftung** geht weiter in
+> die Hauptsitzung (dort greift aber der Freigabe-Dialog, und seit H7 ist
+> nichts Mächtiges mehr dauerfreigebbar) sowie **25 leichtere Befunde**."*
+
+**Gemessen 02.09.:** `f-befunde-reihenfolge.md` führte F-1 bis F-18, das Wort
+*Beschriftung* kam nicht vor. Der Ablageweg war **benannt** und die Datei
+existierte bereits — die Entscheidung ist trotzdem nicht angekommen. Das ist
+der Ablageweg-Grundsatz an einer Stelle, an der man ihn nicht erwartet hätte.
+
+#### Die Klammer trägt den Eintrag — und sie ist entfallen
+
+*„seit H7 ist nichts Mächtiges mehr dauerfreigebbar"*. Gemessen an `395de2b`:
+
+```
+_NO_ALWAYS_TOOLS = ({"WebFetch", "Write", "Edit", "MultiEdit",
+                     "NotebookEdit"} | set(_COST_TOOLS))
+```
+
+**`Bash` steht nicht mehr darin.** Es hat die Liste am 01.09. mit `ae03f95`
+verlassen — 5.27, der Genehmigungs-Umschalter, Adams ausdrücklicher Wunsch.
+Das war richtig und gegengeprüft. **Niemand ist danach zu dem Eintrag
+zurückgegangen, der sich darauf stützte.**
+
+#### Wie weit das trägt — gemessen, nicht geschätzt
+
+Alles Folgende steht **vor** dem Dauerfreigabe-Kurzschluss (`bot.py:3287`):
+
+| Schranke | Stelle | Wirkung |
+|---|---|---|
+| Repo-Schreibsperre (8.7) | `bot.py:3137` | `Deny` |
+| `bashfreigabe` ABWEISEN | `bot.py:3177` | `Deny` |
+| `_AUSGEHENDE_BEFEHLE` | `bot.py:3256`, seit 01.09. | `curl`, `wget`, `nc`, `ssh`, `scp`, `telnet` → Dialog |
+| Geheimnis-Marker | `bot.py:3225` | zu, auch fürs Lesen |
+| `_NO_ALWAYS_TOOLS` | `bot.py:2367` | `Write`/`Edit`/`WebFetch`/Kosten weiter nie dauerfreigebbar |
+
+**Was nicht mehr hält:** Bash-Befehle, die `bashfreigabe` als **FREI** bewertet,
+laufen im Auto-Zustand ohne Rückfrage — auch dann, wenn die Sitzung sie tut,
+weil es in einem gelesenen Dokument stand.
+
+**Die verbleibende Reichweite, so eng gesagt, wie sie ist:** Lesen und
+Auflisten in den freien Bereichen. **Kein** Weg nach außen, **keine**
+Schreibrechte, **keine** Geheimnisse. Der verbleibende Kanal ist **der Chat
+selbst** — die Sitzung könnte dazu gebracht werden, Gelesenes hineinzuschreiben.
+Das berührt die zweite Richtung von Adams Grundsatz vom 21.08.: *sensible Daten
+verlassen das System nicht über Telegram.*
+
+**Kein ausgenutzter und kein konstruierter Fall.** Was gemessen ist: Eine
+Begründung ist entfallen, und der Eintrag, der auf ihr stand, blieb unverändert.
+
+**Nicht zu tun, solange dieser Punkt offen ist:** den Beschriftungsweg
+schließen (Adam nutzt ihn täglich, und seit dem 02.09. ist er ausdrücklich der
+Weg, auf dem er Aufträge übergibt) · am Auto-Modus drehen (er ist gegengeprüft;
+der Befund liegt nicht bei ihm). **Aufgelöst wird der Punkt durch den
+Signatur-Punkt** — erst mit einem Herkunftsmerkmal lässt sich unterscheiden,
+was *aus dem eigenen Haus* stammt.
 
 ---
 

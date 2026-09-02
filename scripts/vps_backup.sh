@@ -55,14 +55,47 @@ ITEMS=(
   "/home/claudebot/claude-telegram-bot/logs/|logs"
   "/home/claudebot/searxng/settings.yml|configs"
   "/home/claudebot/litellm/config.yaml|configs"
-  # 5.19/U-6 (02.09.): Das SICHERHEITSNETZ der Route A. Der eigentliche Weg
-  # laeuft beim Sitzungsstart (`scripts/mac/rechnungen_ablegen.sh`) — diese
-  # Zeile fasst den Fall ab, dass tagelang keine Sitzung startet: Dann liegen
-  # die fertigen Rechnungen wenigstens auf der Platte statt nur auf dem VPS.
-  # Solange das Rechnungsprojekt nicht umgezogen ist, wird sie uebersprungen —
-  # dafuer ist die Schleife unten gebaut.
-  "/home/claudebot/workspace/rechnungen/ausgang/|rechnungen"
 )
+
+# ---------------------------------------------------------------- Z-2 (03.09.)
+#
+# **Was sich aendert, wird gesichert — nicht, was jemand aufgezaehlt hat.**
+#
+# Adams Wort: *„beim Server-Backup natuerlich alle Ordner mitlaufen, die sich
+# veraendert haben zumindest, sonst ist es ja kein vernuenftiges Backup."*
+#
+# `ITEMS` oben ist eine **Aufzaehlung** — die Bauform, die beim naechsten
+# Ordner still versagt. Am 02.09. war es beinahe soweit: Ab dem 03.09. ist der
+# Server die Stelle fuer Rechnungsnummern, und `workspace/rechnungen/daten/`
+# mit Stammdaten und Nummernzaehler stand **nicht** in der Liste. Faellt der
+# Zaehler weg, ist die naechste Rechnungsnummer geraten.
+#
+# **Ausschluesse statt Einschluesse, und die Fehlerrichtung ist der Grund:**
+# Ein vergessener Ausschluss kostet Plattenplatz. Ein vergessener Einschluss
+# verliert Daten. Ausgeschlossen wird nur, was **reproduzierbar** ist —
+# gemessen am 03.09.: `vhd/` sind Einzelbilder einer Medienanalyse (212 MB),
+# `.npy` ein Zwischenergebnis (12 MB), `.venv` ist neu installierbar.
+BAEUME=(
+  "/home/claudebot/workspace/|workspace"
+  "/home/claudebot/postfach/|postfach"
+)
+# **`site-packages` statt `.venv` — eine Eigenschaft, kein Name.**
+# Der erste Anlauf schloss `.venv` aus und mass trotzdem 1,1 GB: Unter
+# `~/workspace/.nemo-test/` liegt eine Python-Umgebung, die schlicht anders
+# heisst. **Dieselbe Falle wie bei jeder Aufzaehlung** — sie schuetzt, was
+# darin steht, und nichts sonst. `site-packages` gibt es in JEDER
+# Python-Umgebung, egal wie ihr Ordner heisst.
+BAUM_AUS=(--exclude='site-packages' --exclude='__pycache__' --exclude='*.tmp'
+          --exclude='vhd/' --exclude='*.npy' --exclude='node_modules'
+          --exclude='*.so' --exclude='*.pyc')
+for item in "${BAEUME[@]}"; do
+  src="${item%%|*}"; grp="${item##*|}"
+  if "${RSYNC[@]}" "${BAUM_AUS[@]}" "$SSH_HOST:$src" "$DEST/$grp/" 2>>"$LOG"; then
+    echo "  Baum gesichert: $src" >>"$LOG"
+  else
+    echo "  (Baum uebersprungen/nicht vorhanden: $src)" >>"$LOG"
+  fi
+done
 for item in "${ITEMS[@]}"; do
   src="${item%%|*}"; grp="${item##*|}"
   if "${RSYNC[@]}" "$SSH_HOST:$src" "$DEST/$grp/" 2>>"$LOG"; then :; else

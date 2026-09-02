@@ -71,6 +71,10 @@ fi
 # Fehler. Ein leerer Lauf bleibt still im Chat, schreibt aber seine Zeile ins
 # eigene Protokoll — dort ist die Stille messbar, hier wäre sie nur Lärm.
 if [ -x "${CLAUDE_PROJECT_DIR:-.}/scripts/mac/rechnungen_ablegen.sh" ]; then
+  # Z-1a: Adams Chat, damit die Ablage ihm gemeldet wird statt nur im Log zu
+  # stehen. Als Umgebungsgröße, nicht im Skript — die Zahl gehört an eine
+  # Stelle, und das Skript soll ohne sie laufen können (dann bleibt es still).
+  RECHNUNGEN_CHAT="${RECHNUNGEN_CHAT:-304455165}" \
   bash "${CLAUDE_PROJECT_DIR:-.}/scripts/mac/rechnungen_ablegen.sh" 2>/dev/null
   _rg=$(tail -1 "$HOME/.claude/rechnungen-ablegen.log" 2>/dev/null)
   case "$_rg" in

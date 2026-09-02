@@ -673,6 +673,46 @@ if [ -f "$(dirname "$0")/stundenblume.py" ]; then
   fi
 fi
 
+# --- 9j. RECHNUNGEN: liegt eine fertige Rechnung und wartet? ---------------
+# Z-1b, Claudias Vorschlag vom 02.09., Adams Auflage: "sonst bringt das ja
+# wieder alles nix."
+#
+# Route A traegt fertige Rechnungen erst dann nach iCloud, wenn eine
+# Mac-Sitzung startet oder Adam "ablegen" sagt. Startet tagelang keine, liegen
+# sie im Ausgang - und niemand sagt es ihm. **Ein Ausfall, der wie Ruhe
+# aussieht**, genau wie der tote Spiegel und der stille Tagescheck.
+#
+# Modellfrei, eine Zeile im vorhandenen Meldeweg - kein neuer Waechter.
+# Still, solange nichts aelter als einen Tag ist.
+# **`$BOTHOME`, nicht `$HOME`** — der Tagescheck laeuft als Dienst ohne
+# `User=`, und systemd liefert dort KEIN HOME. Genau daran starb dieser
+# Laeufer vom 29.07. bis 18.08. lautlos. Der Pruefer der Zielumgebung hat
+# meinen Rueckfall sofort gefangen: "als root-Dienst ist HOME leer,
+# set -u bricht ab". Die Zeile 22 darueber sagt genau das voraus.
+_ausgang="${RECHNUNGEN_AUSGANG:-$BOTHOME/workspace/rechnungen/ausgang}"
+if [ -d "$_ausgang" ]; then
+  # -mtime +0 heisst: aelter als 24 Stunden. Frisch Erzeugtes meldet sich
+  # nicht - sonst kaeme die Zeile am Tag des Erzeugens und waere Rauschen.
+  _wartend=$(find "$_ausgang" -type f ! -name '.*' -mtime +0 2>/dev/null | wc -l | tr -d ' ')
+  if [ "${_wartend:-0}" -gt 0 ]; then
+    # **Das Alter wird GESTAFFELT bestimmt, nicht gerechnet.**
+    # Die erste Fassung nahm `find -printf` und `stat -c %Y` - beides
+    # GNU-eigen. Auf dem Mac scheitern beide STILL, der Rueckfall lieferte 0,
+    # und die Meldung sagte "seit 20698 Tagen". Eine Zahl, die offensichtlich
+    # falsch ist, entwertet die ganze Meldung; eine, die knapp falsch waere,
+    # noch mehr. `find -mtime` gibt es ueberall.
+    _tage=1
+    for _n in 30 14 7 3 1; do
+      if [ "$(find "$_ausgang" -type f ! -name '.*' -mtime +$_n 2>/dev/null | wc -l | tr -d ' ')" -gt 0 ]; then
+        _tage=$((_n + 1)); break
+      fi
+    done
+    _z="$_wartend fertige Rechnung(en) warten seit mindestens $_tage Tag(en) auf die Ablage - Mac-Sitzung starten oder [ablegen] sagen"
+    add "$_z"
+    problems+=("$_z")
+  fi
+fi
+
 # --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
 # Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete
 # hoeflich "Keine Treffer" - vier Stunden lang, in Adams Richtung. Ein Ausfall,

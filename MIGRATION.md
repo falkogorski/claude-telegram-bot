@@ -855,6 +855,8 @@ Absturzfall ausdrücklich auf 5.18).
 | **Ablage-Feld in beiden Generatoren** | ✅ gebaut 02.09. — `ablage` trägt den **relativen Pfad**, der bis nach iCloud durchgereicht wird. Kette Ende zu Ende gemessen. Änderung liegt in einem Projekt **ohne Versionskontrolle**, Rückweg in [`docs/aenderung-rechnungsprojekt-2026-09-02.md`](docs/aenderung-rechnungsprojekt-2026-09-02.md) |
 | **Umzug des Projekts + `typst`** | ⬜ **Adams Hand** (8.7) — Befehlsblock in [`docs/befehlsbloecke-adam.md`](docs/befehlsbloecke-adam.md) |
 | **Rechnungsnummern-Rückfrage** | unverändert Pflicht vor jeder Vergabe, wie im Akzeptanzkriterium |
+| **Der Server ist die Stelle für Rechnungsnummern** `[ab 03.09.2026]` | `~/workspace/rechnungen/daten/rechnungsnummern.json` **auf dem VPS**. Die Mac-Kopie ist ab jetzt **Vorlage und Rückweg, kein Erzeuger** — zwei Zähler wären irgendwann eine doppelte Nummer. Steht auch in `RECHNUNGSREGELN.md` im Projekt selbst, weil Claudia dort nachsieht |
+| **Regeln, die jede Instanz braucht** | `RECHNUNGSREGELN.md` **im Rechnungsprojekt** (zieht mit um). **Ergänzt, ersetzt nichts** — Adams Auflage: *„überschreib das nicht alles, sondern gib mir halt die Info zusätzlich, weil sie hat ja schon die Infos"* |
 | **Die Rechnung selbst** | Adams Geschäft. Sie entsteht **aus den vorhandenen Daten**, nicht neu konstruiert — sein ausdrücklicher Wunsch vom 02.09., 10:55 |
 
 **Zwei offene Stellen, beide benannt statt geraten:**

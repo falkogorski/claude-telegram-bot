@@ -172,6 +172,40 @@ else
   exit 78
 fi
 
+# ---------------------------------------------------------------- Z-1a (03.09.)
+#
+# **Adam erfaehrt, dass abgelegt wurde — sonst bringt der Weg ihm nichts.**
+# Sein Wort: *„wenn das nicht geschehen darf [Zeitgeber nach iCloud], dann muss
+# er auf jeden Fall mich erinnern … sonst bringt das ja wieder alles nix."*
+# Dieses Skript schrieb bisher nur eine Logzeile, und **Logzeilen liest er
+# nicht.**
+#
+# Der Weg ist der vorhandene: das Boten-Postfach, ueber das benannte Skript aus
+# U-3. **Deterministisch, kein Modellaufruf, kein neuer Kanal** — und der
+# absolute Pfad, weil das Arbeitsverzeichnis der Sitzung nicht das Repo ist.
+#
+# **Nur wenn wirklich etwas ankam.** Eine Meldung bei null Dateien waere
+# Rauschen, und Rauschen wird abgeschaltet — dann bliebe auch die echte
+# Meldung ungelesen.
+if [ "$_tief" -gt 0 ] && [ -n "${RECHNUNGEN_CHAT:-}" ]; then
+  # Wohin abgelegt wurde, kurz: die Ordner unterhalb des Uebergabeordners.
+  _wohin=$(find "$LOKAL" -mindepth 2 -type f ! -name '.*' 2>/dev/null \
+           | sed "s|^$LOKAL/||; s|/[^/]*$||" | sort -u | head -3 | tr '\n' ' ')
+  _text="📁 $_tief Rechnung(en) nach iCloud gelegt: ${_wohin:-(ohne Unterordner)}"
+  if ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_HOST" \
+       "python3 /home/claudebot/claude-telegram-bot/scripts/postfach_ablegen.py \
+        --chat '$RECHNUNGEN_CHAT' --text '$_text'" >/dev/null 2>>"$LOG"; then
+    sag "Adam benachrichtigt: $_text"
+  else
+    # Die Nachricht ist Beiwerk; die Ablage ist die Sache. Aber es steht im
+    # Protokoll — stilles Scheitern ist der Fehler, gegen den dieses Skript
+    # gebaut ist.
+    sag "HINWEIS: Ablage gelungen, Benachrichtigung nicht zustellbar"
+  fi
+elif [ "$_tief" -gt 0 ]; then
+  sag "HINWEIS: RECHNUNGEN_CHAT nicht gesetzt — keine Nachricht an Adam"
+fi
+
 # ---- (b) Flache Dateien in den Auffangordner, NICHT in einen Kundenordner
 #
 # Eine Datei ohne Unterordner weiss nicht, zu wem sie gehoert. Sie unter

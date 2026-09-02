@@ -8585,11 +8585,29 @@ def run_self_check() -> tuple[bool, list[str]]:
                 fehlt.append(modul)
         skripte = _REPO_DIR / "scripts"
         if skripte.is_dir():
-            for p in sorted(skripte.glob("*.py")):
+            # **`[ERWEITERT 02.09.2026]` `rglob` und `.sh` dazu.** Hier stand
+            # `glob("*.py")`: nur Python, nur direkt unter `scripts/`. Die
+            # Betriebsskripte (`guardian.sh`, `daily_check.sh`, `vps_backup.sh`
+            # …) standen alle im Register — **durch Disziplin, nicht durch
+            # Prüfung**, und `scripts/mac/` sah der Prüfer überhaupt nicht.
+            #
+            # Aufgefallen beim Bau von `scripts/mac/rechnungen_ablegen.sh`:
+            # Der Wächter blieb grün, obwohl die Zeile fehlte. **Gemessen, ehe
+            # geändert wurde:** Genau ein Skript fiel durch die neue Menge —
+            # dasselbe. Die Erweiterung deckt also eine echte Lücke, ohne
+            # Altlasten aufzureißen.
+            #
+            # Dasselbe Muster wie der Modul-Teil zwei Zeilen höher (eine feste
+            # Siebenerliste): **Eine Aufzählung schützt, was darin steht, und
+            # nichts sonst.** Hier ist es jetzt eine Menge über eine
+            # Eigenschaft — dort noch nicht.
+            for p in sorted(skripte.rglob("*")):
+                if not p.is_file() or p.suffix not in (".py", ".sh"):
+                    continue
                 if p.name.startswith("test_"):
                     continue
                 if p.name not in inhalt:
-                    fehlt.append(f"scripts/{p.name}")
+                    fehlt.append(str(p.relative_to(_REPO_DIR)))
         assert not fehlt, ("ohne Eintrag im Abhängigkeits-Register: "
                            + ", ".join(fehlt))
     check("Register-Vollständigkeit (R2)", _c_register_vollstaendig)

@@ -92,3 +92,43 @@ weil sie eine Rangfolge trägt, die in keiner Tabellenspalte steht.
 Assistenzen. Das ist der nächste Schritt — und er ist jetzt beantwortbar, weil
 die Suchfrage steht: nicht „was können andere?", sondern „schließt es eine
 dieser sechs Lücken besser, als wir es planen?"
+
+---
+
+# TEIL 2 — ARBEITSVORGÄNGE `[NEU 2026-09-02]`
+
+**Warum es diesen Teil gibt, und der Grund ist gemessen:** Teil 1 misst
+**Basisfähigkeiten** — kann die Assistenz etwas prinzipiell. Er misst **nicht**,
+ob Adam damit **arbeiten** kann. Der Unterschied ist am 02.09. aufgeschlagen:
+Die Zeile *Tabellen/Rechenblätter erzeugen* stand auf 🔄, und trotzdem konnte
+der Rechnungs-Vorgang beim Umzug still verschwinden — **kein Prüfer hat
+angeschlagen, weil kein Prüfer den Vorgang kannte.**
+
+Adam dazu, 11:51: *„im Moment ist es für mich ein deutlicher Rückschritt … da
+haben wir vielleicht an der falschen Stelle zuerst gebaut."*
+
+**Die Regel, die dieser Teil trägt** (`CLAUDE.md`, *Vor jeder neuen Schranke*):
+
+> Vor jeder neuen Schranke: Welche Fähigkeit schützt sie, und läuft die heute?
+> **Was schon einmal ging und heute nicht mehr geht, ist der dringendste
+> Posten — dringender als jeder Neubau.**
+
+**Die Spalte, auf die es ankommt, ist *lief zuletzt am*.** Ein ✅ ohne Datum ist
+eine Behauptung; ein Datum, das älter wird, ist ein Befund. **Der Kurs-Blick
+liest dieses Raster wöchentlich** — kein neuer Wächter nötig.
+
+| Arbeitsvorgang | Stand | lief zuletzt am | woran es hängt |
+|---|---|---|---|
+| **Rechnung stellen** (Daten → PDF im Markenlayout) | 🔄 | **auf dem Mac zuletzt 13.07.2026**, auf dem Server **noch nie** | Umzug nach `~/workspace/rechnungen` + `typst` — Adams Hand, [`befehlsbloecke-adam.md`](../befehlsbloecke-adam.md). **Der Vergleichslauf ist der Nachweis**, nicht der Umzug |
+| **Postenaufstellung erzeugen** (Excel + PDF) | 🔄 | wie oben, dieselbe Kette | dito — ein Generator, zwei Vorgänge |
+| **Fertiges in die Ablage bringen** (→ iCloud) | 🔄 | Route A gebaut 02.09., **Hälfte 2 gemessen**, Gesamtkette noch nie | hängt an Vorgang 1. ⚠️ **Zielordner ist ein Übergabeordner** — das Einsortier-Schema aus 5.19 ist nicht gebaut, und geraten wird es nicht |
+| **Rechnung versenden** | ⬜ | nie | 9.5, wartet auf Adams Postfach-Zugänge. Bewusst **kein** `/mail send` |
+
+**Wie dieser Teil gepflegt wird — sonst wird er die nächste stille
+Falsch-Wahrheit:** Das Datum wird **eingetragen, wenn der Vorgang tatsächlich
+lief**, nicht wenn er gebaut wurde. *Gebaut* und *gelaufen* sind hier
+verschiedene Dinge; genau ihre Verwechslung hat den Befund erzeugt.
+
+**Was hier NICHT hineingehört:** Basisfähigkeiten (die stehen oben) und
+Vorhaben ohne Vorgang. Ein Arbeitsvorgang ist etwas, das **Adam tut** und an
+dessen Ende ein Ergebnis steht, das er verwenden kann.

@@ -1140,6 +1140,38 @@ Liste von Verboten wäre dieselbe Regel im falschen Ton.
   eigenen Papiere aus der Nacht zum 01.09. tragen genau diese Sätze. Sie hat es
   selbst benannt und mit eingetragen.
 
+## 🛠️ VOR JEDER NEUEN SCHRANKE: WELCHE FÄHIGKEIT SCHÜTZT SIE? (Adam 2026-09-02)
+
+> **Vor jeder neuen Schranke: Welche Fähigkeit schützt sie, und läuft die
+> heute? Was schon einmal ging und heute nicht mehr geht, ist der dringendste
+> Posten — dringender als jeder Neubau.**
+
+**Adams Wortlaut am 02.09., 11:51, und er ist der Anlass:** *„im Moment ist es
+für mich ein deutlicher Rückschritt … wenn wir alles der Sicherheit
+unterordnen … zu einem Zeitpunkt, wo das gar nicht notwendig ist, da haben wir
+vielleicht an der falschen Stelle zuerst gebaut … das ist einfach nur
+anstrengend."*
+
+**Die Messung dazu, von der Bot-Sitzung am selben Tag um 12:25:** Das
+Prüfraster misst, **ob die Assistenz funktioniert — nicht, ob Adam damit
+arbeiten kann.** Nachgemessen und dabei berichtigt: Eine Zeile zu Rechnungen
+existiert (*Tabellen/Rechenblätter erzeugen*), als **Basisfähigkeit**, nicht
+als Arbeitsvorgang. *„Keine einzige Zeile"* war zu viel gesagt. **Der Punkt
+steht trotzdem:** Es gibt keine Zeile, die *Rechnung stellen, Aufstellung
+erzeugen, ablegen* als **Vorgang** prüft — und deshalb konnte die Fähigkeit
+beim Umzug still verschwinden, ohne dass ein Prüfer anschlug.
+
+**Der Prüfer dazu, sonst wäre es eine Bitte:** Teil 2 des Prüfrasters —
+**Arbeitsvorgänge** mit `✅/🔄/⬜` und dem Satz *lief zuletzt am*. Eine Regel,
+die auf ein Raster zeigt, hat einen Ort, an dem sie beim Lesen greift.
+**Kein neuer Wächter** — der Kurs-Blick liest das Raster ohnehin wöchentlich.
+
+**Warum das der Sicherheits-Regel nicht widerspricht:** Es hebt keine Schranke
+auf. Es verlangt, vor dem Bauen zu benennen, **wofür** die Schranke da ist —
+und zu messen, ob das Geschützte überhaupt noch läuft. Eine Schranke um eine
+tote Fähigkeit ist reine Innenarbeit; das ist die Kurs-Regel, an einer Stelle
+angewandt, an der sie besonders leicht durchrutscht.
+
 ## 🧹 SOFORT AUFRÄUMEN (Adam 2026-08-28, 18:43)
 
 **Was erledigt ist, wird im selben Zug aus den Listen genommen** — Status,

@@ -841,7 +841,27 @@ Absturzfall ausdrücklich auf 5.18).
 - **Verifiziert am:** 2026-07-20
 
 ### 5.19 Rechnungs-Workflow per Sprache (Aufstellung + Rechnung aus dem Bot) `[NEU 2026-07-13]`
-- **Status:** OFFEN
+- **Status:** 🔄 **Projekt zieht auf den Server, Ablage gebaut, Umzug bei Adam** `[02.09.2026]` — Adam am 02.09., 10:38: *„Ja, unbedingt gehört das auf den Server … das bitte als Bauauftrag sofort umzusetzen. … Ich muss die Rechnung rausbekommen, das ist wichtig und dringend."* **Der erste Punkt mit Erlösbezug seit sechs Wochen.**
+
+**Was am 02.09. gebaut wurde — und was ausdrücklich nicht**
+
+| | Stand |
+|---|---|
+| **Stammdaten hinter dem Geheimnis-Riegel** | ✅ gebaut, **vor** dem Umzug (`stammdaten` in `_GEHEIMNIS_MARKER`). Der Zuschnitt: Wer die Datei **nennt**, wird gefragt; der Generator nennt sie nicht und läuft durch |
+| **Zielpfad `~/workspace/rechnungen`** | ✅ festgelegt, **nicht** `~/rechnungen`. Gemessen in `bashfreigabe.bereiche_aus_umgebung`: Es gibt vier Bereiche, `~/rechnungen` liegt in keinem — jeder Befehl dorthin fiele in den Dialog, also genau die Rückfragen, die Adam abgestellt haben will. `~/workspace` ist schreibbar. **Kein neuer Bereich, keine Codeänderung, keine Zeile in einer Sicherheitsliste** |
+| **Route A: Ablage nach iCloud** | ✅ gebaut (`scripts/mac/rechnungen_ablegen.sh`, U-6), Hälfte 2 echt durchlaufen, drei Gegenproben |
+| **Umzug des Projekts + `typst`** | ⬜ **Adams Hand** (8.7) — Befehlsblock in [`docs/befehlsbloecke-adam.md`](docs/befehlsbloecke-adam.md) |
+| **Rechnungsnummern-Rückfrage** | unverändert Pflicht vor jeder Vergabe, wie im Akzeptanzkriterium |
+| **Die Rechnung selbst** | Adams Geschäft. Sie entsteht **aus den vorhandenen Daten**, nicht neu konstruiert — sein ausdrücklicher Wunsch vom 02.09., 10:55 |
+
+**Zwei offene Stellen, beide benannt statt geraten:**
+
+1. **Das iCloud-Ziel ist ein Übergabeordner, keine Ablage.** Gemessen 02.09.: In iCloud existiert **kein** Rechnungsordner, sondern Adams gewachsene Kundenstruktur (`Business/Deko/DEKO-Service/<Kunde>/`), und der Generator kennt kein Schema — er legt nach `output/` ab. Das *Benennungsschema je Zweig* aus dem Akzeptanzkriterium **ist nicht gebaut**. Ein geratener Zielordner hätte in Adams Ablage hineingeschrieben ([[respect-manual-changes]] gilt auch für Ordner). **Zustellen ja, Einsortieren nein** — bis Adam sagt, wohin.
+2. **`typst` fehlt auf dem Server** (Claudia, 10:30). Es steht bereits in der Positivliste `ERZEUGEN`; es ist eine einzelne statische Binärdatei, quelloffen, **kostenfrei**, einstellige Megabyte. **Nach `~/.local/bin` des Nutzers, nicht `/usr/local/bin`** — kein root. **Die Falle dabei:** Der Bot läuft als systemd-Dienst; enthält dessen `PATH` `~/.local/bin` nicht, sagt die Positivliste ja und die Shell *command not found*. Genau die Klasse *am Mac lief alles* vom 29.07. **Beim Umzug mitprüfen.**
+
+**Der Grundsatz dahinter — Adam am 02.09., 11:19:** *„Wir brauchen eigentlich nur Zugriff. Wir müssen diese Sitzung so behandeln, wie die Sitzung, die das erzeugt hat."* Eng ausgelegt, und die Auslegung gehört dazu: gemeint sind **Rechnungsprojekt, Stammdaten, Geschäftsablage**. **Die Repo-Schreibsperre 8.7 bleibt unberührt** — sie stand in seinem Satz nicht zur Debatte, und eine Instanz weitet ihre eigenen Rechte nicht aus.
+
+**Route B — Adams „später B" vom 02.09., nicht terminiert:** rclone mit direktem iCloud-Zugang vom Server. **Bedingungen, wenn es so weit ist:** eigene Apple-ID nur für die Geschäftsablage (ohne Fotos, Gerätebindung, Zahlungsmittel) · der **30-Tage-Ablauf des Vertrauens-Tokens wird überwacht**, sonst ist B nicht abnahmefähig · Bau **erst nach** der Ultracode-Prüfstelle für die Eingangs-Absicherung (`CLAUDE.md`, *Wann Ultracode* — fremder Vertrauensbereich auf einem Server, der Inhalte aus dem Netz liest).
 - 🎯 `[ZIELBILD 2026-07-24, Marschordnung II E4 — „vollwertige Sekretärin", Spezifikation im Bot-Memory `project-universal-assistant-access`]` **Der volle Ausbau (verlinkt hier + bei 9.5 + Phase 7):** Kalender erkennt Auftragsende → Claudia plant es proaktiv in die Tagesübersicht → fragt „Auftrag fertig? Rechnung fertigmachen?" → kennt Ansprechpartner+Mail (Kontakt-Zugriff) → erstellt Rechnung → **Versand nach Freigabe** (9.5) → **Ausbaustufe:** Konto-**Lese**zugriff prüft Zahlungseingang (periodisch/ereignisgetriggert) und meldet zurück. **Gestufte Autonomie (Möglichkeitsraum, KEINE Entscheidung):** heute Bestätigung vor jeder schreibenden Aktion (z. B. TAN); später optional budgetiertes Eigenhandeln für definierte Prozesse. **Nicht verhandelbar:** Anwender hat immer die Hand darauf und weiß, wo welche Daten sind; Sensibles über Server+lokales Modell/Ampel, nie unkontrollierte Cloud; Konten-Anbindung konto-für-konto, minimale Rechte.
 - **Hintergrund:** Beide Generatoren sind fertig und real erprobt (Desktop-Session „Rechnungs-Automatisierung", `~/Projects/rechnungen`: `scripts/generate_aufstellung.py` = Postenaufstellung Excel+PDF, `scripts/generate_rechnung.py` = Rechnungs-PDF im Markenlayout mit Auto-Nummer pro Jahr; Rechnungen 014-26/015-26 damit produktiv erstellt und in iCloud abgelegt). Hier fehlt nur die Bot-Anbindung. Details/Konventionen: Memory `project-rechnungs-automatisierung`.
 - **Akzeptanzkriterium:** Adam gibt per Sprachnachricht Tage/Tätigkeiten durch; Bot fragt Variables gezielt nach (Tagessatz, Spesen In-/Ausland, Übernachtung, Fahrzeug/Pauschalen), erzeugt über die vorhandenen Generatoren Aufstellung (Excel+PDF) + Rechnung (PDF), legt beides nach Abnicken im richtigen iCloud-Projektordner ab (Benennungsschema je Zweig) UND postet die Dateien zur schnellen Kontrolle in den Ausgabekanal (Phase 6). Rechnungsnummer fortlaufend (Register), mit Bestätigungs-Rückfrage vor Vergabe.

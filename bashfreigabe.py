@@ -715,6 +715,20 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
 
     # ---- Zerlegung an `;`, `|` und `||` (Adams Freigabe 01.09.)
     #
+    # **`||` ist eine ABWEICHUNG von Claudias Auftrag, und sie gehoert
+    # vermerkt statt verschwiegen** (Engywucks Berichtigung ①, 02.09.). Ihr
+    # Papier sagte: `||` bleibt Dialog — *es ist keine Pipe, sondern eine
+    # Bedingung; was gelaufen ist, haengt am Ausgang des ersten Glieds.*
+    #
+    # Engywuck hat es in den Nachtblock geschrieben, gebaut wurde es hier.
+    # **Sicher ist es trotzdem**, und der Grund ist die Konstruktion der
+    # Zerlegung: frei nur, wenn **jedes** Glied frei ist — dann ist
+    # gleichgueltig, welches tatsaechlich lief. Ihr Einwand trifft eine
+    # Zerlegung, die das erste Glied bevorzugt; diese tut es nicht.
+    #
+    # Ihr Originalpapier liegt nicht im Repo (nur Engywucks Zusammenfassung),
+    # deshalb steht der Vermerk hier — an der Stelle, an der er wirkt.
+    #
     # **Jedes Glied einzeln durch dieselbe Pruefung; frei nur, wenn jedes Glied
     # frei ist.** Ein einziges Dialog- oder Abweis-Urteil entscheidet fuer den
     # ganzen Befehl, mit dem Grund des betroffenen Glieds. Das erspart die

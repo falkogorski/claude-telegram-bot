@@ -361,8 +361,31 @@ zeile("der Ort der Zielumgebung liess sich aus dem Pruefling lesen",
       _m_bot is not None, gemessen="Zeile '_bot=\"...\"' nicht gefunden")
 in_zielumgebung = bool(_m_bot) and Path(_m_bot.group(1), ".venv/bin/python3").exists()
 if in_zielumgebung:
-    zeile("in der Zielumgebung laeuft der Normalfall wirklich — Bilanz voll",
-          bool(m) and m.group(1) == m.group(2), gemessen=bilanz)
+    # **`[BERICHTIGT 02.09.2026]` Hier stand „Bilanz voll" — `bestanden ==
+    # gesamt`. Auf dem VPS war die Zeile rot bei `42/43`, und sie hatte
+    # unrecht.**
+    #
+    # Der eine Uebersprung dort ist die Kontingent-Abfrage: **bewusst,
+    # begruendet und benannt** (sie kostet eine Minute und wird nur nach einem
+    # Update gefahren). Das ist etwas anderes als eine unbemerkte Luecke — und
+    # der Unterschied ist genau das, wofuer die A1-Regel gebaut wurde.
+    # *Uebersprungen ist nicht bestanden* verlangt, dass Uebersprungenes nicht
+    # **mitgezaehlt** wird; die Zielumgebung tut das korrekt (42/43, ein
+    # Uebersprung, ausdruecklich genannt).
+    #
+    # **Eine Erwartung, die einen begruendeten Uebersprung als Fehlschlag
+    # wertet, erzieht zum Abschalten der Begruendung** — dann waere die Zeile
+    # gruen und die Messung schlechter. Gemessen wird jetzt, was wirklich
+    # zaehlt:
+    _uebersprungen = int(m.group(2)) - int(m.group(1)) if m else 0
+    zeile("in der Zielumgebung faellt der Normalfall-Vermerk weg",
+          "nicht die Zielumgebung" not in ausgabe,
+          gemessen="der Vermerk 'nicht die Zielumgebung' steht in der Ausgabe, "
+                   "obwohl wir DORT sind")
+    zeile("in der Zielumgebung wird jeder Uebersprung benannt und nicht mitgezaehlt",
+          _uebersprungen == 0 or ("uebersprungen" in ausgabe
+                                  and "nichts gemessen" in ausgabe),
+          gemessen=f"{bilanz} · {_uebersprungen} uebersprungen")
 else:
     bestanden, gesamt = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
     zeile("ausserhalb der Zielumgebung MUSS ein Uebersprung erscheinen",

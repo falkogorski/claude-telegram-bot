@@ -549,6 +549,73 @@ zeile("&& mit cd VORNE faellt ueber das Ziel — die Ausnahme bleibt eng",
       gemessen=f"{_ziel.urteil} · {_ziel.grund}")
 
 # ══════════════════════════════════════════════════════════════════════════
+# Der DOKUMENTIERTE Aufruf muss frei sein — gemessen aus der Doku, nicht hier
+#
+# **Engywucks Gegenpruefung vom 02.09., der eine Befund.** `boten-postfach.md`
+# schrieb `python3 scripts/postfach_ablegen.py …` vor — relativ. Der Bot
+# startet Bash mit `cwd=WORKDIR`, auf dem VPS `/home/claudebot/workspace`;
+# ein relativer Pfad loest dagegen auf, liegt nicht unter `<repo>/scripts/`
+# und faellt in genau den Dialog, den das Skript abschaffen sollte. Beim
+# Schreiben lief es gruen, weil dort das Arbeitsverzeichnis das Repo war.
+#
+# **Die Zeilen werden AUS DER DOKU gelesen, nicht hier getippt** — ein Test
+# mit eigener Kopie prueft seine eigene Schreibweise und merkt nicht, wenn
+# die Doku driftet. Und das Arbeitsverzeichnis wird bewusst nach draussen
+# gelegt, sonst misst die Zeile die Bequemlichkeit des Bau-Rechners.
+_doku = Path(__file__).resolve().parent.parent / "docs" / "boten-postfach.md"
+_doku_zeilen = [z.strip() for z in _doku.read_text(encoding="utf-8").splitlines()
+                if "postfach_ablegen.py" in z and z.strip().startswith(
+                    ("python3 ", "cd "))] if _doku.exists() else []
+
+zeile("die Doku zeigt ueberhaupt einen Aufruf (sonst misst die naechste Zeile nichts)",
+      len(_doku_zeilen) >= 2, gemessen=f"{len(_doku_zeilen)} Zeile(n) gefunden")
+
+# **Die Bereiche werden AUS DER DOKU abgeleitet, nicht von dieser Maschine.**
+# Die Doku schreibt fuer den VPS (`/home/claudebot/claude-telegram-bot`); am
+# Bau-Rechner liegt das Repo woanders. Gegen die echten Bereiche gemessen
+# waere die Zeile am Mac immer rot und auf dem Server immer gruen — sie
+# wuerde die Maschine messen, nicht die FORM des dokumentierten Aufrufs.
+#
+# Abgeleitet wird der Repo-Ordner aus dem Pfad, der in der Zeile steht: alles
+# vor `/scripts/postfach_ablegen.py`. Damit prueft die Zeile genau das, was
+# sie soll: **Laeuft dieser Aufruf frei, wenn das Arbeitsverzeichnis NICHT das
+# Repo ist?** Ein relativer Pfad in der Doku faellt dann durch.
+def _repo_aus(zeile_txt: str) -> Path | None:
+    for wort in zeile_txt.split():
+        if wort.endswith("scripts/postfach_ablegen.py") and wort.startswith("/"):
+            return Path(wort[:-len("/scripts/postfach_ablegen.py")])
+        if wort.startswith("/") and wort.endswith("claude-telegram-bot"):
+            return Path(wort)
+    return None
+
+_altes_cwd = _os.getcwd()
+try:
+    _os.chdir(draussen)          # ausserhalb des Repos, wie WORKDIR auf dem VPS
+    for _dz in _doku_zeilen:
+        _r = _repo_aus(_dz)
+        if _r is None:
+            zeile(f"dokumentierter Aufruf nennt einen absoluten Repo-Pfad: [{_dz[:30]}…]",
+                  False, gemessen="kein absoluter Pfad in der Zeile — relativ "
+                                  "loest gegen das Arbeitsverzeichnis auf")
+            continue
+        # **Alle vier Bereiche aus dem Doku-Stamm**, nicht nur das Repo: Die
+        # Beispiele nennen auch eine mitgeschickte Datei, und die liegt auf
+        # dem VPS unter `<heim>/workspace`. Mit dem Wegwerf-Arbeitsordner
+        # gemessen fiele sie „ausserhalb der Bereiche" — die Zeile wuerde
+        # wieder die Maschine messen statt die Form.
+        _heim = _r.parent
+        _ber = (bf.Bereich("repo", _r, schreibbar=False),
+                bf.Bereich("workspace", _heim / "workspace", schreibbar=True),
+                bf.Bereich("postfach", _heim / "postfach", schreibbar=True),
+                bf.Bereich("logs", _heim / "logsync", schreibbar=False))
+        _e = bf.entscheiden(_dz, ist_geheimnis=geheim, bereiche=_ber)
+        zeile(f"dokumentierter Aufruf laeuft ohne Rueckfrage: [{_dz[:30]}…]",
+              _e.urteil == bf.FREI, gemessen=f"{_e.urteil} · {_e.grund[:46]}")
+finally:
+    _os.chdir(_altes_cwd)
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # Hintergrund-Ausfuehrung: das freistehende `&`
 #
 # **Die schwerste Luecke dieses Codes, gefunden 02.09. beim Aufraeumen.**

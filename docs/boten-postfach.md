@@ -33,9 +33,35 @@ Bot hält den Token; die Instanz legt nur einen Auftrag in einem Ordner ab.
 **Benutze das Skript, nicht die Shell-Form:**
 
 ```bash
-python3 scripts/postfach_ablegen.py --chat 304455165 --text "Hallo aus dem Postfach"
-python3 scripts/postfach_ablegen.py --chat 304455165 --datei /pfad/bericht.pdf --beschriftung "Der Bericht"
+python3 /home/claudebot/claude-telegram-bot/scripts/postfach_ablegen.py --chat 304455165 --text "Hallo aus dem Postfach"
+python3 /home/claudebot/claude-telegram-bot/scripts/postfach_ablegen.py --chat 304455165 --datei /home/claudebot/workspace/bericht.pdf --beschriftung "Der Bericht"
 ```
+
+**Der Pfad ist absolut, und das ist keine Umständlichkeit** `[BERICHTIGT
+02.09.2026, Engywucks Gegenprüfung]`: **Das Arbeitsverzeichnis der Sitzung ist
+nicht das Repo.** Der Bot startet Bash mit `cwd=WORKDIR`, auf dem VPS also
+`/home/claudebot/workspace`. Ein relativer Aufruf löst dagegen auf, liegt damit
+nicht unter `<repo>/scripts/` und fällt **in genau den Dialog, den das Skript
+abschaffen soll.**
+
+Hier stand zuerst `python3 scripts/postfach_ablegen.py …`. Das lief beim
+Schreiben grün — weil dort das Arbeitsverzeichnis das Repo war. *Am Mac lief
+alles*, dieselbe Klasse wie am 29.07.
+
+**Auch die mitgeschickte Datei liegt in einem Arbeitsbereich** — hier stand
+zuerst `/pfad/bericht.pdf`. Ein Pfad ausserhalb der Bereiche faellt ebenso in
+den Dialog wie ein relativer Skriptpfad. **Gefunden vom neuen Pruefer, gleich
+beim ersten Lauf** — derselbe Befund eine Ebene weiter, in derselben Datei.
+
+Wer lieber kurz schreibt, nimmt die zweite tragende Form:
+
+```bash
+cd /home/claudebot/claude-telegram-bot && python3 scripts/postfach_ablegen.py --chat 304455165 --text "Hallo"
+```
+
+**Beide sind gemessen frei.** Ein Prüfer liest die Zeilen oben **aus dieser
+Datei** und fährt sie mit einem Arbeitsverzeichnis außerhalb des Repos —
+schleicht sich wieder ein relativer Pfad hier hinein, wird er rot.
 
 **Warum es das Skript gibt, und es ist kein Komfort-Grund:** Claudia hat am
 02.09. gemessen, dass **27 Freigabe-Dialoge** anfielen — praktisch alle davon

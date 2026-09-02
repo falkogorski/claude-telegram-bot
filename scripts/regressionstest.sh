@@ -159,7 +159,9 @@ ECHTUSAGE="${HOME:-/home/claudebot}/.config/claude-telegram-bot/usage.json"
 # `cksum` ist POSIX und liegt auf Mac wie VPS; fehlt es doch, sagt der
 # Nachweis das, statt gruen zu melden.
 _stempel() { for f in "$@"; do cksum "$f" 2>/dev/null; done; }
-STEMPEL_VORHER="$(_stempel "$ECHTHEART" "$ECHTNOTIZ" "$ECHTUSAGE")"
+# Getrennt genommen, weil sie getrennt ausgewertet werden (siehe unten).
+STEMPEL_VORHER="$(_stempel "$ECHTNOTIZ" "$ECHTUSAGE")"
+HEART_VORHER="$(_stempel "$ECHTHEART")"
 
 FAILS=0
 # GESAMT wird GEZAEHLT, nicht getippt. Vorher stand die Zahl fest im
@@ -371,17 +373,61 @@ else
   echo "✅ Wegwerf-Umgebung: keine Pruefung hat ins echte Auftragsbuch geschrieben"
 fi
 
+# **`[BERICHTIGT 02.09.2026]` Der Heartbeat wird getrennt behandelt — weil
+# diese Wache auf dem Server einen FEHLALARM meldete, und zwar bauartbedingt.**
+#
+# Gemessen am 02.09. nach dem Deploy: Der Sammelstempel wich ab, die Meldung
+# lautete „eine Pruefung hat eine echte Ablage veraendert". **Geschrieben hatte
+# der lebende Bot** — `systemctl is-active` sagte `active`, und der Heartbeat
+# trug den Zeitstempel derselben Sekunde. Kein Prueflauf war beteiligt.
+#
+# **Am Mac konnte das nie auffallen, weil dort kein Bot laeuft.** Genau die
+# Klasse *am Mac lief alles* — nur diesmal in einem Waechter, was schlimmer
+# ist: Eine Wache, die im Normalbetrieb immer anschlaegt, wird abgeschaltet
+# und prueft dann gar nichts mehr.
+#
+# **Was NICHT gebaut wird:** den Heartbeat stillschweigend aus der Pruefung
+# nehmen. Er ist der schwerste Fall der drei. Stattdessen wird er, solange der
+# Dienst laeuft, als **ausdruecklich nicht messbar** ausgewiesen — uebersprungen
+# und benannt, nach der A1-Regel. Notizen und Nutzungszahlen bleiben scharf.
+#
+# **Die ehrliche Grenze dazu:** Waehrend der Bot laeuft, ist ein Prueflauf, der
+# den Heartbeat schreibt, hier nicht mehr erkennbar. Er war es vorher auch
+# nicht — er ging nur im Dauer-Fehlalarm unter.
+_heart_lebt=0
+if command -v systemctl >/dev/null 2>&1 \
+   && systemctl is-active --quiet claude-telegram-bot 2>/dev/null; then
+  _heart_lebt=1
+fi
+
 GESAMT=$((GESAMT+1))
 if ! command -v cksum >/dev/null 2>&1; then
-  echo "⏭️  Wegwerf-Umgebung (Heartbeat/Notizen/Nutzung): NICHT GEMESSEN — cksum fehlt"
+  echo "⏭️  Wegwerf-Umgebung (Notizen/Nutzung): NICHT GEMESSEN — cksum fehlt"
   UEBERSPRUNGEN=$((UEBERSPRUNGEN+1))
-elif [ "$(_stempel "$ECHTHEART" "$ECHTNOTIZ" "$ECHTUSAGE")" != "$STEMPEL_VORHER" ]; then
-  echo "❌ Eine Pruefung hat eine ECHTE Ablage veraendert (Heartbeat, Notizen"
-  echo "   oder Nutzungszahlen). Der Heartbeat ist der schwerste Fall: Wer ihn"
-  echo "   schreibt, sagt dem Waechter [der Bot lebt] — auch wenn er tot ist."
+elif [ "$(_stempel "$ECHTNOTIZ" "$ECHTUSAGE")" != "$STEMPEL_VORHER" ]; then
+  echo "❌ Eine Pruefung hat eine ECHTE Ablage veraendert (Notizen oder"
+  echo "   Nutzungszahlen)."
   FAILS=$((FAILS+1))
 else
-  echo "✅ Wegwerf-Umgebung: Heartbeat, Notizen und Nutzungszahlen unberuehrt"
+  echo "✅ Wegwerf-Umgebung: Notizen und Nutzungszahlen unberuehrt"
+fi
+
+GESAMT=$((GESAMT+1))
+if ! command -v cksum >/dev/null 2>&1; then
+  echo "⏭️  Wegwerf-Umgebung (Heartbeat): NICHT GEMESSEN — cksum fehlt"
+  UEBERSPRUNGEN=$((UEBERSPRUNGEN+1))
+elif [ "$_heart_lebt" = "1" ]; then
+  echo "⏭️  Wegwerf-Umgebung (Heartbeat): NICHT GEMESSEN — der Bot laeuft und"
+  echo "    schreibt ihn im Takt. Eine Aenderung ist hier erwartbar und damit"
+  echo "    kein Nachweis. Bei gestopptem Dienst wird wieder scharf gemessen."
+  UEBERSPRUNGEN=$((UEBERSPRUNGEN+1))
+elif [ "$(_stempel "$ECHTHEART")" != "$HEART_VORHER" ]; then
+  echo "❌ Eine Pruefung hat den ECHTEN Heartbeat veraendert — und der Bot"
+  echo "   laeuft NICHT. Das ist der schwerste Fall: Wer ihn schreibt, sagt"
+  echo "   dem Waechter [der Bot lebt], auch wenn er tot ist."
+  FAILS=$((FAILS+1))
+else
+  echo "✅ Wegwerf-Umgebung: Heartbeat unberuehrt (Dienst gestoppt, scharf gemessen)"
 fi
 
 # **Uebersprungenes zaehlt nicht als bestanden** (30.08.). Die Bestanden-Zahl

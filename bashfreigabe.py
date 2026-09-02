@@ -635,14 +635,21 @@ def _zerlegt(glieder: list[str], roh: str, ist_geheimnis, bereiche) -> Entscheid
     # Das Geheimnis einmal ueber den GANZEN Befehl, bevor zerlegt wird: Ein
     # Marker, der ueber eine Gliedgrenze reicht, waere sonst in keinem
     # einzelnen Glied vollstaendig.
+    # U-4: Auch hier die Befehlsart — und zwar die des **ausloesenden** Glieds,
+    # nicht die des ersten. Wer im Protokoll liest, dass ein Dialog an `cd`
+    # lag, kann etwas damit anfangen; `ls` waere die Art des harmlosen Glieds
+    # und damit eine Falschauskunft.
+    _art0 = Path((glieder[0].split() or [""])[0]).name if glieder else ""
     if ist_geheimnis(roh):
-        return Entscheid(DIALOG, "ein Geheimnis-Marker im Befehl")
+        return Entscheid(DIALOG, "ein Geheimnis-Marker im Befehl", _art0)
     strengste = None
     for g in glieder:
         if _BODEN_BEFEHLE.search(g):
+            _wort = (g.strip().split() or [""])[0]
             return Entscheid(DIALOG,
                              f"ein Glied verschiebt den Boden fuer die "
-                             f"folgenden Pruefungen: [{g.strip()[:40]}]")
+                             f"folgenden Pruefungen: [{g.strip()[:40]}]",
+                             Path(_wort).name if _wort else _art0)
         e = entscheiden(g, ist_geheimnis=ist_geheimnis, bereiche=bereiche)
         if e.urteil == ABWEISEN:
             return e
@@ -664,6 +671,24 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
     if not roh.strip():
         return Entscheid(DIALOG, "leerer Befehl")
 
+    # ---- die Befehlsart VOR den Vorpruefungen (U-4, Claudias Auftrag 2)
+    #
+    # **Sonst ist die Auswertung blind an genau der Stelle, die sie messen
+    # soll.** Gemessen 02.09.: Ersetzung, Zeilenumbruch, Umlenkung und
+    # Boden-Bedingung gaben alle `Entscheid(DIALOG, …)` **ohne** Befehlsart
+    # zurueck; das Protokoll trug `"art": ""`. Ausgerechnet die haeufigsten
+    # Dialoge waren damit nicht zuordenbar — man sah, DASS gefragt wurde,
+    # aber nicht WOFUER.
+    #
+    # Ermittelt aus dem ersten Wort des ersten Glieds: Das ist auch dann
+    # richtig, wenn die Zerlegung gleich darauf abbricht. `Path(...).name`
+    # sorgt dafuer, dass `/bin/ls` als `ls` gezaehlt wird — dieselbe Form wie
+    # unten in `_ein_befehl`, damit nicht zwei Zaehlweisen nebeneinander
+    # entstehen.
+    _erstes = re.split(r"\|\||[;|&\n]", roh.strip(), maxsplit=1)[0].strip()
+    _wort = (_erstes.split() or [""])[0]
+    art0 = Path(_wort).name if _wort else ""
+
     bereiche = bereiche if bereiche is not None else bereiche_aus_umgebung()
     ohne = _ohne_harmlose_umleitung(roh)
     umgelenkt_nach = ""
@@ -672,19 +697,19 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
     if ERSETZUNG.search(ohne):
         return Entscheid(DIALOG,
                          "eine Ersetzung ($(…), Rueckwaertsanfuehrung, "
-                         "Variable) — ihr Inhalt ist hier nicht bekannt")
+                         "Variable) — ihr Inhalt ist hier nicht bekannt", art0)
 
     # Umlenkung: `>` und `>>` schreiben tatsaechlich. Erlaubt nur, wenn das
     # Ziel in einem schreibbaren Bereich liegt.
     for treffer in re.finditer(r">>?\s*(\S+)", ohne):
         ziel = _aufloesen(treffer.group(1))
         if ziel is None:
-            return Entscheid(DIALOG, "Umlenkungsziel nicht aufloesbar")
+            return Entscheid(DIALOG, "Umlenkungsziel nicht aufloesbar", art0)
         b = _bereich_von(ziel, bereiche)
         if b is None or not b.schreibbar:
             return Entscheid(DIALOG,
                              f"Umlenkung nach [{ziel}] — ausserhalb der "
-                             "schreibbaren Bereiche")
+                             "schreibbaren Bereiche", art0)
         umgelenkt_nach = str(ziel)
         ohne = ohne.replace(treffer.group(0), " ")
 
@@ -700,7 +725,7 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
     if "\n" in ohne:
         return Entscheid(DIALOG,
                          "ein Zeilenumbruch im Befehl — bitte in einzelne "
-                         "Befehle teilen")
+                         "Befehle teilen", art0)
     _glieder = [s.strip() for s in re.split(r"\|\||[;|]", ohne) if s.strip()]
     if len(_glieder) > 1:
         return _zerlegt(_glieder, roh, ist_geheimnis, bereiche)
@@ -708,7 +733,7 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
     if WEITERE_VERKETTUNG.search(ohne):
         return Entscheid(DIALOG,
                          "eine Verkettung ausser dem einen erlaubten "
-                         "[cd … && …] — bitte in einzelne Befehle teilen")
+                         "[cd … && …] — bitte in einzelne Befehle teilen", art0)
 
     stuecke = [s.strip() for s in re.split(r"&&", ohne) if s.strip()]
 
@@ -729,7 +754,7 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
     if len(stuecke) == 2:
         _k = _teile(stuecke[0])
         if _k is None:
-            return Entscheid(DIALOG, "unbalancierte Anfuehrungszeichen")
+            return Entscheid(DIALOG, "unbalancierte Anfuehrungszeichen", art0)
         _kopf_ist_cd = bool(_k) and _k[0] == "cd"
 
     if len(stuecke) > 1 and not _kopf_ist_cd:
@@ -739,17 +764,17 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
     if len(stuecke) == 2:
         kopf = _teile(stuecke[0])
         if kopf is None:
-            return Entscheid(DIALOG, "unbalancierte Anfuehrungszeichen")
+            return Entscheid(DIALOG, "unbalancierte Anfuehrungszeichen", art0)
         if len(kopf) != 2:
-            return Entscheid(DIALOG, "[cd] ohne genau ein Ziel")
+            return Entscheid(DIALOG, "[cd] ohne genau ein Ziel", art0)
         ziel = _aufloesen(kopf[1])
         if ziel is None:
-            return Entscheid(DIALOG, "cd-Ziel nicht aufloesbar")
+            return Entscheid(DIALOG, "cd-Ziel nicht aufloesbar", art0)
         in_claude, ist_gedaechtnis = _ist_claude_ordner(ziel)
         if in_claude and not ist_gedaechtnis:
-            return Entscheid(ABWEISEN, "cd unter .claude")
+            return Entscheid(ABWEISEN, "cd unter .claude", art0)
         if _bereich_von(ziel, bereiche) is None and not in_claude:
-            return Entscheid(DIALOG, f"cd-Ziel ausserhalb der Bereiche: {ziel}")
+            return Entscheid(DIALOG, f"cd-Ziel ausserhalb der Bereiche: {ziel}", art0)
         rest = stuecke[1]
         # **A2:** Das cd-Ziel ist hier bereits gegen die Bereiche geprueft.
         # Genau deshalb darf es als Aufloesungsbasis dienen — ein ungeprueftes
@@ -761,7 +786,7 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
 
     teile = _teile(rest)
     if not teile:
-        return Entscheid(DIALOG, "Befehl nicht zerlegbar")
+        return Entscheid(DIALOG, "Befehl nicht zerlegbar", art0)
 
     # `ziel` ist das **bereits geprueffte** cd-Ziel (oder None ohne `cd`).
     return _ein_befehl(teile, roh, bereiche, ist_geheimnis, umgelenkt_nach,

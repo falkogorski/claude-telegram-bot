@@ -40,7 +40,23 @@ from pathlib import Path
 
 # Benannte Größen, nicht hart im Code (Engywucks Entscheid 4 zu den 50):
 TAKT_TAGE = int(os.environ.get("BASHFREI_TAKT_TAGE") or 7)
-SCHWELLE_DIALOGE = int(os.environ.get("BASHFREI_SCHWELLE") or 50)
+
+# **`[GEÄNDERT 02.09.2026, U-4]` Das Maß hängt am ANTEIL, nicht an einer
+# absoluten Wochenzahl.**
+#
+# Hier stand `SCHWELLE_DIALOGE = 50` — „unter 50 Dialoge je Woche". Der Fehler
+# ist gemessen: Am 31.08. lag der Dialoganteil bei **91 Prozent**, und das Maß
+# meldete trotzdem Grün, weil in jener Woche schlicht wenig gearbeitet wurde.
+# **Eine absolute Zahl misst, wie viel Adam gearbeitet hat, nicht wie gut die
+# Positivliste greift.** In einer ruhigen Woche ist sie immer erreicht, in
+# einer fleißigen nie — und in beiden Fällen sagt sie nichts über das, wofür
+# sie da ist.
+ANTEIL_GRENZE = float(os.environ.get("BASHFREI_ANTEIL") or 0.25)
+# Unter dieser Zahl von Aufrufen wird KEIN Urteil gefällt, nur gezählt: Drei
+# Aufrufe, zwei davon Dialog, sind keine 67 Prozent, sondern zu wenig Daten.
+# **Ein Urteil aus zu kleiner Menge ist schlimmer als keins** — es sieht
+# genauso aus wie ein belastbares.
+MINDESTMENGE = int(os.environ.get("BASHFREI_MINDESTMENGE") or 20)
 # Ab wann eine Befehlsart als „Wiederkehrer" gilt, der einen Vorschlag verdient.
 WIEDERKEHRER_AB = int(os.environ.get("BASHFREI_WIEDERKEHRER_AB") or 5)
 
@@ -114,7 +130,13 @@ def beurteilen(zeilen: list[dict]) -> dict:
         "kaputte_zeilen": kaputt,
         "wiederkehrer": wiederkehrer.most_common(10),
         "vorschlaege": vorschlaege,
-        "ziel_erreicht": nach_urteil.get("dialog", 0) < SCHWELLE_DIALOGE,
+        "anteil": (nach_urteil.get("dialog", 0) / len(echte)) if echte else 0.0,
+        "genug_daten": len(echte) >= MINDESTMENGE,
+        # `None` heisst ausdruecklich: kein Urteil, zu wenig Daten. Nicht
+        # `False` — sonst laese sich „zu wenig gemessen" als „Maß verfehlt".
+        "ziel_erreicht": (
+            (nach_urteil.get("dialog", 0) / len(echte)) < ANTEIL_GRENZE
+            if len(echte) >= MINDESTMENGE else None),
     }
 
 
@@ -137,11 +159,21 @@ def bericht(b: dict) -> str:
     z.append(f"{b['gesamt']} Aufrufe: {b['frei']} ohne Rückfrage, "
              f"{b['dialog']} mit Dialog, {b['abgewiesen']} abgewiesen.")
     z.append("")
-    if b["ziel_erreicht"]:
-        z.append(f"Das Maß ist erreicht: unter {SCHWELLE_DIALOGE} Dialoge je Woche.")
+    _proz = round(b["anteil"] * 100)
+    _grenze = round(ANTEIL_GRENZE * 100)
+    if b["ziel_erreicht"] is None:
+        # **Die Zahlen kommen trotzdem** (U-4): Ein Bericht, der bei zu wenig
+        # Daten schweigt, sieht aus wie einer ohne Befund.
+        z.append(f"Dialoganteil {_proz} % — aber nur {b['gesamt']} Aufrufe. "
+                 f"KEIN Urteil unter {MINDESTMENGE} Aufrufen: zu wenig "
+                 f"gemessen ist nicht dasselbe wie gut.")
+    elif b["ziel_erreicht"]:
+        z.append(f"Das Maß ist erreicht: Dialoganteil {_proz} %, "
+                 f"vorgesehen unter {_grenze} %.")
     else:
-        z.append(f"Das Maß ist NICHT erreicht: {b['dialog']} Dialoge, "
-                 f"vorgesehen waren unter {SCHWELLE_DIALOGE}.")
+        z.append(f"Das Maß ist NICHT erreicht: Dialoganteil {_proz} % "
+                 f"({b['dialog']} von {b['gesamt']}), vorgesehen unter "
+                 f"{_grenze} %.")
     if b["wiederkehrer"]:
         z += ["", "Häufigste Dialog-Auslöser:"]
         z += [f"  {art}: {n}×" for art, n in b["wiederkehrer"]]

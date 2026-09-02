@@ -372,12 +372,33 @@ zeile("seltene Auslöser erzeugen keinen Vorschlag",
 _pv = " ".join(b["vorschlaege"])
 zeile("bei python3 wird NICHT die Klasse geoeffnet",
       "NICHT die Klasse" in _pv and "benanntes Skript" in _pv, gemessen=_pv[:120])
-# Beide Richtungen der Schwelle — die erste Fassung dieser Zeile war falsch
-# herum: 20 Dialoge sind UNTER 50 und damit erreicht.
-zeile("unter der Schwelle gilt als erreicht", b["ziel_erreicht"] is True)
-zeile("ueber der Schwelle gilt als NICHT erreicht",
-      bda.beurteilen([{"urteil": "dialog", "art": "curl", "bereich": "—"}]
-                     * (bda.SCHWELLE_DIALOGE + 1))["ziel_erreicht"] is False)
+# **`[UMGESTELLT 02.09.2026, U-4]` Das Maß hing an einer absoluten Wochenzahl
+# (`SCHWELLE_DIALOGE = 50`) und meldete am 31.08. Gruen bei 91 % Dialoganteil
+# — weil in jener Woche wenig gearbeitet wurde. Jetzt haengt es am ANTEIL.**
+#
+# Drei Lagen statt zwei, und die dritte ist der Grund fuer die Umstellung:
+# `None` heisst „zu wenig gemessen", nicht „Maß verfehlt".
+_viele_frei = ([{"urteil": "frei", "art": "ls", "bereich": "repo"}] * 90
+               + [{"urteil": "dialog", "art": "curl", "bereich": "—"}] * 10)
+_viele_dialog = ([{"urteil": "frei", "art": "ls", "bereich": "repo"}] * 10
+                 + [{"urteil": "dialog", "art": "curl", "bereich": "—"}] * 90)
+_wenige = [{"urteil": "dialog", "art": "curl", "bereich": "—"}] * 3
+
+zeile("niedriger Dialoganteil gilt als erreicht",
+      bda.beurteilen(_viele_frei)["ziel_erreicht"] is True,
+      gemessen=f"Anteil {bda.beurteilen(_viele_frei)['anteil']:.0%}")
+zeile("hoher Dialoganteil gilt als NICHT erreicht — auch bei viel Arbeit",
+      bda.beurteilen(_viele_dialog)["ziel_erreicht"] is False,
+      gemessen=f"Anteil {bda.beurteilen(_viele_dialog)['anteil']:.0%}")
+zeile("zu wenig Aufrufe faellen KEIN Urteil (weder gut noch schlecht)",
+      bda.beurteilen(_wenige)["ziel_erreicht"] is None
+      and "KEIN Urteil" in bda.bericht(bda.beurteilen(_wenige)),
+      gemessen=bda.bericht(bda.beurteilen(_wenige)).splitlines()[-1][:80])
+# Der alte Fehler, ausdruecklich gemessen: WENIGE Dialoge bei INSGESAMT wenig
+# Arbeit duerfen nicht mehr als Erfolg durchgehen.
+zeile("die alte Falle: wenig Arbeit ist kein erreichtes Mass",
+      bda.beurteilen([{"urteil": "dialog", "art": "curl", "bereich": "—"}] * 11
+                     )["ziel_erreicht"] is not True)
 
 # Eine unlesbare Ablage ist ein Befund, kein Abbruch.
 b2 = bda.beurteilen([{"urteil": "_kaputt", "anzahl": 4}])
@@ -526,6 +547,30 @@ _ziel = e(f"cd {draussen} && cat geheim.txt")
 zeile("&& mit cd VORNE faellt ueber das Ziel — die Ausnahme bleibt eng",
       _ziel.urteil == bf.DIALOG and "ausserhalb" in _ziel.grund,
       gemessen=f"{_ziel.urteil} · {_ziel.grund}")
+
+# ══════════════════════════════════════════════════════════════════════════
+# U-4: die Befehlsart steht VOR den Vorpruefungen
+#
+# Ohne sie trug das Protokoll `"art": ""` an genau den Stellen, die am
+# haeufigsten ausloesen — man sah, DASS gefragt wurde, aber nicht WOFUER. Die
+# Auswertung war damit blind an ihrer wichtigsten Stelle.
+for _cmd, _soll_art, _was in [
+    ("cat $(irgendwas)", "cat", "Ersetzung"),
+    ("ls\ncat y", "ls", "Zeilenumbruch"),
+    (f"printf a > {draussen}/x", "printf", "Umlenkung nach draussen"),
+    (f"cd {draussen} && ls", "cd", "cd-Ziel ausserhalb"),
+    ('echo "unbalanciert', "echo", "unbalancierte Anfuehrungszeichen"),
+]:
+    _e = e(_cmd)
+    zeile(f"U-4: [{_was}] traegt die Befehlsart ins Protokoll",
+          _e.befehlsart == _soll_art,
+          gemessen=f"art=[{_e.befehlsart}] · {_e.grund[:40]}")
+
+# Bei der Zerlegung die Art des AUSLOESENDEN Glieds — `ls` waere die Art des
+# harmlosen Glieds und damit eine Falschauskunft im Protokoll.
+_bd = e(f"ls; cd {draussen}")
+zeile("U-4: bei der Zerlegung zaehlt das ausloesende Glied, nicht das erste",
+      _bd.befehlsart == "cd", gemessen=f"art=[{_bd.befehlsart}] · {_bd.grund[:40]}")
 
 print()
 if fehler:

@@ -55,6 +55,13 @@ ITEMS=(
   "/home/claudebot/claude-telegram-bot/logs/|logs"
   "/home/claudebot/searxng/settings.yml|configs"
   "/home/claudebot/litellm/config.yaml|configs"
+  # 5.19/U-6 (02.09.): Das SICHERHEITSNETZ der Route A. Der eigentliche Weg
+  # laeuft beim Sitzungsstart (`scripts/mac/rechnungen_ablegen.sh`) — diese
+  # Zeile fasst den Fall ab, dass tagelang keine Sitzung startet: Dann liegen
+  # die fertigen Rechnungen wenigstens auf der Platte statt nur auf dem VPS.
+  # Solange das Rechnungsprojekt nicht umgezogen ist, wird sie uebersprungen —
+  # dafuer ist die Schleife unten gebaut.
+  "/home/claudebot/workspace/rechnungen/ausgang/|rechnungen"
 )
 for item in "${ITEMS[@]}"; do
   src="${item%%|*}"; grp="${item##*|}"

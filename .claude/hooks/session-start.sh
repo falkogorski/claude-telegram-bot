@@ -59,6 +59,26 @@ if [ -d "$HOME/Library/Mobile Documents/com~apple~CloudDocs/KI" ]; then
   esac
 fi
 
+# --- Rechnungen vom Server nach iCloud (Route A, 5.19) --------------------
+#
+# **Beide Hälften hier, nicht als Zeitgeber** — die iCloud-Hälfte KANN nur
+# unter Claude.app laufen (`launchd` erbt Adams TCC-Freigabe nicht, siehe
+# `icloud_backup.sh`), und ein Zeitgeber davor beschleunigt nichts, wenn die
+# zweite Hälfte ohnehin auf den Sitzungsstart wartet. Er erzeugte nur eine
+# zweite Stelle, die still ausfallen kann — genau der tote `mirror-ki`.
+#
+# Meldet sich nur, wenn es etwas zu sagen gibt: abgelegte Dateien oder ein
+# Fehler. Ein leerer Lauf bleibt still im Chat, schreibt aber seine Zeile ins
+# eigene Protokoll — dort ist die Stille messbar, hier wäre sie nur Lärm.
+if [ -x "${CLAUDE_PROJECT_DIR:-.}/scripts/mac/rechnungen_ablegen.sh" ]; then
+  bash "${CLAUDE_PROJECT_DIR:-.}/scripts/mac/rechnungen_ablegen.sh" 2>/dev/null
+  _rg=$(tail -1 "$HOME/.claude/rechnungen-ablegen.log" 2>/dev/null)
+  case "$_rg" in
+    *FEHLER*)        echo "🧾 Rechnungsweg: ${_rg#*] }" ;;
+    *"nach iCloud"*) echo "🧾 Rechnungsweg: ${_rg#*] }" ;;
+  esac
+fi
+
 git fetch origin --quiet 2>/dev/null || { echo "   (offline — Remote-Abgleich übersprungen)"; exit 0; }
 
 BEHIND=$(git rev-list HEAD..origin/mac-produktivstand --count 2>/dev/null || echo 0)

@@ -750,7 +750,20 @@ _BTN_STT_FAST_TO_ACC = "🎙️ Flott ✓ → Genau"   # small aktiv; Tipp → m
 # deshalb in EINEN Commit -- getrennt gebaut entstuende genau der Zustand,
 # gegen den die Sperre errichtet wurde.
 _BTN_GENEHM_TO_AUTO = "🔐 Genehmigen ✓ → Auto"   # Rueckfrage aktiv; Tipp → Auto
-_BTN_AUTO_TO_GENEHM = "⚡ Auto ✓ → Genehmigen"       # Auto aktiv; Tipp → Rueckfrage
+# **`[GEAENDERT 03.09.2026, Adam]` Flugzeug statt Blitz.** Adam am 02.09.,
+# 21:03: *„Du hast das Symbol gewaehlt des Blitzes bei Auto und Genehmigen,
+# aber das gibt es hier unten schon bei Schnell."* Gemessen: `⚡` war
+# **dreifach** belegt — Denk-Tiefe „Schnell", dieser Knopf und die Reaktion
+# „los geht's". Um 21:32 seine Wahl: *„dann nehmen wir das Flugzeug fuer den
+# Autopilot."* `✈️` kam im ganzen Repo nicht vor.
+_BTN_AUTO_TO_GENEHM = "✈️ Auto ✓ → Genehmigen"       # Auto aktiv; Tipp → Rueckfrage
+# **Die alte Beschriftung bleibt als Alias, und das ist kein Beiwerk:**
+# Telegram-Tastaturen leben client-seitig weiter, bis der Client eine neue
+# bekommt. Ohne diese Zeile schickte ein Tipp auf die alte Tastatur den
+# Knopftext als **Frage an den Agenten** — genau der Knopf-Bug vom 23.07., der
+# zur Tastatur-Vollstaendigkeitspruefung gefuehrt hat. Dasselbe Muster fuehren
+# die STT-Knoepfe eine Zeile weiter unten.
+_BTN_AUTO_TO_GENEHM_ALT = "⚡ Auto ✓ → Genehmigen"
 # Alt-Beschriftungen (bis 23.07.): bleiben gemappt, weil Telegram-Tastaturen
 # client-seitig weiterleben, bis der Client eine neue bekommt.
 _BTN_STT_TO_FAST = "🎙️ Genau → Flott"
@@ -849,7 +862,34 @@ _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_FABLE,
                       _BTN_STT_ACCURATE_ACTIVE, _BTN_STT_FAST_ACTIVE,
                       _BTN_THOROUGH, _BTN_THOROUGH_ACTIVE,
                       _BTN_GENEHM_TO_AUTO, _BTN_AUTO_TO_GENEHM,
+                      _BTN_AUTO_TO_GENEHM_ALT,
                       _BTN_KONTINGENT}
+
+# ---------------------------------------------------------------- N-3 (03.09.)
+#
+# **Die Bestaetigungstexte stehen als Konstanten, nicht als Literale im
+# Handler** — damit der vorhandene Umlaut-Pruefer sie erreicht (N-4). Er lief
+# bisher nur ueber Claudias Postfach-Auftraege; dieser Text ging per
+# `reply_text` direkt raus und wurde nie gesehen. **Deshalb kam der Fehler
+# genau hier hoch.**
+#
+# Adam am 02.09., 20:55, zum alten Absatz: *„sowas wie ‚und das ist der Punkt'
+# gehoert in sowas nicht rein"* · *„jetzt wieder Umlaute … die eigentlich nicht
+# rein sollten"* · *„bitte als kleine Stichpunktliste … gruener Haken fuer das,
+# was moeglich ist, rotes X fuer das, was abgelehnt wird … pro Zeile ein
+# Punkt."* Der Haken-Satz entfaellt — *„fuer den Anfang gut gewesen."*
+_AUTO_AN_TEXT = (
+    "✈️ **Auto ist an.**\n\n"
+    "✅ Bash läuft ohne Rückfrage\n"
+    "❌ Schreiben ins Repo\n"
+    "❌ Geheimnis-Pfade\n"
+    "❌ Befehle nach draußen (curl, wget, nc, ssh, scp, telnet)\n"
+    "❌ Kosten-Werkzeuge — fragen weiter"
+)
+_GENEHMIGEN_AN_TEXT = (
+    "🔐 **Genehmigen ist an** — jeder Bash-Aufruf außerhalb der Positivliste "
+    "fragt wieder nach."
+)
 # Aliase statt fester Versionen → Bot nutzt automatisch das jeweils
 # höchstwertige aktuelle Modell, Label muss bei neuen Versionen nicht angepasst werden.
 _MODEL_IDS = {
@@ -5148,7 +5188,8 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "📉 Kontingent — zeigt, wie viel vom Fünf-Stunden- und vom "
         "Wochenfenster aufgebraucht ist, mit Ampel und genauer Uhrzeit, ab "
         "wann wieder frei ist. Die Abfrage kostet kein Kontingent\n"
-        "\U0001f510 Genehmigen ✓ → Auto (bzw. umgekehrt) — Umschalter für "
+        "\U0001f510 Genehmigen ✓ → Auto (bzw. ✈️ Auto ✓ → Genehmigen) — "
+        "Umschalter für "
         "Bash-Rückfragen. Bei „Genehmigen“ fragt jeder Befehl außerhalb der "
         "Positivliste nach; bei „Auto“ läuft Bash ohne Rückfrage. Was sich "
         "dadurch NICHT ändert: Schreibversuche ins Repo werden weiter "
@@ -7009,8 +7050,21 @@ def _ist_voruebergehend(fehler: str) -> bool:
 UMLAUT_ERSATZ = (
     "vorraete", "verfuegbar", "stoerung", "moeglich", "waehrend", "naechste",
     "zurueck", "muessen", "koennen", "hoeren", "fuer", "ueber", "gruen",
-    "wuerde", "haette", "taeglich", "aendern", "loeschen", "pruefen",
+    "wuerde", "haette", "taeglich", "loeschen", "pruefen",
     "schliessen", "gemaess", "spaeter", "erklaeren", "waechter", "geraet",
+    # **`[GEWACHSEN 03.09.2026]` Genau die drei Woerter, die Adam am 02.09.
+    # bemaengelt hat, standen NICHT auf der Liste** — „laeuft", „Rueckfrage",
+    # „aendert" im Bestaetigungstext des Auto-Knopfes. Der Kommentar oben sagt
+    # voraus, was dann geschieht: *die Luecke ist laut, Adam meldet sie, die
+    # Liste waechst.* Sie ist eingetreten, also waechst die Liste.
+    #
+    # **Stamm statt Vollform, und das ist der eigentliche Fund:** Hier stand
+    # `aendern`. Die Pruefung vergleicht Teilzeichenfolgen — „aendert" enthaelt
+    # „aendern" **nicht**, die gebeugte Form lief also durch. `aender` deckt
+    # beide. Dieselbe Falle bei allen Verben der Liste; die uebrigen sind
+    # bewusst nicht angefasst (Kurs-Regel: keine dritte Runde), sie stehen als
+    # Fund im Morgen-Bericht.
+    "laeuf", "rueck", "aender",
 )
 
 
@@ -9905,7 +9959,11 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         await cmd_kontingent(update, None)
         return
 
-    if text in (_BTN_GENEHM_TO_AUTO, _BTN_AUTO_TO_GENEHM):
+    # Die Alt-Beschriftung MUSS hier mit hinein, nicht nur in die Menge
+    # bekannter Knoepfe: Sonst kennt der Bot den Knopf zwar, tut aber
+    # nichts damit, und der Text ginge als Frage an den Agenten.
+    if text in (_BTN_GENEHM_TO_AUTO, _BTN_AUTO_TO_GENEHM,
+                _BTN_AUTO_TO_GENEHM_ALT):
         # Auf BEIDE Beschriftungen pruefen -- sonst kaeme ein Druck auf die
         # gerade sichtbare Fassung als Frage beim Agenten an (der Knopf-Bug
         # vom 23.07., der zur Tastatur-Vollstaendigkeitspruefung gefuehrt hat).
@@ -9916,18 +9974,9 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
         cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
         if neu_an:
-            antwort = (
-                "⚡ **Auto ist an** — Bash laeuft ohne Rueckfrage.\n\n"
-                "Was sich dadurch **nicht** aendert, und das ist der Punkt: "
-                "Schreibversuche ins Repo werden weiter **abgelehnt**, "
-                "Geheimnis-Pfade bleiben zu, Kosten-Werkzeuge fragen weiter "
-                "— und Befehle nach draussen (curl, wget, nc, ssh, scp, "
-                "telnet) fragen ebenfalls weiter. "
-                "Der Knopf erspart die Rueckfrage, nicht die Ablehnung.\n\n"
-                "Der Haken auf dem Knopf zeigt dir, dass er laeuft.")
+            antwort = _AUTO_AN_TEXT
         else:
-            antwort = ("\U0001f510 **Genehmigen ist an** — jeder Bash-Aufruf "
-                       "ausserhalb der Positivliste fragt wieder nach.")
+            antwort = _GENEHMIGEN_AN_TEXT
         await update.message.reply_text(
             antwort, parse_mode=ParseMode.MARKDOWN,
             reply_markup=_main_keyboard(tts_on, cur_model, _p.get("effort"),

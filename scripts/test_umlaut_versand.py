@@ -46,15 +46,28 @@ def darf(text: str):
 
 print("== Umlaut-Ersatz am Versandpfad ==")
 
-# Die drei Fälle aus dem Befund vom 27.08., wörtlich.
+# Die drei Fälle aus dem Befund vom 27.08., wörtlich — und die drei aus Adams
+# Meldung vom 02.09., die genau NICHT auf der Liste standen.
+#
+# **Der Fund dahinter ist der wertvollere:** Die Liste führte `aendern`, und
+# die Prüfung vergleicht Teilzeichenfolgen — „aendert" enthält „aendern"
+# **nicht**. Die gebeugte Form lief durch. Seitdem stehen dort Stämme
+# (`aender`, `laeuf`, `rueck`) statt Vollformen.
 for wort, satz in [
     ("Vorraete", "Die Vorraete sind knapp."),
     ("verfuegbar", "Der Dienst ist wieder verfuegbar."),
     ("Stoerung", "Eine Stoerung wurde behoben."),
+    ("laeuft", "Bash laeuft ohne Rueckfrage."),
+    ("Rueckfrage", "Der Knopf erspart die Rueckfrage."),
+    ("aendert", "Was sich dadurch nicht aendert."),
 ]:
     ok, grund = darf(satz)
     zeile(f"[{wort}] wird am Versand gestoppt", not ok, gemessen=f"ok={ok} grund={grund}")
-    zeile(f"[{wort}] — die Meldung nennt das Wort", wort.lower() in grund.lower(),
+    # Die Meldung nennt den gefundenen STAMM (`aender`), nicht die Vollform
+    # (`aendert`) — deshalb wird auf den Anfang geprueft, nicht auf Gleichheit.
+    zeile(f"[{wort}] — die Meldung nennt das Wort",
+          any(wort.lower().startswith(_s) or _s in wort.lower()
+              for _s in [grund.split("[")[-1].split("]")[0].lower()] if _s),
           gemessen=grund)
 
 # **Deutsche Zusammensetzung** — der Fall, den eine Wortgrenze verfehlt hätte.
@@ -93,6 +106,36 @@ zeile("die Schranke ruft den Umlaut-Pruefer auf", len(_rufe) >= 1,
 ok, grund = bot.postfach_darf_senden(
     {"target_chat_id": ZIEL, "file": "/home/claudebot/.env", "text": "hier"})
 zeile("die Geheimnis-Schranke haelt weiterhin", not ok, gemessen=grund)
+
+
+# ---------------------------------------------------------------- N-4 (03.09.)
+#
+# **Der Prüfer existierte und erreichte die Stelle nicht** — das ist der
+# eigentliche Befund vom 02.09., nicht der Umlaut selbst.
+# `umlaut_ersatz_gefunden` lief ausschließlich in `postfach_darf_senden`, also
+# über Claudias Postfach-Aufträge. Der Bestätigungstext des Auto-Knopfes geht
+# per `reply_text` direkt hinaus und wurde **nie gesehen**. Deshalb kam der
+# Fehler an einer Stelle hoch, die der Prüfer nicht kennt — und wäre morgen an
+# der nächsten gekommen.
+#
+# Die Meldungstexte stehen seit N-3 als **Modulkonstanten** statt als Literale
+# im Handler; damit lassen sie sich hier durch dieselbe Schranke schicken.
+# **Kein Text-Grep über `bot.py`** — der schlüge auf Bezeichner wie `_faellig`
+# und auf jeden Kommentar an, und ein Prüfer mit Dauer-Fehlalarm wird
+# abgeschaltet.
+_MELDUNGSTEXTE = [
+    ("Auto-Knopf an", "_AUTO_AN_TEXT"),
+    ("Genehmigen-Knopf an", "_GENEHMIGEN_AN_TEXT"),
+]
+for _was, _name in _MELDUNGSTEXTE:
+    _text = getattr(bot, _name, None)
+    zeile(f"Meldungstext [{_was}] steht als Konstante (sonst unerreichbar)",
+          isinstance(_text, str) and _text,
+          gemessen=f"bot.{_name} fehlt oder ist leer")
+    if isinstance(_text, str):
+        _fund = bot.umlaut_ersatz_gefunden(_text)
+        zeile(f"Meldungstext [{_was}] ohne ASCII-Ersatz",
+              not _fund, gemessen=f"gefunden: {_fund}")
 
 print()
 if fehler:

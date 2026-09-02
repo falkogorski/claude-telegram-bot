@@ -72,7 +72,14 @@ set -u
 SSH_HOST="${RECHNUNGEN_SSH_HOST:-claudebot}"
 FERN="${RECHNUNGEN_FERN:-/home/claudebot/workspace/rechnungen/ausgang/}"
 LOKAL="${RECHNUNGEN_LOKAL:-$HOME/VPS-Backup/rechnungen}"
-ZIEL="${RECHNUNGEN_ICLOUD:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Business/Deko/DEKO-Service/_Aus-dem-Server}"
+# **Der Kundenzweig, NICHT ein Kundenordner** — Adams Entscheid vom 02.09.:
+# *„unter deko-service nur rechnungen an deko-service … ordner für aktuelle
+# rechnung lautet livesetup"*. Ein fester Zielordner kann nie richtig sein:
+# Das Ziel haengt an Kunde und Projekt, und das weiss nur der Generator.
+ZIEL="${RECHNUNGEN_ICLOUD:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Business/Deko}"
+# Wohin flache Dateien gehen, die KEINEN Unterordner mitbringen. Ausdruecklich
+# nicht unter einen Kundenordner — Adams Regel gilt auch im Fehlerfall.
+AUFFANG="${RECHNUNGEN_AUFFANG:-_Aus-dem-Server}"
 LOG="${RECHNUNGEN_LOG:-$HOME/.claude/rechnungen-ablegen.log}"
 
 mkdir -p "$(dirname "$LOG")" 2>/dev/null
@@ -121,16 +128,15 @@ fi
 # (`icloud_spiegel.sh`, `icloud_backup.sh`) LESEN aus iCloud; dieses schreibt
 # hinein. **Die Freigabe gilt in beide Richtungen — beim ersten Lauf geprueft,
 # nicht angenommen.**
-_eltern="$(dirname "$ZIEL")"
-if [ ! -d "$_eltern" ]; then
-  sag "FEHLER: iCloud-Elternordner fehlt — $_eltern"
-  sag "        Entweder ist iCloud nicht eingehaengt, oder die Freigabe fehlt,"
-  sag "        oder Adams Ablage heisst inzwischen anders. NICHT geraten:"
-  sag "        setze RECHNUNGEN_ICLOUD auf den gewuenschten Ordner."
-  exit 78
-fi
-if ! mkdir -p "$ZIEL" 2>>"$LOG"; then
-  sag "FEHLER: iCloud-Zielordner nicht anlegbar (TCC?) — $ZIEL"
+# **Der Zielordner muss EXISTIEREN — er wird nicht angelegt.** Das ist Adams
+# gewachsener Kundenzweig; wenn er fehlt, ist iCloud nicht eingehaengt, die
+# Freigabe fehlt, oder die Ablage heisst anders. Ein `mkdir -p` legte dann
+# stillschweigend eine zweite Wahrheit neben die echte.
+if [ ! -d "$ZIEL" ]; then
+  sag "FEHLER: iCloud-Zielordner fehlt — $ZIEL"
+  sag "        Er wird ABSICHTLICH nicht angelegt: Das ist Adams gewachsener"
+  sag "        Kundenzweig. Fehlt er, ist iCloud nicht da oder die Freigabe"
+  sag "        fehlt. NICHT geraten — setze RECHNUNGEN_ICLOUD."
   exit 78
 fi
 
@@ -140,12 +146,43 @@ if [ "$_anzahl" -eq 0 ]; then
   exit 0
 fi
 
-# Kein --delete, und `-u`: Neueres ueberschreibt Aelteres, Gleichnamiges mit
-# gleicher Zeit bleibt liegen. Die Rechnungsnummer steht im Dateinamen, ein
-# echter Doppelgaenger kann also nur dieselbe Rechnung sein.
-if rsync -a -u --exclude='.*' "$LOKAL/" "$ZIEL/" 2>>"$LOG"; then
-  sag "Haelfte 2: $_anzahl Datei(en) nach iCloud gelegt — $ZIEL"
+# ---- (a) Alles MIT Unterordner: der relative Pfad wird DURCHGEREICHT
+#
+# **Nicht interpretiert, und das ist der Kern.** Gemessen am 02.09. schwankt
+# Adams Ablagetiefe je Kunde: `Goldhut` haelt Rechnungen direkt, `DEKO-Service`
+# eine Ebene tiefer, und `LiveSetup/Volvo/Business Modul/Norderney` sind
+# **drei** Ebenen — Adams „Volvo Business Modul Norderney" ist kein
+# Ordnername, sondern ein Pfad. **Ein festes Schema kann es also nicht
+# geben.** Genau deshalb reicht dieses Skript den relativen Pfad durch:
+# `ausgang/LiveSetup/Volvo/Business Modul/Norderney/x.pdf` landet unter
+# `Business/Deko/LiveSetup/Volvo/Business Modul/Norderney/x.pdf`, bei jeder
+# Tiefe, ohne dass hier jemand die Struktur kennen muss.
+#
+# **Kein `--delete`** — der Lauf legt nur ab, was er mitbringt, und ruehrt
+# fremde Kundenordner nicht an. `-u`: Neueres ueberschreibt Aelteres; die
+# Rechnungsnummer steht im Dateinamen, ein echter Doppelgaenger kann also nur
+# dieselbe Rechnung sein.
+_tief=0
+if rsync -a -u --exclude='.*' --include='*/' --include='*/**' --exclude='*' \
+        "$LOKAL/" "$ZIEL/" 2>>"$LOG"; then
+  _tief=$(find "$LOKAL" -mindepth 2 -type f ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+  [ "$_tief" -gt 0 ] && sag "Haelfte 2: $_tief Datei(en) in ihre Kundenordner gelegt"
 else
   sag "FEHLER: Ablage nach iCloud gescheitert — $ZIEL"
   exit 78
+fi
+
+# ---- (b) Flache Dateien in den Auffangordner, NICHT in einen Kundenordner
+#
+# Eine Datei ohne Unterordner weiss nicht, zu wem sie gehoert. Sie unter
+# `DEKO-Service` zu legen waere genau das, was Adam ausschliesst — **also
+# gehoert sie in einen neutralen Auffang, und dort faellt sie auf.**
+_flach=$(find "$LOKAL" -maxdepth 1 -type f ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+if [ "$_flach" -gt 0 ]; then
+  if rsync -a -u --exclude='.*' --exclude='*/' "$LOKAL/" "$ZIEL/$AUFFANG/" 2>>"$LOG"; then
+    sag "Haelfte 2: $_flach Datei(en) OHNE Kundenordner → $AUFFANG (bitte ansehen)"
+  else
+    sag "FEHLER: Auffang-Ablage gescheitert — $ZIEL/$AUFFANG"
+    exit 78
+  fi
 fi

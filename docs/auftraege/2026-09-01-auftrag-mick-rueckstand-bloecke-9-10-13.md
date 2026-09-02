@@ -10,7 +10,7 @@ Auftragspapiere geliefert habe. **Das hier ist der Rest.** Alle Zitate im
 Wortlaut aus den Bot-Protokollen.
 
 **Was aus diesen Blöcken bereits läuft** (damit nichts doppelt eingetragen
-wird): Die eigene KI ist als `9.NN Modell-Souveränität` angelegt · Vermittler,
+wird): Die eigene KI ist als `9.19 Modell-Souveränität` angelegt · Vermittler,
 Weglegbarkeit, Interface und der Werte-Termin sind in den drei Konzepten
 enthalten und über N-10 verwiesen · die Übergabeweg-Frage ist als
 `gedanke-uebergabeweg-sitzungen.md` abgelegt.

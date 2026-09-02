@@ -39,7 +39,7 @@ Auftragspapieren der Kontrolle.
 | N-26 | drei Wege beim Vorlesen | ✅ | `MIGRATION.md` 9.1 |
 | N-27 | einfach, klar, direkt | ✅ | `CLAUDE.md` |
 | N-28 | fünf Einträge ohne Ort (a–e) | ✅ | `CLAUDE.md` (c, d) · `MIGRATION.md` (e) · `docs/gedanke-zweiter-chat-und-auswerten-knopf.md` (a, b) |
-| N-29 | drei kleinere Einträge | ✅ | `MIGRATION.md` 2.7 · 9.NN · 9.16 |
+| N-29 | drei kleinere Einträge | ✅ | `MIGRATION.md` 2.7 · 9.19 · 9.16 |
 | N-30 | Überschriften-Regel gemessen | ✅ | `MIGRATION.md` 5.8 |
 
 ## **27 von 27 angekommen.**

@@ -105,7 +105,7 @@ Die Wache ließe sich nur auf *„ist das weitergeleitet?"* verfeinern — auf d
 Pfeil-Geste. Die trägt nicht: Lädt Adam eine Datei frisch hoch, die er zwei
 Minuten vorher per Mail bekam, gilt sie als seine. **Die richtige
 Unterscheidung ist *stammt das aus unserem eigenen Haus?*, und dafür existiert
-heute kein Merkmal.** Es entsteht mit `9.NN-S Herkunfts-Signatur` im Drehbuch.
+heute kein Merkmal.** Es entsteht mit `9.20 Herkunfts-Signatur` im Drehbuch.
 
 **Bis dahin gilt Adams Übergangsweg**, und er ist kein Notbehelf: **Er schreibt
 eine Beschriftung dazu.** Fünf Wörter, funktioniert heute — und es ist genau

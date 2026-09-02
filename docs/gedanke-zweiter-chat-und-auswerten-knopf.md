@@ -82,7 +82,7 @@ Damit entfallen zwei der drei Wege (③ ist Darstellung, ② wäre ein neuer Pfa
 und der verbleibende — die Wache präzisieren — **braucht ein Merkmal, das es
 heute nicht gibt.**
 
-- **Der Knopf hängt ab sofort an `9.NN-S Herkunfts-Signatur`** im Drehbuch.
+- **Der Knopf hängt ab sofort an `9.20 Herkunfts-Signatur`** im Drehbuch.
   Erst wenn eine Datei sagen kann, *dass sie aus unserem eigenen Haus stammt*,
   ist die Wache auf dem **richtigen** Merkmal verfeinerbar. Auf der Pfeil-Geste
   (`forward_origin`) wäre sie es nicht — die misst die Weiterleitung, nicht die

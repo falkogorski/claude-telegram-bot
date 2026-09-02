@@ -83,3 +83,49 @@ Historie. **Das ist eine Struktur-Entscheidung in deinem Projekt, deshalb
 frage ich statt zu tun.**
 
 Solange es sie nicht gibt, ist dieses Papier der Rückweg.
+
+---
+
+# Nachtrag 03.09.2026 — der Umzug ist vollzogen
+
+**Schritte 2 bis 4 aus dem Befehlsblock gefahren**, auf Adams Bitte von mir
+statt von ihm (kein root nötig, nur SSH):
+
+| Schritt | Ergebnis |
+|---|---|
+| **Projekt auf den Server** | `~/workspace/rechnungen/` — ohne `.venv`, `output`, `ausgang` |
+| **`typst`** | 0.15.1 nach `~/.local/bin`, ohne root |
+| **Vergleichslauf 012-26** | bestanden, **aber erst im zweiten Anlauf** |
+| **Claudias Provisorium** | `~/rechnungen-uebergang` gelöscht — es hat einen Tag getragen |
+
+## Zwei Befunde, die nur der Vergleichslauf finden konnte
+
+**① Der Dienst-PATH kennt `~/.local/bin` nicht.** Gemessen am laufenden
+Bot-Prozess: `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`. Die
+Positivliste hätte `typst` freigegeben, die Shell hätte *command not found*
+gesagt — die Klasse *am Mac lief alles*. **Gelöst im Generator, nicht am
+Dienst** (der bräuchte root): `typst_pfad()` sucht in dieser Reihenfolge
+`TYPST_BIN`, `PATH`, `~/.local/bin/typst`. Auf beiden Maschinen gemessen.
+
+**② Auf dem Server fehlten Helvetica Neue und Arial.** typst fiel auf seine
+Serifen-Standardschrift zurück — dieselbe Rechnung sah vom Server völlig anders
+aus als vom Mac. **Genau der Fall, für den Claudia den Vergleichslauf verlangt
+hat.** Gelöst mit **Liberation Sans** (metrisch kompatibel zu Arial, frei, ohne
+root unter `~/.local/share/fonts`), als dritter Name hinter den beiden
+Mac-Schriften: Wo die da sind, ändert sich nichts. Nachgemessen im Bild, nicht
+in der Warnung.
+
+**③ `openpyxl` fehlte** (nur für die Aufstellung, `.xlsx`). Debian 13 sperrt
+`pip --user` (PEP 668), deshalb eine **venv im Projekt** — dieselbe Bauform wie
+am Mac. Kein `--break-system-packages`.
+
+## Und die Regeln ziehen mit
+
+Neu: **`RECHNUNGSREGELN.md` im Rechnungsprojekt.** Adams Frage dazu war die
+wichtigere des Abends: *„Ist denn das jetzt eigene Regeln oder gelten die dann
+genauso für Claudia?"* — Bis dahin galten sie nur im Kopf dieser Sitzung.
+
+Die Datei **ergänzt und ersetzt nichts** (Adams ausdrückliche Auflage): Was
+Claudia von ihm gelernt hat, gilt weiter; hier steht nur, was in dieser Nacht
+neu entschieden wurde. Sie liegt im Projekt, zieht also mit und wird gelesen —
+das ist der Ablageweg, den eine Regel im Sitzungsgedächtnis nicht hat.

@@ -72,6 +72,27 @@ verbietet `process_user_text` im Dokument-Rückruf **absolut** — sie stammt au
 Befund C und kennt kein Ermessen. Der Knopf verletzt sie, auch wenn er nur bei
 eigenen Dateien erscheint.
 
+**✅ `[ENTSCHIEDEN 02.09., Adam]` Der Knopf ist vertagt, nicht abgelehnt — und
+er hängt jetzt an einem anderen Punkt.**
+
+Adams Klarstellung hat die Frage verschoben: **Es geht um Ausführung, nicht um
+Darstellung.** *„Ich muss ja möglich sein, dass ich einen Auftrag weiterleiten
+und der ausgelesen wird. Ansonsten kann ich halt keine Dateien nutzen dafür."*
+Damit entfallen zwei der drei Wege (③ ist Darstellung, ② wäre ein neuer Pfad),
+und der verbleibende — die Wache präzisieren — **braucht ein Merkmal, das es
+heute nicht gibt.**
+
+- **Der Knopf hängt ab sofort an `9.NN-S Herkunfts-Signatur`** im Drehbuch.
+  Erst wenn eine Datei sagen kann, *dass sie aus unserem eigenen Haus stammt*,
+  ist die Wache auf dem **richtigen** Merkmal verfeinerbar. Auf der Pfeil-Geste
+  (`forward_origin`) wäre sie es nicht — die misst die Weiterleitung, nicht die
+  Herkunft.
+- **Bis dahin: Beschriftung statt Knopf**, Adams eigener Entscheid. Fünf Wörter
+  neben der Datei, funktioniert heute. **Kein Notbehelf** — es ist der Akt, der
+  den Inhalt zu seinem Auftrag macht; genau den hätte der Knopf ersetzt.
+- **Die Auflage der Kontrolle bleibt für den späteren Bau in Kraft** — der
+  Prüfer muss Verhalten messen, nicht Schreibweise. Sie steht unverändert unten.
+
 **Auflage der Kontrolle für den Prüfer, und sie ist der eigentliche Bauteil:**
 Er muss **Verhalten** messen — eine weitergeleitete Datei mit einem
 Anweisungssatz darin wird ausgewertet, **ohne dass der Satz Wirkung entfaltet.**

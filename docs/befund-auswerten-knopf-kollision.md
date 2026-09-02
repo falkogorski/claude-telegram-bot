@@ -1,7 +1,8 @@
 <!-- ROLLE: befund-auswerten-knopf-kollision -->
-> **Zweck: ANSICHT + ENTSCHEID** · **Zu tun:** entscheiden, welcher der drei
-> Wege gegangen wird. **Der Knopf ist nicht gebaut** — er kollidiert mit einer
-> Sicherheitswache, und die wird nachts nicht angefasst.
+> **Zweck: ABLAGE** · **Zu tun:** nichts mehr — **Adam hat am 02.09.
+> entschieden.** Der Knopf ist **vertagt, nicht abgelehnt**; bis zur
+> Herkunfts-Signatur schreibt er eine Beschriftung dazu. Was unten als offene
+> Wahl steht, ist ab dem Abschnitt *Die Entscheidung* aufgelöst.
 
 # Der „Auswerten"-Knopf lässt sich nicht bauen, ohne Befund C anzufassen
 
@@ -81,3 +82,41 @@ Anliegen ist, *weniger tippen zu müssen*, dann ist es billig erfüllbar. Wenn
 sein Anliegen ist, dass die Sitzung **dem Inhalt folgt und Konsequenzen zieht**
 — sein Wortlaut legt das nahe —, dann führt kein Weg an ① vorbei, und der
 gehört gegengeprüft, nicht nachts gebaut.
+
+---
+
+## Die Entscheidung `[02.09.2026, Adam]`
+
+**Adams Wortlaut vom 01.09., der die Wahl auflöst:** *„dass Sie die Datei
+verarbeitet und den Inhalt daraus umsetzt … Ich muss ja möglich sein, dass ich
+einen Auftrag weiterleiten und der ausgelesen wird. Ansonsten kann ich halt
+keine Dateien nutzen dafür."*
+
+**Es geht um Ausführung, nicht um Darstellung.** Damit:
+
+| Weg | Stand |
+|---|---|
+| **③ Am geschützten Leseweg** (*„Worum geht es?"*) | **entfällt** — es ist Darstellung, und die gibt es schon |
+| **② Eigener Weg am Rückruf vorbei** | **entfällt** — wäre ein neuer Pfad, den der Auftrag ausschließt |
+| **① Die Wache präzisieren** | **kommt später — und dann auf dem richtigen Merkmal** |
+
+**Warum ① nicht heute geht, und das ist der eigentliche Ertrag dieses Befunds:**
+Die Wache ließe sich nur auf *„ist das weitergeleitet?"* verfeinern — auf die
+Pfeil-Geste. Die trägt nicht: Lädt Adam eine Datei frisch hoch, die er zwei
+Minuten vorher per Mail bekam, gilt sie als seine. **Die richtige
+Unterscheidung ist *stammt das aus unserem eigenen Haus?*, und dafür existiert
+heute kein Merkmal.** Es entsteht mit `9.NN-S Herkunfts-Signatur` im Drehbuch.
+
+**Bis dahin gilt Adams Übergangsweg**, und er ist kein Notbehelf: **Er schreibt
+eine Beschriftung dazu.** Fünf Wörter, funktioniert heute — und es ist genau
+der Akt, der den Inhalt zu **seinem** Auftrag macht. Der Knopf hätte diesen Akt
+ersetzt; das war seine Bequemlichkeit und zugleich sein Problem.
+
+**Die Wache bleibt unangetastet.** Sie hat richtig gehalten. Dass sie am
+Aufrufknoten misst und nicht am Auftrag, ist ihre **Grenze, nicht ihr Fehler** —
+und die Grenze löst der Signatur-Punkt auf, nicht eine Verfeinerung.
+
+**Was der Beschriftungsweg heute offenlässt**, gehört der Vollständigkeit halber
+dazu: Er ist als **F-19** eingetragen (`docs/f-befunde-reihenfolge.md`) — mit
+der gemessenen Reichweite und der Feststellung, dass seine ursprüngliche
+Begründung entfallen ist.

@@ -1404,6 +1404,35 @@ der Aussprache. Wer ③ wählt, braucht ② vermutlich nicht mehr.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
+### 9.NN-S Herkunfts-Signatur — woran eine Datei erkennt, dass sie aus dem eigenen Haus stammt `[NEU 2026-09-02, NUMMER OFFEN]`
+- **⚠️ Die Nummer gehört Adam, nicht dieser Sitzung.** `9.NN-S` ist ein Platzhalter — bewusst mit Zusatz, weil unter `9.NN` bereits die **Modell-Souveränität** steht und ein zweites `9.NN` nicht auffindbar wäre. **Beide offenen Nummern sind Adam gemeldet.** Der Titel ist ebenfalls ein Vorschlag.
+- **Status:** OFFEN, **nicht terminiert.**
+- **Akzeptanzkriterium:** *Ein schriftliches Konzept existiert und ist aktuell.* Ausdrücklich **nicht** „eine Signatur läuft". Gleiche Bauform wie 9.17 und 9.NN Modell-Souveränität: **planen statt bauen.**
+- **Herkunft:** Der Gedanke ist **Adams**, am 01.09. im Bot-Chat: *„Eventuell muss man bei so was halt irgendein Erkennungszeichen, irgendeinen Code einbauen, der zurückgeprüft wird."* Geschärft in derselben Nacht: **Ein bloßer Code trägt nicht** — wer ihn einmal sieht, schreibt ihn nach. Was trägt, ist eine **Signatur über den Dateiinhalt mit einem Geheimnis, das nur unsere eigenen Sitzungen kennen.**
+
+**① Wofür der Punkt da ist — eine offene Menge wird eine geschlossene**
+
+Heute gilt: *alles, was Adam mit Beschriftung hochlädt.* Diese Menge ist **nicht aufzählbar**, weil sie davon abhängt, was ihm jemand schickt. Mit Signatur gilt: *was unsere eigenen Sitzungen geschrieben haben* — eine Menge mit **Zugehörigkeitsregel**. Das ist die Mengen-Regel dieses Projekts, auf den Eingang angewandt, gleiche Form wie `POSTFACH_GRENZEN`.
+
+**② Was er ersetzt — die Pfeil-Geste durch die Herkunft**
+
+`_adam_anteil` prüft heute `forward_origin`, also **die Telegram-Weiterleitung, nicht die Herkunft des Inhalts.** Lädt Adam eine Datei frisch hoch, gilt ihr Inhalt als seiner — auch wenn er sie zwei Minuten vorher per Mail bekommen und nie geöffnet hat. **Die richtige Frage lautet *stammt das aus unserem eigenen Haus?*, nicht *ist das weitergeleitet?***
+
+**③ Die ehrliche Grenze — sie gehört in denselben Absatz, nicht in eine Fußnote**
+
+Eine Signatur beweist **Herkunft, nicht Ungefährlichkeit.** Wird eine unserer Sitzungen selbst getäuscht — durch eine Webseite, eine Mail, ein Dokument, das sie liest —, **signiert sie die Täuschung weiter.** Deshalb bleiben die harten Schranken auch für signierte Aufträge in Kraft: Repo-Schreibsperre (8.7), Geheimnis-Pfade, Kostenfreigaben, root. Genau wie bei Adams getipptem Text. **Eine Signatur ersetzt keine Schranke — sie ersetzt das Raten.**
+
+**④ Was danach möglich wird — und vorher nicht**
+
+Erst mit diesem Merkmal ist die Wache *„der Ausweichpfad zur Hauptsitzung ist zu"* überhaupt präzisierbar (*erreicht **Fremdinhalt** die Sitzung* statt *kommt `process_user_text` vor*), und erst dann ist der **„Auswerten"-Knopf** baubar. **Vorher nicht** — siehe [`docs/befund-auswerten-knopf-kollision.md`](docs/befund-auswerten-knopf-kollision.md). Ebenso hängt **F-19** (Dokument mit Beschriftung geht in die Hauptsitzung) an diesem Punkt: Ohne Herkunftsmerkmal gibt es nichts zu unterscheiden.
+
+**Zweites Herkunftsmerkmal, von Adam am 02.09., 10:29 — nur Ablage, kein Bau:** *„wenn du eine Spracherkennung einbaust … dass du weißt, dass ich mit dir spreche … als Sicherheitsfeature … dass klar ist, dass die Sachen von mir kommen, die hier reinlangen."* **Die Signatur beweist *aus unserem Haus*, die Sprecher-Erkennung *von Adam*.** Beides beantwortet dieselbe Frage von zwei Seiten und gehört in dasselbe Konzept.
+
+**Nachbarschaft — und eine Beobachtung, die keinen Auftrag darstellt:** Der Punkt gehört zur **Eingangs-Absicherung**. Gemessen 02.09.: **Die hat selbst keinen Drehbuch-Punkt**, obwohl `CLAUDE.md` einen ganzen Abschnitt und eine verbindliche Reihenfolge dafür führt (*gebaut, geprüft und getestet, BEVOR mit echten fremden Daten gearbeitet wird*). Ob sie einen eigenen Punkt bekommt, ist **Adams Entscheidung** — er steht deshalb vorläufig hier neben 9.5.
+
+- **Test:** entfällt (Konzept-Punkt). Beim späteren Bau: eine **ausführende** Prüfung, die eine unsignierte Datei mit Anweisungssatz gegen eine signierte hält.
+- **Adam-Bestätigung:** — · **Verifiziert am:** —
+
 ### 9.6 Blaupause: Das übertragbare Grundwerk `[NEU 2026-07-19]`
 - **Status:** OFFEN — **Ausformulierung nach dem Gesamtaudit (10.1), Sammlung ab sofort**
 - **Idee:** Nach Abschluss und Audit der Migration wird aus dem Gebauten ein **plattformunabhängiges Grundwerk** destilliert (`BLAUPAUSE.md`), das Adams Grundwerte, Regeln und Architektur-Muster **übertragbar** macht — auf andere KI-Modelle (lokale Modelle, andere Anbieter, später eigene KIs) und andere Umgebungen, perspektivisch auch als Basis für **Kunden-Setups**.

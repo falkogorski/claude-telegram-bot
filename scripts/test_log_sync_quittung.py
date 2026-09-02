@@ -60,9 +60,34 @@ def _git(*args):
     subprocess.run(["git", *args], cwd=REPO, capture_output=True, check=False)
 
 
-_git("init", "-q")
+# **Der Branch wird BENANNT, nicht dem Vorgabewert überlassen** `[02.09.2026]`
+#
+# Hier stand `git init -q`. Der Vorgabebranch ist eine **Einstellung der
+# Maschine**: Am Mac ist `init.defaultBranch = main` gesetzt, auf dem VPS
+# nicht — dort heißt er `master`. Das Produktivskript pusht aber `main`
+# (`log_sync.sh:213`), und das echte Log-Repo heißt auch so (gemessen).
+#
+# Folge: Auf dem Server scheiterte der Push mit `src refspec main does not
+# match any` — **vor** dem Netzzugriff, also mit einer anderen Meldung als der
+# einen, die dieser Prüfstand als „keine Gegenstelle" durchlässt. Vier Zeilen
+# rot, und zwar **nur dort**. Am Mac konnte es nie auffallen.
+#
+# Das ist die Klasse *am Mac lief alles*: eine Umgebungsabhängigkeit, die kein
+# Register kennen kann. Die Reparatur weicht die Prüfung nicht auf, sondern
+# **stellt die Produktivbedingung her**.
+_git("init", "-q", "-b", "main")
 _git("config", "user.email", "t@t")
 _git("config", "user.name", "Test")
+
+# **Und sie wird nachgemessen, weil `_git` still scheitert** (`check=False`).
+# Ohne diese Zeile bliebe eine gescheiterte Branch-Wahl unsichtbar und der
+# Fehler käme auf einer anderen Maschine zurück.
+_zweig = subprocess.run(["git", "branch", "--show-current"], cwd=REPO,
+                        capture_output=True, text=True).stdout.strip()
+if _zweig != "main":
+    raise SystemExit(
+        f"Pruefstand nicht aufgebaut: Zweig heisst {_zweig!r}, erwartet 'main' "
+        "— das Produktivskript pusht 'main', der Pruefstand muss das nachstellen")
 
 
 def _lauf() -> None:

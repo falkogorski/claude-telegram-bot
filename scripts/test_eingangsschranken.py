@@ -1899,17 +1899,31 @@ def _der_lesegrund_nennt_den_echten_grund():
     Grund-Funktion kannte die ausfuehrenden Schalter nicht und haette bei
     `find … -delete` [kein Grund] gesagt, also die beruhigende Richtung.
     """
+    from pathlib import Path as _P
+    # **Der Repo-Pfad wird GEMESSEN, nicht getippt** `[02.09.2026]`
+    #
+    # Hier stand achtmal `~/Projects/claude-telegram-bot` — der **Mac**-Pfad.
+    # Auf dem VPS liegt das Repo unter `/home/claudebot/claude-telegram-bot`,
+    # und damit zeigte jeder dieser Befehle dort **aus dem Repo hinaus**.
+    #
+    # Rot wurde nur die eine Zeile, die ein LEERES Ergebnis erwartet. **Die
+    # anderen sieben waren aus dem falschen Grund gruen:** Sie erwarten einen
+    # Grund und bekamen zufaellig einen — nur nicht den gemeinten. `cat
+    # <repo>/README.md /etc/passwd` soll wegen `/etc/passwd` anschlagen; auf
+    # dem Server schlug schon der erste Pfad an, und die Zeile mass nicht mehr,
+    # was sie sollte.
+    _repo = str(_P(bot.__file__).resolve().parent)
     faelle = [
-        ("find ~/Projects/claude-telegram-bot -name '*.py' -delete", "ausfuehrender Schalter"),
-        ("cat ~/Projects/claude-telegram-bot/README.md /etc/passwd", "aus dem Repo hinaus"),
-        ("cat ~/Projects/claude-telegram-bot/README.md && rm x", "Zeichen"),
+        (f"find {_repo} -name '*.py' -delete", "ausfuehrender Schalter"),
+        (f"cat {_repo}/README.md /etc/passwd", "aus dem Repo hinaus"),
+        (f"cat {_repo}/README.md && rm x", "Zeichen"),
         ("ls -la", "kein Repo-Pfad"),
     ]
     for befehl, erwartet in faelle:
         grund = bot._repo_read_grund(befehl)
         assert erwartet in grund, \
             f"Grund fuer {befehl!r} nennt nicht {erwartet!r}, sondern {grund!r}"
-    frei = "cat ~/Projects/claude-telegram-bot/README.md"
+    frei = f"cat {_repo}/README.md"
     assert bot._repo_read_grund(frei) == "", \
         f"ein erlaubter Lesebefehl bekommt einen Grund genannt: {bot._repo_read_grund(frei)!r}"
 
@@ -1923,9 +1937,11 @@ def _entscheidung_und_grund_koennen_nicht_driften():
     """
     import ast
     from pathlib import Path as _P
-    for befehl in ("cat ~/Projects/claude-telegram-bot/README.md",
-                   "find ~/Projects/claude-telegram-bot -delete",
-                   "ls -la", "rm -rf ~/Projects/claude-telegram-bot"):
+    # Geschwister-Regel: dieselben festverdrahteten Mac-Pfade wie oben.
+    _repo = str(_P(bot.__file__).resolve().parent)
+    for befehl in (f"cat {_repo}/README.md",
+                   f"find {_repo} -delete",
+                   "ls -la", f"rm -rf {_repo}"):
         assert bot._is_repo_read_cmd(befehl) == (bot._repo_read_grund(befehl) == ""), \
             f"Entscheidung und Grund widersprechen sich bei {befehl!r}"
     quelle = (_P(__file__).resolve().parent.parent / "bot.py").read_text(encoding="utf-8")

@@ -289,6 +289,10 @@ run "Log-Rollover (Tageswechsel)"       "$PY" scripts/test_conversation_log_roll
 run "Reaktionen 5.9"                    "$PY" scripts/test_reactions_5_9.py
 run "Voice-Eingangs-Schutz"             "$PY" scripts/test_voice_entry_guard.py
 run "Session-Waechter 5.18"             "$PY" scripts/test_stall_5_18.py
+# N-1 (03.09.): Die Erinnerungen bei offener Freigabe. Ausgefuehrt in
+# Sekundenbruchteilen, misst beide Richtungen — dass erinnert wird UND
+# dass es bei der Entscheidung sofort aufhoert.
+run "Freigabe-Erinnerungen (N-1)"       "$PY" scripts/test_freigabe_erinnerung.py
 run "Kanal-Routing Phase 6"             "$PY" scripts/test_channels_6.py
 run "Warteschlange FIFO 5.5"            "$PY" scripts/test_queue_order_5_5.py
 run "Updater-Haertung A1-A7"            "$PY" scripts/test_updater_haertung.py

@@ -955,10 +955,32 @@ besteht deshalb aus **zwei Wörtern in der ersten Zeile**, damit sie das kann.
 Anfang. Gerne einfach mit Datum, und zwar erst Jahr, dann Monat, dann Tag,
 sodass sie in jedem Ordner sortierbar sind."*
 
-> **`JJJJ-MM-TT-<name>.md`** — für **Konzept- und Weitergabe-Papiere**.
+> **`JJJJMMTT_wort_wort.md`** — für **Konzept- und Weitergabe-Papiere**.
 > **Nicht** für Alltags-Zusammenfassungen und Checklisten; die Eingrenzung ist
 > Adams eigene: *„Da geht es nur um Sachen, die für unser Konzept wichtig sind,
 > die ich auch weitergeben will."*
+
+**`[PRÄZISIERT 2026-09-02]` Das Trennzeichen ist der Unterstrich, nicht der
+Bindestrich — und der Grund ist gemessen, nicht Geschmack:** Adams
+Speicherdialog **streicht Bindestriche beim Ablegen**, auch die im Datum; er
+muss sie von Hand nachtragen. Deshalb `20260903_nachtblock_mick.md` statt
+`2026-09-03-nachtblock-mick.md`.
+
+**Der Befund stand seit dem 29.08. im Code, nur nicht in der Regel** —
+`scripts/mac/icloud_spiegel.sh`, Z. 120, führt als Beispiel für angekommene
+Namen `20260829_bauauftragbashfreigaben…` an. **Das Beispiel zeigt genau, was
+überlebt: der Unterstrich.** Der Spiegel fängt daraus nur die Dublette
+(Vergleich über den Inhalt), er benennt nichts um — eine Datei ohne
+Bindestriche liegt so im Repo, und jedes Papier, das sie mit Bindestrichen
+zitiert, zeigt ins Leere.
+
+**Ein Nachtblock trägt das Datum des Morgens, an dem er endet.** Sonst
+kollidieren zwei Blöcke, die am selben Kalendertag übergeben werden — am 02.09.
+zweimal passiert.
+
+**Bestehende Dateien werden nicht umbenannt.** Umbenennen ist nach *Struktur
+über Namen* eine Abhängigkeits-Änderung; der Spiegel schützt ohnehin vor der
+Dublette. **Kein Prüfer** — das ist eine Schreibweise, kein Verhalten.
 
 **Der Grund ist ein Unterschied zwischen zwei Ablagen:** Der Telegram-Verlauf
 sortiert chronologisch von selbst, **ein Ordner tut das nicht.** Dieselbe Datei

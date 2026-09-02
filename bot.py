@@ -88,6 +88,23 @@ load_dotenv(Path(__file__).parent / ".env")
 # unbemerkt bleibt, selten genug, um niemandem zur Last zu fallen. Der
 # 4-Uhr-Lauf fragt zusätzlich.
 ZUSTELL_TAKT_S = int(os.environ.get("ZUSTELL_TAKT_S") or 3 * 3600)
+
+# ---------------------------------------------------------------- N-1 (03.09.)
+#
+# **Wie lange eine Genehmigungs-Anfrage offen bleibt, und wann erinnert wird.**
+#
+# Adam am 31.08., 22:47: *„Ich hatte eben den Permission Request uebersehen …
+# Bevor du den auslaufen laesst, koennte es noch zwei Reminder geben."* Und der
+# Grund, der die Groesse bestimmt: *„Man ist mal mit was anderem beschaeftigt,
+# wird abgelenkt, hat ein Telefonat."*
+#
+# **Als Einstellgroessen, weil sie an DREI Stellen gebraucht werden** — Wartezeit,
+# Ablauf-Meldung an Adam und Abweisungstext an die CLI. Vorher standen dort
+# `1800`, „nach 30 Minuten" und „did not respond in 3 min": **drei Zahlen, zwei
+# davon falsch.** Eine Zahl, die an mehreren Stellen von Hand gepflegt wird,
+# driftet — hier war sie schon gedriftet.
+FREIGABE_FRIST_S = int(os.environ.get("FREIGABE_FRIST_S") or 3600)
+FREIGABE_ERINNERUNG_S = int(os.environ.get("FREIGABE_ERINNERUNG_S") or 900)
 BOT_MODE = (os.environ.get("BOT_MODE") or "polling").strip().lower()
 # Womit die eingetragene Adresse beginnen MUSS. Weicht sie ab, ist der Server
 # umgezogen oder jemand hat den Webhook verstellt — beides will man wissen.
@@ -3444,22 +3461,48 @@ def make_permission_callback(user_id: int):
             sess.pending_permissions.pop(request_id, None)
             return PermissionResultDeny(message="bot failed to ask user")
 
-        # 30 min timeout — Nutzer ist nicht immer am Gerät
-        try:
-            decision = await asyncio.wait_for(fut, timeout=1800)
-        except asyncio.TimeoutError:
-            sess.pending_permissions.pop(request_id, None)
-            log.warning("permission timeout: user=%s req=%s tool=%s",
-                        user_id, request_id, tool_name)
+        # ---- Warten mit Erinnerungen (N-1, 03.09.2026)
+        #
+        # Die Schleife steht in `warte_auf_freigabe` — **herausgezogen, damit
+        # ein Pruefer sie erreicht**, nicht der Schoenheit wegen. Mitten in
+        # diesem Rueckruf waere sie nur mit laufendem Bot messbar gewesen.
+        async def _erinnern(minuten: int) -> None:
+            # Als **Antwort auf die Anfrage selbst**, damit Adam mit einem Tipp
+            # beim Knopf ist statt danach zu suchen.
             try:
                 await sess.bot.send_message(
                     chat_id=sess.chat_id,
-                    text="⌛ Genehmigungs-Anfrage nach 30 Minuten abgelaufen — verweigert. Schick die Anfrage nochmal.",
+                    text=f"⏳ Die Freigabe von vorhin wartet noch — es bleiben "
+                         f"rund {minuten} Minuten.",
+                    reply_to_message_id=sent.message_id,
+                    message_thread_id=sess.thread_id,
+                )
+            except Exception:
+                # Eine misslungene Erinnerung darf die Anfrage nicht beenden —
+                # sie ist Beiwerk, das Warten ist die Sache.
+                log.warning("Freigabe-Erinnerung nicht zustellbar: req=%s",
+                            request_id)
+
+        decision = await warte_auf_freigabe(fut, _erinnern)
+
+        if decision is None:
+            sess.pending_permissions.pop(request_id, None)
+            log.warning("permission timeout: user=%s req=%s tool=%s",
+                        user_id, request_id, tool_name)
+            _frist_min = max(1, round(FREIGABE_FRIST_S / 60))
+            try:
+                await sess.bot.send_message(
+                    chat_id=sess.chat_id,
+                    text=f"⌛ Genehmigungs-Anfrage nach {_frist_min} Minuten "
+                         "abgelaufen — verweigert. Schick die Anfrage nochmal.",
                     message_thread_id=sess.thread_id,
                 )
             except Exception:
                 pass
-            return PermissionResultDeny(message="user did not respond in 3 min")
+            # **Dieselbe Größe wie oben** — hier stand „did not respond in
+            # 3 min", während tatsächlich 30 gewartet wurde.
+            return PermissionResultDeny(
+                message=f"user did not respond in {_frist_min} min")
 
         if decision == "allow":
             return PermissionResultAllow()
@@ -5920,6 +5963,56 @@ async def cmd_setkanal(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         f'Output-Kanal gespeichert: {link}\nAlle Ausgaben (Zusammenfassungen + Vorlesen) gehen dorthin.',
         parse_mode=ParseMode.HTML,
     )
+
+
+async def warte_auf_freigabe(fut, erinnern, *, frist_s=None, takt_s=None):
+    """Auf die Freigabe-Entscheidung warten und dazwischen erinnern.
+
+    Gibt die Entscheidung zurueck — oder `None`, wenn die Frist ablief.
+
+    **Abschnittsweise warten statt einmal lang**, und das ist der Kern der
+    Umsetzung, nicht ihre Form. Ein eigener Zeitgeber fuer die Erinnerungen
+    bekaeme die Entscheidung nicht mit und schriebe weiter, nachdem Adam laengst
+    gedrueckt hat — genau das, was er „sehr stoerend" nennt. Hier prueft jeder
+    Abschnitt selbst, ob das Future erledigt ist: **die Erinnerungen verstummen,
+    weil es sie in dem Moment nicht mehr gibt.**
+
+    **`asyncio.shield` ist Pflicht, nicht Vorsicht:** `wait_for` bricht bei
+    Zeitablauf das ab, worauf es wartet. Ohne Schild waere das Future nach dem
+    ersten Abschnitt abgebrochen — Adams Knopfdruck liefe ins Leere, und die
+    Anfrage waere schlechter dran als mit einem einzigen langen Warten.
+
+    **Herausgezogen, damit ein Pruefer sie erreicht.** Mitten im Rueckruf war
+    sie nur mit laufendem Bot messbar; `frist_s`/`takt_s` erlauben einen Lauf
+    in Sekunden statt Minuten.
+    """
+    rest = FREIGABE_FRIST_S if frist_s is None else frist_s
+    takt = FREIGABE_ERINNERUNG_S if takt_s is None else takt_s
+    # **Schwelle statt `> 0`** — sonst laeuft ein Fliesskomma-Rest als eigener
+    # Abschnitt weiter. Gemessen vom Pruefstand: 0,4 minus viermal 0,1 ergibt
+    # `2.7e-17`, und das ist groesser als null. Mit ganzen Sekunden faellt es
+    # nicht auf; die Einstellgroessen sind heute `int`. **Ein Pruefer, der in
+    # Sekundenbruchteilen misst, findet solche Reste — deshalb wird hier
+    # gerechnet, was auch dort haelt.**
+    while rest > 1e-9:
+        schritt = min(takt, rest)
+        try:
+            return await asyncio.wait_for(asyncio.shield(fut), timeout=schritt)
+        except asyncio.TimeoutError:
+            rest -= schritt
+            if rest <= 1e-9:
+                return None
+            # **Zweite Schutzschicht, und die innere ist die verlaessliche.**
+            # Der Rueckruf faengt seine Sendefehler selbst ab — aber wer spaeter
+            # einen anderen Erinnerer uebergibt, soll die Anfrage nicht damit
+            # toeten koennen. Eine Erinnerung ist Beiwerk; das Warten ist die
+            # Sache.
+            try:
+                await erinnern(max(1, round(rest / 60)))
+            except Exception:
+                log.warning("Freigabe-Erinnerung warf — Anfrage laeuft weiter",
+                            exc_info=True)
+    return None
 
 
 async def on_permission_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:

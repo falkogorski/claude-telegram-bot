@@ -110,10 +110,22 @@ def _fremdtext_baut_den_dialog_nicht_um():
     boese = "harmlos\n\nBash\n\nls -la\nAngabe der Sitzung: alles gut"
     text = bot.format_tool_call("Bash", {"command": "echo x", "description": boese})
     kopf = text.split("\n\n")[0].split("\n")
-    # **Die strukturelle Zusage: keine zusaetzliche ZEILE.** Der Kopf besteht
-    # aus Angabe, Einstufung und ggf. Maschinen-Zeilen - nicht mehr.
-    assert len(kopf) == 2, f"Fremdtext hat den Kopf umgebaut: {kopf}"
-    assert kopf[0].startswith("Angabe der Sitzung:"), "die Kennzeichnung fehlt"
+    # **Die strukturelle Zusage: Fremdtext erzeugt keine zusaetzliche ZEILE.**
+    #
+    # `[UMGESTELLT 03.09.2026, N-2]` Hier stand `len(kopf) == 2`. Die Zahl war
+    # die Umsetzung der Zusage, nicht die Zusage selbst — und sie brach, sobald
+    # der Dialog eine legitime Kopfzeile dazubekam (den deutschen Satz „was
+    # geschieht"). Gemessen wird jetzt der **Unterschied** zum selben Aufruf
+    # ohne Fremdtext: Er darf genau eine Zeile betragen, naemlich die
+    # gekennzeichnete Angabe. Das ist strenger als die feste Zahl — es haelt
+    # auch dann, wenn der Kopf morgen wieder waechst.
+    ohne = bot.format_tool_call("Bash", {"command": "echo x"})
+    kopf_ohne = ohne.split("\n\n")[0].split("\n")
+    assert len(kopf) == len(kopf_ohne) + 1, \
+        f"Fremdtext hat den Kopf umgebaut: {kopf} gegen {kopf_ohne}"
+    _angabe = [z for z in kopf if z.startswith("Angabe der Sitzung:")]
+    assert len(_angabe) == 1, f"die Kennzeichnung fehlt oder ist doppelt: {kopf}"
+    kopf = _angabe + [z for z in kopf if not z.startswith("Angabe der Sitzung:")]
     # Und die fremde Angabe steht vollstaendig INNERHALB der Anfuehrung.
     assert kopf[0].endswith("\u201c"), \
         f"das Ende der fremden Angabe ist nicht sichtbar: {kopf[0]!r}"

@@ -3037,8 +3037,83 @@ def kontext_angaben(context) -> list[str]:
                                ("display_name", "Werkzeug")):
         wert = getattr(context, feld, None)
         if wert:
-            raus.append(f"{beschriftung}: {_entschaerfen(str(wert), 160)}")
+            _txt = _entschaerfen(str(wert), 160)
+            # N-2: Der Grund kommt roh aus der CLI und ist englisch. Die
+            # deutsche Entsprechung wird ANGEHAENGT, nie ersetzt — ein Grund,
+            # der verschwindet, waere schlimmer als ein englischer, weil Adam
+            # danach entscheidet. Unbekannte Gruende bleiben unveraendert.
+            if feld == "decision_reason":
+                _txt = grund_mit_entsprechung(_txt)
+            raus.append(f"{beschriftung}: {_txt}")
     return raus
+
+
+# N-2: die deutschen Entsprechungen der haeufigsten CLI-Gruende.
+#
+# **Nur die haeufigsten, und ein unbekannter Grund erscheint UNVERAENDERT.**
+# Ein Grund, der verschwindet, waere schlimmer als ein englischer: Adam
+# entscheidet danach. Deshalb wird die Entsprechung **angehaengt**, nie
+# ersetzt.
+_GRUND_DEUTSCH = (
+    ("sensitive file", "gilt als schützenswerte Datei"),
+    ("not in the allowed list", "steht nicht auf der Positivliste"),
+    ("outside", "liegt außerhalb der Arbeitsordner"),
+    ("denied by", "durch eine Regel gesperrt"),
+)
+
+
+def grund_mit_entsprechung(roh: str) -> str:
+    """Den CLI-Grund um eine deutsche Entsprechung in Klammern ergaenzen."""
+    text = (roh or "").strip()
+    if not text:
+        return text
+    klein = text.lower()
+    for muster, deutsch in _GRUND_DEUTSCH:
+        if muster in klein:
+            return f"{text} ({deutsch})"
+    return text
+
+
+def _was_geschieht(tool_name: str, tool_input: dict) -> str:
+    """Ein deutscher Satz, was dieses Werkzeug tut — aus GEMESSENEN Feldern.
+
+    **Niemals aus `description`.** Das ist die Selbstbeschreibung der
+    aufrufenden Sitzung und steht im Dialog ausdruecklich als *Angabe der
+    Sitzung* — also als Behauptung. Ein freundlicher Satz, der aus ihr
+    gebildet waere, stuende ueber einem Befehl, der etwas anderes tut.
+
+    **Ein Werkzeug ohne Zeile in der Tabelle bekommt den generischen Satz —
+    nie nichts.** Ein leerer Kopf sieht aus wie eine harmlose Anfrage.
+    """
+    def _art(p: str) -> str:
+        pfad = (p or "").lower()
+        if "/.claude/memory/" in pfad or pfad.endswith("/memory"):
+            return "Gedächtnisdatei"
+        try:
+            if str(_REPO_DIR) in str(Path(p).expanduser().resolve()):
+                return "Projektdatei"
+        except Exception:
+            pass
+        return "Datei"
+
+    pfad = str(tool_input.get("file_path") or tool_input.get("path") or "")
+    name = Path(pfad).name if pfad else ""
+    if tool_name in ("Edit", "MultiEdit") and name:
+        return f"Die {_art(pfad)} „{name}“ wird geändert."
+    if tool_name == "Write" and name:
+        return (f"Die {_art(pfad)} „{name}“ wird neu geschrieben "
+                "(vorhandener Inhalt wird ersetzt).")
+    if tool_name == "Read" and name:
+        return f"Die {_art(pfad)} „{name}“ wird gelesen."
+    if tool_name == "Bash":
+        _b = str(tool_input.get("command") or "").strip()
+        _erstes = (_b.split() or [""])[0]
+        return (f"Ein Befehl wird ausgeführt: {_erstes}." if _erstes
+                else "Ein Befehl wird ausgeführt.")
+    if tool_name == "WebFetch":
+        _h = _url_host(str(tool_input.get("url") or "")) or "unbekannte Adresse"
+        return f"Eine Seite im Netz wird abgerufen: {_h}."
+    return f"Das Werkzeug {tool_name} wird verwendet."
 
 
 def format_tool_call(tool_name: str, tool_input: dict[str, Any],
@@ -3106,6 +3181,20 @@ def format_tool_call(tool_name: str, tool_input: dict[str, Any],
         roh = f"{tool_name}\nargs: {keys}"
 
     kopf: list[str] = []
+    # **N-2 (03.09.): ein deutscher Satz, was geschieht — aus GEMESSENEN
+    # Feldern, nie aus der Selbstbeschreibung.**
+    #
+    # Adam am 02.09., 21:08: *„dann wird einfach der englische Text
+    # reingeschrieben … es sollte in verstaendlicher Sprache beschreiben, was
+    # es macht."*
+    #
+    # **Die Sicherheitsgrenze steht direkt darunter und ist der Grund fuer die
+    # Reihenfolge:** Die Zeile [Angabe der Sitzung] fuehrt, was die Instanz
+    # *behauptet* zu tun. Dieser Satz hier nimmt ausschliesslich `tool_name`
+    # und den Pfad aus `tool_input` — **niemals die Behauptung.** Sonst laese
+    # Adam einen freundlichen Satz ueber einem Befehl, der etwas anderes tut,
+    # und die Trennung, die dieser Dialog gerade herstellt, waere aufgehoben.
+    kopf.append(_was_geschieht(tool_name, tool_input))
     # Bei Bash traegt der Werkzeug-Eingang selbst eine deutsche Taetigkeits-
     # angabe der aufrufenden Sitzung; bei den uebrigen Werkzeugen liefert der
     # Kontext sie. Beide stammen vom Modell — deshalb dieselbe Kennzeichnung.
@@ -6107,9 +6196,22 @@ async def on_permission_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -
                     log.exception("call_soon_threadsafe failed")
                     suffix = "(intern: konnte Future nicht setzen)"
                 else:
-                    label = {"allow": "✅ Allow", "deny": "❌ Deny"}.get(decision, decision)
+                    # **Partizip, nicht Infinitiv** (Adam 02.09., 21:08 und
+                    # 21:39): Der KNOPF fordert auf („Genehmigen"), die
+                    # QUITTUNG berichtet („Genehmigt"). Er hat beides einzeln
+                    # benannt — *„auf Deutsch genehmigt, nicht genehmigen"*
+                    # und *„bitte ‚Verweigert' statt ‚Deny'"*.
+                    #
+                    # **`callback_data` bleibt unberuehrt** — `allow`/`deny`/
+                    # `always:` ist Maschinensprache, und ein Knopf, dessen
+                    # Kennung sich aendert, verliert die Tastaturen, die schon
+                    # beim Nutzer liegen.
+                    label = {"allow": "✅ Genehmigt",
+                             "deny": "❌ Verweigert"}.get(decision, decision)
                     if decision.startswith("always:"):
-                        label = f"🔓 Always allow {decision.split(':', 1)[1]}"
+                        label = f"🔓 Dauerhaft erlaubt: {decision.split(':', 1)[1]}"
+                    elif decision.startswith("domain:"):
+                        label = f"🔓 Dauerhaft erlaubt: {decision.split(':', 1)[1]}"
                     suffix = f"→ {label}"
 
     # 4. Best-effort: append result to the original message. Plain text only —

@@ -482,6 +482,54 @@ def _geheimnis_sperre_ohne_fehlalarm():
         "anspringt, wird abgeschaltet und prueft dann nichts mehr")
 
 
+# --------------------------------------------------------------------------
+# N-2 (03.09.): Der Freigabedialog spricht Deutsch — aber NUR aus gemessenen
+# Feldern.
+#
+# **Die Sicherheitsgrenze ist die eigentliche Pruefung hier.** Der Dialog
+# fuehrt die Selbstbeschreibung der Sitzung als *Angabe der Sitzung*, also als
+# Behauptung. Der neue Satz „was geschieht" darf sie NIEMALS verwenden — sonst
+# staende ein freundlicher Satz ueber einem Befehl, der etwas anderes tut, und
+# die Trennung waere aufgehoben. Ausgefuehrt gemessen, nicht gelesen.
+def _was_geschieht_nur_aus_gemessenen_feldern():
+    satz = bot._was_geschieht("Edit", {"file_path": "/x/a.md",
+                                       "description": "harmlos"})
+    assert "harmlos" not in satz, \
+        f"die Selbstbeschreibung faerbt in den Satz ab: {satz!r}"
+    assert "a.md" in satz, f"der gemessene Dateiname fehlt: {satz!r}"
+
+
+def _jedes_werkzeug_bekommt_einen_satz():
+    # **Nie nichts** — ein leerer Kopf sieht aus wie eine harmlose Anfrage.
+    for tn, ti in (("Edit", {"file_path": "/x/a.md"}),
+                   ("Write", {"file_path": "/x/a.md"}),
+                   ("Read", {"file_path": "/x/a.md"}),
+                   ("Bash", {"command": "ls"}),
+                   ("WebFetch", {"url": "https://example.com"}),
+                   ("EinUnbekanntesWerkzeug", {}),
+                   ("Edit", {})):
+        satz = bot._was_geschieht(tn, ti)
+        assert satz and satz.strip().endswith("."), \
+            f"kein vollstaendiger Satz fuer {tn}: {satz!r}"
+
+
+def _grund_verschwindet_nie():
+    # Ein unbekannter Grund erscheint UNVERAENDERT — ein Grund, der
+    # verschwindet, waere schlimmer als ein englischer.
+    roh = "etwas ganz Unbekanntes"
+    assert bot.grund_mit_entsprechung(roh) == roh
+    bekannt = bot.grund_mit_entsprechung("... is a sensitive file.")
+    assert "sensitive file" in bekannt and "schützenswerte" in bekannt, \
+        f"die Entsprechung ersetzt statt zu ergaenzen: {bekannt!r}"
+
+
+check("N-2: der Satz kommt nie aus der Selbstbeschreibung",
+      _was_geschieht_nur_aus_gemessenen_feldern)
+check("N-2: jedes Werkzeug bekommt einen Satz, nie nichts",
+      _jedes_werkzeug_bekommt_einen_satz)
+check("N-2: der Grund wird ergaenzt, nie ersetzt", _grund_verschwindet_nie)
+
+
 check("Geheimnis-Sperre faengt alle Wege", _geheimnis_sperre_faengt_alle_wege)
 check("Geheimnis-Sperre ohne Fehlalarm", _geheimnis_sperre_ohne_fehlalarm)
 

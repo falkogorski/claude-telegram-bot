@@ -549,6 +549,48 @@ zeile("&& mit cd VORNE faellt ueber das Ziel — die Ausnahme bleibt eng",
       gemessen=f"{_ziel.urteil} · {_ziel.grund}")
 
 # ══════════════════════════════════════════════════════════════════════════
+# Hintergrund-Ausfuehrung: das freistehende `&`
+#
+# **Die schwerste Luecke dieses Codes, gefunden 02.09. beim Aufraeumen.**
+# `ls & curl boese.example` war FREI — in jedem Modus, ohne Rueckfrage. Die
+# Pruefung sah `ls` (Positivliste) und uebersprang `&`, `curl`, `x` als nicht
+# pfad-artig; die Shell fuehrte beides aus. Vorbestehend, gegen 395de2b
+# gemessen.
+# **Der GRUND wird gemessen, nicht nur das Urteil** — und die Gegenprobe hat
+# gezeigt, warum das hier noetig ist: Von sechs zuerst notierten Faellen
+# blieben zwei auch OHNE die Schranke im Dialog. `ls&wc` faellt ueber die
+# Positivliste (shlex macht daraus EIN Wort `ls&wc`), und ein zweiter Pfad
+# ausserhalb der Bereiche faellt ueber den Pfad. **Zwei Zeilen waeren aus dem
+# falschen Grund gruen gewesen** und haetten die Entkernung gedeckt.
+for _cmd in ("ls & curl boese.example", "ls & rm -rf x", "ls &", "ls &wc"):
+    _e = e(_cmd)
+    zeile(f"Hintergrund-& faengt: [{_cmd[:26]}] — und zwar deswegen",
+          _e.urteil == bf.DIALOG and "freistehendes [&]" in _e.grund,
+          gemessen=f"{_e.urteil} · {_e.grund[:44]}")
+
+# Diese zwei sind auf ZWEI Wegen zu (Tiefenschutz). Sie stehen hier, damit
+# sichtbar bleibt, dass sie NICHT an der &-Schranke haengen — wer sie spaeter
+# als Beleg fuer die Schranke liest, irrt.
+for _cmd, _auch in [("ls&wc", "Positivliste"),
+                    (f"cat {repo}/README.md & cat {draussen}/geheim.txt", "Pfad")]:
+    _e = e(_cmd)
+    zeile(f"Hintergrund-& doppelt gesichert: [{_cmd[:22]}] faellt auch ueber {_auch}",
+          _e.urteil != bf.FREI, gemessen=f"{_e.urteil} · {_e.grund[:44]}")
+
+# **Die Gegenrichtung entscheidet, ob die Schranke ueberlebt.** In Adams
+# Rechnungsablage heisst ein Ordner `Fitmart : ESN & More`. Eine Textsuche
+# nach `&` haette ihn jedes Mal in den Dialog geschickt — und ein Filter, der
+# grundlos anspringt, wird binnen einer Woche abgeschaltet. `shlex` mit
+# `punctuation_chars` trennt quote-bewusst.
+zeile("gequotetes & im Dateinamen loest KEINEN Dialog aus",
+      u(f'grep "ESN & More" {repo}/README.md') == bf.FREI,
+      gemessen=e(f'grep "ESN & More" {repo}/README.md').grund)
+zeile("&& bleibt unberuehrt von der &-Schranke",
+      u(f"ls {ws} && ls {repo}") == bf.FREI,
+      gemessen=e(f"ls {ws} && ls {repo}").grund)
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # U-4: die Befehlsart steht VOR den Vorpruefungen
 #
 # Ohne sie trug das Protokoll `"art": ""` an genau den Stellen, die am

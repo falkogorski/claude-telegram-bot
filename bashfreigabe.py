@@ -371,6 +371,49 @@ def _teile(cmd: str) -> list[str] | None:
         return None       # unbalancierte Anfuehrungszeichen -> fail-closed
 
 
+def _hat_hintergrund_und(cmd: str) -> bool:
+    """Steht im Befehl ein freistehendes `&` — also Hintergrund-Ausfuehrung?
+
+    **Gefunden 02.09. beim Aufraeumen, und es war die schwerste Luecke dieses
+    Codes:** `ls & curl boese.example` und `ls & rm -rf x` wurden als **FREI**
+    bewertet — in jedem Modus, ohne Rueckfrage. `bot.py` gibt bei FREI sofort
+    frei; die Ausgangssperre (`_AUSGEHENDE_BEFEHLE`) sitzt dahinter und wird
+    nie erreicht.
+
+    **Der Weg hinein:** `shlex.split` zerlegt `ls & curl x` zu
+    `['ls', '&', 'curl', 'x']`. Das Verb ist `ls` und steht auf der
+    Positivliste; `&`, `curl` und `x` tragen keinen Schraegstrich, werden also
+    von `_pfad_artig` uebersprungen. **Die Shell fuehrt beides aus, die
+    Pruefung sieht nur das erste.** `WEITERE_VERKETTUNG` haette es fangen
+    sollen, kennt aber nur `[;|]`, `\\n` und `||` — kein `&`. Und seit der
+    Zerlegung (01.09.) ist jene Zeile ohnehin unerreichbar: Was sie faengt,
+    faengt die Zerlegung vorher.
+
+    **Vorbestehend, nicht neu** — gemessen gegen `395de2b`: dort ebenso frei.
+
+    **Warum `punctuation_chars` und keine Textsuche:** Ein `grep` in Adams
+    Rechnungsablage nennt den Ordner `Fitmart : ESN & More`. Eine Suche nach
+    `&` im Rohtext haette ihn jedes Mal in den Dialog geschickt — ein Filter,
+    der grundlos anspringt, wird abgeschaltet. `shlex` mit
+    `punctuation_chars=True` trennt **quote-bewusst**: freies `&` wird ein
+    eigenes Token, `"ESN & More"` bleibt eines, `&&` bleibt `&&`. Das ist die
+    richtige Zerlegung, keine Heuristik.
+
+    **DIALOG, nicht Zerlegung** — dieselbe Linie wie beim Zeilenumbruch: `&`
+    war nicht beauftragt, und wo nichts entschieden wurde, gilt die
+    konservative Richtung.
+    """
+    lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+    lex.whitespace_split = True
+    try:
+        return "&" in list(lex)
+    except ValueError:
+        # Unbalancierte Anfuehrungszeichen — fail-closed. Der Aufrufer faellt
+        # ohnehin gleich ueber `_teile` in den Dialog; hier nicht behaupten,
+        # es sei sauber.
+        return True
+
+
 def _unterbefehl(teile: list[str]) -> str:
     """Der erste Nicht-Options-Teil nach dem Verb.
 
@@ -740,6 +783,14 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
         return Entscheid(DIALOG,
                          "ein Zeilenumbruch im Befehl — bitte in einzelne "
                          "Befehle teilen", art0)
+
+    # Hintergrund-Ausfuehrung: `ls & <beliebiger Befehl>` lief bis zum 02.09.
+    # als FREI durch — die Pruefung sah nur das erste Verb, die Shell fuehrte
+    # beide aus. Siehe `_hat_hintergrund_und`.
+    if _hat_hintergrund_und(ohne):
+        return Entscheid(DIALOG,
+                         "ein freistehendes [&] — Hintergrund-Ausfuehrung "
+                         "wird nicht zerlegt", art0)
     _glieder = [s.strip() for s in re.split(r"\|\||[;|]", ohne) if s.strip()]
     if len(_glieder) > 1:
         return _zerlegt(_glieder, roh, ist_geheimnis, bereiche)

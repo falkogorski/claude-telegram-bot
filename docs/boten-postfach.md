@@ -28,7 +28,33 @@ Bot hält den Token; die Instanz legt nur einen Auftrag in einem Ordner ab.
 - **`text`** und/oder **`file`** (mindestens eins): Text und/oder Datei.
 - **`caption`** (optional): nur bei `file`.
 
-## Atomar ablegen (wichtig)
+## Ablegen — der vorgeschriebene Weg `[GEÄNDERT 02.09.2026, U-3]`
+
+**Benutze das Skript, nicht die Shell-Form:**
+
+```bash
+python3 scripts/postfach_ablegen.py --chat 304455165 --text "Hallo aus dem Postfach"
+python3 scripts/postfach_ablegen.py --chat 304455165 --datei /pfad/bericht.pdf --beschriftung "Der Bericht"
+```
+
+**Warum es das Skript gibt, und es ist kein Komfort-Grund:** Claudia hat am
+02.09. gemessen, dass **27 Freigabe-Dialoge** anfielen — praktisch alle davon
+Postfach-Aufträge in genau der Shell-Form, die dieses Dokument bis heute
+vorschrieb. Die Form trifft **vier** Schranken auf einmal: die Ersetzung
+(`$HOME`, `$(date …)`), die **Zuweisung** (`tmp=` — Boden-Bedingung), den
+**Zeilenumbruch** (Heredoc) und die Umlenkung.
+
+Eine Positivliste harmloser Ersetzungen hätte nur die erste geöffnet und drei
+stehen lassen. Der tragfähige Weg ist der ältere Grundsatz aus
+`scripts/bash_dialog_auswertung.py`: **Wiederkehrende gleichartige Dialoge
+werden durch benannte, geprüfte Skripte ersetzt, die einzeln in die
+Positivliste rücken — nie durch Öffnen einer Klasse.**
+
+Das Skript läuft ohne Rückfrage, weil es in `bashfreigabe.BENANNTE_SKRIPTE`
+steht. Es respektiert `POSTFACH_DIR`, ist deterministisch, ruft kein Modell und
+geht nicht ins Netz.
+
+### Was das Skript tut (die Shell-Form, zur Erklärung — nicht zum Nachbauen)
 
 Erst unter Temp-Namen schreiben, dann nach `*.json` umbenennen — sonst greift der
 Bot eine halb geschriebene Datei:
@@ -39,6 +65,9 @@ cat > "$tmp" <<'JSON'
 JSON
 mv "$tmp" "$HOME/postfach/outbox/$(date +%s%N).json"
 ```
+**Diese Form ist weiterhin gültig und wird weiterhin dialogpflichtig sein.** Sie
+steht hier, damit nachvollziehbar bleibt, was das Skript macht — nicht als
+zweiter Weg daneben.
 
 ## Sicherheit
 

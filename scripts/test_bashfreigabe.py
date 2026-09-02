@@ -119,9 +119,22 @@ zeile("cd <Bereich> && lesen ist frei", u(f"cd {ws} && ls -la") == bf.FREI,
       gemessen=e(f"cd {ws} && ls -la").grund)
 zeile("cd nach draussen && lesen ist NICHT frei",
       u(f"cd {draussen} && ls -la") == bf.DIALOG)
-zeile("etwas anderes als cd vor && ist nicht frei",
-      u(f"grep x {repo}/README.md && ls {ws}") == bf.DIALOG)
-zeile("zwei && sind nicht frei", u(f"cd {ws} && ls && ls") == bf.DIALOG)
+# **`[UMGESTELLT 02.09.2026, U-3b]` Diese zwei Zeilen hiessen bis heute
+# „etwas anderes als cd vor && ist nicht frei" und „zwei && sind nicht frei".
+# Beides galt und gilt nicht mehr — `&&` wird jetzt zerlegt wie `;`.**
+#
+# Sie werden UMGESTELLT statt geloescht, weil sie die eigentliche Zusage
+# tragen: Die Zerlegung darf nicht dazu fuehren, dass mehr durchgeht als die
+# Summe der einzelnen Glieder. Geloescht waere die Zusage weg gewesen;
+# umgestellt misst sie weiter, nur die richtige Sache.
+zeile("etwas anderes als cd vor && wird zerlegt, nicht pauschal frei",
+      u(f"grep x {repo}/README.md && ls {ws}") == bf.FREI
+      and u(f"grep x {repo}/README.md && rm {ws}/x") == bf.DIALOG,
+      gemessen=e(f"grep x {repo}/README.md && rm {ws}/x").grund)
+zeile("zwei && sind erlaubt — aber jedes Glied wird einzeln geprueft",
+      u(f"ls {ws} && ls {repo} && ls {ws}") == bf.FREI
+      and u(f"ls {ws} && ls {draussen} && ls {ws}") == bf.DIALOG,
+      gemessen=e(f"ls {ws} && ls {draussen} && ls {ws}").grund)
 
 # ---------------------------------------------------------------- Auftrag 2
 print("-- Auftrag 2: was abgewiesen wird, ohne Dialog")
@@ -450,6 +463,69 @@ zeile("nach cd wird der relative Pfad im richtigen Bereich gemessen",
       _nach_cd.urteil == bf.FREI
       and any(str(ws) in _p for _p in _nach_cd.pfade),
       gemessen=f"{_nach_cd.urteil} · Pfade: {_nach_cd.pfade}")
+
+# ══════════════════════════════════════════════════════════════════════════
+# U-3: benannte Skripte — die einzige Stelle, an der ein Deuter frei laeuft
+#
+# Gemessen wird nicht nur das URTEIL, sondern der GRUND. Ein `python3 -c …`
+# faellt auch dann in den Dialog, wenn die Geheimnis-Schranke zuerst greift —
+# und eine Zeile, die nur das Urteil misst, waere aus dem falschen Grund
+# gruen. Dieselbe Lehre wie bei der Boden-Bedingung.
+(_skripte := repo / "scripts").mkdir(exist_ok=True)
+(_skripte / "postfach_ablegen.py").write_text("x")
+(_skripte / "irgendwas.py").write_text("x")
+(_unter := _skripte / "unterordner").mkdir(exist_ok=True)
+(_unter / "postfach_ablegen.py").write_text("x")
+
+_frei = e(f"python3 {_skripte}/postfach_ablegen.py --chat 1 --text x")
+zeile("ein benanntes Skript laeuft ohne Rueckfrage (U-3)",
+      _frei.urteil == bf.FREI, gemessen=f"{_frei.urteil} · {_frei.grund}")
+
+for _cmd, _erwartet_im_grund, _was in [
+    (f"python3 {_skripte}/irgendwas.py", "nicht unter den benannten",
+     "ein anderes Skript im selben Ordner"),
+    (f"python3 {draussen}/postfach_ablegen.py", "nicht direkt unter scripts",
+     "derselbe Name ausserhalb"),
+    (f"python3 {_unter}/postfach_ablegen.py", "nicht direkt unter scripts",
+     "derselbe Name im Unterordner"),
+    ('python3 -c "print(1)"', "Schalter statt eines Skripts",
+     "der Deuter mit -c"),
+    ("python3 -m http.server", "Schalter statt eines Skripts",
+     "der Deuter mit -m"),
+    ("python3", "ohne Skript", "der Deuter ganz ohne Skript"),
+]:
+    _e = e(_cmd)
+    zeile(f"U-3 haelt: [{_was}] bleibt im Dialog — aus dem richtigen Grund",
+          _e.urteil == bf.DIALOG and _erwartet_im_grund in _e.grund,
+          gemessen=f"{_e.urteil} · {_e.grund}")
+
+# Die Geheimnis-Schranke greift ueber den GANZEN Befehl, vor der Zerlegung —
+# ein benanntes Skript hebelt sie nicht aus.
+zeile("U-3 oeffnet die Geheimnis-Schranke nicht",
+      u(f"python3 {_skripte}/postfach_ablegen.py; cat {MARKE}") != bf.FREI,
+      gemessen=e(f"python3 {_skripte}/postfach_ablegen.py; cat {MARKE}").grund)
+
+# ══════════════════════════════════════════════════════════════════════════
+# U-3b: `&&` wird zerlegt wie `;` — mit `cd` als einziger benannter Ausnahme
+#
+# Die vier Zeilen sind Engywucks Gegenprobe, VOR dem Bau hingeschrieben:
+# geht eine davon anders aus, wird nicht gebaut, sondern gemeldet.
+zeile("&& wird zerlegt: [ls && wc] laeuft (U-3b)",
+      u(f"ls && wc -l {repo}/README.md") == bf.FREI,
+      gemessen=e(f"ls && wc -l {repo}/README.md").grund)
+
+zeile("&& unveraendert: [cd <erlaubt> && ls] laeuft weiter",
+      u(f"cd {ws} && ls") == bf.FREI, gemessen=e(f"cd {ws} && ls").grund)
+
+_boden = e(f"ls && cd {draussen} && cat geheim.txt")
+zeile("&& mit cd in der MITTE faellt ueber den Boden, nicht zufaellig",
+      _boden.urteil == bf.DIALOG and "Boden" in _boden.grund,
+      gemessen=f"{_boden.urteil} · {_boden.grund}")
+
+_ziel = e(f"cd {draussen} && cat geheim.txt")
+zeile("&& mit cd VORNE faellt ueber das Ziel — die Ausnahme bleibt eng",
+      _ziel.urteil == bf.DIALOG and "ausserhalb" in _ziel.grund,
+      gemessen=f"{_ziel.urteil} · {_ziel.grund}")
 
 print()
 if fehler:

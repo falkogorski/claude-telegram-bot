@@ -171,6 +171,59 @@ SYSTEMCTL_LESEND = frozenset("status list-timers list-units is-active is-enabled
 
 ALLE_ERLAUBTEN = LESEN | SCHREIBEN | ERZEUGEN | ZUSTAND | {"git", "systemctl"}
 
+# ------------------------------------------------------- benannte Skripte (U-3)
+#
+# **Die einzige Stelle, an der ein Deuter frei laufen darf — und sie ist eng
+# gebaut, weil `python3` als Verb die ganze Liste oben aufheben wuerde.**
+#
+# Engywucks Umbauauftrag 02.09., U-3. Anlass: 27 Ersetzungs-Dialoge, praktisch
+# alle Postfach-Auftraege in der Form, die `docs/boten-postfach.md` selbst
+# vorschreibt. Die naheliegende Loesung — eine Positivliste harmloser
+# Ersetzungen — traegt nicht: Jene Form trifft **vier** Schranken (Ersetzung,
+# Zuweisung, Zeilenumbruch, Umlenkung); eine Ersetzungs-Liste oeffnete die
+# erste und liesse drei stehen.
+#
+# Der Grundsatz stammt aus dem Kopf von `scripts/bash_dialog_auswertung.py`
+# und ist aelter als dieser Fall: *Wiederkehrende gleichartige Dialoge werden
+# durch benannte, geprüfte Skripte ersetzt, die einzeln in die Positivliste
+# rücken — nie durch Öffnen einer Klasse.*
+#
+# **Drei Bedingungen, alle drei notwendig:**
+#   1. der aufgeloeste Pfad liegt unter `<repo>/scripts/`,
+#   2. der Dateiname steht in dieser Menge,
+#   3. das Skript ist versioniert.
+#
+# **Zu (1): aufgeloest, nicht verglichen.** `_aufloesen` folgt symbolischen
+# Verweisen — ein `scripts/x.py`, das nach `/tmp` zeigt, faellt heraus.
+#
+# **Zu (3), und das ist der Punkt, an dem hier NICHTS gebaut wird:** Es gibt
+# keinen `git ls-files`-Aufruf in dieser Funktion. Die Versionierung ist
+# bereits garantiert — durch die **Repo-Schreibsperre 8.7**, die dreischichtig
+# verhindert, dass die Sitzung eine Datei unter `scripts/` aendert. Ein
+# Unterprozess-Aufruf mitten in einer Sicherheitsentscheidung waere langsamer,
+# fehleranfaelliger **und schwaecher**: `git ls-files` sagt nur, ob eine Datei
+# bekannt ist, nicht ob sie unveraendert ist. Wer 8.7 aufweicht, hebt diese
+# Bedingung mit auf — deshalb steht sie hier und nicht nur im Kommentar des
+# Auftrags.
+#
+# **Was ein Eintrag hier bedeutet:** dass dieses Skript **mit beliebigen
+# Argumenten** ohne Rueckfrage laeuft. Aufgenommen wird nur, was
+# deterministisch ist, kein Modell ruft, nicht ins Netz geht und keine
+# Geheimnisse liest. Die Geheimnis-Pruefung ueber den ganzen Befehlstext
+# greift ohnehin vorher.
+BENANNTE_SKRIPTE = frozenset({
+    # Legt einen Zustell-Auftrag im Boten-Postfach ab. Ersetzt die
+    # vierfach-dialogpflichtige Shell-Form aus `docs/boten-postfach.md`.
+    "postfach_ablegen.py",
+    # War fuer genau diesen Weg gebaut (28.08.) und **selbst dialogpflichtig** —
+    # ein Handgriff, den der Dialog jedes Mal unterbrach.
+    "entscheidung_ablegen.py",
+})
+
+# Die Deuter, fuer die (1)-(3) ueberhaupt geprueft werden. Ohne benanntes
+# Skript bleibt jeder von ihnen im Dialog.
+DEUTER = frozenset({"python3", "python"})
+
 # ---------------------------------------------------------------- was abweist
 #
 # Auftrag 2. **Diese Faelle werden nicht vorgelegt, sondern abgewiesen.**
@@ -352,6 +405,52 @@ def _schlaf_ok(teile: list[str]) -> bool:
     return False          # `sleep` ohne Zahl ist keine bekannte Form
 
 
+def _benanntes_skript(teile: list[str], art: str, bereiche,
+                      basis: Path | None) -> Entscheid | None:
+    """Darf dieser Deuter-Aufruf durch? `None` heisst ja.
+
+    Drei Bedingungen, alle notwendig (U-3): **direkt** unter `<repo>/scripts/`,
+    Name in `BENANNTE_SKRIPTE`, versioniert. Die dritte ist nicht gebaut,
+    sondern **geerbt** — die Repo-Schreibsperre 8.7 haelt sie; siehe den
+    Kommentar bei `BENANNTE_SKRIPTE`.
+
+    **Streng am ersten Argument, und das ist der Kern:** Steht dort ein
+    Schalter, ist Schluss. Sonst faenden `python3 -c "…"` und `python3 -m …`
+    einen Weg — bei `-c` waere die Zeichenkette mit dem Code das erste
+    Nicht-Schalter-Argument, und eine Pruefung, die *irgendwo* nach einem
+    Skriptnamen sucht, haette ihn dort gefunden. **Der Deuter bekommt genau
+    eine Form: `python3 <skript> [argumente]`.**
+    """
+    if len(teile) < 2:
+        return Entscheid(DIALOG, f"[{art}] ohne Skript", art)
+    erstes = teile[1]
+    if erstes.startswith("-"):
+        return Entscheid(DIALOG,
+                         f"[{art}] mit einem Schalter statt eines Skripts: "
+                         f"[{erstes}]", art)
+    p = _aufloesen(erstes, basis)
+    if p is None:
+        return Entscheid(DIALOG, f"Skriptpfad nicht aufloesbar: {erstes}", art)
+
+    repo = next((b.pfad for b in bereiche if b.name == "repo"), None)
+    if repo is None:
+        # Kein Repo-Bereich bekannt — dann gibt es nichts, wogegen zu pruefen
+        # waere. Fail-closed, nicht raten.
+        return Entscheid(DIALOG, "kein Repo-Bereich zum Pruefen", art)
+
+    # `p.parent ==` statt „liegt irgendwo darunter": Unterordner sollen NICHT
+    # mitkommen. Eine Zusage, die auf einen Baum zeigt, waechst mit ihm.
+    if p.parent != (repo / "scripts"):
+        return Entscheid(DIALOG,
+                         f"[{p.name}] liegt nicht direkt unter scripts/", art,
+                         pfade=(str(p),))
+    if p.name not in BENANNTE_SKRIPTE:
+        return Entscheid(DIALOG,
+                         f"[{p.name}] steht nicht unter den benannten "
+                         "Skripten", art, pfade=(str(p),))
+    return None
+
+
 def _ein_befehl(teile: list[str], roh: str, bereiche,
                 ist_geheimnis, umgelenkt_nach: str = "",
                 basis: Path | None = None) -> Entscheid:
@@ -366,7 +465,15 @@ def _ein_befehl(teile: list[str], roh: str, bereiche,
     if ist_geheimnis(roh):
         return Entscheid(ABWEISEN, "Geheimnis-Pfad — auch lesend zu", art)
 
-    if art not in ALLE_ERLAUBTEN:
+    if art in DEUTER:
+        # **Die eine Ausnahme von „kein Deuter" — und sie oeffnet keine
+        # Klasse, sondern nennt zwei Dateien.** Faellt die Pruefung durch,
+        # laeuft der Befehl unten durch dieselbe Pfad-Pruefung wie jeder
+        # andere: `--datei` und Konsorten werden gegen die Bereiche gehalten.
+        _e = _benanntes_skript(teile, art, bereiche, basis)
+        if _e is not None:
+            return _e
+    elif art not in ALLE_ERLAUBTEN:
         # Auftrag 3, und dieser Punkt traegt die ganze Konstruktion: Ein
         # Skript kann jede Grenze dieser Liste umgehen. Waere `python3` frei,
         # waeren die Auftraege 1 und 2 wirkungslos.
@@ -507,6 +614,45 @@ def protokollieren(erg: Entscheid, *, zeit: str) -> None:
         pass
 
 
+def _zerlegt(glieder: list[str], roh: str, ist_geheimnis, bereiche) -> Entscheid:
+    """Mehrere Glieder einzeln pruefen — frei nur, wenn jedes frei ist.
+
+    **Ein Ort fuer `;`, `|`, `||` und `&&`.** Sie stand zuerst nur bei
+    `;`/`|`; als `&&` dazukam (U-3b), waere die Boden-Bedingung an zwei
+    Stellen gestanden — und die naechste Aenderung haette eine davon
+    angefasst. Ein Mass, ein Ort.
+
+    **Die Boden-Bedingung ist der Kern:** Zustandsveraendernde Befehle
+    (`cd`, `export`, `source`, `NAME=wert`) fielen vor der Zerlegung in den
+    Dialog, **weil sie auf keiner Freiliste standen** — nicht weil jemand
+    entschieden haette, dass sie nicht zerlegt werden duerfen. Wer sie
+    zerlegte, pruefte die folgenden Glieder gegen einen Boden, den das erste
+    gerade verschoben hat. Deshalb steht die Regel jetzt geschrieben da.
+
+    Ein einziges ABWEISEN entscheidet sofort; ein DIALOG merkt sich den
+    **ersten** Grund, damit die Meldung auf das Glied zeigt, an dem es lag.
+    """
+    # Das Geheimnis einmal ueber den GANZEN Befehl, bevor zerlegt wird: Ein
+    # Marker, der ueber eine Gliedgrenze reicht, waere sonst in keinem
+    # einzelnen Glied vollstaendig.
+    if ist_geheimnis(roh):
+        return Entscheid(DIALOG, "ein Geheimnis-Marker im Befehl")
+    strengste = None
+    for g in glieder:
+        if _BODEN_BEFEHLE.search(g):
+            return Entscheid(DIALOG,
+                             f"ein Glied verschiebt den Boden fuer die "
+                             f"folgenden Pruefungen: [{g.strip()[:40]}]")
+        e = entscheiden(g, ist_geheimnis=ist_geheimnis, bereiche=bereiche)
+        if e.urteil == ABWEISEN:
+            return e
+        if e.urteil == DIALOG and strengste is None:
+            strengste = e
+    return strengste or Entscheid(
+        FREI, "", befehlsart=(glieder[0].split() or [""])[0],
+        bereich="mehrgliedrig")
+
+
 def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
     """Darf dieser Bash-Befehl ohne Rueckfrage laufen?
 
@@ -557,25 +703,7 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
                          "Befehle teilen")
     _glieder = [s.strip() for s in re.split(r"\|\||[;|]", ohne) if s.strip()]
     if len(_glieder) > 1:
-        # Das Geheimnis einmal ueber den GANZEN Befehl, bevor zerlegt wird:
-        # Ein Marker, der ueber eine Gliedgrenze reicht, waere sonst in keinem
-        # einzelnen Glied vollstaendig.
-        if ist_geheimnis(roh):
-            return Entscheid(DIALOG, "ein Geheimnis-Marker im Befehl")
-        _strengste = None
-        for _g in _glieder:
-            if _BODEN_BEFEHLE.search(_g):
-                return Entscheid(DIALOG,
-                                 f"ein Glied verschiebt den Boden fuer die "
-                                 f"folgenden Pruefungen: [{_g.strip()[:40]}]")
-            _e = entscheiden(_g, ist_geheimnis=ist_geheimnis, bereiche=bereiche)
-            if _e.urteil == ABWEISEN:
-                return _e
-            if _e.urteil == DIALOG and _strengste is None:
-                _strengste = _e
-        return _strengste or Entscheid(
-            FREI, "", befehlsart=(_glieder[0].split() or [""])[0],
-            bereich="mehrgliedrig")
+        return _zerlegt(_glieder, roh, ist_geheimnis, bereiche)
 
     if WEITERE_VERKETTUNG.search(ohne):
         return Entscheid(DIALOG,
@@ -583,18 +711,35 @@ def entscheiden(cmd: str, *, ist_geheimnis, bereiche=None) -> Entscheid:
                          "[cd … && …] — bitte in einzelne Befehle teilen")
 
     stuecke = [s.strip() for s in re.split(r"&&", ohne) if s.strip()]
-    if len(stuecke) > 2:
-        return Entscheid(DIALOG, "mehr als ein [&&]")
+
+    # ---- `&&`: zerlegen wie `;` — mit EINER benannten Ausnahme (U-3b)
+    #
+    # Claudia hat gemessen, dass `a && b` ohne `cd` ein spuerbarer Teil der
+    # taeglichen Dialoge ist; `ls && echo fertig` fiel bis hierher durch.
+    #
+    # **Warum `&&` nicht einfach mit in die obere Zerlegung kann:** `cd` ist
+    # ein Boden-Befehl. `cd x && ls` wuerde dort als Glied `cd x` erkannt und
+    # in den Dialog geschickt — **die eine Form, die heute ausdruecklich
+    # erlaubt ist, waere weg.** Deshalb steht sie hier als Ausnahme davor,
+    # ausdruecklich benannt, und gilt nur bei **genau einem** `&&`:
+    # `cd x && ls && wc` faellt in die Zerlegung und dort ueber den Boden.
+    #
+    # **Ein Mass, eine benannte Ausnahme** — nicht zwei Masse nebeneinander.
+    _kopf_ist_cd = False
+    if len(stuecke) == 2:
+        _k = _teile(stuecke[0])
+        if _k is None:
+            return Entscheid(DIALOG, "unbalancierte Anfuehrungszeichen")
+        _kopf_ist_cd = bool(_k) and _k[0] == "cd"
+
+    if len(stuecke) > 1 and not _kopf_ist_cd:
+        return _zerlegt(stuecke, roh, ist_geheimnis, bereiche)
 
     # ---- die eine erlaubte Verkettungsform: `cd <erlaubter Pfad> && <Befehl>`
     if len(stuecke) == 2:
         kopf = _teile(stuecke[0])
         if kopf is None:
             return Entscheid(DIALOG, "unbalancierte Anfuehrungszeichen")
-        if not kopf or kopf[0] != "cd":
-            return Entscheid(DIALOG,
-                             "vor dem [&&] steht etwas anderes als [cd] — nur "
-                             "[cd <Pfad> && <Befehl>] ist erlaubt")
         if len(kopf) != 2:
             return Entscheid(DIALOG, "[cd] ohne genau ein Ziel")
         ziel = _aufloesen(kopf[1])

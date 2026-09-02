@@ -360,10 +360,25 @@ fi
 #
 # Kommentarzeilen fallen heraus, sonst stolperte die Zeile ueber ihre eigene
 # Erklaerung — der sicherste Weg, binnen einer Woche abgeschaltet zu werden.
+#
+# **`[ERWEITERT 03.09.2026]` Zwei Luecken, beide am 02.09. aufgeschlagen.**
+# Das Muster verlangte den Pfad direkt hinter einem Anfuehrungszeichen und
+# kannte `~/Projects` nicht. Gemessen: `test_eingangsschranken.py` trug
+# **achtmal** `"cat ~/Projects/claude-telegram-bot/README.md"` — der Pfad steht
+# MITTEN in der Zeichenkette und beginnt mit der Tilde. Der Pruefer sah ihn
+# nicht, und auf dem VPS zeigten alle acht Befehle aus dem Repo hinaus.
+#
+# **Rot wurde dort nur die eine Zeile, die ein leeres Ergebnis erwartet** — die
+# anderen sieben waren aus dem falschen Grund gruen. Genau deshalb faengt diese
+# Zeile hier: Sie sieht den Pfad, bevor er ein Urteil verfaelscht.
+#
+# Der Anker faellt weg, `~/Projects` kommt dazu. Fehlalarm-Risiko gering: Diese
+# Zeichenfolgen sind auf keinem Server sinnvoll, und Kommentare fallen ohnehin
+# heraus.
 _gefunden=""
 for _d in $(git ls-files 'scripts/*.py' 2>/dev/null | grep -v '^scripts/mac/'); do
   if grep -vE '^[[:space:]]*#' "$_d" \
-     | grep -qE '["'"'"'](/private/tmp|/private/var|/Users/|/opt/homebrew|/Library/Mobile)'; then
+     | grep -qE '(/private/tmp|/private/var|/Users/|/opt/homebrew|/Library/Mobile|~/Projects)'; then
     _gefunden="$_gefunden $_d"
   fi
 done

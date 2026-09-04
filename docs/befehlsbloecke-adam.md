@@ -169,6 +169,40 @@ lesen kann.
 
 ---
 
+## Schritt A3 — Die Spesen-Regel auf den Server nachziehen
+
+Du hast am 04.09. die steuerliche Staffel bestätigt. Sie steht jetzt als
+**Regel 5a** in `RECHNUNGSREGELN.md`, und die Kürzel-Tabelle im `README.md`
+nennt endlich auch `Spesen:voll`. Beides liegt bisher **nur am Mac** — der
+Server hat die Fassung vom 03.09.
+
+```bash
+rsync -az ~/Projects/rechnungen/RECHNUNGSREGELN.md ~/Projects/rechnungen/README.md claudebot:~/workspace/rechnungen/
+```
+
+**Prüfzeile:**
+
+```bash
+ssh claudebot 'grep -c "5a · Die Spesen-Staffel" ~/workspace/rechnungen/RECHNUNGSREGELN.md'
+```
+
+**Prüfzeile:** `1`.
+
+⚠️ **Bewusst nur diese zwei Dateien, kein Voll-Abgleich.** Seit dem 03.09.
+ist der Server die Stelle für Rechnungsnummern; ein `rsync` des ganzen
+Ordners würde `daten/rechnungsnummern.json` mit dem Mac-Stand überschreiben
+und irgendwann eine Nummer doppelt vergeben.
+
+**Eine Frage steckt in der Regel und ist nicht entschieden:** Für den
+**Abreisetag mit gestelltem Frühstück** ergibt die Kürzungsregel 8,40 € — so
+steht es in deiner Aufstellung zu 017-26. `saetze.json` führt für denselben
+Fall 11,20 € als *„etablierter Abreisetag-Satz"* mit Präzedenz
+Dieburg/Landsberg. **Beides kann nicht gleichzeitig gelten.** Ich habe keine
+der Zahlen zur Regel erhoben; sie steht als offener Punkt in der Datei. Sag
+mir, welche gilt — dann fällt die Frage bei der nächsten Aufstellung weg.
+
+---
+
 # Teil B · 02.09.2026 — erledigt am 03.09.
 
 > **Ausgeführt und abgeschlossen.** Deploy, Umzug, `typst` und der

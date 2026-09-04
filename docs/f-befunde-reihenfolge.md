@@ -1,9 +1,29 @@
 <!-- ROLLE: f-befunde-reihenfolge -->
 # F-Befunde der Gegenprüfung — Reihenfolge und Stand
 
-**Stichtag:** 2026-09-02 · **Stand: F-1 bis F-11 erledigt · F-12 bis F-17 offen ·
-F-18 erledigt · F-19 offen · F-20 behoben** (nachgetragen 02.09., stand seit dem 23.08. nur im
-Changelog)
+**Stichtag:** 2026-09-04 · **Stand: nur noch F-15, F-19 und F-21 offen.**
+
+| | Stand | seit |
+|---|---|---|
+| **F-1 … F-11** | erledigt | — |
+| **F-12** | erledigt | 31.08. |
+| **F-13** | geprüft, **bewusst nicht gebaut** | 31.08. |
+| **F-14** | **begründet nicht gebaut** | 31.08. |
+| **F-15** | **offen** | 23.08. |
+| **F-16** | gebaut, gemessen, **zurückgenommen** | 31.08. |
+| **F-17** | erledigt | 31.08. |
+| **F-18** | erledigt | — |
+| **F-19** | **offen** | 23.08. |
+| **F-20** | behoben am Tag des Fundes | 02.09. |
+| **F-21** | **offen, bewusst zurückgestellt** bis zur Nachmessung nach dem Deploy | 02.09. |
+
+⚠️ **Diese Kopfzeile war bis zum 04.09. falsch.** Sie sagte *„F-12 bis F-17
+offen"*, während im Text darunter vier dieser sechs Punkte seit dem 31.08. als
+erledigt, geprüft oder zurückgenommen ausgewiesen waren. **Der Kopf wurde beim
+Erledigen nicht mitgenommen** — dieselbe Mechanik wie bei den anderen
+Falschaussagen, die dieses Projekt in der eigenen Ablage gefunden hat: Die
+Prüfregel *Status ist ein Befund* gilt beim **Lesen**, der Fehler entsteht beim
+**Erledigen**. Wer hier einen Punkt abschließt, ändert **beide** Stellen.
 · **überholt durch:** — · **maßgeblich ist diese Datei** (Volltext der Befunde:
 `docs/gegenpruefung-2026-08-18.md`; die neuen aus
 `BEFUND ULTRACODE 9456f16..d596269`, Engywuck 23.08.)

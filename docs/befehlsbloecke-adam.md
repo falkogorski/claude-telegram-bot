@@ -2,12 +2,11 @@
 > **Zweck: ANSICHT** · **Zu tun:** die Blöcke der Reihe nach ausführen — sie
 > brauchen deine Hand, nicht root.
 
-# 2026-09-02 · Deploy und Rechnungsumzug — ein Zug, vier Schritte
+# Befehlsblöcke für Adam — was deine Hand braucht
 
-> **Gültigkeits-Kopf** (Regel ⑪) · **Stichtag:** 02.09.2026 ·
+> **Gültigkeits-Kopf** (Regel ⑪) · **Stichtag:** 04.09.2026 ·
 > **Überholt durch:** — · **Maßgeblich** bleibt die Status-Zeile im Drehbuch.
 >
-> Alles hier ist **gebaut, geprüft und committet, aber nicht ausgeführt.**
 > Server-Eingriffe löst Adam aus (8.7) — das ist keine Förmlichkeit: Der Bot
 > darf sein eigenes Repo nie anfassen, sonst laufen Repo-Stand und laufender
 > Code auseinander.
@@ -15,13 +14,169 @@
 > Die Shell ist `zsh` — **keine `#`-Kommentarzeilen** in die Blöcke einfügen,
 > zsh führt sie als Befehl aus. Erklärungen stehen deshalb außerhalb.
 >
-> **Zusammen etwa zehn Minuten**, der Umzug macht den größten Teil davon aus.
 > Nach jedem Schritt steht eine Prüfzeile. Stimmt sie nicht: **aufhören und
 > Bescheid sagen** — der Rückweg steht jeweils darunter.
+>
+> **Änderungshistorie**
+> **04.09.2026** — Teil A neu: Deploy des Nachtblocks und Bereinigung des
+> Log-Repos (Engywucks Befund 4, Adams Entscheid *„Historie bereinigen"*).
+> **03.09.2026** — Teil B (Deploy 02.09. und Rechnungsumzug) ist **ausgeführt
+> und erledigt**; er bleibt als Verlauf stehen, nicht als Aufgabe.
 
 ---
 
-## Warum der Deploy heute der wichtigste einzelne Handgriff ist
+# Teil A · 04.09.2026 — Deploy und Log-Repo
+
+## Schritt A1 — Deploy des Nachtblocks
+
+**Seit deinem Neustart in der Nacht zum 03.09. ist nichts mehr ausgespielt
+worden.** Dazugekommen sind die Freigabe-Erinnerungen, der deutsche
+Freigabedialog, die drei Zusagen an Engywuck und der Ausschluss aus A2.
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git pull --ff-only && bash scripts/regressionstest.sh 2>&1 | tail -3'
+```
+
+**Prüfzeile:** `== Ergebnis: 72/72 bestanden ==`. Weniger oder ein `❌`:
+**nicht neu starten**, sondern die Ausgabe schicken.
+
+```bash
+ssh claudevps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
+```
+
+**Prüfzeile:** `active`. Danach schreib dem Bot etwas — er soll antworten.
+
+---
+
+## Schritt A2 — Die Rechnungen aus dem Log-Repo nehmen
+
+**Was gemessen wurde, nicht vermutet:** Im Log-Repo liegen unter
+`ausarbeitungen/rechnungen/` drei Dateien — `README.md`,
+`RECHNUNGSREGELN.md` und `output/Rechnung 012-26.pdf`. **Die PDF trägt eine
+echte Bankverbindung** (nachgemessen, der Wert steht nirgends in einem
+Bericht). Sie kam am 03.09. um 00:45 mit dem Vergleichslauf hinein, weil das
+Rechnungsprojekt seit dem Umzug **im** abgeglichenen Arbeitsordner liegt.
+
+**Die Reihenfolge ist die Funktion.** Wird die Historie vor dem Filter
+umgeschrieben, bringt der nächste Abgleich die PDF in einer Stunde zurück.
+
+### A2.1 — Zuerst der Filter (steckt schon in Schritt A1)
+
+Der Ausschluss ist mit `bb37523` gebaut und geht mit A1 hinaus. **Nach dem
+nächsten stündlichen Abgleich messen:**
+
+```bash
+ssh claudebot 'ls ~/logsync/claude-bot-logs/ausarbeitungen/ | head -20; echo "---"; ls ~/logsync/claude-bot-logs/ausarbeitungen/rechnungen 2>&1 | head -3'
+```
+
+**Prüfzeile:** Nach `---` muss *No such file or directory* stehen.
+
+⚠️ **Eine Abweichung vom Nachtrag, und sie ist Absicht:** In der Quittung
+`letzter-abgleich.txt` **erscheint `rechnungen/` weiterhin** — als eine
+Sammelzeile *„ganzer Zweig zurueckgehalten"*. Ein lautloser Ausschluss wäre
+die nächste Stille, die wie Ordnung aussieht. **Gemessen wird also am
+Zielordner, nicht an der Quittung.**
+
+### A2.2 — Die Dateien aus dem aktuellen Stand nehmen
+
+```bash
+ssh claudebot 'cd ~/logsync/claude-bot-logs && git rm -r --cached -q ausarbeitungen/rechnungen && rm -rf ausarbeitungen/rechnungen && git commit -q -m "Rechnungszweig entfernt (Befund 4)" && git push -q origin main && echo ENTFERNT'
+```
+
+**Prüfzeile:** `ENTFERNT`. Danach ist die Datei aus dem *aktuellen* Stand
+weg — **aus der Historie noch nicht.** Dafür ist A2.3 da.
+
+### A2.3 — Den Zeitgeber anhalten
+
+**Das braucht root, also deine Hand.** Ohne diesen Schritt schiebt der
+Abgleich mitten in das Umschreiben hinein.
+
+```bash
+ssh claudevps 'systemctl stop claude-log-sync.timer && systemctl is-active claude-log-sync.timer'
+```
+
+**Prüfzeile:** `inactive`.
+
+### A2.4 — Die Historie umschreiben (Mac)
+
+`git-filter-repo` fehlt hier noch. Es ist quelloffen und **kostenfrei**
+(💰: keine Kostenquelle):
+
+```bash
+brew install git-filter-repo
+```
+
+Dann auf einem **frischen** Klon — `filter-repo` verlangt das und hat recht
+damit, ein umgeschriebener Klon lässt sich nicht mehr sauber weiterverwenden:
+
+```bash
+cd /tmp && rm -rf logs-clean && git clone https://github.com/falkogorski/claude-bot-logs.git logs-clean && cd logs-clean && git filter-repo --path ausarbeitungen/rechnungen/ --invert-paths && git remote add origin https://github.com/falkogorski/claude-bot-logs.git && git push --force origin main && echo UMGESCHRIEBEN
+```
+
+**Warum `git remote add` mitten drin:** `filter-repo` **entfernt die
+Gegenstelle absichtlich** — es will verhindern, dass jemand versehentlich eine
+umgeschriebene Historie irgendwohin schiebt. Die Zeile setzt sie bewusst
+zurück, direkt vor den einen Push, der gemeint ist.
+
+**Prüfzeile:** `UMGESCHRIEBEN`, und danach:
+
+```bash
+cd /tmp/logs-clean && git log --all --oneline -- 'ausarbeitungen/rechnungen/' | wc -l
+```
+
+**Prüfzeile:** `0`.
+
+### A2.5 — Alle Klone nachziehen
+
+**Ein Klon mit alter Historie, der einmal pusht, macht alles rückgängig.**
+Es sind zwei bekannte — der Abgleichsklon auf dem VPS und deiner am Mac:
+
+```bash
+ssh claudebot 'cd ~/logsync/claude-bot-logs && git fetch -q origin && git reset --hard -q origin/main && echo VPS-KLON-NACHGEZOGEN'
+git -C ~/Projects/claude-bot-logs fetch -q origin && git -C ~/Projects/claude-bot-logs reset --hard -q origin/main && echo MAC-KLON-NACHGEZOGEN
+```
+
+**Prüfzeile:** beide Meldungen. **Kennst du einen dritten Klon** — auf einem
+anderen Rechner, in einem alten Ordner —, sag Bescheid, bevor A2.6 läuft.
+
+### A2.6 — Zeitgeber wieder starten und messen
+
+```bash
+ssh claudevps 'systemctl start claude-log-sync.timer && systemctl start claude-log-sync.service && sleep 20 && systemctl is-active claude-log-sync.timer'
+```
+
+**Prüfzeile:** `active`, und danach ein letzter Blick:
+
+```bash
+ssh claudebot 'ls ~/logsync/claude-bot-logs/ausarbeitungen/rechnungen 2>&1 | head -2'
+```
+
+**Prüfzeile:** *No such file or directory* — der Zweig kommt nicht zurück.
+
+**Was du wissen sollst, ohne Beschönigung:** GitHub hält überschriebene
+Objekte eine Weile in seinem Zwischenspeicher. Für ein **privates** Repo ohne
+Fremdzugriff ist das tragbar. Wer mehr will, bittet den GitHub-Support um
+eine Bereinigung — das ist deine Entscheidung, kein Automatismus.
+
+**Noch etwas, das beim Messen auffiel und nicht in A2 gehört:** Zwei Papiere
+liegen **außerhalb** des Zweigs und beschreiben dieselbe Rechnung —
+`2026-09-02_rechnung-norderney-livesetup.md` und `.pdf`. Sie enthalten
+**keine** Bankverbindung und keine Steuernummer (nachgemessen), wohl aber
+Kunde und Beträge. Der Ordner-Ausschluss greift dort nicht. **Das ist keine
+Empfehlung, sondern eine Beobachtung** — sag, ob solche Papiere im Log-Repo
+liegen dürfen; sie sind der Weg, auf dem Engywuck deine Vorgänge überhaupt
+lesen kann.
+
+---
+
+# Teil B · 02.09.2026 — erledigt am 03.09.
+
+> **Ausgeführt und abgeschlossen.** Deploy, Umzug, `typst` und der
+> Vergleichslauf sind durch; das Rechnungsprojekt liegt auf dem Server und hat
+> die Rechnung 017-26 dort erzeugt. Der Abschnitt bleibt als **Verlauf**
+> stehen — Zwischenschritte werden archiviert, nicht geglättet.
+
+## Warum der Deploy an jenem Tag der wichtigste einzelne Handgriff war
 
 **Alles, was du heute verlangt hast, ist gebaut. Nichts davon läuft.** Der VPS
 steht auf dem Stand vom 29.08.; seither sind die Genehmigungs-Umschaltung, die

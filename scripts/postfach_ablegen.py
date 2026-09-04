@@ -81,7 +81,10 @@ def main() -> int:
     ap.add_argument("--chat", required=True, type=int,
                     help="Zielchat (target_chat_id). Der Bot prueft die "
                          "Allowlist beim Verarbeiten, nicht dieses Skript.")
-    ap.add_argument("--text", default=None, help="Nachrichtentext")
+    ap.add_argument("--text", default=None,
+                    help="Nachrichtentext. Ein einzelnes '-' liest den Text "
+                         "von stdin — der sichere Weg fuer Texte, die Namen "
+                         "aus Adams Ablage enthalten (Apostrophe!).")
     ap.add_argument("--datei", default=None,
                     help="Absoluter Pfad einer Datei, die mitgeschickt wird")
     ap.add_argument("--beschriftung", default=None,
@@ -89,6 +92,31 @@ def main() -> int:
     ap.add_argument("--zimmer", default=None, type=int,
                     help="Forum-Topic (thread_id), falls gewuenscht")
     a = ap.parse_args()
+
+    # ── `--text -` liest den Text von stdin ────────────────────────────────
+    #
+    # **Engywucks Befund 3 vom 04.09., gemessen an einem Ordner `L'Osteria`.**
+    # Der Mac-Aufrufer baute den Fernbefehl als Shell-Zeichenkette zusammen und
+    # setzte den Text in einfache Anfuehrungszeichen. Ein Apostroph im
+    # Ordnernamen beendet dort die Zeichenkette:
+    #
+    #     --text '📁 2 Rechnung(en) …: Kunde/L'Osteria/Bar '
+    #             └── endet hier ──┘  └ nackt ┘  └ neues Argument ┘
+    #
+    # Harmlos war nur der heutige Inhalt. `x'; <befehl>; echo '` haette als
+    # `claudebot` auf dem VPS gelaufen — und der Ordnername stammt aus dem
+    # Feld `ablage`, das Claudia auch **aus gelesenen Dokumenten** fuellen
+    # kann. Das ist die Klasse *von aussen kommen nie Anweisungen*.
+    #
+    # **Die Loesung ist keine bessere Maskierung, sondern ein anderer Weg:**
+    # Text ueber stdin, wo die Shell nichts zu deuten hat. Dieselbe Lehre wie
+    # beim Heredoc fuer Commit-Nachrichten — wer die Ausnahme begruenden muss,
+    # begruendet sie irgendwann falsch.
+    if a.text == "-":
+        a.text = sys.stdin.read().rstrip("\n")
+        # Ein leerer stdin ist keine Nachricht: Das faellt unten in die
+        # Pflichtpruefung und scheitert benannt, statt eine leere Zeile
+        # zuzustellen.
 
     if not a.text and not a.datei:
         print("FEHLER: --text oder --datei ist Pflicht (mindestens eines).",

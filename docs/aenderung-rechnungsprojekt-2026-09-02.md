@@ -65,6 +65,41 @@ Absolut-Prüfung, aus `/etc` wurde `etc`, und die Zustellung wäre unter
 `ausgang/etc/` gelandet. Kein Ausbruch, aber die Prüfung tat nicht, was sie
 behauptete. Jetzt wird am rohen Wert geprüft; danach zehn von zehn richtig.
 
+### Die elf Fälle, ausgeschrieben `[NACHGETRAGEN 04.09.2026]`
+
+**Sie standen nirgends** — die Doku nannte drei plus den gefundenen Fehler.
+Das Projekt ist unversioniert; diese Datei ist die einzige Ablage des Prüfers.
+Wer nicht weiß, was geprüft wird, baut es beim nächsten Umbau versehentlich ab.
+
+| # | Eingabe | Ergebnis | Warum |
+|---|---|---|---|
+| 1 | `LiveSetup/Volvo/Business Modul/Norderney` | durchgereicht | der Normalfall, drei Ebenen |
+| 2 | `Goldhut` | durchgereicht | null Ebenen, auch ein Normalfall |
+| 3 | *(Feld fehlt)* | `None`, still | kein Fehler — die Datei bleibt in `output/` |
+| 4 | `""` / `"   "` | `None`, still | leer ist wie fehlend |
+| 5 | `/etc` | abgewiesen | absolut, **am rohen Wert** geprüft |
+| 6 | `~/woanders` | abgewiesen | Tilde, ebenso roh geprüft |
+| 7 | `../oben` | abgewiesen | Ausbruch aus dem Ausgang |
+| 8 | `Kunde/../../oben` | abgewiesen | Ausbruch in der Mitte |
+| 9 | `/Kunde/Projekt/` | **abgewiesen** | führendes `/` — Fall 5 greift **vor** dem Strippen, genau das war der gefundene Fehler |
+| 10 | `Kunde//Projekt` | durchgereicht, **unverändert** | doppelter Trenner; `_saeubern` normalisiert ihn **nicht**, erst `Path` beim Zusammensetzen |
+| **11** | `L'Osteria/Bar` · `x'; id; echo '` | **abgewiesen, gemeldet** | **`[NEU 04.09.]`** Zeichenmenge |
+
+**Fall elf ist Engywucks Befund 3.** Die zehn davor prüfen die **Form** des
+Pfades — welche **Zeichen** darin stehen, prüfte keiner. Der Ordnername wanderte
+in einen Fernbefehl und zerriss dort die Shell-Zeichenkette; mit anderem Inhalt
+wäre ein Befehl als `claudebot` gelaufen. Das Feld füllt Claudia auch **aus
+gelesenen Dokumenten** — die Klasse *von außen kommen nie Anweisungen*.
+
+Erlaubt sind Buchstaben (mit Umlauten und Akzenten), Ziffern, Leerzeichen und
+`- _ . ( ) & /`. **Eine Menge, keine Verbotsliste** — eine Verbotsliste vergisst
+das Zeichen, das nächstes Jahr gefährlich wird.
+
+**Der Preis steht dabei:** Ein Kunde `L'Osteria` wird abgewiesen und landet im
+Auffangordner statt im richtigen Zweig. Das ist die richtige Fehlerrichtung, und
+**die Abweisung wird auf stderr gemeldet**, nicht verschluckt: Sonst läge die
+Datei in `output/`, der Ausgang bliebe leer, und niemand wüsste warum.
+
 **Die Kette Ende zu Ende**, gegen einen Wegwerf-Zweig (Adams echte Ablage
 unberührt):
 

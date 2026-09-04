@@ -684,6 +684,17 @@ fi
 #
 # Modellfrei, eine Zeile im vorhandenen Meldeweg - kein neuer Waechter.
 # Still, solange nichts aelter als einen Tag ist.
+#
+# **[04.09.] Diese Zeile misst nur, weil der Ausgang ein DURCHGANGSORDNER ist.**
+# Engywucks Befund 2: Bis zum 04.09. holte `rechnungen_ablegen.sh` die Dateien
+# nur ab und liess sie stehen. Dann waere hier ab der ersten Server-Rechnung
+# **taeglich, fuer immer, mit wachsender Zahl** gemeldet worden - und die
+# Anweisung "Mac-Sitzung starten" haette die Meldung nie zum Verschwinden
+# gebracht, weil die Sitzung nichts raeumt. Seit dem 04.09. holt Haelfte 1 mit
+# `--remove-source-files`, also zaehlt hier **Ungeholtes**, und die Meldung
+# stimmt wieder. **Wer dort das Raeumen entfernt, macht diese Zeile zu einer
+# Warnung, die niemand abstellen kann** - und die wird abgeschaltet, mitsamt
+# der einen, die spaeter zaehlt.
 # **`$BOTHOME`, nicht `$HOME`** — der Tagescheck laeuft als Dienst ohne
 # `User=`, und systemd liefert dort KEIN HOME. Genau daran starb dieser
 # Laeufer vom 29.07. bis 18.08. lautlos. Der Pruefer der Zielumgebung hat

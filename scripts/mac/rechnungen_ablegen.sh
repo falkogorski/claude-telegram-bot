@@ -114,9 +114,26 @@ elif ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_HOST" true 2>>"$LOG"; the
 elif ! ssh -o BatchMode=yes "$SSH_HOST" "test -d '$FERN'" 2>>"$LOG"; then
   sag "Haelfte 1 uebersprungen: Server da, Ausgangsordner fehlt noch ($FERN)"
   sag "        Normalfall, solange das Rechnungsprojekt nicht umgezogen ist."
-elif rsync -az --timeout=20 -e "ssh -o BatchMode=yes -o ConnectTimeout=10" \
+elif rsync -az --timeout=20 --remove-source-files \
+        -e "ssh -o BatchMode=yes -o ConnectTimeout=10" \
         "$SSH_HOST:$FERN" "$LOKAL/" 2>>"$LOG"; then
-  sag "Haelfte 1: vom Server geholt ($SSH_HOST:$FERN)"
+  # **[NEU 04.09.] `--remove-source-files` — Engywucks Befund 2.**
+  #
+  # `ausgang/` ist ein **Durchgangsordner, keine Ablage.** Bisher kopierte
+  # diese Zeile nur; der Ordner wurde nie geraeumt. Folge: Zeile 9j des
+  # Tageschecks zaehlt Dateien darin, die aelter als einen Tag sind — und
+  # haette ab der ersten Server-Rechnung **taeglich, fuer immer, mit
+  # wachsender Zahl** gemeldet. Die Anweisung *Mac-Sitzung starten* haette
+  # die Meldung nie zum Verschwinden gebracht, weil die Sitzung nichts raeumt.
+  # Eine Warnung, die man nicht abstellen kann, wird abgeschaltet — und mit
+  # ihr die eine, die spaeter zaehlt.
+  #
+  # **Nichts geht verloren, dreifach:** `output/` behaelt die Datei auf dem
+  # Server, das taegliche Backup sichert `output/` mit, und der Mac haelt sie
+  # in `LOKAL`. Scheitert Haelfte 2, liegt sie dort und wird beim naechsten
+  # Lauf gelegt. **rsync loescht nur, was es erfolgreich uebertragen hat** —
+  # ein Abbruch mittendrin laesst den Rest stehen.
+  sag "Haelfte 1: vom Server geholt und dort geraeumt ($SSH_HOST:$FERN)"
 else
   sag "Haelfte 1 FEHLER: Ordner da, Uebertragung gescheitert — siehe oben"
 fi
@@ -162,10 +179,26 @@ fi
 # fremde Kundenordner nicht an. `-u`: Neueres ueberschreibt Aelteres; die
 # Rechnungsnummer steht im Dateinamen, ein echter Doppelgaenger kann also nur
 # dieselbe Rechnung sein.
+#
+# ── **[GEAENDERT 04.09.] Gezaehlt wird das UEBERTRAGENE, nicht der Bestand**
+#
+# **Engywucks Befund 1, an zwei Laeufen hintereinander gemessen:** Beide
+# meldeten *„1 Datei(en) in ihre Kundenordner gelegt"*, obwohl im zweiten
+# nichts geschah. `_tief` zaehlte den **Bestand** in `LOKAL`, und `LOKAL` wird
+# nie geleert (`-u`, kein `--delete`). Also waere die Zahl mit jeder Rechnung
+# gewachsen, und Adam haette bei jedem Mac-Start eine Meldung bekommen, die
+# **sachlich falsch** war: „gelegt" fuer etwas, das laengst lag.
+#
+# Das ist genau das Rauschen, das die `_tief > 0`-Bedingung verhindern sollte
+# — sie hat nur die falsche Groesse gemessen. `-i` gibt je uebertragener Datei
+# eine Zeile, die mit `>f` beginnt; das ist das Getane statt des Vorhandenen.
 _tief=0
-if rsync -a -u --exclude='.*' --include='*/' --include='*/**' --exclude='*' \
-        "$LOKAL/" "$ZIEL/" 2>>"$LOG"; then
-  _tief=$(find "$LOKAL" -mindepth 2 -type f ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+_wohin=""
+if _itemize=$(rsync -a -u -i --exclude='.*' --include='*/' --include='*/**' --exclude='*' \
+        "$LOKAL/" "$ZIEL/" 2>>"$LOG"); then
+  _tief=$(printf '%s\n' "$_itemize" | grep -c '^>f' || true)
+  _wohin=$(printf '%s\n' "$_itemize" | grep '^>f' | sed 's/^[^ ]* //; s|/[^/]*$||' \
+           | sort -u | head -3 | tr '\n' ' ')
   [ "$_tief" -gt 0 ] && sag "Haelfte 2: $_tief Datei(en) in ihre Kundenordner gelegt"
 else
   sag "FEHLER: Ablage nach iCloud gescheitert — $ZIEL"
@@ -188,13 +221,34 @@ fi
 # Rauschen, und Rauschen wird abgeschaltet — dann bliebe auch die echte
 # Meldung ungelesen.
 if [ "$_tief" -gt 0 ] && [ -n "${RECHNUNGEN_CHAT:-}" ]; then
-  # Wohin abgelegt wurde, kurz: die Ordner unterhalb des Uebergabeordners.
-  _wohin=$(find "$LOKAL" -mindepth 2 -type f ! -name '.*' 2>/dev/null \
-           | sed "s|^$LOKAL/||; s|/[^/]*$||" | sort -u | head -3 | tr '\n' ' ')
   _text="📁 $_tief Rechnung(en) nach iCloud gelegt: ${_wohin:-(ohne Unterordner)}"
-  if ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_HOST" \
+  # ── **[GEAENDERT 04.09.] Der Text geht ueber stdin, nie in die Befehlszeile**
+  #
+  # **Engywucks Befund 3**, gemessen mit einem Ordner `L'Osteria/Bar`: Der
+  # Ordnername stand in einfachen Anfuehrungszeichen mitten im Fernbefehl, und
+  # der Apostroph beendete sie. Heute fiel dadurch nur die Nachricht aus
+  # (argparse lehnte ab, Adam erfuhr nichts); mit anderem Inhalt —
+  # `x'; <befehl>; echo '` — waere der Rest als `claudebot` auf dem VPS
+  # gelaufen. **Der Name stammt aus dem Feld `ablage`, das Claudia auch aus
+  # gelesenen Dokumenten fuellen kann**: die Klasse *von aussen kommen nie
+  # Anweisungen*.
+  #
+  # Ueber stdin hat die entfernte Shell nichts zu deuten — kein Maskieren,
+  # keine Abwaegung, welches Zeichen heute gefaehrlich ist.
+  #
+  # **Die Chat-Kennung wird geprueft statt maskiert**, damit in der Zeile
+  # ueberhaupt kein ungepruefter Text mehr steht. Sie ist eine Zahl; ist sie
+  # es nicht, wird nicht gesendet.
+  case "$RECHNUNGEN_CHAT" in
+    ''|*[!0-9-]*)
+      sag "HINWEIS: RECHNUNGEN_CHAT ist keine Zahl — keine Nachricht gesendet"
+      _chat_ok=nein ;;
+    *) _chat_ok=ja ;;
+  esac
+  if [ "$_chat_ok" = ja ] && printf '%s' "$_text" \
+     | ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_HOST" \
        "python3 /home/claudebot/claude-telegram-bot/scripts/postfach_ablegen.py \
-        --chat '$RECHNUNGEN_CHAT' --text '$_text'" >/dev/null 2>>"$LOG"; then
+        --chat $RECHNUNGEN_CHAT --text -" >/dev/null 2>>"$LOG"; then
     sag "Adam benachrichtigt: $_text"
   else
     # Die Nachricht ist Beiwerk; die Ablage ist die Sache. Aber es steht im

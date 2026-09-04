@@ -236,8 +236,13 @@ endlich die **Bemerkungszeile** tragen, die Regel 6 seit dem 03.09. verlangt
 elften Pfadfall aus Befund 3.
 
 ```bash
-cd ~/Projects/rechnungen && rsync -azR RECHNUNGSREGELN.md README.md daten/saetze.json scripts/ablage.py scripts/generate_aufstellung.py templates/aufstellung.typ claudebot:~/workspace/rechnungen/
+cd ~/Projects/rechnungen && rsync -azR RECHNUNGSREGELN.md README.md daten/saetze.json scripts/ablage.py scripts/generate_aufstellung.py templates/aufstellung.typ claudebot:~/workspace/rechnungen/ && echo FERTIG
 ```
+
+⚠️ **Das `&& echo FERTIG` ist nicht Zierde:** `rsync` schweigt bei Erfolg, und
+ein stiller Befehl sieht aus wie ein hängender. Genau so ist es am 04.09.
+passiert — der Lauf war längst durch, es sah nur nicht so aus. **Jeder Befehl
+in diesem Block endet auf eine Meldung**, dieser hatte sie als einziger nicht.
 
 ⚠️ **Das `-R` ist nicht Kosmetik, sondern der Unterschied zwischen wirkt und
 wirkt nicht** (Engywucks Fund an meiner ersten Fassung): Ohne `-R` legt rsync
@@ -260,12 +265,23 @@ vorgeschlagen — nachgemessen liefert das in **beiden** Fassungen `1`, weil der
 alte Wortlaut im neuen Hinweis zitiert steht. Die Zeile hätte nichts gemessen.)*
 
 ```bash
-ssh claudebot 'cd ~/workspace/rechnungen && python3 -c "import sys;sys.path.insert(0,\"scripts\");import ablage;print(\"ABGEWIESEN\" if ablage._saeubern(\"L\"+chr(39)+\"Osteria/Bar\") is None else \"DURCHGELASSEN\")"'
+ssh claudebot 'cd ~/workspace/rechnungen && .venv/bin/python -c "import sys;sys.path.insert(0,\"scripts\");import ablage;print(\"ABGEWIESEN\" if ablage._saeubern(\"L\"+chr(39)+\"Osteria/Bar\") is None else \"DURCHGELASSEN\")"'
 ```
 
 *(Der Apostroph entsteht im Python als `chr(39)` — er kommt in der Befehlszeile
 gar nicht vor. Sonst wäre die Prüfzeile selbst an dem Zeichen zerbrochen, das
 sie misst.)*
+
+⚠️ **`.venv/bin/python`, nicht `python3`** — auf dem Server liegt `openpyxl`
+in der venv des Projekts, nicht im System-Python. Meine erste Fassung rief
+`python3` und meldete `ModuleNotFoundError`; das sah nach einer fehlenden
+Umgebung aus, war aber der falsche Aufruf. **Die venv ist da und vollständig.**
+
+✅ **A3 ist erledigt und gemessen** (04.09., 22:0x): Etikett berichtigt,
+`saetze.json` liegt in `daten/` (nicht flach), die Formel rechnet auf dem
+Server 30/80/50/100 % zu 8,40 · 22,40 · 14,00 · 28,00, die Bemerkungszeile
+steht im Template, Fall elf weist `L'Osteria/Bar` ab — und der berichtigte
+Akzent ist auch dort (`3 Extrastunden à 40 €`).
 
 **Prüfzeile:** `ABGEWIESEN`, davor eine `HINWEIS:`-Zeile. Das ist Fall elf —
 die Server-Hälfte von Befund 3. **Kommt `DURCHGELASSEN`**, ist nur die

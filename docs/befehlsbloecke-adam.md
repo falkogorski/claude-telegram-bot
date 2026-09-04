@@ -34,17 +34,27 @@ worden.** Dazugekommen sind die Freigabe-Erinnerungen, der deutsche
 Freigabedialog, die drei Zusagen an Engywuck und der Ausschluss aus A2.
 
 ```bash
-ssh claudebot 'cd ~/claude-telegram-bot && git pull --ff-only && bash scripts/regressionstest.sh 2>&1 | tail -3'
+ssh claudebot 'cd ~/claude-telegram-bot && git pull --ff-only && bash scripts/regressionstest.sh 2>&1 | tail -4'
 ```
 
-**Prüfzeile:** `== Ergebnis: 72/72 bestanden ==`. Weniger oder ein `❌`:
-**nicht neu starten**, sondern die Ausgabe schicken.
+**Prüfzeile — und sie sieht anders aus als am Mac:**
 
-```bash
-ssh claudevps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
+```
+== Ergebnis: 72/73 bestanden ==
+== 1 uebersprungen — auf DIESER Maschine wurde dort nichts gemessen ==
 ```
 
-**Prüfzeile:** `active`. Danach schreib dem Bot etwas — er soll antworten.
+**Das ist der Normalfall auf dem Server, kein Fehler.** Die Heartbeat-Wache
+lässt sich bei laufendem Bot nicht scharf messen und meldet sich deshalb als
+übersprungen. Erst ein `❌` oder eine kleinere Zahl ist ein Befund — dann die
+Ausgabe schicken.
+
+**Ein Neustart ist diesmal nicht nötig.** Nachgemessen (`git diff --stat`
+gegen deinen Neustart-Stand): **`bot.py` ist unverändert.** Geändert haben sich
+nur der Log-Abgleich, der Tagescheck, das Ablege-Skript und
+`postfach_ablegen.py` — Skripte, die bei ihrem nächsten Lauf frisch gelesen
+werden. Ein Neustart schadet nicht, bricht aber Claudia mitten im Zug ab, falls
+sie gerade arbeitet.
 
 ---
 
@@ -62,8 +72,9 @@ umgeschrieben, bringt der nächste Abgleich die PDF in einer Stunde zurück.
 
 ### A2.1 — Zuerst der Filter (steckt schon in Schritt A1)
 
-Der Ausschluss ist mit `bb37523` gebaut und geht mit A1 hinaus. **Nach dem
-nächsten stündlichen Abgleich messen:**
+Der Ausschluss ist mit `bb37523` gebaut und geht mit A1 hinaus. **Der Abgleich
+läuft alle fünf Minuten** — an den Commit-Zeiten im Log-Repo gemessen, nicht
+stündlich, wie hier zuerst stand. Also kurz warten, dann messen:
 
 ```bash
 ssh claudebot 'ls ~/logsync/claude-bot-logs/ausarbeitungen/ | head -20; echo "---"; ls ~/logsync/claude-bot-logs/ausarbeitungen/rechnungen 2>&1 | head -3'
@@ -95,7 +106,13 @@ Abgleich mitten in das Umschreiben hinein.
 ssh claudevps 'systemctl stop claude-log-sync.timer && systemctl is-active claude-log-sync.timer'
 ```
 
-**Prüfzeile:** `inactive`.
+**Prüfzeile:** `inactive`. **Kommt stattdessen eine Fehlermeldung**, heißt der
+Zeitgeber anders — der Name steht im Register, aber nirgends im Code, also ist
+er von hier nicht prüfbar. Dann hilft:
+
+```bash
+ssh claudevps 'systemctl list-timers --all | grep -i log'
+```
 
 ### A2.4 — Die Historie umschreiben (Mac)
 
@@ -110,8 +127,13 @@ Dann auf einem **frischen** Klon — `filter-repo` verlangt das und hat recht
 damit, ein umgeschriebener Klon lässt sich nicht mehr sauber weiterverwenden:
 
 ```bash
-cd /tmp && rm -rf logs-clean && git clone https://github.com/falkogorski/claude-bot-logs.git logs-clean && cd logs-clean && git filter-repo --path ausarbeitungen/rechnungen/ --invert-paths && git remote add origin https://github.com/falkogorski/claude-bot-logs.git && git push --force origin main && echo UMGESCHRIEBEN
+ADR=$(git -C ~/Projects/claude-bot-logs remote get-url origin) && cd /tmp && rm -rf logs-clean && git clone "$ADR" logs-clean && cd logs-clean && git filter-repo --path ausarbeitungen/rechnungen/ --invert-paths && git remote add origin "$ADR" && git push --force origin main && echo UMGESCHRIEBEN
 ```
+
+**Die Adresse wird aus deinem vorhandenen Klon übernommen, nicht hier
+eingetippt** — so gilt genau der Zugangsweg, der bei dir schon funktioniert
+(SSH oder HTTPS), und du wirst nicht mitten im Ablauf nach Anmeldedaten
+gefragt.
 
 **Warum `git remote add` mitten drin:** `filter-repo` **entfernt die
 Gegenstelle absichtlich** — es will verhindern, dass jemand versehentlich eine
@@ -136,8 +158,14 @@ ssh claudebot 'cd ~/logsync/claude-bot-logs && git fetch -q origin && git reset 
 git -C ~/Projects/claude-bot-logs fetch -q origin && git -C ~/Projects/claude-bot-logs reset --hard -q origin/main && echo MAC-KLON-NACHGEZOGEN
 ```
 
-**Prüfzeile:** beide Meldungen. **Kennst du einen dritten Klon** — auf einem
-anderen Rechner, in einem alten Ordner —, sag Bescheid, bevor A2.6 läuft.
+**Prüfzeile:** beide Meldungen.
+
+**Es gibt einen dritten, und er hat sich selbst gemeldet:** Engywucks
+Kontrollsitzung hält eine Lesekopie des Log-Repos. Sie pusht nie und zieht sich
+nach dem Umschreiben selbst nach — er sagt Bescheid, wenn es geschehen ist.
+**Kennst du einen vierten** — auf einem anderen Rechner, in einem alten
+Ordner —, sag es, bevor A2.6 läuft: Ein Klon mit alter Historie, der einmal
+pusht, macht die ganze Arbeit rückgängig.
 
 ### A2.6 — Zeitgeber wieder starten und messen
 
@@ -176,39 +204,66 @@ Du hast am 04.09. die steuerliche Staffel bestätigt. Sie steht jetzt als
 nennt endlich auch `Spesen:voll`. Beides liegt bisher **nur am Mac** — der
 Server hat die Fassung vom 03.09.
 
+Dazu kommen die Sätze und der Generator: Er rechnet die Spesen jetzt selbst
+(`Spesen:30` statt eines von Hand eingetippten Betrags).
+
 ```bash
-rsync -az ~/Projects/rechnungen/RECHNUNGSREGELN.md ~/Projects/rechnungen/README.md claudebot:~/workspace/rechnungen/
+rsync -az ~/Projects/rechnungen/RECHNUNGSREGELN.md ~/Projects/rechnungen/README.md ~/Projects/rechnungen/daten/saetze.json claudebot:~/workspace/rechnungen/ && rsync -az ~/Projects/rechnungen/scripts/generate_aufstellung.py claudebot:~/workspace/rechnungen/scripts/
 ```
+
+⚠️ **`saetze.json` geht mit, `rechnungsnummern.json` nicht** — die liegen im
+selben Ordner, aber der Zähler gehört dem Server.
 
 **Prüfzeile:**
 
 ```bash
-ssh claudebot 'grep -c "5a · Die Spesen-Staffel" ~/workspace/rechnungen/RECHNUNGSREGELN.md'
+ssh claudebot 'cd ~/workspace/rechnungen && python3 -c "import sys,json;sys.path.insert(0,\"scripts\");from generate_aufstellung import aufloesen;s=json.load(open(\"daten/saetze.json\"))[\"saetze\"];print(aufloesen(\"Spesen:30\",s))"'
 ```
 
-**Prüfzeile:** `1`.
+**Prüfzeile:** eine Zeile mit `Spesen 30 %` und `8.4`. Kommt stattdessen ein
+`ModuleNotFoundError: openpyxl`, fehlt dort die venv — dann sag Bescheid,
+das ist eine eigene Sache und kein Grund weiterzumachen.
 
 ⚠️ **Bewusst nur diese zwei Dateien, kein Voll-Abgleich.** Seit dem 03.09.
 ist der Server die Stelle für Rechnungsnummern; ein `rsync` des ganzen
 Ordners würde `daten/rechnungsnummern.json` mit dem Mac-Stand überschreiben
 und irgendwann eine Nummer doppelt vergeben.
 
-**Eine Frage steckt in der Regel und ist nicht entschieden:** Für den
-**Abreisetag mit gestelltem Frühstück** ergibt die Kürzungsregel 8,40 € — so
-steht es in deiner Aufstellung zu 017-26. `saetze.json` führt für denselben
-Fall 11,20 € als *„etablierter Abreisetag-Satz"* mit Präzedenz
-Dieburg/Landsberg. **Beides kann nicht gleichzeitig gelten.** Ich habe keine
-der Zahlen zur Regel erhoben; sie steht als offener Punkt in der Datei. Sag
-mir, welche gilt — dann fällt die Frage bei der nächsten Aufstellung weg.
+**Die Spesen-Frage hast du am 04.09. entschieden** — *8,40 gilt, wie in
+017-26.* Die Regel trägt jetzt die Rechenformel statt einer Kürzelliste, und
+das falsche Etikett in `saetze.json` ist berichtigt.
+
+### Und eine Sorge, die sich beim Nachmessen aufgelöst hat
+
+Engywuck fragte, ob der **Server-Zähler** die Nummer 017-26 kennt — kennt er
+sie nicht, vergäbe Claudia sie ein zweites Mal (Regel 8). **Nachgesehen:
+Mac und Server sind identisch, beide führen die `17`.** Nichts zu tun.
+
+Seine vorgeschlagene Prüfzeile (`grep -c "017-26"`) hätte **null** geliefert
+und einen Fehlalarm ausgelöst: Der Zähler speichert die nackte Zahl, nicht die
+Nummer als Text. Wer nachsehen will, sieht die Liste an:
+
+```bash
+ssh claudebot 'cat ~/workspace/rechnungen/daten/rechnungsnummern.json'
+```
+
+**Prüfzeile:** unter `"26"` steht die `17`.
 
 ---
 
 # Teil B · 02.09.2026 — erledigt am 03.09.
 
 > **Ausgeführt und abgeschlossen.** Deploy, Umzug, `typst` und der
-> Vergleichslauf sind durch; das Rechnungsprojekt liegt auf dem Server und hat
-> die Rechnung 017-26 dort erzeugt. Der Abschnitt bleibt als **Verlauf**
-> stehen — Zwischenschritte werden archiviert, nicht geglättet.
+> Vergleichslauf sind durch; das Rechnungsprojekt liegt auf dem Server. Der
+> Abschnitt bleibt als **Verlauf** stehen — Zwischenschritte werden archiviert,
+> nicht geglättet.
+>
+> **Berichtigt am 04.09.:** Hier stand, der Server habe *„die Rechnung 017-26
+> dort erzeugt"*. **Er hat sie nicht.** 017-26 entstand auf dem Mac und lag
+> fertig in iCloud, bevor das Projekt um 00:59 auf den Server ging; der
+> Vergleichslauf dort erzeugte 012-26. Gemessen im Log-Repo: keine einzige
+> Datei mit `017-26` hat es je erreicht, wohl aber die 012-26. **Ein Verlauf
+> darf alt sein, aber nicht falsch.**
 
 ## Warum der Deploy an jenem Tag der wichtigste einzelne Handgriff war
 

@@ -164,3 +164,38 @@ Die Datei **ergänzt und ersetzt nichts** (Adams ausdrückliche Auflage): Was
 Claudia von ihm gelernt hat, gilt weiter; hier steht nur, was in dieser Nacht
 neu entschieden wurde. Sie liegt im Projekt, zieht also mit und wird gelesen —
 das ist der Ablageweg, den eine Regel im Sitzungsgedächtnis nicht hat.
+
+---
+
+## Nachtrag 04.09.2026 — Spesen als Formel, Fall elf
+
+**Zwei Eingriffe mehr im unversionierten Projekt.** Der Rückweg gehört hierher,
+weil es dort kein `git log` gibt.
+
+**① `scripts/generate_aufstellung.py`, Kürzel-Auflösung.** Vier feste Spesen-
+Fälle (`klein`, `voll`, `80`, `40`) sind durch **eine Formel** ersetzt:
+`Spesen:<prozent>` rechnet den Anteil der vollen Tagespauschale von 28,00 €,
+und die Beschriftung trägt immer die Prozentzahl. `Spesen:klein` und
+`Spesen:voll` bleiben als Schreibabkürzungen für 50 % und 100 %.
+
+*Warum:* Beim ersten Fall, den die Liste nicht kannte — Abreisetag mit
+gestelltem Frühstück, 8,40 € — musste die Aufstellung zu 017-26 auf
+`Custom:Spesen 30 %:8.40` ausweichen, einen von Hand eingetippten Betrag.
+**Eine Aufzählung bricht beim nächsten Fall, eine Formel nicht.**
+
+*Gemessen:* 100/80/50/40/30 % ergeben 28,00 · 22,40 · 14,00 · 11,20 · 8,40.
+Über die drei Custom-Posten der 017-26-Aufstellung gerechnet: **Beschriftung
+und Summe unverändert.** `Spesen:800` wird benannt abgewiesen, `Spesen:quatsch`
+fällt in den vorhandenen Unbekannt-Zweig.
+
+*Rückweg:* Der ersetzte Block steht im Kommentar darüber vollständig
+beschrieben; die vier alten `if`-Zeilen lasen `saetze["Spesen_klein"]`,
+`["Spesen_voll"]`, `["Spesen_80"]`, `["Spesen_40"]` und gaben deren
+`bezeichnung` zurück. Alle vier Schlüssel stehen weiterhin in `saetze.json`.
+
+**② `daten/saetze.json`, Etikett von `Spesen_40`.** Dort stand *„etablierter
+Abreisetag-Satz"*. **Das war das Etikett, nicht die Zahl:** 11,20 € ist ein
+**voller** Tag mit zwei gestellten Mahlzeiten; ein Abreisetag mit Frühstück
+sind 8,40 €. Der alte Wortlaut steht im neuen Hinweis zitiert.
+
+**③ `scripts/ablage.py`, Fall elf** — siehe die Tabelle oben.

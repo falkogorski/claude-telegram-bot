@@ -215,8 +215,48 @@ def _die_quittung_bleibt_lesbar_kurz():
     assert zeilen < 40, f"die Quittung ist wieder aufgeblaeht: {zeilen} Zeilen"
 
 
+def _der_rechnungszweig_kommt_nicht_mit():
+    """**Engywucks Befund 4, gemessen statt zugesichert.**
+
+    Seit dem Umzug am 03.09. liegt Adams Rechnungsprojekt IM Arbeitsordner.
+    Die erzeugten PDFs tragen Bankverbindung und Steuernummer, und die
+    Historie eines Repos vergisst nichts von selbst.
+
+    Drei Zusicherungen in einer Zeile, weil sie zusammengehoeren: Der Zweig
+    kommt nicht mit, er wird nicht Datei fuer Datei als Fehler gemeldet
+    (das waere die Falschauskunft vom 20.08.), und er verschwindet auch nicht
+    lautlos (das waere die Stille, die wie Ordnung aussieht).
+    """
+    _vorbereiten()
+    (WORK / "rechnungen" / "output").mkdir(parents=True, exist_ok=True)
+    (WORK / "rechnungen" / "output" / "Rechnung 017-26.pdf").write_bytes(b"%PDF-1.4")
+    (WORK / "rechnungen" / "RECHNUNGSREGELN.md").write_text("Bank\n", encoding="utf-8")
+    (WORK / "bericht.md").write_text("kommt mit\n", encoding="utf-8")
+    _lauf()
+
+    angekommen = [p.name for p in (REPO / "ausarbeitungen").rglob("*") if p.is_file()]
+    assert "Rechnung 017-26.pdf" not in angekommen, \
+        "die Rechnung ist im Log-Repo gelandet — Bank und Steuernummer mit ihr"
+    assert "RECHNUNGSREGELN.md" not in angekommen, \
+        "der Rechnungszweig kam nur teilweise nicht mit"
+    # Die Gegenrichtung: Der Ausschluss darf nicht zu viel greifen.
+    assert "bericht.md" in angekommen, \
+        "der Ausschluss hat auch Erarbeitetes ausserhalb des Zweigs geschluckt"
+
+    q = _quittung()
+    _, _, rumpf = q.partition("AUSGESCHLOSSEN")
+    assert "Rechnung 017-26.pdf" not in rumpf, \
+        "jede einzelne Rechnung wird als Fehler gemeldet — das ist die " \
+        "Falschauskunft vom 20.08., nur mit anderem Ordner"
+    assert "rechnungen/" in rumpf, \
+        "der Zweig wird lautlos zurueckgehalten — sichtbar aussortiert ist " \
+        "ehrlich, lautlos ist die naechste Stille, die wie Ordnung aussieht"
+
+
 check("nur Transportrelevantes gilt als ausgeschlossen",
       _nur_transportrelevantes_wird_als_ausgeschlossen_gemeldet)
+check("der Rechnungszweig kommt nicht mit (Befund 4)",
+      _der_rechnungszweig_kommt_nicht_mit)
 check("gleiche Lage schreibt die Quittung NICHT neu",
       _gleiche_lage_schreibt_die_quittung_nicht_neu)
 check("eine echte Änderung schreibt sehr wohl (Gegenrichtung)",

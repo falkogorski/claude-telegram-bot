@@ -111,7 +111,25 @@ if [ -d "$WORK" ]; then
   # gewinnt `--include='*.md'` und zieht Ausgeschlossenes doch mit. Genau so
   # ist am 25.07. die Kontext-Datei CLAUDE.md ins Log-Repo gewandert, obwohl
   # sie ausdrücklich ausgeschlossen war.
+  # **[NEU 04.09.] Der Rechnungszweig kommt NICHT mit** (Engywucks Befund 4).
+  #
+  # Seit dem Umzug am 03.09. liegt Adams Rechnungsprojekt unter
+  # `~/workspace/rechnungen` — also **im** Arbeitsordner, den dieser Block
+  # abgleicht. Die erzeugten PDFs tragen **Bankverbindung und Steuernummer**;
+  # `--include='*.pdf'` hätte sie ins Log-Repo getragen, und die Historie eines
+  # Repos vergisst nichts von selbst.
+  #
+  # ⚠️ **Die Zeile steht VOR den Includes, und das ist keine Sortierfrage,
+  # sondern die Funktion** — siehe den Kommentar direkt darüber. Stünde sie
+  # danach, gewänne `--include='*.pdf'` und der Ausschluss wäre wirkungslos,
+  # ohne dass irgendetwas rot würde.
+  #
+  # ⚠️ **Der Anker ist ein NAME, kein Merkmal** — dieselbe Grenze wie beim
+  # Backup-Ausschluss vom 03.09., wo `.venv` nicht griff, weil der Ordner
+  # anders hieß. Wird das Projekt umbenannt oder verschoben, greift diese
+  # Zeile nicht mehr. Wer es umbenennt, zieht sie mit.
   rsync -a --prune-empty-dirs \
+    --exclude='rechnungen/' \
     --exclude='.*' --exclude='*.tmp' \
     --exclude='CLAUDE.md' --exclude='MEMORY.md' \
     --exclude='*secret*' --exclude='*token*' --exclude='*credential*' \
@@ -150,6 +168,17 @@ if [ -d "$WORK" ]; then
       | sed 's|^ausarbeitungen/|  |' | sort
     echo
     echo "AUSGESCHLOSSEN (haette mitkommen koennen, kam nicht):"
+    # **[NEU 04.09.] Der Rechnungszweig: sichtbar, aber EINZEILIG.**
+    # Zurueckgehalten wird er bewusst (Bank, Steuernummer). Ihn Datei fuer
+    # Datei zu listen hiesse, die Liste mit jeder neuen Rechnung wachsen zu
+    # lassen — und was niemand liest, meldet nichts. Die Schleife unten
+    # ueberspringt den Zweig deshalb; diese eine Zeile nennt ihn samt Grund.
+    # Ohne sie waere der Ausschluss lautlos, mit der Schleife allein waere er
+    # eine Falschauskunft (jede Rechnung als bitte melden, das sollte
+    # mitkommen). Beides ist schon einmal vorgekommen.
+    if [ -d "$WORK/rechnungen" ]; then
+      echo "  rechnungen/ — ganzer Zweig zurueckgehalten: Bank und Steuernummer"
+    fi
     # `[GEAENDERT 2026-08-20, Engywuck]` Nur noch TRANSPORTRELEVANTE
     # Kandidaten — Dateien mit Dokument-Endung, die nicht ankamen, plus alles
     # vom Geheimnis-Filter Gestoppte. Vorher lief die Schleife ueber den
@@ -173,6 +202,7 @@ if [ -d "$WORK" ]; then
       # liest, meldet 120 harmlose Dateien als Fehler.
       case "$rel" in
         .*|*/.*)       continue ;;   # verstecktes Verzeichnis ODER Datei
+        rechnungen/*|*/rechnungen/*) continue ;;
       esac
       case "$name" in
         *.tmp)         continue ;;   # Absicht, kein Befund

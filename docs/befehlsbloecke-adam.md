@@ -70,25 +70,21 @@ Rechnungsprojekt seit dem Umzug **im** abgeglichenen Arbeitsordner liegt.
 **Die Reihenfolge ist die Funktion.** Wird die Historie vor dem Filter
 umgeschrieben, bringt der nächste Abgleich die PDF in einer Stunde zurück.
 
-### A2.1 — Zuerst der Filter (steckt schon in Schritt A1)
+### A2.1 — Die Dateien aus dem aktuellen Stand nehmen
 
-Der Ausschluss ist mit `bb37523` gebaut und geht mit A1 hinaus. **Der Abgleich
-läuft alle fünf Minuten** — an den Commit-Zeiten im Log-Repo gemessen, nicht
-stündlich, wie hier zuerst stand. Also kurz warten, dann messen:
+**Der Filter (mit A1 ausgespielt) verhindert neuen Zulauf — er löscht nichts.**
+Der Abgleich läuft ohne `--delete`; was einmal drin ist, bleibt drin, bis es
+jemand entfernt. Genau das ist dieser Schritt.
 
-```bash
-ssh claudebot 'ls ~/logsync/claude-bot-logs/ausarbeitungen/ | head -20; echo "---"; ls ~/logsync/claude-bot-logs/ausarbeitungen/rechnungen 2>&1 | head -3'
-```
+✅ **Dass er wirkt, ist bereits gemessen** (04.09., 21:50, erster Lauf nach
+deinem Pull): Die Quittung auf dem Server ist frisch und trägt die Zeile
+*„rechnungen/ — ganzer Zweig zurueckgehalten"*. Vorher stand dort noch der
+Stand vom 03.09.
 
-**Prüfzeile:** Nach `---` muss *No such file or directory* stehen.
-
-⚠️ **Eine Abweichung vom Nachtrag, und sie ist Absicht:** In der Quittung
-`letzter-abgleich.txt` **erscheint `rechnungen/` weiterhin** — als eine
-Sammelzeile *„ganzer Zweig zurueckgehalten"*. Ein lautloser Ausschluss wäre
-die nächste Stille, die wie Ordnung aussieht. **Gemessen wird also am
-Zielordner, nicht an der Quittung.**
-
-### A2.2 — Die Dateien aus dem aktuellen Stand nehmen
+⚠️ **Hier stand vorher eine Prüfzeile, die dich hätte hängen lassen:** *„Nach
+dem Abgleich muss der Ordner weg sein."* Das wird er nicht — die Reihenfolge
+ist Filter, dann Entfernen, dann prüfen, dass er **nicht zurückkommt**. Der
+Filter allein bewirkt nichts Sichtbares.
 
 ```bash
 ssh claudebot 'cd ~/logsync/claude-bot-logs && git rm -r --cached -q ausarbeitungen/rechnungen && rm -rf ausarbeitungen/rechnungen && git commit -q -m "Rechnungszweig entfernt (Befund 4)" && git push -q origin main && echo ENTFERNT'
@@ -96,6 +92,25 @@ ssh claudebot 'cd ~/logsync/claude-bot-logs && git rm -r --cached -q ausarbeitun
 
 **Prüfzeile:** `ENTFERNT`. Danach ist die Datei aus dem *aktuellen* Stand
 weg — **aus der Historie noch nicht.** Dafür ist A2.3 da.
+
+### A2.2 — Messen, dass der Zweig nicht zurückkommt
+
+**Das ist die eigentliche Prüfung des Filters.** Der Abgleich läuft **alle fünf
+Minuten** (an den Commit-Zeiten gemessen, nicht stündlich). Also einen Lauf
+abwarten, dann:
+
+```bash
+ssh claudebot 'ls ~/logsync/claude-bot-logs/ausarbeitungen/rechnungen 2>&1 | head -2; echo "--- Quittung ---"; grep "ganzer Zweig" ~/workspace/letzter-abgleich.txt'
+```
+
+**Prüfzeile:** *No such file or directory* — **und** darunter die Zeile
+*„rechnungen/ — ganzer Zweig zurueckgehalten"*. Beide gehören zusammen: Die
+erste zeigt, dass er weg ist; die zweite, dass er **sichtbar** zurückgehalten
+wird und nicht lautlos verschwindet.
+
+⚠️ Kommt der Ordner zurück, ist der Filter nicht wirksam — **dann aufhören und
+Bescheid sagen**, nicht weitermachen: Das Umschreiben der Historie wäre
+umsonst, weil der nächste Abgleich die Datei erneut hineinträgt.
 
 ### A2.3 — Den Zeitgeber anhalten
 
@@ -212,21 +227,44 @@ endlich die **Bemerkungszeile** tragen, die Regel 6 seit dem 03.09. verlangt
 elften Pfadfall aus Befund 3.
 
 ```bash
-rsync -az ~/Projects/rechnungen/RECHNUNGSREGELN.md ~/Projects/rechnungen/README.md ~/Projects/rechnungen/daten/saetze.json claudebot:~/workspace/rechnungen/ && rsync -az ~/Projects/rechnungen/scripts/generate_aufstellung.py ~/Projects/rechnungen/scripts/ablage.py claudebot:~/workspace/rechnungen/scripts/ && rsync -az ~/Projects/rechnungen/templates/aufstellung.typ claudebot:~/workspace/rechnungen/templates/
+cd ~/Projects/rechnungen && rsync -azR RECHNUNGSREGELN.md README.md daten/saetze.json scripts/ablage.py scripts/generate_aufstellung.py templates/aufstellung.typ claudebot:~/workspace/rechnungen/
 ```
 
-⚠️ **`saetze.json` geht mit, `rechnungsnummern.json` nicht** — die liegen im
+⚠️ **Das `-R` ist nicht Kosmetik, sondern der Unterschied zwischen wirkt und
+wirkt nicht** (Engywucks Fund an meiner ersten Fassung): Ohne `-R` legt rsync
+bei mehreren Quellen nur die **Basisnamen** ins Ziel — `saetze.json` läge dann
+flach unter `~/workspace/rechnungen/`, während der Generator `daten/saetze.json`
+liest. **Das berichtigte Etikett wäre nie angekommen, ohne dass etwas
+fehlschlägt.**
+
+⚠️ **`saetze.json` geht mit, `rechnungsnummern.json` nicht** — sie liegen im
 selben Ordner, aber der Zähler gehört dem Server.
 
-**Prüfzeile:**
+**Zwei Prüfzeilen, und jede misst die Sache statt der Schreibweise:**
 
 ```bash
-ssh claudebot 'cd ~/workspace/rechnungen && python3 -c "import sys,json;sys.path.insert(0,\"scripts\");from generate_aufstellung import aufloesen;s=json.load(open(\"daten/saetze.json\"))[\"saetze\"];print(aufloesen(\"Spesen:30\",s))"'
+ssh claudebot 'grep -c "BERICHTIGT 04.09.2026" ~/workspace/rechnungen/daten/saetze.json'
 ```
 
-**Prüfzeile:** eine Zeile mit `Spesen 30 %` und `8.4`. Kommt stattdessen ein
-`ModuleNotFoundError: openpyxl`, fehlt dort die venv — dann sag Bescheid,
-das ist eine eigene Sache und kein Grund weiterzumachen.
+**Prüfzeile:** `1`. *(Engywuck hatte hier `grep -c "Abreisetag-Satz"`
+vorgeschlagen — nachgemessen liefert das in **beiden** Fassungen `1`, weil der
+alte Wortlaut im neuen Hinweis zitiert steht. Die Zeile hätte nichts gemessen.)*
+
+```bash
+ssh claudebot 'cd ~/workspace/rechnungen && python3 -c "import sys;sys.path.insert(0,\"scripts\");import ablage;print(\"ABGEWIESEN\" if ablage._saeubern(\"L\"+chr(39)+\"Osteria/Bar\") is None else \"DURCHGELASSEN\")"'
+```
+
+*(Der Apostroph entsteht im Python als `chr(39)` — er kommt in der Befehlszeile
+gar nicht vor. Sonst wäre die Prüfzeile selbst an dem Zeichen zerbrochen, das
+sie misst.)*
+
+**Prüfzeile:** `ABGEWIESEN`, davor eine `HINWEIS:`-Zeile. Das ist Fall elf —
+die Server-Hälfte von Befund 3. **Kommt `DURCHGELASSEN`**, ist nur die
+Mac-Seite angekommen; dann fängt der Apostroph zwar niemanden mehr, aber die
+zweite Schicht fehlt — sag Bescheid.
+
+Kommt bei einer der Zeilen ein `ModuleNotFoundError: openpyxl`, fehlt dort die
+venv — eine eigene Sache und kein Grund weiterzumachen.
 
 ⚠️ **Bewusst nur diese zwei Dateien, kein Voll-Abgleich.** Seit dem 03.09.
 ist der Server die Stelle für Rechnungsnummern; ein `rsync` des ganzen

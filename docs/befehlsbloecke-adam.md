@@ -112,6 +112,10 @@ wird und nicht lautlos verschwindet.
 Bescheid sagen**, nicht weitermachen: Das Umschreiben der Historie wäre
 umsonst, weil der nächste Abgleich die Datei erneut hineinträgt.
 
+✅ **Erledigt und gemessen** (04.09., 21:55, erster Abgleich nach deinem
+`git rm`): Der Ordner ist weg und bleibt weg, die Quittung nennt
+*„rechnungen/ — ganzer Zweig zurueckgehalten: Bank und Steuernummer"*.
+
 ### A2.3 — Den Zeitgeber anhalten
 
 **Das braucht root, also deine Hand.** Ohne diesen Schritt schiebt der

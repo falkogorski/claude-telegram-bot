@@ -199,3 +199,33 @@ Abreisetag-Satz"*. **Das war das Etikett, nicht die Zahl:** 11,20 € ist ein
 sind 8,40 €. Der alte Wortlaut steht im neuen Hinweis zitiert.
 
 **③ `scripts/ablage.py`, Fall elf** — siehe die Tabelle oben.
+
+## Nachtrag 04.09.2026, zweiter Teil — die Bemerkungszeile und ein Akzent
+
+**④ `templates/aufstellung.typ` und `scripts/generate_aufstellung.py`,
+Bemerkungszeile.** Regel 6 der `RECHNUNGSREGELN.md` verlangt seit dem 03.09.
+eine Zeile unter der Aufstellung (*„LKW-Sätze wie für dieses Projekt
+besprochen."*). **Das Template kannte kein Feld dafür** — eine Vorgabe ohne
+technische Entsprechung, also eine Bitte. In der Aufstellung zu 017-26 fehlt
+die Zeile deshalb, obwohl zwei Rabatte darin ausgewiesen sind.
+
+Neu: optionales Feld `bemerkung` im `projekt`-Block. Es erscheint **in beiden
+Ausgaben** — PDF und Excel. Nur im PDF wäre es die Doku-Spiegel-Klasse: Adams
+Arbeitsblatt zeigte etwas anderes als das Blatt für den Kunden, und das fällt
+in keinem Test auf.
+
+*Gemessen:* dieselbe Aufstellung mit und ohne Feld erzeugt. Textvergleich der
+beiden PDFs: **eine einzige zusätzliche Zeile**, sonst zeichengleich; Summe
+1.404,80 € unverändert. Im Bild nachgesehen — kursiv, gedämpft, unter dem
+Gesamt-Kasten. In der Excel-Datei in Zeile 18, Spalte B.
+
+*Rückweg:* Im Template den `#let bemerkung`-Block streichen, im Generator die
+beiden `p.get("bemerkung")`-Stellen. Ohne Feld verhalten sich beide wie vorher.
+
+**⑤ Ein Akzent, beim Ansehen des Bildes gefunden.** In der Postenzeile stand
+`3 Extrastunden á 40 €` — Akut statt Gravis. **Das steht in Adams
+Kundendokumenten**, seit es den Generator gibt. Jetzt `à`.
+
+*Warum das hier erwähnt wird:* Es ist ein Zeichen, kein Fehler im Sinne von
+kaputt — aber es wäre nie aufgefallen, wenn ich das PDF nur auf „Zeile da?"
+geprüft hätte statt es anzusehen.

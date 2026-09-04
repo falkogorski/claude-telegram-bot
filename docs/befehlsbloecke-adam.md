@@ -204,11 +204,15 @@ Du hast am 04.09. die steuerliche Staffel bestätigt. Sie steht jetzt als
 nennt endlich auch `Spesen:voll`. Beides liegt bisher **nur am Mac** — der
 Server hat die Fassung vom 03.09.
 
-Dazu kommen die Sätze und der Generator: Er rechnet die Spesen jetzt selbst
-(`Spesen:30` statt eines von Hand eingetippten Betrags).
+Dazu kommen die Sätze, der Generator und das Aufstellungs-Template. Drei
+Änderungen stecken darin: Der Generator **rechnet die Spesen jetzt selbst**
+(`Spesen:30` statt eines von Hand eingetippten Betrags), die Aufstellung kann
+endlich die **Bemerkungszeile** tragen, die Regel 6 seit dem 03.09. verlangt
+(*„LKW-Sätze wie für dieses Projekt besprochen"*), und `ablage.py` bekommt den
+elften Pfadfall aus Befund 3.
 
 ```bash
-rsync -az ~/Projects/rechnungen/RECHNUNGSREGELN.md ~/Projects/rechnungen/README.md ~/Projects/rechnungen/daten/saetze.json claudebot:~/workspace/rechnungen/ && rsync -az ~/Projects/rechnungen/scripts/generate_aufstellung.py claudebot:~/workspace/rechnungen/scripts/
+rsync -az ~/Projects/rechnungen/RECHNUNGSREGELN.md ~/Projects/rechnungen/README.md ~/Projects/rechnungen/daten/saetze.json claudebot:~/workspace/rechnungen/ && rsync -az ~/Projects/rechnungen/scripts/generate_aufstellung.py ~/Projects/rechnungen/scripts/ablage.py claudebot:~/workspace/rechnungen/scripts/ && rsync -az ~/Projects/rechnungen/templates/aufstellung.typ claudebot:~/workspace/rechnungen/templates/
 ```
 
 ⚠️ **`saetze.json` geht mit, `rechnungsnummern.json` nicht** — die liegen im

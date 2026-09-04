@@ -179,6 +179,11 @@ git -C ~/Projects/claude-bot-logs fetch -q origin && git -C ~/Projects/claude-bo
 
 **Prüfzeile:** beide Meldungen.
 
+✅ **Erledigt und gemessen** (04.09., 22:0x): Beide Klone stehen auf `4b2387b9`.
+Im Repo sind **null** Commits und **null** Objekte, die den Rechnungszweig
+tragen; die `Rechnung 012-26.pdf` ist auch über die Objektliste nicht mehr
+auffindbar.
+
 **Es gibt einen dritten, und er hat sich selbst gemeldet:** Engywucks
 Kontrollsitzung hält eine Lesekopie des Log-Repos. Sie pusht nie und zieht sich
 nach dem Umschreiben selbst nach — er sagt Bescheid, wenn es geschehen ist.

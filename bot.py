@@ -41,6 +41,7 @@ from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKClient,
+    HookMatcher,
     PermissionResultAllow,
     PermissionResultDeny,
     ResultMessage,
@@ -1042,7 +1043,15 @@ def limit_ruecklage(mb, job, fehlertext: str) -> float | None:
     """
     bis = parse_reset_zeit(fehlertext or "")
     # Erst die Pause — siehe oben.
-    mb.pausiert_bis = bis or (time.time() + 900)
+    #
+    # **[GEAENDERT 09.09.2026] Die Pause gilt der PERSON** (Engywucks Auflage
+    # 3). `mb.pausiert_bis` bleibt als Rueckfall bestehen, damit ein Aufrufer
+    # ohne Person weiterhin pausieren kann; massgeblich ist die Person.
+    _pause = bis or (time.time() + 900)
+    mb.pausiert_bis = _pause
+    _uid = getattr(job, "user_id", None)
+    if _uid:
+        limit_pause_setzen(_uid, _pause)
     mb.queue.appendleft(job)
     if job.pending_key:
         pending.set_status(job.pending_key, pending.STATUS_OPEN)
@@ -1733,6 +1742,57 @@ class Mailbox:
 
 MAILBOXES: dict[Faden, Mailbox] = {}
 
+# ── Das Kontingent-Limit gilt der PERSON, nicht dem Zimmer `[NEU 09.09.2026]`
+#
+# **Engywucks Auflage 3, und sie fängt einen Regress, den der Schlüsselwechsel
+# selbst erzeugt hat:** `pausiert_bis` lag auf der Warteschlange. Solange es
+# eine je Person gab, war das richtig. Seit dem 09.09. gibt es eine je Zimmer
+# — vier Zimmer hätten dasselbe Limit **viermal** entdeckt, vier ⏳-Meldungen
+# geschickt und vier Wecker gestellt.
+#
+# **Das Limit ist kontoweit.** Es hängt am Abo, nicht am Thema; ein zweites
+# Zimmer kann nicht weiterarbeiten, während das erste wartet. Also ein Feld je
+# Person, und alle Fäden lesen es.
+_LIMIT_PAUSE_BIS: dict[int, float] = {}
+
+
+def limit_pause_bis(user_id: int) -> float:
+    """Bis wann ruht ALLES für diese Person (Wanduhr-Zeit, 0 = nichts)."""
+    return _LIMIT_PAUSE_BIS.get(int(user_id), 0.0)
+
+
+def limit_pause_setzen(user_id: int, bis: float) -> None:
+    """Die Pause gilt der Person — **jedes** ihrer Zimmer wartet.
+
+    Der spätere Zeitpunkt gewinnt: Meldet ein zweites Zimmer dasselbe Limit
+    mit einer späteren Freigabe, wäre es falsch, die Pause zu verkürzen.
+    """
+    uid = int(user_id)
+    _LIMIT_PAUSE_BIS[uid] = max(_LIMIT_PAUSE_BIS.get(uid, 0.0), float(bis))
+
+
+def limit_pause_loeschen(user_id: int) -> None:
+    """Die Pause ist vorbei — für alle Zimmer zugleich."""
+    _LIMIT_PAUSE_BIS.pop(int(user_id), None)
+
+
+def pause_rest_s(mb, user_id: int, jetzt: float | None = None) -> float:
+    """Wie lange dieses Zimmer noch ruht — **die Entscheidung, aufrufbar.**
+
+    Der spätere der beiden Zeitpunkte gilt: die Pause dieses Zimmers und die
+    **kontoweite** Pause der Person. Ohne den zweiten Teil entdeckten vier
+    Zimmer dasselbe Limit viermal.
+
+    Ausgelagert, weil eine Bedingung mitten in einer `while`-Schleife nur mit
+    laufendem Worker messbar wäre — und eine Prüfzeile, die stattdessen den
+    Quelltext liest, ist umgehbar (hier gemessen: Die Gegenprobe blieb grün,
+    weil der gesuchte Name an einer anderen Zeile stehen blieb).
+    """
+    jetzt = jetzt if jetzt is not None else time.time()
+    bis = max(float(getattr(mb, "pausiert_bis", 0.0) or 0.0),
+              limit_pause_bis(user_id))
+    return max(0.0, bis - jetzt)
+
 # 5.2 Schritt 2: Schlüssel der beim Start aus der Persistenz nachgeholten
 # Nachrichten. Telegram stellt dieselben Nachrichten nach einem Neustart u. U.
 # NOCHMAL zu (DROP_PENDING_UPDATES=False) — dann würde ohne diese Sperre dieselbe
@@ -1843,10 +1903,17 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
     while mb.queue:
         # H2 Ebene 1: Warten statt Wegwerfen. In Häppchen schlafen, damit ein
         # früher gesetzter Reset (oder ein Neustart) nicht ausgesessen wird.
-        while mb.pausiert_bis > time.time():
-            await asyncio.sleep(min(30.0, max(1.0, mb.pausiert_bis - time.time())))
-        if mb.pausiert_bis:
+        # **Die Pause der PERSON gilt fuer jedes ihrer Zimmer** (Auflage 3).
+        # Die Entscheidung steht in `pause_rest_s` — **herausgezogen, damit
+        # ein Pruefer sie AUFRUFEN kann.** Meine erste Fassung liess sie hier
+        # stehen und mass sie ueber den Quelltext; die Gegenprobe blieb gruen,
+        # weil der gesuchte Name auch nach dem Rueckbau noch dastand. Eine
+        # Zeile, die Text liest, ist umgehbar.
+        while (_rest := pause_rest_s(mb, user_id)) > 0:
+            await asyncio.sleep(min(30.0, max(1.0, _rest)))
+        if mb.pausiert_bis or limit_pause_bis(user_id):
             mb.pausiert_bis = 0.0
+            limit_pause_loeschen(user_id)
             log.info("Kontingent-Pause vorbei — %d Nachricht(en) werden nachgeholt",
                      len(mb.queue))
             job0 = mb.queue[0] if mb.queue else None
@@ -4243,8 +4310,76 @@ def _treffer_adressen(ergebnis: str) -> list[str]:
 _UNSET = object()  # Sentinel: effort=None ist ein gültiger Wert (Normal)
 
 
+def nachsteuer_ordner(user_id: int, thread_id: "int | None" = None) -> Path:
+    """Wo Zettel liegen, die einem LAUFENDEN Zimmer nachgereicht werden.
+
+    Je Faden ein Ordner: Ein Nachtrag gehoert in das Zimmer, in dem er gesagt
+    wurde — sonst bekaeme das falsche Zimmer die Korrektur.
+    """
+    basis = Path(os.environ.get("POSTFACH_DIR")
+                 or (Path.home() / "postfach")) / "nachsteuern"
+    fd = faden(user_id, thread_id)
+    return basis / f"{fd[0]}_{fd[1] if fd[1] is not None else 'haupt'}"
+
+
+def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None) -> str:
+    """Neue Zettel einsammeln und **verbrauchen** — oder leerer Text.
+
+    **Engywucks Auflage 4 / Auftrag 8.** Adam am 05.09.: *optimieren,
+    ergaenzen, zuruecknehmen, ohne zu stoppen.* Das Stoppen gibt es schon
+    (`_is_interrupt`); was fehlte, war der sanfte Weg: etwas hineinreichen,
+    waehrend gearbeitet wird.
+
+    **Verbraucht, nicht nur gelesen** — sonst kaeme derselbe Nachtrag bei
+    jedem Werkzeugaufruf erneut, und das Modell haette ihn zehnmal im Kontext.
+
+    **Wirft nie.** Ein Fehler beim Einsammeln darf einen laufenden Auftrag
+    nicht abbrechen; im schlimmsten Fall kommt der Nachtrag nicht an, und das
+    ist besser als ein abgebrochener Bau.
+    """
+    try:
+        ordner = nachsteuer_ordner(user_id, thread_id)
+        if not ordner.is_dir():
+            return ""
+        stuecke: list[str] = []
+        for datei in sorted(ordner.glob("*.txt")):
+            try:
+                stuecke.append(datei.read_text(encoding="utf-8").strip())
+                datei.unlink()
+            except OSError:
+                continue
+        return "\n".join(s for s in stuecke if s)
+    except Exception:
+        log.exception("Nachsteuern: Einsammeln fehlgeschlagen (nicht-fatal)")
+        return ""
+
+
+def _nachsteuer_hook(user_id: int, thread_id: "int | None" = None):
+    """Der PreToolUse-Hook dieses Zimmers.
+
+    Reicht Adams Nachtrag **an der naechsten Werkzeuggrenze** hinein — also
+    spaetestens nach Sekunden, ohne den Vorgang zu stoppen. Der Hook
+    entscheidet nichts: kein `permissionDecision`, keine Aenderung der
+    Eingabe. **Er reicht Text durch, sonst nichts** — ein Hook, der mitreden
+    darf, waere eine zweite Freigabestelle neben der Positivliste.
+    """
+    async def _hook(eingabe, tool_use_id, context):
+        text = nachsteuer_lesen(user_id, thread_id)
+        if not text:
+            return {}
+        log.info("Nachsteuern: %d Zeichen an den laufenden Auftrag gereicht "
+                 "(Zimmer %s)", len(text), thread_id if thread_id is not None else "haupt")
+        return {"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "additionalContext": f"[Adam hat nachgesteuert, waehrend du "
+                                 f"arbeitest:]\n{text}",
+        }}
+    return _hook
+
+
 def hauptsitzungs_optionen(*, user_id: int, model_full: str, effort,
-                           add_dirs: list, context, context_via_file: bool):
+                           add_dirs: list, context, context_via_file: bool,
+                           thread_id: "int | None" = None):
     """Die Optionen der HAUPTsitzung — als eigene Funktion, damit sie prüfbar ist.
 
     **Warum sie herausgezogen ist** (Engywuck, Befund K, 23.08.): Für die
@@ -4276,6 +4411,11 @@ def hauptsitzungs_optionen(*, user_id: int, model_full: str, effort,
         # sondern bewusste Notfall-Option: _COST_TOOLS erzwingt für JEDE Nutzung
         # den 💰-Einzeldialog mit Kostenhinweis — nie Always-Allow, nie automatisch.
         mcp_servers={"suche": _SEARCH_MCP},
+        # **[NEU 09.09.2026] Nachsteuern ohne Stoppen** (Auftrag 8): Der Hook
+        # sieht vor jedem Werkzeugaufruf nach, ob Adam etwas nachgereicht hat.
+        # `matcher=None` heisst: bei jedem Werkzeug — der Nachtrag soll an der
+        # NAECHSTEN Grenze ankommen, nicht an einer bestimmten.
+        hooks={"PreToolUse": [HookMatcher(hooks=[_nachsteuer_hook(user_id, thread_id)])]},
         setting_sources=["project"] if context_via_file else None,
         system_prompt={
             "type": "preset",
@@ -4329,7 +4469,8 @@ async def ensure_session(
     add_dirs = [str(_MEMORY_DIR)] if _MEMORY_DIR.exists() else []
     options = hauptsitzungs_optionen(
         user_id=user_id, model_full=model_full, effort=effort,
-        add_dirs=add_dirs, context=context, context_via_file=context_via_file)
+        add_dirs=add_dirs, context=context, context_via_file=context_via_file,
+        thread_id=thread_id)
     client = ClaudeSDKClient(options=options)
     await client.connect()
     # 5.25 (c): dauerhaft gemerkte Freigaben laden — dabei SELBSTHEILUNG:

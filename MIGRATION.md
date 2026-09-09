@@ -656,7 +656,10 @@ Absturzfall ausdrücklich auf 5.18).
 ## Phase 5 — Bot-Features (mit/nach Migration)
 
 ### 5.1 Multi-Session (`/new`, `/sessions`, `/switch`, `/stop`)
-- **Status:** 🔄 **Block 1, 1b und 2 GEBAUT am 09.09.2026** (Schlüsselwechsel und
+- **Status:** 🔄 **Block 1, 1b und 2 GEBAUT und LIVE.** Server-Stand
+  **`211b383`** (10.09.2026, 00:56 neu gestartet; `rc=77`, 75/76 mit der
+  erwarteten übersprungenen Heartbeat-Zeile). `/zimmer` hat live geantwortet,
+  während ein Auftrag lief. Die Blöcke 3 und 4 folgen einzeln (Schlüsselwechsel und
   die Wege darüber, beides im Probelauf-Klon nach R4, 75/75; Block 1 seit
   19:26 auf dem Server) — die Blöcke 2 bis 4 folgen einzeln
 - **Die Form: eine Sitzung je Zimmer** (Claudias Konzept „Sitzung je Zimmer"

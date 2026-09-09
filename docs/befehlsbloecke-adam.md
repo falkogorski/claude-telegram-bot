@@ -729,3 +729,21 @@ ssh claudebot 'ls -la ~/claude-telegram-bot/logs/conversations/ | tail -5'
 Im Privatchat bleibt es bei der einen Tagesdatei — Zimmer-Dateien entstehen
 erst mit Themen. Der Blick lohnt trotzdem: Er zeigt, dass am Namen des
 Hauptprotokolls nichts geändert wurde.
+
+**`[NACHGETRAGEN 10.09.2026, 01:05]` Live ist `211b383`, nicht `590b7e8`.**
+Der Block oben nennt den Stand, der beim Schreiben galt; deployt wurde am Ende
+`211b383` (B2-3, die Schlusszeile). Vorher-Stand abgelesen: `590b7e8` ·
+`rc=77`, 75/76 · Neustart `active` um 00:56 · `/zimmer` hat live geantwortet,
+während ein Auftrag lief.
+
+**Eine Prüfzeile ist damit noch NICHT scharf gefahren:** Der Auftragstext im
+Test war `ssh claudevps 'systemctl restart …'` — darin steht **kein
+Unterstrich**. Genau der war der Befund B2-2. Im Prüfstand ist der Fall
+gemessen (mit `test_zimmer_block1.py` als Auftragstext), im Betrieb noch nicht.
+Der Nachtest kostet eine halbe Minute:
+
+> Lies `scripts/test_zimmer_block1.py` und sag mir in zwei Sätzen, was der
+> Prüfer misst.
+
+und währenddessen `/zimmer`. Kommt die Übersicht mit dem Dateinamen darin,
+ist der Fall auch im Betrieb belegt.

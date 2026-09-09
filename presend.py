@@ -192,12 +192,18 @@ def _fix_weekday_dates(text: str, findings: list[dict], today: date | None = Non
     return text
 
 
-def check_and_fix(text: str, *, pending_newer: int = 0,
+def check_and_fix(text: str, *, pending_newer: int = 0, eingearbeitet: int = 0,
                   today: date | None = None) -> tuple[str, list[dict]]:
     """Prüft den vollständigen Antworttext. Gibt (ggf. korrigierter Text, Befunde).
 
     pending_newer: Anzahl NEUERER Nachrichten, die seit Bearbeitungsbeginn eingingen
                    und noch warten (vom Aufrufer ermittelt — Zeitbasis beachten!).
+    eingearbeitet: Wie viele davon **oben in dieser Antwort schon stecken** —
+                   als Zettel während des Laufs hineingereicht (Nachsteuern).
+                   `[NEU 09.09.2026, Befund B2-3]` Ohne diese Trennung
+                   versprach die Schlusszeile eine separate Antwort auf etwas,
+                   das gerade beantwortet wurde; der Zwilling wurde danach
+                   übersprungen, und die zweite Antwort kam nie.
     Fehler hier dürfen den Bot nie stören → alles defensiv.
     """
     findings: list[dict] = []
@@ -222,19 +228,35 @@ def check_and_fix(text: str, *, pending_newer: int = 0,
         # Anfrage und verleitete ihn dazu, nach etwas zu fragen, das längst vorliegt
         # („kannst du sie mir zeigen?" — live beobachtet 20.07., zwei Sekunden bevor
         # er dieselben Nachrichten selbst beantwortete).
-        if pending_newer > 0:
-            findings.append({
-                "code": "vollstaendigkeit",
-                "art": "vermerk",
-                "detail": f"{pending_newer} neuere Nachricht(en) seit Bearbeitungsbeginn "
-                          f"eingegangen, von dieser Antwort nicht adressiert",
-                "hinweis": (
+        if pending_newer > 0 or eingearbeitet > 0:
+            teile = []
+            if eingearbeitet > 0:
+                # **Zuerst das Erledigte.** Adam soll sehen, dass sein Nachtrag
+                # angekommen ist — sonst wartet er auf eine Antwort, die es
+                # oben schon gibt.
+                teile.append(
+                    "ℹ️ Dein Nachtrag von eben ist oben eingearbeitet — er wird "
+                    "nicht noch einmal einzeln beantwortet."
+                    if eingearbeitet == 1 else
+                    f"ℹ️ Deine {eingearbeitet} Nachträge von eben sind oben "
+                    "eingearbeitet — sie werden nicht noch einmal einzeln beantwortet."
+                )
+            if pending_newer > 0:
+                teile.append(
                     "ℹ️ Eine neuere Nachricht von dir ist inzwischen eingegangen — "
                     "die beantworte ich gleich separat."
                     if pending_newer == 1 else
                     f"ℹ️ {pending_newer} neuere Nachrichten von dir sind inzwischen "
                     "eingegangen — die beantworte ich gleich einzeln."
-                ),
+                )
+            findings.append({
+                "code": "vollstaendigkeit",
+                "art": "vermerk",
+                "detail": (f"{pending_newer} neuere Nachricht(en) seit Bearbeitungsbeginn "
+                           f"eingegangen, von dieser Antwort nicht adressiert"
+                           + (f"; {eingearbeitet} davon als Nachtrag eingearbeitet"
+                              if eingearbeitet else "")),
+                "hinweis": "\n".join(teile),
             })
 
         # (d) Tentativ-Sprache — KEIN harter Fehler, nur Kennzahl

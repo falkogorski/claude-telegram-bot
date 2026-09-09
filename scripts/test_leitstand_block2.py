@@ -231,6 +231,46 @@ zeile("im Protokoll eines anderen Zimmers steht er nicht (Gegenrichtung)",
       "und nenne bitte auch das Datum" not in _inhalt(zimmer),
       gemessen=_inhalt(zimmer)[-80:].replace("\n", " "))
 
+# ---- B2-3: die Schlusszeile verspricht nichts, was nicht kommt -------------
+#
+# **Engywucks Befund aus Adams Screenshot von Schritt 3:** Unter der Antwort
+# stand *„Eine neuere Nachricht von dir ist inzwischen eingegangen — die
+# beantworte ich gleich separat."* — obwohl der Zwilling danach uebersprungen
+# wurde. Der Zaehler kannte den Zettel nicht. **Ein Versprechen, das der Bot
+# selbst bricht, ist schlimmer als gar keine Zeile.**
+import presend                                                  # noqa: E402
+
+zwilling = bot.QueuedJob(update=None, text="und nenne bitte auch das Datum",
+                         user_id=UID, chat_id=999, message_id=511, thread_id=11,
+                         received_at=2000)
+job11.received_at = 1000
+mb11.queue.append(zwilling)
+
+offen, eingearbeitet = bot._neuere_wartende(UID, job11)
+zeile("der gelesene Zettel zaehlt als eingearbeitet, nicht als offen",
+      (offen, eingearbeitet) == (0, 1), gemessen=f"offen={offen} eingearbeitet={eingearbeitet}")
+
+_txt, _bef = presend.check_and_fix("Die Antwort.", pending_newer=offen,
+                                   eingearbeitet=eingearbeitet)
+_hinweis = " ".join(f.get("hinweis", "") for f in _bef)
+zeile("die Schlusszeile verspricht KEINE separate Antwort",
+      "separat" not in _hinweis and "einzeln beantwortet" in _hinweis,
+      gemessen=_hinweis[:120])
+zeile("sondern sagt, dass der Nachtrag oben steckt",
+      "eingearbeitet" in _hinweis, gemessen=_hinweis[:120])
+
+# Gegenrichtung: eine echte neue Nachricht OHNE Zettel wird weiter angekuendigt.
+frisch = bot.QueuedJob(update=None, text="ganz was anderes", user_id=UID,
+                       chat_id=999, message_id=777, thread_id=11, received_at=3000)
+mb11.queue.append(frisch)
+offen2, eingearbeitet2 = bot._neuere_wartende(UID, job11)
+_txt2, _bef2 = presend.check_and_fix("Die Antwort.", pending_newer=offen2,
+                                     eingearbeitet=eingearbeitet2)
+_hinweis2 = " ".join(f.get("hinweis", "") for f in _bef2)
+zeile("eine wirklich offene Nachricht wird weiter angekuendigt (Gegenrichtung)",
+      (offen2, eingearbeitet2) == (1, 1) and "separat" in _hinweis2,
+      gemessen=f"offen={offen2} eingearbeitet={eingearbeitet2} · {_hinweis2[:80]}")
+
 import shutil                                                   # noqa: E402
 shutil.rmtree(_TMP, ignore_errors=True)
 print()

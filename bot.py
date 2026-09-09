@@ -2167,23 +2167,32 @@ async def _notify_job_failed(job: QueuedJob) -> None:
         log.exception("Fehler-Sofortmeldung nicht zustellbar")
 
 
-def _count_newer_pending(user_id: int, job: QueuedJob) -> int:
-    """Wie viele NEUERE Nachrichten warten seit Bearbeitungsbeginn dieses Jobs?
+def _neuere_wartende(user_id: int, job: QueuedJob) -> "tuple[int, int]":
+    """Neuere wartende Nachrichten: **(noch offen, oben eingearbeitet)**.
 
     ACHTUNG Zeitbasen (Analyse-Befund 17.07.): `Mailbox.current_started` ist
     time.monotonic(), `QueuedJob.received_at` dagegen time.time() — ein Vergleich
     der beiden wirft KEINEN Fehler, wäre aber IMMER wahr und würde bei jeder
     Antwort Fehlalarm auslösen. Deshalb wird ausschließlich received_at gegen
     received_at verglichen (gleiche Zeitbasis).
+
+    **[GEAENDERT 09.09.2026, Engywucks Befund B2-3]** Vorher gab es nur eine
+    Zahl, und sie zaehlte den **Zwilling eines gelesenen Zettels mit**. Adams
+    Nachtrag war damit oben in der Antwort eingearbeitet -- und darunter stand
+    *„die beantworte ich gleich separat"*. Der Zwilling wurde danach
+    uebersprungen, die versprochene zweite Antwort kam nie. **Ein Versprechen,
+    das der Bot selbst bricht, ist schlimmer als gar keine Zeile.**
     """
     try:
         mb = _mb_opt(user_id, job.thread_id)
         if not mb or not mb.queue:
-            return 0
-        return sum(1 for j in mb.queue if j.received_at > job.received_at)
+            return 0, 0
+        neuer = [j for j in mb.queue if j.received_at > job.received_at]
+        eingearbeitet = sum(1 for j in neuer if zettel_gelesen(j.message_id))
+        return len(neuer) - eingearbeitet, eingearbeitet
     except Exception:
         log.exception("Vollständigkeits-Zählung fehlgeschlagen (nicht-fatal)")
-        return 0
+        return 0, 0
 
 
 async def _presend_gate(
@@ -2201,8 +2210,9 @@ async def _presend_gate(
         return answer
     # NICHT `pending` nennen — das würde das Modul `pending` (5.2) in dieser
     # Funktion überschatten und jeden künftigen Zugriff darauf still brechen.
-    pending_newer = _count_newer_pending(job.user_id, job)
-    answer, findings = presend.check_and_fix(answer, pending_newer=pending_newer)
+    pending_newer, eingearbeitet = _neuere_wartende(job.user_id, job)
+    answer, findings = presend.check_and_fix(
+        answer, pending_newer=pending_newer, eingearbeitet=eingearbeitet)
     meta = {"user_id": job.user_id, "thorough": job.thorough}
 
     todo = presend.needs_correction(findings)
@@ -2226,8 +2236,9 @@ async def _presend_gate(
         corrected = None
 
     if corrected:
+        _offen, _eingearbeitet = _neuere_wartende(job.user_id, job)
         corrected, again = presend.check_and_fix(
-            corrected, pending_newer=_count_newer_pending(job.user_id, job))
+            corrected, pending_newer=_offen, eingearbeitet=_eingearbeitet)
         if not presend.needs_correction(again):
             meta["korrektur"] = "erfolgreich"
             presend.log_findings(findings + again, meta)
@@ -4581,6 +4592,20 @@ def nachsteuer_aufraeumen(user_id: int, thread_id: "int | None",
                 _ZETTEL.pop(mid, None)
     except Exception:
         log.exception("Nachsteuern: Aufraeumen fehlgeschlagen (nicht-fatal)")
+
+
+def zettel_gelesen(message_id: "int | None") -> bool:
+    """Wurde diese Nachricht bereits als Zettel in den laufenden Auftrag
+    gereicht? -- Der Zustand **waehrend** der Auftrag noch laeuft.
+
+    **[NEU 09.09.2026, Engywucks Befund B2-3]** `zettel_erledigt()` reicht
+    hier nicht: Es wird erst beim AUFTRAGSENDE gesetzt, die Schlusszeile der
+    Antwort entsteht aber **davor**. Zum Zeitpunkt des Sendens ist der Zettel
+    gelesen und der Zwilling wartet noch -- genau der Moment, in dem die alte
+    Zeile eine zweite Antwort versprach, die dann nie kam.
+    """
+    eintrag = _ZETTEL.get(int(message_id or 0))
+    return bool(eintrag and eintrag.get("gelesen"))
 
 
 def zettel_erledigt(message_id: "int | None") -> bool:

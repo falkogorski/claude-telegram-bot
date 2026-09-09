@@ -755,6 +755,14 @@ Absturzfall ausdrücklich auf 5.18).
   Zwilling läuft nie. Adams Nachtrag fehlte damit im einzigen Gedächtnis, das
   Wachposten, Mac-Sitzung und Log-Repo lesen. Jetzt schreibt der Hook ihn
   mit, gekennzeichnet, und das Überspringen hinterlässt einen Vermerk.
+  **B2-3** — aus Adams Screenshot von Schritt 3: Unter der Antwort stand
+  „Eine neuere Nachricht von dir ist inzwischen eingegangen — die beantworte
+  ich gleich separat", obwohl der Zwilling danach übersprungen wurde. Der
+  Zähler kannte den Zettel nicht. Er trennt jetzt **„noch offen"** von
+  **„oben eingearbeitet"** und sagt beides richtig. Gemessen wird
+  `zettel_gelesen()`, nicht `zettel_erledigt()` — Letzteres fällt erst beim
+  Auftragsende, die Schlusszeile entsteht davor. Die Gegenprobe erzeugt
+  wortgleich den Satz aus dem Screenshot.
 - **Akzeptanzkriterium:** Mehrere parallele Sessions je User möglich; Wechsel funktioniert; State wird persistiert (überlebt Bot-Neustart).
 - **Test:** Zwei Zimmer antworten gleichzeitig (Stoppuhr); ein absichtlich aufgehängtes Zimmer wird gemeldet, während ein anderes tippt. Dazu der alte Test: Bot killen, wieder hoch → Sessions noch da.
 - **Adam-Bestätigung:** —

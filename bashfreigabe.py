@@ -220,6 +220,36 @@ BENANNTE_SKRIPTE = frozenset({
     "entscheidung_ablegen.py",
 })
 
+# **Der zweite Basisordner: Adams Rechnungswerkzeuge** `[NEU 09.09.2026, M-2]`
+#
+# **Engywucks Befund 2 vom 07.09.:** Von 34 DIALOG-Urteilen des
+# Rechnungsmorgens hatten **25** dieselbe Ursache — `_benanntes_skript` prueft
+# nur `<repo>/scripts/`, und das Rechnungsprojekt liegt seit dem Umzug unter
+# `~/workspace/rechnungen/scripts/`. Anderer Baum, gleicher Ordnername.
+#
+# **Ein zweiter Basisordner, keine Aufweichung.** Die Alternative waere
+# gewesen, `p.parent == repo/"scripts"` zu `p.is_relative_to(...)` zu lockern
+# — dann waechst die Zusage mit jedem neuen Unterordner mit. Stattdessen:
+# eine **benannte Basis mit eigener Namensmenge**. Wer ein viertes Skript
+# hinzufuegen will, traegt es hier ein; das ist ein Bauauftrag, keine Zeile
+# nebenbei — dieselbe Grenze wie bisher, nur an zwei Orten.
+#
+# ⚠️ **Getrennte Mengen je Basis, mit Absicht:** `postfach_ablegen.py` unter
+# `rechnungen/scripts/` waere ein anderes Skript als das versionierte im Repo.
+# Eine gemeinsame Menge haette den Namen zum Ausweis gemacht statt den Ort.
+RECHNUNGS_SKRIPTE = frozenset({
+    "generate_rechnung.py",     # erzeugt die Rechnung, liest stammdaten selbst
+    "generate_aufstellung.py",  # das Beiblatt
+    "ablage.py",                # die Zustellung in den Ausgang
+})
+
+# **Die dritte Bedingung [versioniert] traegt hier NICHT** — das
+# Rechnungsprojekt hat keine Versionskontrolle (Engywucks Befund 4, Adams
+# offene Entscheidung zu `git init`). Was sie leistet, leistet hier die
+# **feste Namensmenge**: Ein anderes Skript in diesem Ordner ist nicht
+# freigegeben, auch wenn es dort liegt. Dass diese Bedingung fehlt, steht
+# hier, statt unbemerkt zu fehlen.
+
 # Die Deuter, fuer die (1)-(3) ueberhaupt geprueft werden. Ohne benanntes
 # Skript bleibt jeder von ihnen im Dialog.
 DEUTER = frozenset({"python3", "python"})
@@ -475,23 +505,48 @@ def _benanntes_skript(teile: list[str], art: str, bereiche,
     if p is None:
         return Entscheid(DIALOG, f"Skriptpfad nicht aufloesbar: {erstes}", art)
 
-    repo = next((b.pfad for b in bereiche if b.name == "repo"), None)
-    if repo is None:
-        # Kein Repo-Bereich bekannt — dann gibt es nichts, wogegen zu pruefen
+    basen = _skript_basen(bereiche)
+    if not basen:
+        # Kein Bereich bekannt — dann gibt es nichts, wogegen zu pruefen
         # waere. Fail-closed, nicht raten.
         return Entscheid(DIALOG, "kein Repo-Bereich zum Pruefen", art)
 
     # `p.parent ==` statt „liegt irgendwo darunter": Unterordner sollen NICHT
     # mitkommen. Eine Zusage, die auf einen Baum zeigt, waechst mit ihm.
-    if p.parent != (repo / "scripts"):
+    # **Seit M-2 gibt es zwei Basen** (Repo und Rechnungsprojekt), jede mit
+    # eigener Namensmenge — der Ort entscheidet, nicht der Name.
+    erlaubte = next((namen for ordner, namen in basen if p.parent == ordner), None)
+    if erlaubte is None:
         return Entscheid(DIALOG,
-                         f"[{p.name}] liegt nicht direkt unter scripts/", art,
-                         pfade=(str(p),))
-    if p.name not in BENANNTE_SKRIPTE:
+                         f"[{p.name}] liegt nicht direkt unter einem "
+                         "freigegebenen scripts/", art, pfade=(str(p),))
+    if p.name not in erlaubte:
         return Entscheid(DIALOG,
                          f"[{p.name}] steht nicht unter den benannten "
                          "Skripten", art, pfade=(str(p),))
     return None
+
+
+def _skript_basen(bereiche) -> list[tuple[Path, frozenset]]:
+    """Die Ordner, aus denen ein Deuter ein benanntes Skript starten darf.
+
+    **Je Basis eine eigene Namensmenge** (M-2, 09.09.): Ein Skriptname allein
+    ist kein Ausweis — dasselbe `postfach_ablegen.py` waere unter einem
+    anderen Ordner ein anderes Programm. Deshalb Paare aus Ort und Menge
+    statt zweier Listen, die man versehentlich kreuzt.
+
+    Abgeleitet aus den Bereichen, nicht getippt: In einem Probelauf-Klon
+    heisst der Repo-Ordner anders, und eine feste Zeichenkette griffe dort
+    nicht.
+    """
+    repo = next((b.pfad for b in bereiche if b.name == "repo"), None)
+    ws = next((b.pfad for b in bereiche if b.name == "workspace"), None)
+    basen: list[tuple[Path, frozenset]] = []
+    if repo is not None:
+        basen.append((repo / "scripts", BENANNTE_SKRIPTE))
+    if ws is not None:
+        basen.append((ws / "rechnungen" / "scripts", RECHNUNGS_SKRIPTE))
+    return basen
 
 
 def _ein_befehl(teile: list[str], roh: str, bereiche,

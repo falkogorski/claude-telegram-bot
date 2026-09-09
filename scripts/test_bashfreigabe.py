@@ -556,9 +556,12 @@ zeile("ein benanntes Skript laeuft ohne Rueckfrage (U-3)",
 for _cmd, _erwartet_im_grund, _was in [
     (f"python3 {_skripte}/irgendwas.py", "nicht unter den benannten",
      "ein anderes Skript im selben Ordner"),
-    (f"python3 {draussen}/postfach_ablegen.py", "nicht direkt unter scripts",
+    # **`[UMGESTELLT 09.09.2026, M-2]`** Der Grundtext heisst jetzt „unter
+    # einem freigegebenen scripts/", weil es seit M-2 zwei Basen gibt. Die
+    # Zusage ist unveraendert — geprueft wird weiter der ORT, nicht der Name.
+    (f"python3 {draussen}/postfach_ablegen.py", "nicht direkt unter",
      "derselbe Name ausserhalb"),
-    (f"python3 {_unter}/postfach_ablegen.py", "nicht direkt unter scripts",
+    (f"python3 {_unter}/postfach_ablegen.py", "nicht direkt unter",
      "derselbe Name im Unterordner"),
     ('python3 -c "print(1)"', "Schalter statt eines Skripts",
      "der Deuter mit -c"),
@@ -569,6 +572,47 @@ for _cmd, _erwartet_im_grund, _was in [
     _e = e(_cmd)
     zeile(f"U-3 haelt: [{_was}] bleibt im Dialog — aus dem richtigen Grund",
           _e.urteil == bf.DIALOG and _erwartet_im_grund in _e.grund,
+          gemessen=f"{_e.urteil} · {_e.grund}")
+
+# ---- M-2 (09.09.2026): der zweite Basisordner, Adams Rechnungswerkzeuge ----
+#
+# **Engywucks Befund 2:** 25 der 34 DIALOG-Urteile des Rechnungsmorgens
+# hatten eine Zeile als Ursache — geprueft wurde nur `<repo>/scripts/`, und
+# das Rechnungsprojekt liegt unter `~/workspace/rechnungen/scripts/`.
+(_rs := ws / "rechnungen" / "scripts").mkdir(parents=True, exist_ok=True)
+(_venv := ws / "rechnungen" / ".venv" / "bin").mkdir(parents=True, exist_ok=True)
+for _n in ("generate_rechnung.py", "generate_aufstellung.py", "ablage.py",
+           "fremd.py", "postfach_ablegen.py"):
+    (_rs / _n).write_text("x")
+(_venv / "python").write_text("x")
+
+# Argument ABSOLUT: Ein relatives `daten/r.json` ohne `cd` wird gegen das
+# Arbeitsverzeichnis aufgeloest und liegt dann ausserhalb der Bereiche —
+# richtiges Verhalten der Schranke, das dieser Pruefstand erst
+# fehlerhaft als M-2-Bruch gemeldet hat. Der Fall mit `cd` steht direkt
+# darunter und deckt die Alltagsform ab.
+_r1 = e(f"{_venv}/python {_rs}/generate_rechnung.py {ws}/rechnungen/daten/r.json")
+zeile("M-2: der Rechnungsgenerator laeuft ohne Rueckfrage",
+      _r1.urteil == bf.FREI, gemessen=f"{_r1.urteil} · {_r1.grund}")
+_r2 = e(f"cd {ws}/rechnungen && {_venv}/python scripts/generate_aufstellung.py x.json")
+zeile("M-2: auch mit cd davor und relativem Skriptpfad",
+      _r2.urteil == bf.FREI, gemessen=f"{_r2.urteil} · {_r2.grund}")
+
+# **Die Gegenrichtung, und sie traegt die ganze Bauform:** Der Ort entscheidet,
+# nicht der Name. Ein fremdes Skript im freigegebenen Ordner bleibt zu — und
+# ein im Repo freigegebener NAME wird hier nicht dadurch frei, dass er so
+# heisst. Waeren die Mengen gemeinsam, ginge genau das durch.
+for _cmd, _teil, _was in [
+    (f"python3 {_rs}/fremd.py", "nicht unter den benannten",
+     "ein fremdes Skript im Rechnungsordner"),
+    (f"python3 {_rs}/postfach_ablegen.py", "nicht unter den benannten",
+     "ein Repo-Name in der falschen Basis"),
+    (f"python3 {ws}/rechnungen/generate_rechnung.py", "nicht direkt unter",
+     "eine Ebene ueber scripts/"),
+]:
+    _e = e(_cmd)
+    zeile(f"M-2 haelt: [{_was}] bleibt im Dialog",
+          _e.urteil == bf.DIALOG and _teil in _e.grund,
           gemessen=f"{_e.urteil} · {_e.grund}")
 
 # Die Geheimnis-Schranke greift ueber den GANZEN Befehl, vor der Zerlegung —

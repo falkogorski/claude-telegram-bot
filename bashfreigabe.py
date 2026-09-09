@@ -218,6 +218,13 @@ BENANNTE_SKRIPTE = frozenset({
     # War fuer genau diesen Weg gebaut (28.08.) und **selbst dialogpflichtig** —
     # ein Handgriff, den der Dialog jedes Mal unterbrach.
     "entscheidung_ablegen.py",
+    # **[NEU 09.09.2026, M-4]** Setzt ein Markdown-Papier als PDF (pandoc +
+    # typst, Adams Entscheid). Der Netzweg ist im Skript selbst zu, nicht ueber
+    # eine pandoc-Option: **Gemessen am 09.09. holt pandoc ein `https://`-Bild
+    # von selbst — auch mit `--sandbox`.** Deshalb weist das Skript ab, was
+    # nach draussen zeigt, bevor pandoc es sieht; die Ausgabe bleibt in den
+    # Arbeitsbereichen. Vierzehn Pruefzeilen, drei Gegenproben.
+    "konzept_pdf.py",
 })
 
 # **Der zweite Basisordner: Adams Rechnungswerkzeuge** `[NEU 09.09.2026, M-2]`

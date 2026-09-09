@@ -640,15 +640,47 @@ def protokollieren(erg: Entscheid, *, zeit: str) -> None:
 
     Der Zeitpunkt wird **hereingereicht**, nicht hier gebildet: So bleibt die
     Funktion rein und ein Pruefer kann sie ohne Uhr messen.
+
+    ⚠️ **Diese Zeile sagt, was die Positivliste URTEILT — nicht, ob Adam
+    gefragt wurde.** Seit der Auto-Zustand am 01.09. dazukam, faellt ein
+    DIALOG-Urteil in den Dauerfreigabe-Kurzschluss und wird still erlaubt.
+    Wer diese Zeilen zaehlt und „Dialoge" dazu sagt, misst die falsche Sache
+    — genau das ist seit dem 01.09. dreimal passiert, in Claudias Zaehlung
+    (76 %), in Engywucks Wiedervorlage (≤ 20 %) und in Adams drei Mahnungen.
+    **Was Adam wirklich gesehen hat, protokolliert `dialog_gezeigt`.**
     """
+    _schreiben({"zeit": zeit, "urteil": erg.urteil,
+                "art": erg.befehlsart, "bereich": erg.bereich})
+
+
+def dialog_gezeigt(*, zeit: str, werkzeug: str, art: str = "",
+                   bereich: str = "") -> None:
+    """Ein Dialog ist Adam **tatsaechlich vorgelegt** worden. `[NEU 09.09., M-3]`
+
+    **Das ist die Zahl, um die seit dem 01.09. gestritten wird**, und bis
+    heute hat sie niemand gemessen: Beim Senden der Genehmigungs-Anfrage gab
+    es keine Protokollzeile. Man konnte darueber streiten, ob es zu viele
+    Dialoge sind — messen konnte man es nicht.
+
+    Eigenes Ereignis statt eines Feldes im Urteil, und der Grund ist die
+    Reihenfolge: Das Urteil steht fest, **bevor** klar ist, ob gefragt wird
+    (Auto, Dauerfreigabe, Geheimnis-Marker entscheiden danach). Ein
+    nachtraeglich gesetztes Feld muesste die Zeile aendern; ein zweites
+    Ereignis muss nur geschrieben werden — und es kann nicht mit dem Urteil
+    verwechselt werden.
+    """
+    _schreiben({"zeit": zeit, "ereignis": "dialog_gezeigt",
+                "werkzeug": werkzeug, "art": art, "bereich": bereich})
+
+
+def _schreiben(satz: dict) -> None:
+    """Eine Zeile anhaengen — stumm scheiternd, gemeinsam fuer beide Ereignisse."""
     try:
         datei = _zaehldatei()
         datei.parent.mkdir(parents=True, exist_ok=True)
         import json
         with datei.open("a", encoding="utf-8") as f:
-            f.write(json.dumps({"zeit": zeit, "urteil": erg.urteil,
-                                "art": erg.befehlsart, "bereich": erg.bereich},
-                               ensure_ascii=False) + "\n")
+            f.write(json.dumps(satz, ensure_ascii=False) + "\n")
     except Exception:
         # **Bewusst stumm.** Eine volle Platte oder ein fehlendes Recht darf
         # keinen Bash-Aufruf scheitern lassen — die Messung ist wichtig, aber

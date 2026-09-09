@@ -365,6 +365,57 @@ zeile("zaehlt die Urteile getrennt",
       gemessen=str((b["gesamt"], b["frei"], b["dialog"], b["abgewiesen"])))
 zeile("erkennt den Wiederkehrer", b["wiederkehrer"][0][0] == "python3",
       gemessen=str(b["wiederkehrer"][:2]))
+
+# ---- M-3 (09.09.2026): Urteil und GEZEIGTER Dialog sind zweierlei ----------
+#
+# **Die Auswertung nannte Urteile „Dialoge".** Seit dem Auto-Zustand vom
+# 01.09. wird ein DIALOG-Urteil still erlaubt; Adam sieht es nie. Drei
+# Mahnungen und zwei Auswertungen stritten ueber eine Zahl, die die falsche
+# Sache mass. Beide Richtungen gemessen — dass gezaehlt wird, was gezeigt
+# wurde, UND dass es den Nenner der Urteile nicht verfaelscht.
+_mit_gezeigt = PROBE + [
+    {"zeit": "2026-09-09 10:00:00", "ereignis": "dialog_gezeigt",
+     "werkzeug": "Bash", "art": "python3", "bereich": "workspace"}] * 4
+_bg = bda.beurteilen(_mit_gezeigt)
+zeile("gezeigte Dialoge werden getrennt gezaehlt",
+      _bg["gezeigt"] == 4 and _bg["gezeigt_gemessen"] is True,
+      gemessen=f"gezeigt={_bg['gezeigt']}")
+zeile("gezeigte Dialoge verfaelschen den Urteils-Nenner nicht",
+      _bg["gesamt"] == b["gesamt"] and _bg["dialog"] == b["dialog"],
+      gemessen=f"gesamt {_bg['gesamt']} statt {b['gesamt']}")
+# **Die wichtigere Richtung:** Ohne Messung darf die Null nicht wie ein
+# Ergebnis aussehen — das waere die naechste Stille, die wie Ordnung wirkt.
+zeile("ohne Messung sagt der Bericht NICHT GEMESSEN, nicht null Dialoge",
+      b["gezeigt_gemessen"] is False
+      and "NICHT GEMESSEN" in bda.bericht(b),
+      gemessen=[z for z in bda.bericht(b).splitlines() if "GEMESSEN" in z][:1])
+zeile("mit Messung nennt der Bericht die vorgelegte Zahl",
+      "TATSÄCHLICH vorgelegt: 4" in bda.bericht(_bg),
+      gemessen=[z for z in bda.bericht(_bg).splitlines() if "vorgelegt" in z][:1])
+
+# **Die Kette, ausgefuehrt: Schreiber → Datei → Leser.** Eine Auswertung, die
+# ein Feld zaehlt, das niemand schreibt, waere die naechste Zahl ohne Deckung.
+import datetime as _dt                                          # noqa: E402
+import tempfile as _tf                                          # noqa: E402
+_prot = Path(_tf.mkdtemp(prefix="gezeigt-")) / "bash-freigaben.jsonl"
+_os.environ["BASHFREI_PROTOKOLL"] = str(_prot)
+bf.dialog_gezeigt(zeit="2026-09-09 10:00:00", werkzeug="Bash", art="python3")
+_gelesen = bda.lesen(_prot, _dt.datetime(2026, 9, 1))
+zeile("die geschriebene Zeile wird als gezeigter Dialog gelesen",
+      bda.beurteilen(_gelesen)["gezeigt"] == 1,
+      gemessen=str(_gelesen))
+
+# **Und die Aufrufstelle im Bot — als echter Aufrufknoten, nicht als Text.**
+# Ein Name im Quelltext sagt nichts darueber, ob die Stelle noch gerufen wird;
+# ein Kommentar mit demselben Wort haette die Pruefung sonst gruen gehalten.
+_bot_baum = _ast.parse((Path(__file__).resolve().parent.parent / "bot.py")
+                      .read_text(encoding="utf-8"))
+_gezeigt_rufe = [n for n in _ast.walk(_bot_baum)
+                 if isinstance(n, _ast.Call)
+                 and isinstance(n.func, _ast.Attribute)
+                 and n.func.attr == "dialog_gezeigt"]
+zeile("der Bot ruft dialog_gezeigt beim Senden des Dialogs",
+      len(_gezeigt_rufe) >= 1, gemessen=f"{len(_gezeigt_rufe)} Aufrufknoten")
 zeile("seltene Auslöser erzeugen keinen Vorschlag",
       not any("jq" in v for v in b["vorschlaege"]), gemessen=str(b["vorschlaege"]))
 

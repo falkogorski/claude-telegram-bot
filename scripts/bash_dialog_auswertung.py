@@ -102,10 +102,28 @@ def beurteilen(zeilen: list[dict]) -> dict:
     Textsuche erreichen.
     """
     kaputt = sum(z.get("anzahl", 0) for z in zeilen if z.get("urteil") == "_kaputt")
-    echte = [z for z in zeilen if z.get("urteil") != "_kaputt"]
+    # ── **Gezeigte Dialoge sind ein eigenes Ereignis** `[NEU 09.09.2026, M-3]`
+    #
+    # **Bis heute zaehlte diese Auswertung Urteile und nannte sie Dialoge.**
+    # Seit dem Auto-Zustand vom 01.09. faellt ein DIALOG-Urteil in den
+    # Dauerfreigabe-Kurzschluss und wird still erlaubt — Adam sieht es nie.
+    # Claudias „76 %", meine „≤ 20 %"-Wiedervorlage und Adams drei Mahnungen
+    # stritten seither ueber eine Zahl, die die falsche Sache mass.
+    #
+    # `dialog_gezeigt`-Zeilen entstehen erst beim tatsaechlichen Senden der
+    # Anfrage. Sie werden **aus der Urteilsmenge herausgenommen**, sonst
+    # zaehlten sie als Aufrufe mit und verfaelschten den Nenner.
+    gezeigte = [z for z in zeilen if z.get("ereignis") == "dialog_gezeigt"]
+    echte = [z for z in zeilen
+             if z.get("urteil") != "_kaputt" and z.get("ereignis") != "dialog_gezeigt"]
     nach_urteil = Counter(z.get("urteil", "?") for z in echte)
     dialoge = [z for z in echte if z.get("urteil") == "dialog"]
     wiederkehrer = Counter(z.get("art", "?") for z in dialoge)
+    # Fuer die Vorschlaege bleibt das Urteil das richtige Mass: Ein Verb, das
+    # oft ein DIALOG-Urteil bekommt, gehoert geprueft — auch wenn Auto es
+    # gerade durchwinkt. Die Auto-Einstellung kann morgen anders stehen.
+    gezeigt_nach_art = Counter(z.get("art") or z.get("werkzeug", "?")
+                               for z in gezeigte)
 
     vorschlaege: list[str] = []
     for art, wieviel in wiederkehrer.most_common():
@@ -130,6 +148,13 @@ def beurteilen(zeilen: list[dict]) -> dict:
         "kaputte_zeilen": kaputt,
         "wiederkehrer": wiederkehrer.most_common(10),
         "vorschlaege": vorschlaege,
+        # **Das ist die Zahl, die Adam meint**, wenn er sagt, es seien zu
+        # viele Genehmigungen: was ihm wirklich vorgelegt wurde.
+        "gezeigt": len(gezeigte),
+        "gezeigt_nach_art": gezeigt_nach_art.most_common(10),
+        # Vor dem 09.09. gibt es diese Zeilen nicht. Dann ist `gezeigt` null —
+        # und das heisst **nicht gemessen**, nicht „keine Dialoge".
+        "gezeigt_gemessen": bool(gezeigte),
         "anteil": (nach_urteil.get("dialog", 0) / len(echte)) if echte else 0.0,
         "genug_daten": len(echte) >= MINDESTMENGE,
         # `None` heisst ausdruecklich: kein Urteil, zu wenig Daten. Nicht
@@ -157,7 +182,21 @@ def bericht(b: dict) -> str:
                  "Ablage wird nicht mehr beschrieben. Beides ist einen Blick wert.")
         return "\n".join(z)
     z.append(f"{b['gesamt']} Aufrufe: {b['frei']} ohne Rückfrage, "
-             f"{b['dialog']} mit Dialog, {b['abgewiesen']} abgewiesen.")
+             f"{b['dialog']} mit DIALOG-Urteil, {b['abgewiesen']} abgewiesen.")
+    # **Die zwei Zahlen stehen nebeneinander, und der Unterschied wird
+    # benannt.** Ein Urteil ist keine Frage an Adam: Im Auto-Zustand wird ein
+    # DIALOG-Urteil still erlaubt. Wer nur die obere Zeile liest, streitet
+    # über etwas anderes als das, was Adam erlebt.
+    if b.get("gezeigt_gemessen"):
+        z.append(f"Davon Adam TATSÄCHLICH vorgelegt: {b['gezeigt']}.")
+        if b.get("gezeigt_nach_art"):
+            _top = ", ".join(f"{a} {n}×" for a, n in b["gezeigt_nach_art"][:5])
+            z.append(f"  Am häufigsten: {_top}")
+    else:
+        z.append("Wie viele davon Adam vorgelegt wurden: NICHT GEMESSEN in "
+                 "diesem Zeitraum (die Messung gibt es erst seit dem "
+                 "09.09.2026). Null bedeutet hier [nicht gemessen], "
+                 "nicht [keine Dialoge].")
     z.append("")
     _proz = round(b["anteil"] * 100)
     _grenze = round(ANTEIL_GRENZE * 100)

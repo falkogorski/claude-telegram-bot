@@ -3315,6 +3315,11 @@ def make_permission_callback(user_id: int):
         # Der Bau steht in `bashfreigabe.py`; hier bleibt nur der Anschluss.
         # Die Geheimnis-Schranke wird HEREINGEREICHT, damit es sie weiterhin
         # nur an einer Stelle gibt.
+        # **`_erg` wird VOR dem Zweig benannt**, damit die spaetere
+        # Dialog-Protokollierung sie ohne Namenspruefung lesen kann. Ein
+        # `"_erg" in dir()` waere genau die Art Notloesung, die beim
+        # naechsten Umbau still das Falsche misst.
+        _erg = None
         if tool_name == "Bash":
             _befehl = str(tool_input.get("command") or "")
             _erg = bashfreigabe.entscheiden(
@@ -3585,6 +3590,20 @@ def make_permission_callback(user_id: int):
                 message_thread_id=sess.thread_id,
             )
             sess.message_permissions[sent.message_id] = request_id
+            # **Hier, und nur hier, ist ein Dialog wirklich gezeigt worden.**
+            # `[NEU 09.09.2026, M-3]` Bis heute gab es an dieser Stelle keine
+            # Protokollzeile: Das jsonl fuehrte das URTEIL der Positivliste,
+            # und seit dem Auto-Zustand vom 01.09. sagt das nichts mehr
+            # darueber, ob Adam gefragt wurde. Drei Mahnungen und zwei
+            # Auswertungen stritten seither ueber eine Zahl, die niemand mass.
+            #
+            # Nach dem Senden protokolliert, nicht davor — sonst zaehlte auch
+            # ein Dialog mit, den Telegram gar nicht angenommen hat.
+            bashfreigabe.dialog_gezeigt(
+                zeit=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                werkzeug=tool_name,
+                art=(_erg.befehlsart if _erg else ""),
+                bereich=(_erg.bereich if _erg else ""))
         except Exception:
             log.exception("failed to send permission prompt")
             sess.pending_permissions.pop(request_id, None)

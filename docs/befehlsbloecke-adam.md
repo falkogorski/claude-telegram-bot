@@ -747,3 +747,68 @@ Der Nachtest kostet eine halbe Minute:
 
 und währenddessen `/zimmer`. Kommt die Übersicht mit dem Dateinamen darin,
 ist der Fall auch im Betrieb belegt.
+
+---
+
+# 10.09.2026, 01:45 — Deploy Freigabeweg-Fix (Stand `30fca43`)
+
+**Dringlich, weil der Freigabeweg für Schreibwerkzeuge seit 19:26 tot ist:**
+Jeder Dialog für Edit oder Write endet in einer Verweigerung, egal was du
+drückst. Ursache war eine Zeile aus M-3 (meine), die in der falschen Klammer
+saß.
+
+## Schritt 0 — Stand ablesen, Hash notieren
+
+```bash
+ssh claudebot 'git -C ~/claude-telegram-bot log -1 --format="%h %ad %s" --date=format:"%d.%m. %H:%M"'
+```
+
+Erwartet: `211b383`. Das ist der Rückweg.
+
+## Schritt 1 — ziehen, pyflakes einspielen, prüfen
+
+**Neu in diesem Deploy: `pyflakes`.** Reines Python von PyPI, kostenfrei,
+keine Laufzeit-Abhängigkeit — es läuft nur im Regressionstest. Ohne die
+Installation bleibt die neue Prüfzeile dauerhaft „übersprungen", also stumm.
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git fetch -q origin && git merge --ff-only 30fca43 && .venv/bin/pip install -q pyflakes && bash scripts/regressionstest.sh > /tmp/reg.log 2>&1; echo "rc=$?"; tail -6 /tmp/reg.log'
+```
+
+**Prüfzeile:** `rc=0` oder `rc=77`. In der Ausgabe müssen die zwei neuen Zeilen
+stehen: „Keine undefinierten Namen" und „Freigabeweg (Genehmigen=erlaubt)".
+
+## Schritt 2 — Neustart
+
+```bash
+ssh claudevps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
+```
+
+## Schritt 3 — die Prüfzeile, die beide offenen Punkte zugleich schließt
+
+Claudia hält ihren Register-Eintrag bereit. Bitte sie, ihn zu schreiben — sie
+braucht dafür ein Schreibwerkzeug, also kommt der Dialog:
+
+> Schreib jetzt bitte deinen Register-Eintrag.
+
+**Erwartet:** Du bekommst die Genehmigungs-Anfrage, drückst „Genehmigen",
+**und die Datei ist danach wirklich geändert.** Genau das ging seit 19:26
+nicht. Laut Claudia folgen drei Genehmigungen nacheinander (Text, PDF, Ablage
+im Ausgang).
+
+Danach ist auch die Dialog-Messung wieder belegbar:
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && .venv/bin/python scripts/bash_dialog_auswertung.py 2>&1 | tail -12'
+```
+
+**Und der offene Nachtest von gestern gleich mit** (Befund B2-2, `/zimmer` mit
+einem Unterstrich im Auftragstext):
+
+> Lies `scripts/test_zimmer_block1.py` und sag mir in zwei Sätzen, was der
+> Prüfer misst.
+
+und währenddessen `/zimmer` — die Übersicht muss kommen und den Dateinamen
+nennen.
+
+**Rückweg:** `reset --hard` auf den Hash aus Schritt 0, dann Neustart.

@@ -561,9 +561,50 @@ nicht dasselbe. Danach:
 ssh claudebot 'tail -20 ~/claude-telegram-bot/logs/bot.err.log'
 ```
 
-**Prüfzeile:** keine Hook-Fehlerzeile. Steht dort eine, ist der Rückweg
-`git revert f3d1b58` — nur der Hook, nicht der ganze Block.
+**Prüfzeile:** keine Hook-Fehlerzeile.
 
-**Rückweg insgesamt**, falls etwas hakt:
-`git -C ~/claude-telegram-bot reset --hard 0270fd7` auf dem Server, dann
-Neustart. Das ist der Stand, der heute läuft.
+## Rückweg — `[BERICHTIGT 09.09.2026, 19:45 nach Engywucks Nachtrag]`
+
+Hier stand `git revert f3d1b58` auf dem Server. **Das ist ein Fehlpfad, und er
+schlägt erst nach dem Eingriff zu:** Ein Revert ist ein Commit, und der
+VPS-Klon hat nach 8.7 bewusst **keine git-Identity und einen pre-commit-Blocker**
+(MIGRATION.md, 23.07., „live getestet, Exit 1"). Git wendet die Änderung an,
+kann sie nicht abschließen und lässt den Klon im Zustand *Revert nicht
+abgeschlossen* zurück — der nächste `merge --ff-only` verweigert dann. Dazu
+war die Beschreibung falsch: `f3d1b58` trägt **Limit je Person UND den Hook**,
+ein Revert nähme beides.
+
+**Der Grundsatz, damit die nächste Vorlage ihn nicht wieder erfindet:**
+
+> **Rückwege für den VPS-Klon sind `reset --hard` auf einen ABGELESENEN Stand
+> oder ein Push vom Mac. Nie ein Befehl, der dort einen Commit erzeugt.**
+
+Also vor jedem Deploy den laufenden Stand **ablesen und notieren**:
+
+```bash
+ssh claudebot 'git -C ~/claude-telegram-bot log -1 --format="%h %ad %s" --date=format:"%d.%m. %H:%M"'
+```
+
+und im Notfall:
+
+```bash
+ssh claudebot 'git -C ~/claude-telegram-bot reset --hard <HASH-VON-VORHER>'
+ssh claudevps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
+```
+
+Ein Rückweg „nur ein Teil" existiert allein über den Mac: dort revertieren,
+pushen, Adam zieht mit `--ff-only`.
+
+## Und die Prüfzeile hängt am Rückgabewert, nicht an einer Zahl
+
+`| tail -5` verschluckt den Rückgabewert und kann ein `❌` weiter oben
+verdecken. Künftig:
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && bash scripts/regressionstest.sh > /tmp/reg.log 2>&1; echo "rc=$?"; tail -6 /tmp/reg.log'
+```
+
+**`rc=0`** (alles grün) oder **`rc=77`** (grün mit Übersprungenem) sind gut,
+jede andere Zahl nicht. Die Zahl `74/75` hängt an der Maschine: im Container
+fehlt ffmpeg, auf dem VPS läuft der Bot — beide Male eine übersprungene Zeile,
+aber aus verschiedenen Gründen.

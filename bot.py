@@ -7337,6 +7337,23 @@ async def _postfach_send_one(app: Application, claimed: Path,
     if _postfach_drosseln(herkunft):
         log.warning("Postfach gedrosselt (%s): %s", herkunft,
                     str(data.get("text", ""))[:200])
+        # **Die Meldung geht SOFORT und DIREKT** `[NEU 09.09.2026, M-1]`
+        #
+        # **Engywucks Befund 1, zweiter Teil:** Bis heute reiste die
+        # 🔇-Sammelmeldung auf der naechsten Zustellung **desselben** Absenders
+        # mit (`_postfach_sammelmeldung`, eine Zeile tiefer). Ist genau dieser
+        # Absender gedrosselt, wartet die Meldung mit ihm — **die Drossel
+        # meldete ihren Stau erst, wenn er vorbei war.** Gemessen am 07.09.:
+        # Der Stau begann um 06:5x, das 🔇 kam um **15:52**, neun Stunden
+        # spaeter. Adam sass in der Zwischenzeit vor einem stummen Bot und
+        # haette beinahe alte Rechnungen verschickt.
+        #
+        # Deshalb derselbe Weg wie bei der Aufgabe-Meldung: **direkt ueber
+        # `app.bot`, nicht ueber die Botenpost** — die klemmt in diesem Moment
+        # nachweislich. Gedaempft ueber Absender und Fenster, damit aus einer
+        # Warnung keine zweite Flut wird; die Sammelmeldung am Ende bleibt und
+        # nennt dann die Gesamtzahl.
+        await _postfach_drossel_sofort_melden(app, chat_id, herkunft)
         _zurueckstellen(data,
                         f"gedrosselt (mehr als {_postfach_grenze_fuer(herkunft)}/h von {herkunft})",
                         _postfach_fenster_rest(herkunft), zaehlt=False)
@@ -7516,6 +7533,45 @@ async def _postfach_aufgabe_melden(app: Application, chat_id: int, orig: str,
                   f"Datei: {orig}"))
     except Exception:
         log.warning("Postfach: Aufgabe-Meldung selbst fehlgeschlagen",
+                    exc_info=True)
+
+
+_postfach_drossel_gemeldet: dict[str, float] = {}
+
+
+async def _postfach_drossel_sofort_melden(app: Application, chat_id: int,
+                                          herkunft: str) -> None:
+    """Sagt Adam **sofort**, dass gerade zurueckgehalten wird.
+
+    **Einmal je Absender und Fenster.** Ohne Daempfer waere die Warnung selbst
+    die naechste Flut — bei hundert gedrosselten Auftraegen hundert Meldungen.
+    Der Daempfer haengt an **Absender und Zeit**, nicht am Text: Ein
+    Zeitstempel im Meldungstext hat am 28.07. schon einmal einen Daempfer
+    ausgehebelt und den Laerm verdoppelt.
+
+    **Sie ersetzt die Sammelmeldung nicht, sie kommt davor.** Diese sagt
+    *es staut sich gerade*, jene sagt hinterher *so viel war es*.
+    """
+    now = time.time()
+    zuletzt = _postfach_drossel_gemeldet.get(herkunft, 0.0)
+    if now - zuletzt < POSTFACH_FENSTER_S:
+        return
+    _postfach_drossel_gemeldet[herkunft] = now
+    rest_min = max(1, int(_postfach_fenster_rest(herkunft) / 60))
+    try:
+        await app.bot.send_message(
+            chat_id=chat_id,
+            text=(f"🔇 Ich halte gerade Nachrichten von {herkunft} zurück — "
+                  f"mehr als {_postfach_grenze_fuer(herkunft)} in einer Stunde.\n\n"
+                  f"Sie sind **nicht verloren**: Sie liegen in der Warteschlange "
+                  f"und kommen von selbst, sobald wieder Platz ist "
+                  f"(in etwa {rest_min} Minuten).\n\n"
+                  f"Wenn du gerade auf etwas wartest, ist das der Grund."),
+            parse_mode=ParseMode.MARKDOWN)
+    except Exception:
+        # Die Meldung ist Beiwerk, die Zustellung ist die Sache — aber
+        # stilles Scheitern ist der Fehler, gegen den dieser ganze Weg steht.
+        log.warning("Postfach: Drossel-Sofortmeldung fehlgeschlagen",
                     exc_info=True)
 
 

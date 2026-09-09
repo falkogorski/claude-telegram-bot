@@ -91,6 +91,10 @@ def main() -> int:
                     help="Bildunterschrift — nur zusammen mit --datei")
     ap.add_argument("--zimmer", default=None, type=int,
                     help="Forum-Topic (thread_id), falls gewuenscht")
+    ap.add_argument("--herkunft", default="Claudia",
+                    help="Absender des Auftrags. Vorgabe 'Claudia' — dieses "
+                         "Skript ist ihr Weg. Melder wie 'blume' oder 'hora' "
+                         "tragen ihren eigenen Namen ein.")
     a = ap.parse_args()
 
     # ── `--text -` liest den Text von stdin ────────────────────────────────
@@ -139,7 +143,26 @@ def main() -> int:
             print(f"FEHLER: Datei nicht gefunden: {a.datei}", file=sys.stderr)
             return 2
 
-    auftrag: dict[str, object] = {"target_chat_id": a.chat}
+    # ── Der Absender gehoert in den Auftrag `[NEU 09.09.2026, M-1]` ──────────
+    #
+    # **Engywucks Befund 1 vom 07.09., und er kostete Adam vierzig Minuten.**
+    # Dieses Skript schrieb bis heute **kein** `herkunft`. Der Bot faellt dann
+    # auf „ohne Absender" zurueck (`bot.py:7318`) — und fuer Unbekannte gilt
+    # die strenge Grenze von **fuenf Zustellungen je Stunde**, waehrend Claudia
+    # hundert haette. Am Rechnungsmorgen lagen zehn Auftraege vierzig Minuten
+    # fest; Adam haette beinahe alte Rechnungen verschickt.
+    #
+    # **Die Lehre steckt nicht im Fehler, sondern im Uebersehen:** Die Grenze
+    # nach Absenderart wurde eine Woche VOR diesem Skript gebaut. Beide sind
+    # fuer sich richtig; niemand hat sie zusammen gedacht. Genau das ist die
+    # Geschwister-Regel — ein Bauteil ist erst fertig, wenn geprueft ist,
+    # welche vorhandenen Teile es beruehrt.
+    #
+    # Die Vorgabe ist `Claudia`, weil dieses Skript ihr Weg ist. Wer es fuer
+    # einen Melder nutzt, setzt `--herkunft blume`; dann greift dessen
+    # strengere Grenze — **eingetragen wird, wer mehr darf** (Mengen-Regel).
+    auftrag: dict[str, object] = {"target_chat_id": a.chat,
+                                  "herkunft": a.herkunft.strip() or "Claudia"}
     if a.zimmer is not None:
         auftrag["thread_id"] = a.zimmer
     if a.text:

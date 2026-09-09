@@ -14,6 +14,7 @@ Lesen der Datei, die Klassifizierung, das Zurückstellen, die Wiedervorlage.
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -27,6 +28,7 @@ os.environ["USER_PREFS_FILE"] = str(_TMP / "prefs.json")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import bot  # noqa: E402
 
+ROOT = Path(__file__).resolve().parent.parent
 OUT = _TMP / "postfach" / "outbox"
 SENT = _TMP / "postfach" / "sent"
 FAILED = _TMP / "postfach" / "failed"
@@ -275,6 +277,65 @@ check("dauerhafter Fehler wandert sofort ins Endlager (Gegenrichtung)",
       _dauerhafter_fehler_wandert_sofort_ins_endlager)
 check("nach dem letzten Versuch: Endlager MIT Meldung",
       _nach_fuenf_versuchen_endlager_mit_meldung)
+def _das_skript_nennt_seinen_absender():
+    """**Engywucks Befund 1 vom 07.09. — vierzig Minuten Stau.**
+
+    `postfach_ablegen.py` schrieb kein `herkunft`. Der Bot faellt dann auf
+    „ohne Absender" zurueck, und fuer Unbekannte gilt die strenge Grenze von
+    fuenf je Stunde statt Claudias hundert. Am Rechnungsmorgen lagen zehn
+    Auftraege fest.
+
+    Gemessen wird am **erzeugten Auftrag**, nicht am Quelltext des Skripts:
+    Das Skript laeuft echt, mit umgebogenem Postfach.
+    """
+    _frisch()
+    ziel = OUT.parent
+    e = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "postfach_ablegen.py"),
+         "--chat", "4711", "--text", "Probe"],
+        env={**os.environ, "POSTFACH_DIR": str(OUT.parent)},
+        capture_output=True, text=True)
+    assert e.returncode == 0, f"das Skript scheiterte: {e.stderr[-200:]}"
+    neu = sorted(OUT.glob("*.json"))
+    assert neu, f"kein Auftrag entstanden (stdout: {e.stdout[-120:]})"
+    d = json.loads(neu[-1].read_text(encoding="utf-8"))
+    assert d.get("herkunft"), "der Auftrag nennt keinen Absender"
+    # Die Wirkung, nicht nur das Feld: Dieser Absender hat die grosse Grenze.
+    assert bot._postfach_grenze_fuer(d["herkunft"]) > bot.POSTFACH_GRENZE, \
+        (f"Absender {d['herkunft']!r} laeuft unter der strengen Grenze "
+         f"({bot._postfach_grenze_fuer(d['herkunft'])}) — genau der Stau vom 07.09.")
+
+
+def _die_drossel_meldet_sofort_und_nur_einmal():
+    """**Zweiter Teil desselben Befundes.** Die Sammelmeldung reitet auf der
+    naechsten Zustellung **desselben** Absenders mit — ist der gedrosselt,
+    wartet die Meldung mit ihm. Am 07.09. kam sie neun Stunden zu spaet.
+
+    Und die Gegenrichtung im selben Zug: Aus der Warnung darf keine zweite
+    Flut werden.
+    """
+    _frisch()
+    bot._postfach_drossel_gemeldet.clear()
+    app = _App()
+    for i in range(bot.POSTFACH_GRENZE):
+        _zustellen(app, _auftrag(f"durch-{i}.json"))
+    vorher = len(_GESENDET)
+    _zustellen(app, _auftrag("zuviel-1.json"))
+    neu = [t for t in _GESENDET[vorher:] if "🔇" in t]
+    assert neu, "die Drossel haelt zurueck, ohne es zu sagen — der Stau vom 07.09."
+    assert "nicht verloren" in neu[0], \
+        "die Meldung sagt nicht, dass die Nachrichten wiederkommen"
+    # Gegenrichtung: der zweite gedrosselte Auftrag meldet NICHT erneut.
+    vorher2 = len(_GESENDET)
+    _zustellen(app, _auftrag("zuviel-2.json"))
+    assert not [t for t in _GESENDET[vorher2:] if "🔇" in t], \
+        "jede gedrosselte Nachricht meldet sich — die Warnung ist selbst die Flut"
+
+
+check("das Skript nennt seinen Absender (Befund 1)",
+      _das_skript_nennt_seinen_absender)
+check("die Drossel meldet sofort, und nur einmal (Befund 1)",
+      _die_drossel_meldet_sofort_und_nur_einmal)
 check("Gedrosseltes landet in der outbox, nicht in sent/",
       _gedrosseltes_landet_in_der_outbox_nicht_in_sent)
 check("die Wiedervorlage wird respektiert (beide Richtungen)",

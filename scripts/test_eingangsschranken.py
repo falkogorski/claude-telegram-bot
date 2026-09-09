@@ -97,7 +97,7 @@ def _sitzung(user_id=4711, antwort="deny", **felder):
     for k, v in felder.items():
         setattr(sess, k, v)
     sess.bot = _MitschreibenderBot(sess, antwort=antwort)
-    bot.SESSIONS[user_id] = sess
+    bot.SESSIONS[bot.faden(user_id)] = sess
     return sess
 
 

@@ -69,7 +69,7 @@ def _fail(msg: str) -> None:
 
 
 async def main() -> None:
-    bot._ensure_worker = lambda uid: None          # kein echter Worker im Test
+    bot._ensure_worker = lambda uid, thread_id=None: None   # kein echter Worker im Test
     fake = FakeBot()
     mb = bot._get_mailbox(UID)
 
@@ -116,7 +116,7 @@ async def main() -> None:
     # (5) Permission-Vorrang: wartende Freigabe frisst 👍
     loop = asyncio.get_running_loop()
     fut = loop.create_future()
-    bot.SESSIONS[UID] = SimpleNamespace(
+    bot.SESSIONS[bot.faden(UID)] = SimpleNamespace(
         message_permissions={600: "req-1"},
         pending_permissions={"req-1": (loop, fut)},
         logger=None,
@@ -127,7 +127,7 @@ async def main() -> None:
         _fail("Permission wurde nicht per Reaktion aufgelöst")
     if mb.queue:
         _fail("Permission-Reaktion hat zusätzlich einen 5.9-Job erzeugt")
-    bot.SESSIONS.pop(UID, None)
+    bot.SESSIONS.pop(bot.faden(UID), None)
     print("✓ Permission-Vorrang: 👍 löst Freigabe, kein Doppel-Job")
 
     # (6) Ziffern-Knopf → Job „Option N"

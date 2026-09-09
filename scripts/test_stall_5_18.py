@@ -40,7 +40,10 @@ async def main():
     uid = 4242
     # KEIN echter Claude-Start im Test (spart Abo-Kontingent und macht das
     # Ergebnis unabhängig davon, ob die CLI gerade erreichbar ist).
-    bot._ensure_worker = lambda u: RESTARTED.append(u)
+    # `[GEAENDERT 09.09.2026]` Die Attrappe spiegelt die ECHTE Signatur —
+    # seit dem Schluesselwechsel nimmt der Worker Person UND Faden. Eine
+    # nachsichtige Attrappe (`*args`) haette den Wechsel verschluckt.
+    bot._ensure_worker = lambda u, t=None: RESTARTED.append(u)
     key = pending.make_key(999, 1)
     pending.record(key, {"text": "haengende Frage", "status": pending.STATUS_OPEN,
                          "user_id": uid, "chat_id": 999})
@@ -52,7 +55,7 @@ async def main():
     mb.current_started = bot.time.monotonic() - 600      # läuft seit 10 Min
     sess = bot.UserSession(client=FakeClient(), bot=FakeBot(), chat_id=999)
     sess.last_activity = bot.time.monotonic() - 600      # seit 10 Min stumm
-    bot.SESSIONS[uid] = sess
+    bot.SESSIONS[bot.faden(uid)] = sess
 
     async def haengt():
         await asyncio.sleep(3600)
@@ -63,7 +66,7 @@ async def main():
                                          asyncio.get_running_loop().create_future())
     wd = asyncio.create_task(bot.stall_watchdog(None))
     await asyncio.sleep(2.5)
-    assert bot.SESSIONS.get(uid) is sess, "FEHLER: Session trotz offener Freigabe gekillt"
+    assert bot.SESSIONS.get(bot.faden(uid)) is sess, "FEHLER: Session trotz offener Freigabe gekillt"
     assert not SENT, "FEHLER: Meldung trotz offener Freigabe"
     print("✓ wartende Freigabe schützt die Session vor dem Wächter")
 
@@ -72,7 +75,7 @@ async def main():
     await asyncio.sleep(2.5)
     wd.cancel()
 
-    assert bot.SESSIONS.get(uid) is None, "FEHLER: Session nicht entmachtet"
+    assert bot.SESSIONS.get(bot.faden(uid)) is None, "FEHLER: Session nicht entmachtet"
     print("✓ hängende Session aus SESSIONS entfernt")
     assert FakeClient.disconnected, "FEHLER: disconnect nicht aufgerufen"
     print("✓ disconnect angestoßen")
@@ -97,7 +100,7 @@ async def main():
     mb.current_started = bot.time.monotonic() - 600
     sess2 = bot.UserSession(client=FakeClient(), bot=FakeBot(), chat_id=999)
     sess2.last_activity = bot.time.monotonic() - 600
-    bot.SESSIONS[uid] = sess2
+    bot.SESSIONS[bot.faden(uid)] = sess2
     mb.worker = asyncio.create_task(haengt())
     await bot._handle_stalled_session(uid, mb, sess2, 600)
     assert not mb.queue, "FEHLER: Job trotz Wiederholungsbremse erneut eingereiht"
@@ -113,7 +116,7 @@ async def main():
     # derselbe Fall wie eine tote Session.
     SENT.clear()
     RESTARTED.clear()
-    bot.SESSIONS.pop(uid, None)
+    bot.SESSIONS.pop(bot.faden(uid), None)
     job2 = bot.QueuedJob(update=None, text="Frage ohne Sitzung", user_id=uid,
                          chat_id=999, message_id=2, bot=FakeBot())
     mb.queue.clear()

@@ -312,7 +312,21 @@ for frist_datei in "$BOTDIR"/*riegel*.md "$BOTDIR"/CLAUDE.md; do
   bis="$(grep -oE '^[[:space:]]*GILT-BIS:[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}' "$frist_datei" 2>/dev/null \
          | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"
   [ -n "$bis" ] || continue
-  if [ "$HEUTE_ISO" \> "$bis" ] || [ "$HEUTE_ISO" = "$bis" ]; then
+  # **[BERICHTIGT 09.09.2026] Am Stichtag ist die Frist NOCH NICHT abgelaufen.**
+  #
+  # Engywucks Befund aus der Abnahme: Hier stand eine Ungleichung, die der
+  # Code nicht teilt. `auftragsbuch.py:76` schliesst bei `heute > GILT-BIS`,
+  # diese Zeile meldete „abgelaufen" schon bei `heute >= GILT-BIS`. Am
+  # Stichtag sagte der Tagescheck also „abgelaufen", waehrend der Riegel bis
+  # 23:59 offen war — und **mein Bericht an Adam hat diese Zeile uebernommen
+  # und daraus geschlossen, der Riegel sei zu.**
+  #
+  # Gemeldet wird weiterhin AM Stichtag und danach (ein Melder, der nur an
+  # einem Tag feuert, schweigt fuer immer, wenn der Lauf ausfaellt) — aber mit
+  # dem richtigen Wort.
+  if [ "$HEUTE_ISO" = "$bis" ]; then
+    add "⏳ Frist $(basename "$frist_datei"): laeuft HEUTE ab ($bis) — heute noch offen, ab morgen zu. Auswertung faellig"
+  elif [ "$HEUTE_ISO" \> "$bis" ]; then
     red "Frist abgelaufen: $(basename "$frist_datei") galt bis $bis — Auswertung faellig, danach Riegel bewusst neu setzen oder schliessen"
   else
     add "✅ Frist $(basename "$frist_datei"): laeuft bis $bis"

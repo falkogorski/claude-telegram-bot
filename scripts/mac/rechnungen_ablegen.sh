@@ -192,9 +192,49 @@ fi
 # Das ist genau das Rauschen, das die `_tief > 0`-Bedingung verhindern sollte
 # — sie hat nur die falsche Groesse gemessen. `-i` gibt je uebertragener Datei
 # eine Zeile, die mit `>f` beginnt; das ist das Getane statt des Vorhandenen.
+# ---- **[NEU 09.09.] `_Regeln/` liegt eine Ebene HOEHER** (E-4, Adams Entscheid)
+#
+# Adam will Claudias Register und die Rechnungsregeln unter
+# `Business/_Regeln/` — **neben** `Deko`, nicht darunter: Sie gelten fuer alle
+# Kunden, nicht fuer einen. Der Zielpfad dieses Skripts zeigt aber auf
+# `Business/Deko`.
+#
+# **Eine benannte Ausnahme, kein zweiter Wurzelpfad** (Engywucks Vorgabe, und
+# sie ist die richtige): Ein zweiter frei gesetzter Zielpfad waere eine zweite
+# Stelle, an der jemand danebengreifen kann. Hier gilt genau ein Praefix.
+_REGELN_PRAEFIX="${RECHNUNGEN_REGELN_PRAEFIX:-_Regeln}"
+_REGELN_ZIEL="$(dirname "$ZIEL")/$_REGELN_PRAEFIX"
+_regeln_tief=0
+if [ -d "$LOKAL/$_REGELN_PRAEFIX" ]; then
+  if [ ! -d "$_REGELN_ZIEL" ]; then
+    # **Nicht anlegen, aber auch nicht abbrechen.** Der Zielordner ist Adams
+    # gewachsene Ablage — ein `mkdir -p` legte stillschweigend eine zweite
+    # Wahrheit daneben (dieselbe Begruendung wie beim Kundenzweig oben).
+    #
+    # **Abweichung von der Vorgabe, benannt:** Der Auftrag sagt „fehlt er, gilt
+    # die bestehende 78-Regel". Die bricht das ganze Skript ab — dann kaeme
+    # **keine Rechnung** mehr an, weil ein Regelblatt nicht abgelegt werden
+    # kann. Das waere die teurere Fehlerrichtung. Stattdessen: dieser eine
+    # Zweig wird uebersprungen und GEMELDET, die Rechnungen laufen weiter.
+    sag "HINWEIS: $_REGELN_PRAEFIX/ liegt bereit, aber $_REGELN_ZIEL fehlt —"
+    sag "        uebersprungen. Adam legt den Ordner einmal an; danach laeuft es."
+  elif _rg=$(rsync -a -u -i --exclude='.*' \
+             "$LOKAL/$_REGELN_PRAEFIX/" "$_REGELN_ZIEL/" 2>>"$LOG"); then
+    _regeln_tief=$(printf '%s\n' "$_rg" | grep -c '^>f' || true)
+    [ "$_regeln_tief" -gt 0 ] && sag "Haelfte 2: $_regeln_tief Regel-Datei(en) → $_REGELN_ZIEL"
+  else
+    sag "FEHLER: Ablage der Regeln gescheitert — $_REGELN_ZIEL"
+  fi
+fi
+
 _tief=0
 _wohin=""
-if _itemize=$(rsync -a -u -i --exclude='.*' --include='*/' --include='*/**' --exclude='*' \
+# `--exclude` fuer den Regel-Zweig: Er ist oben schon abgelegt worden und darf
+# hier nicht ein zweites Mal landen — sonst laege dieselbe Datei unter
+# `Business/_Regeln/` UND `Business/Deko/_Regeln/`, und niemand wuesste, welche
+# gilt.
+if _itemize=$(rsync -a -u -i --exclude='.*' --exclude="/$_REGELN_PRAEFIX/" \
+        --include='*/' --include='*/**' --exclude='*' \
         "$LOKAL/" "$ZIEL/" 2>>"$LOG"); then
   _tief=$(printf '%s\n' "$_itemize" | grep -c '^>f' || true)
   _wohin=$(printf '%s\n' "$_itemize" | grep '^>f' | sed 's/^[^ ]* //; s|/[^/]*$||' \

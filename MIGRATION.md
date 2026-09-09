@@ -103,7 +103,7 @@ ebenso.**
 
 | Wiedervorlage | Adams Wortlaut | Stand |
 |---|---|---|
-| **Fließender Dialog** — die fünf offenen Punkte aus Kapitel 7 | *„Fließender-Dialog-Entscheidungen vertagen, bitte wieder vorlegen, falls ich nicht selbst aktiv werde!"* (31.08., ~23:55) | **offen**, frisch vertagt. Die Kontrolle hat zusätzlich einen Wecker auf den **05.09.** gesetzt — **ein Wecker überlebt seine Sitzung nicht, dieser Eintrag schon.** |
+| **Fließender Dialog** — die fünf offenen Punkte aus Kapitel 7 | *„Fließender-Dialog-Entscheidungen vertagen, bitte wieder vorlegen, falls ich nicht selbst aktiv werde!"* (31.08., ~23:55) | ✅ **ENTSCHIEDEN 09.09.2026, alle fünf.** ① **Vermittlerin: ja** — als eigene, **werkzeuglose Dialogsitzung NEBEN den Zimmern**, nicht als Proxy davor; F1 bleibt unangetastet. ② **Gemeinsamer Zustand: VPS jetzt**, Umzugsweg beim Bau mitschreiben. ③ **Parallelität: eine Sitzung je Zimmer**, Obergrenze 3–4 wache Zimmer, Einschlafen nach Leerlauf. ④ **Oberfläche: zurückgestellt** — Telegram mit Häusern und Zimmern ist die Oberfläche dieser Stufe. ⑤ **Reihenfolge:** ① Zimmer-Kern → ② Nachsteuern → ③ Dialogstrang → ④ lokal/Dirigent. **Der Eintrag hat gehalten, was er sollte:** Der Wecker vom 05.09. verfiel mit seiner Sitzung, dieser Termin wurde eingeholt |
 | **Werte-Termin** | *„dass wir uns **Mitte August** mal hinsetzen … dass wir wirklich definieren, was unsere Werte alle so beinhalten"* (27.07., 00:00); dazu am 26.07.: *„lass uns nochmal definieren, **was** wir optimieren, **wohin** wir es optimieren wollen"* | **⚠️ Frist verstrichen.** Der Termin steht im Konzept (Kapitel 6), aber an keiner Stelle, die ihn einholt. |
 | **Modellwahl festmachen** | *„dass du ansonsten immer das höchste Modell wählst, das hatten wir eigentlich so verankert. Kannst du festhalten, **machen wir dann, wenn ich wieder da bin, fest.**"* (29.07., 12:06) | **⚠️ Frist verstrichen** — er war Mitte August zurück, es wurde nicht festgemacht. **Geltungsbereich offen: Bot oder Sitzungen?** |
 
@@ -656,9 +656,27 @@ Absturzfall ausdrücklich auf 5.18).
 ## Phase 5 — Bot-Features (mit/nach Migration)
 
 ### 5.1 Multi-Session (`/new`, `/sessions`, `/switch`, `/stop`)
-- **Status:** OFFEN
+- **Status:** OFFEN — **die konkrete Form steht seit 09.09.2026 fest**
+- **Die Form: eine Sitzung je Zimmer** (Claudias Konzept „Sitzung je Zimmer"
+  vom 05.09.), nicht eine abstrakte Zahl paralleler Sitzungen. Technisch ist es
+  ein **Schlüsselwechsel von `user_id` auf `(user_id, thread_id)`** —
+  `SESSIONS`, die Postfächer/Warteschlangen und `_ensure_worker` hängen heute
+  an der Person, `thread_id` ist nur Rückadresse. Klein im Diff, groß in der
+  Kettenwirkung: **Probelauf im Klon (R4) ist zwingend.** Mitzuziehen:
+  Stall-Wächter je Faden · Freigabe-Knöpfe kennen ihren Faden · Prefs bleiben
+  je Person · Startup-Reconcile je Faden · Wecker/H2 je Faden.
+- **Zielbild dahinter** (Adams Entscheid 09.09., mein Papier vom 06.09. unter
+  `docs/auftraege/20260906_empfehlung_fliessender_dialog_final.md`): Die
+  Sekretärin ist eine **eigene, werkzeuglose Dialogsitzung NEBEN den
+  Zimmern** — kein Bash, kein Write, kein Edit, und das als **Bauart, nicht
+  als Verhaltensregel**. Der Verteiler dazwischen ist **Code, kein Modell**
+  (Postfach-Muster). **F1 bleibt unangetastet:** Nichts sitzt zwischen den
+  Arbeitssitzungen und Anthropic; genau das wäre Drittanbieter-Routing.
+- **Damit ist auch der „zweite Chat" vom 02.09. beantwortet:** Er trennt die
+  **Sitzung**, nicht die Ansicht. Sonst wäre „ohne Auto-Bash" eine
+  Anzeigeregel — und eine Anzeigeregel schützt nichts.
 - **Akzeptanzkriterium:** Mehrere parallele Sessions je User möglich; Wechsel funktioniert; State wird persistiert (überlebt Bot-Neustart).
-- **Test:** Zwei Sessions parallel anlegen, dazwischen wechseln, Bot killen, wieder hoch → Sessions noch da.
+- **Test:** Zwei Zimmer antworten gleichzeitig (Stoppuhr); ein absichtlich aufgehängtes Zimmer wird gemeldet, während ein anderes tippt. Dazu der alte Test: Bot killen, wieder hoch → Sessions noch da.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —
 
@@ -1613,7 +1631,7 @@ Erst mit diesem Merkmal ist die Wache *„der Ausweichpfad zur Hauptsitzung ist 
 - **Der Name gehört Adam.** *Weitergabe* ist ein Vorschlag der Kontroll-Sitzung,
   keine Setzung.
 - **⚠️ Zwei Produktfragen, die hierher gehören `[NEU 2026-09-01]`:**
-  - **Hardware als Produktbestandteil** (Adam, 25.07., 20:54): Ausbaustufen, was mitgeliefert wird, Paketpreise. **Was es heute aktuell macht:** Die Hardware-Frage hängt seit dem 31.08. an drei Fäden zugleich — Heimtunnel, zweites Sicherungsziel, lokaler Vertreter (das Handlungsfähigkeits-Konzept nennt in Kapitel 5.3 Preislagen). **Was Adam für sich entscheidet, ist zugleich die Vorlage für das Produkt.**
+  - **Hardware als Produktbestandteil** (Adam, 25.07., 20:54): Ausbaustufen, was mitgeliefert wird, Paketpreise. **Was es heute aktuell macht:** Die Hardware-Frage hängt seit dem 31.08. an drei Fäden zugleich — Heimtunnel, zweites Sicherungsziel, lokaler Vertreter (das Handlungsfähigkeits-Konzept nennt in Kapitel 5.3 Preislagen). **Was Adam für sich entscheidet, ist zugleich die Vorlage für das Produkt.** ⏭️ **`[ENTSCHIEDEN 09.09.2026]` Nicht jetzt — Adam entscheidet die Hardware bei Stufe ④** (lokaler Dialogstrang) des fließenden Dialogs. Vorher blockiert sie nichts: Die Stufen ① bis ③ (Zimmer-Kern, Nachsteuern, Dialogstrang) laufen auf dem Abo, erst der Wechsel des Dialogstrangs auf ein lokales Modell braucht eine Maschine. **Die Frage ist damit nicht mehr offen, sondern terminiert** — sie hing seit dem 26.07. an drei Fäden, ohne dass einer sie eingeholt hätte.
   - **Bestehen wir gegen die großen Anbieter?** (Adam, 24.07., 15:22): *„Bitte auch **nachhalten und merken**, dass wir das noch tun werden … **kann ein kritischer Punkt sein.**"* Eine **Produkt**-Frage, keine technische. **Sie steht mit demselben Verweis auch bei 9.6** — welcher der beiden Punkte sie trägt, ist eine Zuordnung, die Adam gehört; bis dahin steht sie an beiden, damit sie nicht zwischen ihnen verschwindet.
 - **Adam-Bestätigung:** —
 - **Verifiziert am:** —

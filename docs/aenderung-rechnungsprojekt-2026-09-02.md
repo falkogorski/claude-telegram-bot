@@ -1,6 +1,6 @@
 <!-- ROLLE: aenderung-rechnungsprojekt -->
-> **Zweck: ANSICHT + BELEG** · **Zu tun:** die Frage am Schluss beantworten
-> (`git init` im Rechnungsprojekt — ja oder nein). Sonst nichts.
+> **Zweck: BELEG** · **Zu tun: nichts.** Die Frage am Schluss ist am
+> 09.09.2026 mit **ja** beantwortet — siehe den Abschnitt ganz unten.
 
 # Was am 02.09.2026 im Rechnungsprojekt geändert wurde — und warum es hier steht
 
@@ -110,6 +110,10 @@ Ablage     →  Business/Deko/LiveSetup/Volvo/Business Modul/Norderney/Rechnung 
 ```
 
 ## Die Frage an Adam
+
+**✅ Beantwortet am 09.09.2026 mit ja** (Adam). Der Vollzug steht ganz unten;
+die Frage bleibt im Wortlaut stehen, weil die Antwort sonst ohne Anlass
+dastünde.
 
 **Soll `~/Projects/rechnungen` unter Versionskontrolle?** Ein `git init` mit
 einer `.gitignore` für `output/`, `ausgang/`, `.venv` und **`daten/`** (dort
@@ -229,3 +233,33 @@ Kundendokumenten**, seit es den Generator gibt. Jetzt `à`.
 *Warum das hier erwähnt wird:* Es ist ein Zeichen, kein Fehler im Sinne von
 kaputt — aber es wäre nie aufgefallen, wenn ich das PDF nur auf „Zeile da?"
 geprüft hätte statt es anzusehen.
+
+---
+
+## Der Rückweg heißt ab dem 09.09.2026 `git log`
+
+**Dieses Papier war der Rückweg, weil es keinen gab.** Seit dem 09.09. ist
+`~/workspace/rechnungen` **auf dem Server** ein Git-Repo — kein Remote, nie
+GitHub. Der Mac hält einen Klon; die alte Mac-Kopie liegt unangetastet als
+`~/Projects/rechnungen.vor-klon-20260909`.
+
+**Der Anlass ist Engywucks Befund 4 vom 07.09.:** Seit dem 07.09. schreiben
+**zwei** Stellen in dieses Projekt — Claudia auf dem Server, die Bau-Sitzung am
+Mac. Damit war die Mac-Kopie kein Rückweg mehr, sondern ein möglicherweise
+veralteter Stand, und der nächste `rsync` Mac → Server hätte Claudias Regeln
+still überschrieben. **Gemessen vor dem Klonen:** Der Server war in allen vier
+abweichenden Dateien neuer und reicher (201 zusätzliche Zeilen allein in
+`RECHNUNGSREGELN.md`); der Mac trug **nichts Einzigartiges**.
+
+**Was versioniert ist, und warum nicht alles:** das Regelwerk — Regeln, Sätze,
+Vorlagen, Werkzeuge. Draußen bleiben `output/`, `ausgang/`, `.venv/` und die
+**Vorgänge** unter `daten/` (Stammdaten mit Bank und Steuernummer, alle
+Kundenrechnungen). Sie haben einen Schreiber, liegen im täglichen Backup, und
+eine Historie löst für sie kein Problem — sie schafft eines: **Ein Repo ohne
+Gegenstelle bekommt irgendwann eine.** Ausgenommen sind `daten/saetze.json`
+(die Satz-Bibliothek, die beide Seiten ändern — der eigentliche Anlass) und
+`daten/rechnungsnummern.json` (nur Zahlen, und die Stelle, an der ein Verlust
+am teuersten wäre).
+
+**Dieses Papier bleibt trotzdem stehen.** Es beschreibt, was vor dem ersten
+Commit geschah — und das steht in keiner Historie.

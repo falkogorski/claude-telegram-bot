@@ -210,6 +210,62 @@ def _ein_boesartiger_ordnername_fuehrt_keinen_befehl_aus():
         "der Name kam nicht als reiner Text an"
 
 
+def _regeln_landen_eine_ebene_hoeher():
+    """**E-4, Adams Entscheid vom 09.09.:** Register und Rechnungsregeln
+    gehoeren nach `Business/_Regeln` — **neben** `Deko`, nicht darunter. Sie
+    gelten fuer alle Kunden, nicht fuer einen.
+
+    Gemessen wird an beiden Orten: dass es oben ankommt UND dass unten nichts
+    liegt. Die zweite Haelfte ist die wichtigere — ohne sie gaebe es die Datei
+    zweimal, und niemand wuesste, welche gilt.
+    """
+    _leeren()
+    (ZIEL.parent / "_Regeln").mkdir(parents=True, exist_ok=True)
+    p = FERN / "_Regeln" / "Rechnungsregeln.pdf"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"%PDF-1.4 regeln")
+    _rechnung("Goldhut")          # eine gewoehnliche Rechnung im selben Lauf
+    _lauf()
+
+    oben = ZIEL.parent / "_Regeln" / "Rechnungsregeln.pdf"
+    assert oben.exists(), "die Regeln sind nicht unter Business/_Regeln angekommen"
+    unten = ZIEL / "_Regeln"
+    assert not unten.exists(), \
+        "die Regeln liegen ZUSAETZLICH unter Business/Deko/_Regeln — zwei Fassungen"
+    assert (ZIEL / "Goldhut" / "Rechnung 018-26.pdf").exists(), \
+        "die gewoehnliche Rechnung wurde vom Regel-Zweig mitgerissen"
+
+    # Zweiter Lauf mit neuerer Fassung: ersetzt, kein Doppel.
+    import time as _t
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"%PDF-1.4 regeln NEUER")
+    _t.sleep(0.01)
+    _lauf()
+    assert oben.read_bytes().endswith(b"NEUER"), \
+        "die neuere Fassung hat die alte nicht ersetzt"
+    assert len(list((ZIEL.parent / "_Regeln").glob("*.pdf"))) == 1, \
+        "es liegen mehrere Fassungen nebeneinander"
+
+
+def _fehlender_regelordner_haelt_die_rechnungen_nicht_auf():
+    """**Die Fehlerrichtung, und sie ist der Grund fuer die Abweichung:** Der
+    Zielordner ist Adams Ablage und wird nicht angelegt. Braeche das Skript
+    deswegen ab, kaeme **keine Rechnung** mehr an, weil ein Regelblatt nicht
+    abgelegt werden kann. Also: ueberspringen und melden.
+    """
+    _leeren()
+    import shutil as _sh
+    _sh.rmtree(ZIEL.parent / "_Regeln", ignore_errors=True)
+    (FERN / "_Regeln").mkdir(parents=True, exist_ok=True)
+    (FERN / "_Regeln" / "Register.pdf").write_bytes(b"%PDF-1.4")
+    _rechnung("Goldhut")
+    protokoll = _lauf()
+    assert (ZIEL / "Goldhut" / "Rechnung 018-26.pdf").exists(), \
+        "ein fehlender Regelordner hat die Rechnungen aufgehalten"
+    assert "_Regeln" in protokoll and "uebersprungen" in protokoll, \
+        f"der Uebersprung wurde nicht gemeldet:\n{protokoll}"
+
+
 check("der zweite Lauf ist still (Befund 1)", _der_zweite_lauf_ist_still)
 check("eine echte neue Datei wird sehr wohl gemeldet (Gegenrichtung)",
       _eine_echte_neue_datei_wird_sehr_wohl_gemeldet)
@@ -218,6 +274,10 @@ check("Apostroph im Ordnernamen kommt vollstaendig an (Befund 3)",
       _apostroph_im_ordnernamen_kommt_vollstaendig_an)
 check("ein boesartiger Ordnername fuehrt keinen Befehl aus (Befund 3)",
       _ein_boesartiger_ordnername_fuehrt_keinen_befehl_aus)
+check("Regeln landen eine Ebene hoeher, nicht doppelt (E-4)",
+      _regeln_landen_eine_ebene_hoeher)
+check("ein fehlender Regelordner haelt die Rechnungen nicht auf (E-4)",
+      _fehlender_regelordner_haelt_die_rechnungen_nicht_auf)
 
 shutil.rmtree(_TMP, ignore_errors=True)
 

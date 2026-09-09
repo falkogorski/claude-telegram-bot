@@ -547,7 +547,33 @@ check("Gedaempftes wird gezaehlt und genannt (Claudia 2)",
       _gedaempfte_werden_gezaehlt_und_genannt)
 check("ohne Daempfung keine Zaehlzeile (Gegenrichtung)",
       _ohne_daempfung_keine_zaehlzeile)
+def _auch_zimmer_protokolle_werden_gelesen():
+    """**[NEU 09.09.2026, Block 2]** Seit dem Protokoll je Zimmer gibt es je Tag
+    mehrere Dateien. Der Posten las nur `<datum>.md` — Arbeit in einem Zimmer
+    waere fuer ihn unsichtbar gewesen, und er haette Stille gemeldet, waehrend
+    gearbeitet wird. Genau die Fehlerrichtung, gegen die er gebaut ist.
+
+    Gemessen mit eingeschaltetem Schalter; im Betrieb steht er auf aus, das
+    prueft die Zeile darueber.
+    """
+    _frisch()
+    tag = time.strftime("%Y-%m-%d")
+    ordner = _TMP / "logs" / "conversations"
+    (ordner / f"{tag}.md").write_text("Hauptfaden\n", encoding="utf-8")
+    (ordner / f"{tag}_zimmer-7.md").write_text("Zimmer sieben\n", encoding="utf-8")
+    alt_schalter = wachposten.GESPRAECHE_LESEN
+    wachposten.GESPRAECHE_LESEN = True
+    try:
+        namen = {q.name for q in wachposten._quellen()}
+    finally:
+        wachposten.GESPRAECHE_LESEN = alt_schalter
+    assert f"{tag}.md" in namen, f"Hauptfaden-Protokoll fehlt: {namen}"
+    assert f"{tag}_zimmer-7.md" in namen, f"Zimmer-Protokoll fehlt: {namen}"
+
+
 check("keine Frage ohne Wirkung (Adams Regel 20.08.)", _keine_frage_ohne_wirkung)
+check("auch Zimmer-Protokolle werden gelesen (Block 2)",
+      _auch_zimmer_protokolle_werden_gelesen)
 
 print()
 if fails:

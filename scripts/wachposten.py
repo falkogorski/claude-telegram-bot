@@ -105,9 +105,14 @@ def _quellen() -> list[Path]:
     if fehler.exists():
         raus.append(fehler)
     if GESPRAECHE_LESEN:
-        heute = LOGDIR / "conversations" / f"{time.strftime('%Y-%m-%d')}.md"
-        if heute.exists():
-            raus.append(heute)
+        # **[GEAENDERT 09.09.2026, Block 2]** Seit dem Protokoll je Zimmer gibt
+        # es je Tag MEHRERE Dateien: `<datum>.md` (Hauptfaden) und
+        # `<datum>_zimmer-<id>.md`. Wer nur die erste liest, sieht Arbeit in
+        # einem Zimmer nicht -- und meldet Stille, waehrend gearbeitet wird.
+        tag = time.strftime("%Y-%m-%d")
+        ordner = LOGDIR / "conversations"
+        if ordner.is_dir():
+            raus.extend(sorted(d for d in ordner.glob(f"{tag}*.md") if d.is_file()))
     return raus
 
 

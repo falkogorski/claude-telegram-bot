@@ -656,7 +656,7 @@ Absturzfall ausdrücklich auf 5.18).
 ## Phase 5 — Bot-Features (mit/nach Migration)
 
 ### 5.1 Multi-Session (`/new`, `/sessions`, `/switch`, `/stop`)
-- **Status:** 🔄 **Block 1 + 1b GEBAUT am 09.09.2026** (Schlüsselwechsel und
+- **Status:** 🔄 **Block 1, 1b und 2 GEBAUT am 09.09.2026** (Schlüsselwechsel und
   die Wege darüber, beides im Probelauf-Klon nach R4, 75/75; Block 1 seit
   19:26 auf dem Server) — die Blöcke 2 bis 4 folgen einzeln
 - **Die Form: eine Sitzung je Zimmer** (Claudias Konzept „Sitzung je Zimmer"
@@ -709,6 +709,22 @@ Absturzfall ausdrücklich auf 5.18).
 - **Damit ist auch der „zweite Chat" vom 02.09. beantwortet:** Er trennt die
   **Sitzung**, nicht die Ansicht. Sonst wäre „ohne Auto-Bash" eine
   Anzeigeregel — und eine Anzeigeregel schützt nichts.
+- **Block 2 (09.09.): die Sicht.** Auftrag 6 aus dem Bauauftrag, und nach
+  Engywucks Auflage 7 **vor** der Sekretärin — er ist die Quelle ihres
+  Kontexts, und ohne eingespeisten Stand erfindet sie Auskünfte.
+  `leitstand()` liefert die Gesamtsicht als **Daten** (wach · arbeitet an ·
+  seit wann · Warteschlange · zuletzt fertig · pausiert), `/zimmer`
+  formatiert sie, Block 3 speist sie ein. Jedes Zimmer schreibt sein eigenes
+  Protokoll (`<datum>_zimmer-<id>.md`); der **Hauptfaden behält `<datum>.md`**,
+  weil Wachposten, Log-Abgleich und die Mac-Sitzung diesen Namen seit Wochen
+  lesen.
+- **Die Nebenwirkung, die das Aufteilen erzeugt hat:** Der Log-Wachposten las
+  genau die eine Tagesdatei — Arbeit in einem Zimmer wäre für ihn unsichtbar
+  geblieben, und er hätte **Stille gemeldet, während gearbeitet wird**. Im
+  selben Zug mitgezogen (Geschwister-Regel), mit eigener Prüfzeile.
+- **Was der Leitstand ausdrücklich nicht tut: raten.** Ohne `chat_id` gibt es
+  keinen Zimmernamen — Themen-Kennungen sind nur innerhalb eines Chats
+  eindeutig. Dann steht die nackte Kennung da.
 - **Akzeptanzkriterium:** Mehrere parallele Sessions je User möglich; Wechsel funktioniert; State wird persistiert (überlebt Bot-Neustart).
 - **Test:** Zwei Zimmer antworten gleichzeitig (Stoppuhr); ein absichtlich aufgehängtes Zimmer wird gemeldet, während ein anderes tippt. Dazu der alte Test: Bot killen, wieder hoch → Sessions noch da.
 - **Adam-Bestätigung:** —

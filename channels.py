@@ -180,6 +180,31 @@ def resolve_route(prefs: dict, source: str) -> tuple[int, int] | None:
     return int(chat_id), int(thread_id)
 
 
+def zimmer_name_fuer(prefs: dict, chat_id: "int | None",
+                     thread_id: "int | None") -> "str | None":
+    """Aus `(chat_id, thread_id)` den Klarnamen -- oder `None`.
+
+    **[NEU 09.09.2026, Block 2]** Der Leitstand soll „Werkstatt · Migration &
+    Technik" zeigen, nicht `thread_id 47`. Die Zuordnung steht bereits in den
+    Vorlieben (`record_topic`), sie wurde nur nie rueckwaerts gelesen.
+
+    **`chat_id` ist noetig, nicht schmueckend:** Themen-Kennungen sind nur
+    INNERHALB eines Chats eindeutig. Zwei Haeuser koennen dieselbe tragen; ohne
+    den Chat waere der Name geraten. Fehlt er, wird `None` zurueckgegeben --
+    lieber die nackte Zahl als ein falscher Name.
+    """
+    if thread_id is None or chat_id is None:
+        return None
+    for key, entry in (_channels_root(prefs)["houses"]).items():
+        if int(entry.get("chat_id") or 0) != int(chat_id):
+            continue
+        for zimmer, tid in (entry.get("topics") or {}).items():
+            if int(tid) == int(thread_id):
+                titel = entry.get("title") or (HOUSES.get(key) or {}).get("title") or key
+                return f"{titel} · {zimmer}"
+    return None
+
+
 def house_overview(prefs: dict) -> list[dict]:
     """Für /status u. ä.: kompakte Übersicht aller registrierten Häuser."""
     houses = _channels_root(prefs)["houses"]

@@ -1423,15 +1423,22 @@ class ConversationLogger:
     volle Datum, damit jeder Eintrag auch für sich genommen eindeutig ist.
     """
 
-    def __init__(self, user_id: int) -> None:
+    def __init__(self, user_id: int, thread_id: "int | None" = None) -> None:
         self._disabled = False
         self._date: str | None = None  # Tag der aktuell beschriebenen Datei
         self._path: Path | None = None
+        # **[NEU 09.09.2026, Block 2]** Jedes Zimmer schreibt sein eigenes
+        # Protokoll. Der HAUPTFADEN behaelt seinen Dateinamen `<datum>.md` --
+        # Wachposten, Log-Abgleich und die Mac-Sitzung lesen ihn seit Wochen;
+        # ein umbenanntes Tagesprotokoll waere eine Abhaengigkeits-Aenderung
+        # ohne Not (Struktur ueber Namen).
+        self._thread_id = thread_id
         try:
             LOG_DIR.mkdir(parents=True, exist_ok=True)
             self._roll_if_needed()
+            zimmer = ("" if thread_id is None else f" · Zimmer {thread_id}")
             with self._path.open("a", encoding="utf-8") as f:
-                f.write(f"## Session · {self._stamp()} · {WORKDIR}\n\n---\n\n")
+                f.write(f"## Session · {self._stamp()} · {WORKDIR}{zimmer}\n\n---\n\n")
             log.info("conversation log: %s", self._path)
         except Exception:
             log.exception("conversation log init failed (non-fatal)")
@@ -1469,17 +1476,22 @@ class ConversationLogger:
         if date_str == self._date and self._path is not None:
             return
         old_path = self._path
-        new_path = LOG_DIR / f"{date_str}.md"
+        anhang = ("" if getattr(self, "_thread_id", None) is None
+                  else f"_zimmer-{self._thread_id}")
+        new_path = LOG_DIR / f"{date_str}{anhang}.md"
         if old_path is not None and old_path != new_path:
             # Abschlusszeile in der alten Tagesdatei — der Faden bleibt verfolgbar.
             try:
                 with old_path.open("a", encoding="utf-8") as f:
-                    f.write(f"\n*→ fortgesetzt in {date_str}.md*\n")
+                    f.write(f"\n*→ fortgesetzt in {new_path.name}*\n")
             except Exception:
                 log.exception("conversation log: Verweiszeile fehlgeschlagen (non-fatal)")
         if not new_path.exists():
             with new_path.open("a", encoding="utf-8") as f:
-                f.write(f"# Claude Telegram Log – {date_str}\n\n")
+                kopf = (f"# Claude Telegram Log – {date_str}"
+                        + ("" if getattr(self, "_thread_id", None) is None
+                           else f" · Zimmer {self._thread_id}"))
+                f.write(f"{kopf}\n\n")
         self._path = new_path
         self._date = date_str
 
@@ -1696,6 +1708,87 @@ def _sess_mit_anfrage(user_id: int, request_id: str) -> "UserSession | None":
         if fd[0] == int(user_id) and request_id in s.pending_permissions:
             return s
     return None
+
+
+def leitstand(user_id: "int | None" = None) -> "list[dict]":
+    """Die Gesamtsicht auf alle Zimmer -- als DATEN, nicht als Text.
+
+    **[NEU 09.09.2026, Block 2, Auftrag 6]** Einmal gebaut, zweimal genutzt:
+    `/zimmer` formatiert diese Liste, und die Sekretaerin aus Block 3 bekommt
+    denselben Stand eingespeist. Zwei Stellen, die dasselbe zu wissen
+    behaupten, weichen irgendwann voneinander ab -- das ist an diesem Projekt
+    schon gemessen worden.
+
+    **Die Zeitbasen sind hier die Falle, und sie ist alt** (Befund 17.07.):
+    `current_started` und `sess.last_activity` sind `time.monotonic()`,
+    `done_log` traegt `time.time()`. Ein Vergleich ueber die Grenze wirft
+    keinen Fehler und ist trotzdem immer falsch. Deshalb: **Dauern** aus
+    monotonic (`_seit_s`, `_still_s`), **Zeitpunkte** aus der Wanduhr
+    (`zuletzt_fertig_ts`) -- und die Namen sagen, was gemeint ist.
+
+    Ohne `user_id` alle Personen; mit, nur deren Zimmer.
+    """
+    jetzt_mono = time.monotonic()
+    zeilen: list[dict] = []
+    for fd in sorted(set(MAILBOXES) | set(SESSIONS),
+                     key=lambda f: (f[0], -1 if f[1] is None else f[1])):
+        if user_id is not None and fd[0] != int(user_id):
+            continue
+        mb = MAILBOXES.get(fd)
+        sess = SESSIONS.get(fd)
+        job = mb.current_job if mb is not None else None
+        chat_id = (getattr(job, "chat_id", None)
+                   or getattr(sess, "chat_id", None))
+        name = None
+        if fd[1] is not None:
+            try:
+                name = channels.zimmer_name_fuer(_USER_PREFS, chat_id, fd[1])
+            except Exception:
+                log.exception("Leitstand: Zimmername nicht aufloesbar (nicht-fatal)")
+        letzte = (mb.done_log[-1] if mb is not None and mb.done_log else None)
+        zeilen.append({
+            "faden": fd,
+            "user_id": fd[0],
+            "thread_id": fd[1],
+            "name": name or ("Hauptchat" if fd[1] is None else f"Zimmer {fd[1]}"),
+            "wach": sess is not None,
+            "arbeitet_an": _job_preview(job.text) if job is not None else None,
+            # Dauer, aus monotonic -- nur gueltig, wenn wirklich etwas laeuft.
+            "seit_s": (jetzt_mono - mb.current_started
+                       if job is not None and mb is not None and mb.current_started
+                       else None),
+            "warteschlange": len(mb.queue) if mb is not None else 0,
+            "zuletzt_fertig": letzte[1] if letzte else None,
+            # Zeitpunkt, aus der Wanduhr -- fuer `_vor_wie_lange`.
+            "zuletzt_fertig_ts": letzte[0] if letzte else None,
+            "still_s": (jetzt_mono - sess.last_activity
+                        if sess is not None and getattr(sess, "last_activity", 0)
+                        else None),
+            "pausiert_rest_s": (pause_rest_s(mb, fd[0]) if mb is not None else 0.0),
+        })
+    return zeilen
+
+
+def _dauer_kurz(sekunden: "float | None") -> str:
+    """Eine LAUFENDE Dauer in Worten -- die Gegenstueck-Form zu `_vor_wie_lange`.
+
+    Bewusst knapp gehalten: Im Leitstand steht sie in einer Zeile neben dem
+    Auftrag, und `seit 3 Minuten` traegt dort genauso weit wie eine
+    Marken-Form. **Keine Sekundenzahlen** -- die liest sich vorgelesen fremd
+    und ist ab einer Minute ohnehin bedeutungslos.
+    """
+    if sekunden is None:
+        return "unbekannt"
+    s = int(sekunden)
+    if s < 60:
+        return "seit weniger als einer Minute"
+    minuten = s // 60
+    if minuten == 1:
+        return "seit einer Minute"
+    if minuten < 60:
+        return f"seit {minuten} Minuten"
+    stunden = round(s / 3600)
+    return "seit einer Stunde" if stunden <= 1 else f"seit {stunden} Stunden"
 
 
 # ---------- message queue / "Sekretariat" ----------
@@ -4664,7 +4757,7 @@ async def ensure_session(
         tts_enabled=user_prefs.get("tts_enabled", False),
         current_model=model_short,  # Kurzname für Anzeige und Vergleiche
         current_effort=effort,
-        logger=ConversationLogger(user_id),
+        logger=ConversationLogger(user_id, thread_id),
         always_allowed_tools=_cleaned_allow,
     )
     SESSIONS[faden(user_id, thread_id)] = sess
@@ -4737,6 +4830,56 @@ async def cmd_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboard,
     )
+
+
+async def cmd_zimmer(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Der Leitstand als Text -- Auftrag 6 aus dem Zimmer-Bauauftrag.
+
+    **Keine Frage am Ende** (Adams Regel vom 20.08.): Der Befehl gibt Auskunft
+    und nennt den Antwortweg. Eine Frage, deren Antwort nirgends ankommt, ist
+    schlimmer als keine.
+
+    **Was er NICHT tut:** raten. Kann ein Zimmername nicht aufgeloest werden,
+    steht die nackte Kennung da. Ein erfundener Name waere genau die Auskunft,
+    wegen der der Leitstand vor der Sekretaerin gebaut wird.
+    """
+    if not authorized(update):
+        return
+    user_id = update.effective_user.id
+    stand = leitstand(user_id)
+    if not stand:
+        await update.message.reply_text(
+            "🏠 Noch kein Zimmer offen. Das erste entsteht mit deiner nächsten "
+            "Nachricht — im Hauptchat oder in einem Thema.")
+        return
+
+    zeilen = ["🏠 **Zimmer — Leitstand**", ""]
+    for z in stand:
+        if z["arbeitet_an"]:
+            kopf = f"▶️ **{z['name']}** — arbeitet an „{z['arbeitet_an']}“"
+            zeilen.append(f"{kopf}, {_dauer_kurz(z['seit_s'])}")
+        elif z["pausiert_rest_s"] > 0:
+            zeilen.append(f"⏸ **{z['name']}** — wartet auf das Kontingent")
+        elif z["wach"]:
+            zeilen.append(f"💤 **{z['name']}** — wach, nichts zu tun")
+        else:
+            zeilen.append(f"⚫ **{z['name']}** — schläft (keine Sitzung offen)")
+        unten = []
+        if z["warteschlange"]:
+            unten.append(f"Warteschlange: {z['warteschlange']}")
+        if z["zuletzt_fertig"]:
+            unten.append(f"zuletzt fertig: „{z['zuletzt_fertig']}“ "
+                         f"({_vor_wie_lange(z['zuletzt_fertig_ts'])})")
+        elif z["wach"] and z["still_s"] is not None and z["still_s"] > 3600:
+            # „Ein Zimmer stirbt still" aus dem Bauauftrag -- sichtbar machen.
+            unten.append(f"ohne Lebenszeichen {_dauer_kurz(z['still_s'])}")
+        if unten:
+            zeilen.append("   " + " · ".join(unten))
+    zeilen.append("")
+    zeilen.append("_Antwortweg: schreib in das Thema, dessen Zimmer du meinst — "
+                  "`/stopp` und `/reset` wirken dort, wo du sie tippst._")
+    await update.message.reply_text("\n".join(zeilen),
+                                    parse_mode=ParseMode.MARKDOWN)
 
 
 async def cmd_whoami(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -5672,6 +5815,8 @@ _BEFEHLE: tuple[tuple[str, str | None, str], ...] = (
     ("verbose", "Tipp-Indikator wieder an", "Tipp-Indikator wieder an"),
     ("whereami", "Aktuellen Kanal zeigen", "Kanal-Info anzeigen"),
     ("whoami", None, "User-Info"),
+    ("zimmer", "Leitstand: welches Zimmer arbeitet woran",
+     "Leitstand: welche Zimmer wach sind, woran sie arbeiten, seit wann"),
 )
 
 # Adams Ausnahme, als Konstante statt im Sortierschlüssel versteckt.
@@ -13664,6 +13809,7 @@ def main() -> None:
     app.add_handler(CommandHandler("quiet", cmd_quiet))
     app.add_handler(CommandHandler("verbose", cmd_verbose))
     app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("zimmer", cmd_zimmer))
     app.add_handler(CommandHandler("ampel", cmd_ampel))
     app.add_handler(CommandHandler("presend", cmd_presend))
     app.add_handler(CommandHandler("usage", cmd_usage))

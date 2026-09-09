@@ -350,6 +350,7 @@ run "Zustand der Ausarbeitungen"        "$PY" scripts/test_ausarbeitungen.py
 run "Ablegeweg der Rechnungen"          "$PY" scripts/test_rechnungen_ablegen.py
 run "PDF-Skript (M-4)"                  "$PY" scripts/test_konzept_pdf.py
 run "Sitzung je Zimmer (Block 1)"       "$PY" scripts/test_zimmer_block1.py
+run "Leitstand je Zimmer (Block 2)"    "$PY" scripts/test_leitstand_block2.py
 run "Tagescheck: kein Werkzeug, kein Urteil" "$PY" scripts/test_tagescheck_werkzeuge.py
 
 # Der Nachweis, dass die Wegwerf-Umgebung wirklich gegriffen hat. Nachmessen,

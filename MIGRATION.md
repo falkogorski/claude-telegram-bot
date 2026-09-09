@@ -656,8 +656,9 @@ Absturzfall ausdrücklich auf 5.18).
 ## Phase 5 — Bot-Features (mit/nach Migration)
 
 ### 5.1 Multi-Session (`/new`, `/sessions`, `/switch`, `/stop`)
-- **Status:** 🔄 **Block 1 GEBAUT am 09.09.2026** (Schlüsselwechsel, im
-  Probelauf-Klon nach R4, 75/75) — die Blöcke 2 bis 4 folgen einzeln
+- **Status:** 🔄 **Block 1 + 1b GEBAUT am 09.09.2026** (Schlüsselwechsel und
+  die Wege darüber, beides im Probelauf-Klon nach R4, 75/75; Block 1 seit
+  19:26 auf dem Server) — die Blöcke 2 bis 4 folgen einzeln
 - **Die Form: eine Sitzung je Zimmer** (Claudias Konzept „Sitzung je Zimmer"
   vom 05.09.), nicht eine abstrakte Zahl paralleler Sitzungen. Technisch ist es
   ein **Schlüsselwechsel von `user_id` auf `(user_id, thread_id)`** —
@@ -671,9 +672,33 @@ Absturzfall ausdrücklich auf 5.18).
   Einreihen, Worker und `_run_job` arbeiten je Zimmer. **Zwei Stellen
   fand erst der Klon:** Stall-Wächter und Startup-Reconcile *laufen* über
   die Schlüssel und reichten das Tupel als Person weiter — Iterationen,
-  keine Aufrufe, für einen mechanischen Ersatz unsichtbar. **Offen aus
-  Engywucks Auflagen:** Nachsteuer-Hook (Auftrag 8) und Limit je Person
-  statt je Zimmer; beides gehört noch in Block 1.
+  keine Aufrufe, für einen mechanischen Ersatz unsichtbar. Engywucks
+  Auflagen — Nachsteuer-Hook (Auftrag 8) und Limit je Person — sind
+  ebenfalls drin.
+- **Block 1b (09.09., nach Engywucks Nachprüfung von `23d01d6`): die Wege.**
+  Sein Befund traf den Kern: Die Prüfzeilen von Block 1 maßen die **Träger**
+  (Schlüssel, Warteschlangen, Sitzungen) und die stimmten — sie maßen nicht
+  die **Wege**, die darüber laufen. `_sess(user_id)` ohne zweites Argument
+  *ist* der Hauptfaden, und weil `thread_id` einen Vorgabewert hat, lief jede
+  mechanisch ersetzte Stelle weiter, nur eben im falschen Zimmer. Sechs
+  Stellen: Freigabe-Rückruf · Stopp-Pfad · drei Rücklagen in `_run_job` ·
+  Wiederaufnahme nach Neustart · Stall-Neustart · Befehle und Tastatur. Dazu
+  **ein fehlender Schreiber** — der Nachsteuer-Hook las einen Ordner, den
+  nichts füllte.
+- **Was 1b gebaut hat:** `fd_von_update()` als einzige Stelle, an der aus einem
+  Update ein Faden wird · `_alle_sess()` für Einstellungen der Person, die in
+  **jedem** offenen Zimmer ankommen müssen (Vorlesen, Stille, Auto-Zustand,
+  Freigaben-Rücksetzung) · `_sess_mit_anfrage()` und `_sess_mit_botnachricht()`,
+  die das Zimmer über die `request_id` bzw. die Nachricht finden statt über die
+  Person · `thread_id` **pflichtig** am Stall-Wächter · der Zettel-Schreiber mit
+  Auftragskennung im Dateinamen, Aufräumen am Auftragsende und einem
+  Register, das eine Doppelantwort verhindert.
+- **Der Prüfer für die ganze Klasse:** eine Zeile zählt per `ast` **echte
+  Aufrufknoten** der Türen mit nur einem Argument und verlangt an jeder
+  ein `# Hauptfaden:` mit Grund. Damit ist jede verbleibende Stelle eine
+  Entscheidung statt einer Vergessenheit — und Stelle Nummer sieben fällt
+  beim Bauen auf, nicht in der nächsten Nachprüfung. Von 49 Ein-Argument-
+  Stellen sind vier übrig, alle vier begründet.
 - **Zielbild dahinter** (Adams Entscheid 09.09., mein Papier vom 06.09. unter
   `docs/auftraege/20260906_empfehlung_fliessender_dialog_final.md`): Die
   Sekretärin ist eine **eigene, werkzeuglose Dialogsitzung NEBEN den

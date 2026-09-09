@@ -1225,8 +1225,10 @@ def _set_bash_auto(user_id: int, an: bool) -> None:
         gespeichert.discard("Bash")
     prefs["always_allow"] = sorted(gespeichert)
     _save_prefs(_USER_PREFS)
-    sess = _sess(user_id)
-    if sess is not None:
+    # **[GEAENDERT 09.09.2026, Block 1b]** In JEDEM offenen Zimmer -- ein Knopf,
+    # der nur den Hauptfaden umschaltet, laesst die anderen Zimmer im alten
+    # Zustand weiterlaufen, und niemand sieht den Unterschied.
+    for sess in _alle_sess(user_id):
         if an:
             sess.always_allowed_tools.add("Bash")
         else:
@@ -1643,6 +1645,59 @@ def _sess(user_id: int, thread_id: "int | None" = None) -> "UserSession | None":
     return SESSIONS.get(faden(user_id, thread_id))
 
 
+def fd_von_update(update) -> "int | None":
+    """Der Faden, in dem diese Nachricht steht -- `None` ist der Hauptfaden.
+
+    **[NEU 09.09.2026, Block 1b]** Eine Stelle, an der aus einem Update ein
+    Faden wird. Vorher stand `getattr(msg, "message_thread_id", None)` an
+    einzelnen Stellen und fehlte an allen anderen -- die Befehle wirkten
+    deshalb immer auf den Hauptfaden, egal wo getippt wurde.
+    """
+    msg = getattr(update, "effective_message", None)
+    return getattr(msg, "message_thread_id", None) if msg is not None else None
+
+
+def _alle_sess(user_id: int) -> "list[UserSession]":
+    """Alle offenen Sitzungen DIESER Person -- ueber alle Zimmer.
+
+    Fuer Einstellungen, die der PERSON gehoeren und trotzdem in jeder laufenden
+    Sitzung ankommen muessen (Vorlesen, Stille, Werkzeugspur). Wer hier nur den
+    Faden der Nachricht naehme, haette den Schalter in einem Zimmer umgelegt und
+    in den anderen nicht -- ohne dass es jemand sieht.
+    """
+    return [s for fd, s in list(SESSIONS.items()) if fd[0] == int(user_id)]
+
+
+def _sess_mit_botnachricht(user_id: int, message_id: int) -> "UserSession | None":
+    """Die Sitzung, die DIESE Freigabe-Nachricht gesendet hat -- ueber alle Zimmer.
+
+    **[NEU 09.09.2026, Block 1b]** Eine Reaktion traegt kein Thema (Telegram
+    liefert bei `MessageReactionUpdated` keine `message_thread_id`). Der Faden
+    laesst sich also nur ueber die Nachricht selbst finden, auf die reagiert
+    wurde -- und die kennt genau eine Sitzung.
+    """
+    for fd, s in list(SESSIONS.items()):
+        if fd[0] == int(user_id) and message_id in s.message_permissions:
+            return s
+    return None
+
+
+def _sess_mit_anfrage(user_id: int, request_id: str) -> "UserSession | None":
+    """Die Sitzung, die auf DIESE Freigabe wartet -- ueber alle Zimmer hinweg.
+
+    **[NEU 09.09.2026]** Der Knopf traegt nur die `request_id`; in welchem
+    Zimmer gefragt wurde, steht nicht darin. Die Kennung ist einmalig, also ist
+    die Suche eindeutig -- und die `callback_data` (Telegram: 64 Byte) muss
+    nicht wachsen, um den Faden mitzutragen.
+
+    Fail-closed im Wortsinn: Findet sich kein Zimmer, wird nichts freigegeben.
+    """
+    for fd, s in list(SESSIONS.items()):
+        if fd[0] == int(user_id) and request_id in s.pending_permissions:
+            return s
+    return None
+
+
 # ---------- message queue / "Sekretariat" ----------
 #
 # Abgespeckte Variante (vor Netcup): EINE Claude-Konversation pro User, aber
@@ -1928,6 +1983,19 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
                 except Exception:
                     log.exception("Nachhol-Ansage nicht zustellbar")
         job = mb.queue.popleft()
+        # **[NEU 09.09.2026, Block 1b]** Der Nachtrag ist im vorigen Auftrag
+        # angekommen UND dieser ist beantwortet -- eine zweite Antwort waere
+        # dieselbe Auskunft ein zweites Mal. Nur DIESER eine Fall ueberspringt;
+        # jeder Zweifel (nie gelesen, Auftrag gescheitert, Neustart dazwischen)
+        # laesst den Auftrag normal laufen.
+        if zettel_erledigt(job.message_id):
+            log.info("Nachsteuern: Auftrag %s uebersprungen -- als Zettel bereits "
+                     "in den laufenden Vorgang gereicht und dort beantwortet",
+                     job.message_id)
+            if job.pending_key:
+                pending.resolve(job.pending_key)
+            _ZETTEL.pop(int(job.message_id or 0), None)
+            continue
         mb.current_job = job
         mb.current_started = time.monotonic()
         # 5.2: Persistenz-Status auf „in Bearbeitung" (falls Reboot jetzt: Hybrid → melden).
@@ -1944,6 +2012,10 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
         finally:
             mb.done_log.append((time.time(), _job_preview(job.text)))
             mb.current_job = None
+            # Reste dieses Auftrags wegwerfen -- ein Zettel, der es nicht mehr
+            # hineingeschafft hat, darf den NAECHSTEN Auftrag nicht erreichen.
+            nachsteuer_aufraeumen(user_id, thread_id, _auftrag_kennung(job),
+                                  beantwortet=(outcome == "beantwortet"))
         # S1/G6: Erst hier steht fest, ob wirklich etwas herauskam.
         if job.links_abhaken:
             await _links_nachtragen(job, outcome)
@@ -1968,7 +2040,7 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
         # gespeicherten neuen Prefs (Modell/Tempo) auf.
         if mb.switch_pending:
             mb.switch_pending = False
-            await close_session(user_id)
+            await close_session(user_id, thread_id)
     mb.worker = None
 
 
@@ -2001,7 +2073,7 @@ def _count_newer_pending(user_id: int, job: QueuedJob) -> int:
     received_at verglichen (gleiche Zeitbasis).
     """
     try:
-        mb = _mb_opt(user_id)
+        mb = _mb_opt(user_id, job.thread_id)
         if not mb or not mb.queue:
             return 0
         return sum(1 for j in mb.queue if j.received_at > job.received_at)
@@ -2184,7 +2256,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 # richtig; hier fehlte dieselbe Behandlung. **Ein Zugangsfehler
                 # ist kein Scheitern der Nachricht, sondern ein Zustand des
                 # Systems** — die Nachricht ist nur noch nicht dran.
-                mb = _get_mailbox(user_id)
+                mb = _get_mailbox(user_id, job.thread_id)
                 mb.queue.appendleft(job)
                 if job.pending_key:
                     pending.set_status(job.pending_key, pending.STATUS_OPEN)
@@ -2201,7 +2273,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                         parse_mode=ParseMode.MARKDOWN)
                 except Exception:
                     log.exception("failed to send auth-error message")
-                await close_session(user_id)
+                await close_session(user_id, job.thread_id)
                 return "zurueckgelegt"
             # H2 Ebene 1: Kontingent-Limit — die Nachricht ist NICHT gescheitert,
             # sie ist nur noch nicht dran. Sie geht unverändert zurück an den
@@ -2209,7 +2281,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             # Worker legt sich bis zum Reset schlafen und spielt danach alles
             # der Reihe nach nach. Nichts geht verloren.
             if is_session_limit(e):
-                mb = _get_mailbox(user_id)
+                mb = _get_mailbox(user_id, job.thread_id)
                 # **[RANG A, Stelle 6 — 29.08.] Die Rueckstellung ist jetzt eine
                 # eigene Funktion**, damit ein Pruefer sie AUFRUFEN kann.
                 # Vorher stand sie hier inline, und der Pruefer baute sie in
@@ -2241,7 +2313,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     )
                 except Exception:
                     log.exception("failed to send session-limit message")
-                await close_session(user_id)
+                await close_session(user_id, job.thread_id)
                 return "offen"
             # H1: Transportgrenze der Leitung — eigener Zweig mit ehrlicher,
             # verständlicher Meldung. Vorher fiel dieser Fall in den allgemeinen
@@ -2261,7 +2333,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     )
                 except Exception:
                     log.exception("failed to send transport-overflow message")
-                await close_session(user_id)
+                await close_session(user_id, job.thread_id)
                 return "aufgegeben"
             # Kontext-Überlauf: Session verwerfen, frisch starten und die
             # gescheiterte Nachricht AUTOMATISCH neu verarbeiten (kein Nutzer-Eingriff,
@@ -2269,9 +2341,9 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             if is_context_overflow(e):
                 if not job.context_retry:
                     log.warning("context overflow user_id=%s — rotiere Session + retry", user_id)
-                    await close_session(user_id)
+                    await close_session(user_id, job.thread_id)
                     job.context_retry = True
-                    mb = _get_mailbox(user_id)
+                    mb = _get_mailbox(user_id, job.thread_id)
                     mb.queue.appendleft(job)  # als Nächstes mit frischer Session
                     try:
                         await sess.bot.send_message(
@@ -2292,7 +2364,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     )
                 except Exception:
                     log.exception("failed to send context-overflow message")
-                await close_session(user_id)
+                await close_session(user_id, job.thread_id)
                 return "aufgegeben"
             try:
                 await send_chunked(
@@ -2304,7 +2376,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 )
             except Exception:
                 log.exception("failed to send error message to user")
-            await close_session(user_id)
+            await close_session(user_id, job.thread_id)
             return "fehler"
 
     # Senden erst JETZT — nach der Pre-Send-Prüfung (8.5), über den zentralen
@@ -3383,8 +3455,13 @@ def format_tool_call(tool_name: str, tool_input: dict[str, Any],
 
 # ---------- permission callback ----------
 
-def make_permission_callback(user_id: int):
-    """Returns a can_use_tool callback bound to this user.
+def make_permission_callback(user_id: int, thread_id: "int | None" = None):
+    """Returns a can_use_tool callback bound to this user AND this room.
+
+    **[GEAENDERT 09.09.2026]** Bis hierher war der Rueckruf nur an die Person
+    gebunden. In einem Zimmer ohne Hauptfaden-Sitzung verweigerte er JEDES
+    Werkzeug (`no active session`); gab es eine, landete der Dialog im
+    Hauptchat und die Freigabe haftete an der falschen Sitzung.
 
     Cross-loop safety: the SDK may invoke can_use_tool from a different event
     loop than PTB's update dispatch. We store (loop, future) pairs so the
@@ -3398,9 +3475,10 @@ def make_permission_callback(user_id: int):
         tool_input: dict[str, Any],
         context: ToolPermissionContext,
     ):
-        sess = _sess(user_id)
+        sess = _sess(user_id, thread_id)
         if sess is None or sess.bot is None or sess.chat_id is None:
-            log.error("permission request with no active session for %s", user_id)
+            log.error("permission request with no active session for %s (thread=%s)",
+                      user_id, thread_id)
             return PermissionResultDeny(message="no active session")
 
         # Kontextschutz (Adam 15.07.): Skills laden große Wissensdateien in den
@@ -4322,7 +4400,94 @@ def nachsteuer_ordner(user_id: int, thread_id: "int | None" = None) -> Path:
     return basis / f"{fd[0]}_{fd[1] if fd[1] is not None else 'haupt'}"
 
 
-def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None) -> str:
+# **[NEU 09.09.2026, Block 1b]** Zettel-Register (RAM).
+#
+# `message_id` -> {"auftrag": Kennung des laufenden Auftrags,
+#                  "gelesen":  der Hook hat ihn hineingereicht,
+#                  "erledigt": der Auftrag, der ihn bekam, ist beantwortet}
+#
+# **Warum ueberhaupt ein Register:** Adams Nachtrag geht ZWEI Wege -- als Zettel
+# in den laufenden Auftrag und als eingereihter Auftrag in die Schlange. Ohne
+# Register antwortete der Bot zweimal auf dieselbe Nachricht.
+#
+# **Warum im Arbeitsspeicher:** Nach einem Neustart ist das Register leer, und
+# der eingereihte Auftrag laeuft ganz normal. Das ist die richtige Richtung --
+# lieber einmal zu viel gearbeitet als Adams Nachricht verloren.
+_ZETTEL: dict[int, dict] = {}
+
+
+def _auftrag_kennung(job) -> str:
+    """Kennung des laufenden Auftrags -- steht im Dateinamen jedes Zettels.
+
+    Aus Primitiven gebaut, damit sie einen Neustart ueberlebt und in einem
+    Dateinamen stehen darf.
+    """
+    if job is None:
+        return "kein"
+    return f"{getattr(job, 'message_id', None) or 0}-{int(getattr(job, 'received_at', 0) or 0)}"
+
+
+def nachsteuer_schreiben(user_id: int, thread_id: "int | None",
+                         auftrag: str, message_id: "int | None", text: str) -> bool:
+    """Einen Zettel fuer den LAUFENDEN Auftrag ablegen. Wirft nie.
+
+    Die Kennung des Auftrags steht im Dateinamen: Ein Zettel, der es nicht mehr
+    rechtzeitig in seinen Auftrag schafft, darf **nicht** beim naechsten
+    ankommen -- der bearbeitet etwas anderes, und ein Nachtrag aus einem
+    fremden Zusammenhang ist schlimmer als keiner.
+    """
+    if not (text or "").strip():
+        return False
+    try:
+        ordner = nachsteuer_ordner(user_id, thread_id)
+        ordner.mkdir(parents=True, exist_ok=True)
+        mid = int(message_id or 0)
+        (ordner / f"{auftrag}__{mid}.txt").write_text(text.strip(), encoding="utf-8")
+        _ZETTEL[mid] = {"auftrag": auftrag, "gelesen": False, "erledigt": False}
+        return True
+    except Exception:
+        log.exception("Nachsteuern: Zettel nicht ablegbar (nicht-fatal)")
+        return False
+
+
+def nachsteuer_aufraeumen(user_id: int, thread_id: "int | None",
+                          auftrag: str, beantwortet: bool) -> None:
+    """Auftragsende: Reste wegwerfen und das Register nachziehen. Wirft nie.
+
+    Zwei Ausgaenge, und der Unterschied ist der ganze Sinn:
+    * **gelesen und der Auftrag ist beantwortet** -> der Nachtrag ist
+      angekommen, der eingereihte Zwilling wird uebersprungen.
+    * **alles andere** (nie gelesen, oder der Auftrag scheiterte) -> Eintrag
+      raus, der Zwilling laeuft ganz normal. Nichts geht verloren.
+    """
+    try:
+        ordner = nachsteuer_ordner(user_id, thread_id)
+        if ordner.is_dir():
+            for datei in ordner.glob(f"{auftrag}__*.txt"):
+                try:
+                    datei.unlink()
+                except OSError:
+                    pass
+        for mid, eintrag in list(_ZETTEL.items()):
+            if eintrag.get("auftrag") != auftrag:
+                continue
+            if eintrag.get("gelesen") and beantwortet:
+                eintrag["erledigt"] = True
+            else:
+                _ZETTEL.pop(mid, None)
+    except Exception:
+        log.exception("Nachsteuern: Aufraeumen fehlgeschlagen (nicht-fatal)")
+
+
+def zettel_erledigt(message_id: "int | None") -> bool:
+    """Wurde diese Nachricht schon als Zettel in einen beantworteten Auftrag
+    gereicht? Dann braucht ihr eingereihter Zwilling keinen eigenen Lauf."""
+    eintrag = _ZETTEL.get(int(message_id or 0))
+    return bool(eintrag and eintrag.get("erledigt"))
+
+
+def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None,
+                     auftrag: "str | None" = None) -> str:
     """Neue Zettel einsammeln und **verbrauchen** — oder leerer Text.
 
     **Engywucks Auflage 4 / Auftrag 8.** Adam am 05.09.: *optimieren,
@@ -4342,12 +4507,23 @@ def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None) -> str:
         if not ordner.is_dir():
             return ""
         stuecke: list[str] = []
-        for datei in sorted(ordner.glob("*.txt")):
+        # **[GEAENDERT 09.09.2026, Block 1b]** Nur die Zettel DIESES Auftrags.
+        # Ohne Kennung (`auftrag is None`) alle -- diesen Weg nimmt nur das
+        # Aufraeumen, nie der Hook.
+        muster = f"{auftrag}__*.txt" if auftrag else "*.txt"
+        for datei in sorted(ordner.glob(muster)):
             try:
                 stuecke.append(datei.read_text(encoding="utf-8").strip())
                 datei.unlink()
             except OSError:
                 continue
+            try:
+                mid = int(datei.stem.rsplit("__", 1)[-1])
+            except ValueError:
+                continue
+            eintrag = _ZETTEL.get(mid)
+            if eintrag is not None:
+                eintrag["gelesen"] = True
         return "\n".join(s for s in stuecke if s)
     except Exception:
         log.exception("Nachsteuern: Einsammeln fehlgeschlagen (nicht-fatal)")
@@ -4364,7 +4540,11 @@ def _nachsteuer_hook(user_id: int, thread_id: "int | None" = None):
     darf, waere eine zweite Freigabestelle neben der Positivliste.
     """
     async def _hook(eingabe, tool_use_id, context):
-        text = nachsteuer_lesen(user_id, thread_id)
+        # Der Hook laeuft IM laufenden Auftrag -- `mb.current_job` ist also
+        # genau dieser. Damit liest er nur Zettel, die fuer ihn gedacht sind.
+        _mb = _mb_opt(user_id, thread_id)
+        _kennung = _auftrag_kennung(_mb.current_job if _mb is not None else None)
+        text = nachsteuer_lesen(user_id, thread_id, auftrag=_kennung)
         if not text:
             return {}
         log.info("Nachsteuern: %d Zeichen an den laufenden Auftrag gereicht "
@@ -4401,7 +4581,7 @@ def hauptsitzungs_optionen(*, user_id: int, model_full: str, effort,
     return ClaudeAgentOptions(
         cwd=str(WORKDIR),
         permission_mode="default",
-        can_use_tool=make_permission_callback(user_id),
+        can_use_tool=make_permission_callback(user_id, thread_id),
         model=model_full,
         effort=effort,
         add_dirs=add_dirs,
@@ -4594,7 +4774,10 @@ async def cmd_reset(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
     user_id = update.effective_user.id
-    mb = _mb_opt(user_id)
+    # **[GEAENDERT 09.09.2026, Block 1b]** Das Zimmer, in dem getippt wird --
+    # `/reset` in Zimmer 7 raeumte sonst den Hauptfaden und liess Zimmer 7 stehen.
+    _fd = fd_von_update(update)
+    mb = _mb_opt(user_id, _fd)
     dropped = 0
     if mb is not None:
         dropped = len(mb.queue)
@@ -4603,7 +4786,7 @@ async def cmd_reset(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             mb.worker.cancel()
         mb.worker = None
         mb.current_job = None
-    await close_session(user_id)
+    await close_session(user_id, _fd)
     user_prefs = _USER_PREFS.get(str(user_id), {})
     keyboard = _main_keyboard(
         tts_on=user_prefs.get("tts_enabled", False),
@@ -4663,8 +4846,11 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
     user_id = update.effective_user.id
-    sess = _sess(user_id)
-    mb = _mb_opt(user_id)
+    # **[GEAENDERT 09.09.2026, Block 1b]** Auskunft ueber DIESES Zimmer -- wer in
+    # Zimmer 7 fragt, will nicht die Warteschlange des Hauptchats sehen.
+    _fd = fd_von_update(update)
+    sess = _sess(user_id, _fd)
+    mb = _mb_opt(user_id, _fd)
 
     lines: list[str] = ["📋 Übersicht", ""]
 
@@ -5547,8 +5733,14 @@ async def cmd_tts(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
     user_id = update.effective_user.id
-    sess = await ensure_session(user_id)
+    # **[GEAENDERT 09.09.2026, Block 1b]** Vorlesen gehoert der PERSON, muss aber
+    # in JEDEM offenen Zimmer ankommen. Die Sitzung dieses Zimmers gibt den neuen
+    # Zustand vor, die uebrigen ziehen mit -- sonst laege der Schalter hier um
+    # und dort nicht, ohne dass es jemand sieht.
+    sess = await ensure_session(user_id, thread_id=fd_von_update(update))
     sess.tts_enabled = not sess.tts_enabled
+    for _s in _alle_sess(user_id):
+        _s.tts_enabled = sess.tts_enabled
     _USER_PREFS.setdefault(str(user_id), {})["tts_enabled"] = sess.tts_enabled
     _save_prefs(_USER_PREFS)
     keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
@@ -5676,7 +5868,8 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         if local_path_obj and local_path_obj.exists() and _ist_direkt_lesbar(local_path_obj):
             try:
                 summary = await _summarize_pdf_direct(local_path_obj)
-                sess = _sess(orig_update.effective_user.id)
+                sess = _sess(orig_update.effective_user.id,
+                             fd_von_update(orig_update))
                 tts_active = bool(sess and sess.tts_enabled)
                 if tts_active:
                     # Voice + Text gekoppelt: Voice mit Text als Caption, statt zweier separater Posts.
@@ -6017,8 +6210,12 @@ async def on_channel_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> N
 async def cmd_quiet(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
-    sess = await ensure_session(update.effective_user.id)
+    # Block 1b: gilt der Person, wirkt in jedem Zimmer (siehe `/tts`).
+    sess = await ensure_session(update.effective_user.id,
+                                thread_id=fd_von_update(update))
     sess.quiet = True
+    for _s in _alle_sess(update.effective_user.id):
+        _s.quiet = True
     await update.message.reply_text(
         "🔕 Ruhiger Modus an — Tipp-Indikator aus. Die 🔧-Werkzeug-Spur bleibt als "
         "Lebenszeichen sichtbar.")
@@ -6027,8 +6224,12 @@ async def cmd_quiet(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 async def cmd_verbose(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
-    sess = await ensure_session(update.effective_user.id)
+    # Block 1b: gilt der Person, wirkt in jedem Zimmer (siehe `/tts`).
+    sess = await ensure_session(update.effective_user.id,
+                                thread_id=fd_von_update(update))
     sess.quiet = False
+    for _s in _alle_sess(update.effective_user.id):
+        _s.quiet = False
     await update.message.reply_text(
         "🔔 Verbose-Modus an — Tipp-Indikator läuft wieder mit (die 🔧-Spur ist "
         "ohnehin immer sichtbar).")
@@ -6429,13 +6630,17 @@ async def on_permission_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -
     # 3. Resolve future BEFORE any UI work — that's what actually unblocks Claude.
     # CROSS-LOOP-SAFE: the future may have been created on a different event
     # loop (the SDK's), so we use call_soon_threadsafe on its loop.
-    sess = _sess(update.effective_user.id)
+    # **[GEAENDERT 09.09.2026]** Nicht die Sitzung der PERSON, sondern die, die
+    # auf diese Kennung wartet. Vorher loeste ein Knopf aus Zimmer 7 im
+    # Hauptfaden auf -- dort lag die Anfrage nie, also blieb Zimmer 7 haengen.
+    sess = _sess_mit_anfrage(update.effective_user.id, request_id)
     suffix = None
     if sess is None:
-        suffix = "(Session weg)"
+        suffix = "(bereits beantwortet oder Session-Neustart)"
     else:
         entry = sess.pending_permissions.pop(request_id, None)
         if entry is None:
+            # Wettlauf: zwischen Suche und Zugriff hat etwas anderes geantwortet.
             suffix = "(bereits beantwortet oder Session-Neustart)"
         else:
             target_loop, fut = entry
@@ -6522,10 +6727,19 @@ async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if user_id not in ALLOWED_USER_IDS:
         return
 
+    # **[GEAENDERT 09.09.2026, Block 1b]** Zwei verschiedene Bezuege, und sie
+    # sind es wirklich: Die FREIGABE gehoert dem Zimmer, das gefragt hat -- das
+    # findet sich ueber die Nachricht. Alles Weitere (5.9-Vokabular) hat keinen
+    # Zimmer-Bezug, weil eine Reaktion kein Thema traegt und der daraus gebaute
+    # Auftrag ohnehin im Hauptfaden landet.
+    freigabe_sess = _sess_mit_botnachricht(user_id, rx.message_id)
+    # Hauptfaden: Reaktionen tragen kein Thema; der Zimmer-Bezug fuer das
+    # 5.9-Vokabular kommt mit Block 2 (Protokoll je Zimmer).
     sess = _sess(user_id)
 
     # ── Vorrang: wartende Permission (👍 Allow / 👎 Deny) — unverändert ──
-    if sess is not None:
+    if freigabe_sess is not None:
+        sess = freigabe_sess
         request_id = sess.message_permissions.get(rx.message_id)
         if request_id is not None:
             for reaction in rx.new_reaction:
@@ -6649,7 +6863,9 @@ async def _handle_reaction_withdrawal(user_id: int, chat_id: int, message_id: in
     Handlungs-Klassen den Agenten informieren, sonst nur still verbuchen."""
     if sess is not None and sess.logger:
         sess.logger.log_event(f"{emoji} Reaktion von Adam zurückgenommen")
-    mb = _mb_opt(user_id)
+    # Block 1b: die Schlange der uebergebenen Sitzung. Fehlt sie, der
+    # Hauptfaden -- dort landen Reaktions-Auftraege ohnehin.
+    mb = _mb_opt(user_id, getattr(sess, "thread_id", None))
     if mb is not None:
         for job in list(mb.queue):
             if (job.update is None and job.message_id == message_id
@@ -7085,8 +7301,9 @@ async def cmd_freigaben(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         prefs.pop("always_allow", None)
         prefs.pop("trusted_domains", None)
         _save_prefs(_USER_PREFS)
-        sess = _sess(user_id)
-        if sess is not None:
+        # Block 1b: in jedem Zimmer -- sonst bliebe eine Dauerfreigabe dort
+        # bestehen, wo Adam gerade nicht getippt hat.
+        for sess in _alle_sess(user_id):
             sess.always_allowed_tools.clear()
         await update.message.reply_text(
             "🔒 Alle dauerhaften Freigaben gelöscht (Werkzeuge UND vertraute "
@@ -7117,13 +7334,17 @@ async def cmd_stopp(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
     user_id = update.effective_user.id
-    mb = _mb_opt(user_id)
+    # **[GEAENDERT 09.09.2026, Block 1b]** Gestoppt wird, was in DIESEM Zimmer
+    # laeuft. Sonst meldete `/stopp` in Zimmer 7 "hier laeuft nichts", waehrend
+    # dort ein Auftrag lief -- und stoppte im schlechteren Fall einen fremden.
+    _fd = fd_von_update(update)
+    mb = _mb_opt(user_id, _fd)
     if mb is None or mb.current_job is None:
         await update.message.reply_text("✋ Gerade läuft nichts, das ich stoppen könnte.")
         return
     stopped = _job_preview(mb.current_job.text)
     try:
-        sess = _sess(user_id)
+        sess = _sess(user_id, _fd)
         if sess is not None:
             await sess.client.interrupt()
         await update.message.reply_text(
@@ -7970,7 +8191,7 @@ async def _disconnect_quietly(sess: UserSession, user_id: int) -> None:
 
 
 async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession | None,
-                                  stalled_for: float) -> None:
+                                  stalled_for: float, *, thread_id: "int | None") -> None:
     """Eine hängende Session beenden, den Job retten, frisch weitermachen.
 
     LOCKFREI (Kern der Umsetzung): `_run_job` hält die Session-Sperre für die
@@ -7999,7 +8220,7 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession |
     if sess is not None:
         # Den FADEN entfernen, nicht die Person: Sonst bliebe die Sitzung des
         # aufgehaengten Zimmers stehen, waehrend ein anderes stirbt.
-        SESSIONS.pop(faden(user_id, getattr(sess, "thread_id", None)), None)
+        SESSIONS.pop(faden(user_id, thread_id), None)
         try:
             cancel_pending_permissions(sess, reason="Session-Stall (5.18)")
         except Exception:
@@ -8074,8 +8295,10 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession |
     # Session an, weil SESSIONS für diesen User jetzt leer ist.
     if mb.queue:
         # Der Faden, nicht die Person: Sonst weckte der Waechter den Hauptfaden
-        # auf, waehrend das aufgehaengte Zimmer stehen bliebe.
-        _ensure_worker(user_id, getattr(sess, "thread_id", None) if sess else None)
+        # auf, waehrend das aufgehaengte Zimmer stehen bliebe. Der Faden kommt
+        # von der MAILBOX (Aufrufer), nicht aus `sess` -- haengt der Aufbau, gibt
+        # es gar keine Sitzung, die ihn kennen koennte.
+        _ensure_worker(user_id, thread_id)
 
 
 async def stall_watchdog(app: Application) -> None:
@@ -8114,7 +8337,8 @@ async def stall_watchdog(app: Application) -> None:
                        else max(mb.current_started, sess.last_activity))
                 stalled_for = now - ref
                 if stalled_for > STALL_LIMIT_S:
-                    await _handle_stalled_session(user_id, mb, sess, stalled_for)
+                    await _handle_stalled_session(user_id, mb, sess, stalled_for,
+                                                  thread_id=fd[1])
         except Exception:
             # Ein Fehler hier darf die Schleife nie beenden — sonst wäre der
             # Wächter still weg und niemand merkte es (dieselbe Klasse Fehler,
@@ -9553,7 +9777,9 @@ def _reconcile_pending(app: Application) -> str:
                 bot=app.bot,
                 resumed=True,
             )
-            _get_mailbox(uid).queue.append(job)    # ans Ende = chronologisch
+            # **[GEAENDERT 09.09.2026]** In das Zimmer, aus dem die Nachricht kam --
+            # `thread_id` steht zwei Zeilen darueber im Job und ging hier verloren.
+            _get_mailbox(uid, r.get("thread_id")).queue.append(job)   # ans Ende = chronologisch
             if r.get("message_id") is not None:
                 _RESUMED_KEYS.add(key)             # gegen Telegrams Zweitzustellung
             resumed.append(r)
@@ -9820,6 +10046,8 @@ async def post_init(app: Application) -> None:
             async def _do_autorun(u: int = uid, t: str = autorun_text) -> None:
                 await asyncio.sleep(2)
                 try:
+                    # Hauptfaden: Ein Autorun wird nicht von einer Nachricht
+                    # ausgeloest -- es gibt kein Zimmer, aus dem er kaeme.
                     sess = await ensure_session(u)
                     sess.bot = app.bot
                     sess.chat_id = u
@@ -10021,7 +10249,10 @@ async def process_user_text(
         # Echtes Stopp/Korrektur-Signal: laufenden Vorgang abbrechen (gilt als
         # hinfällig), diese Nachricht sofort als Nächstes VORNE einarbeiten.
         try:
-            sess = _sess(user_id)
+            # **[GEAENDERT 09.09.2026]** Das Zimmer, in dem gestoppt wird -- nicht
+            # die Person. Sonst unterbrach ein Stopp-Wort in Zimmer 7 den
+            # Hauptfaden und reihte trotzdem in Zimmer 7 ein.
+            sess = _sess(user_id, _fd_thread)
             if sess is not None:
                 await sess.client.interrupt()
         except Exception:
@@ -10037,12 +10268,31 @@ async def process_user_text(
         if busy:
             running = _job_preview(mb.current_job.text) if mb.current_job else "läuft"
             pos = len(mb.queue)
-            await update.message.reply_text(
-                "📥 Notiert — reiht sich hinten ein (kommt der Reihe nach dran).\n"
-                f"Läuft gerade: „{running}“\n"
-                f"Warteschlange-Position: {pos}",
-                reply_parameters=_reply_params(update.message.message_id),
-            )
+            # **[NEU 09.09.2026, Block 1b]** Auftrag 8, die fehlende Haelfte:
+            # Der Nachtrag geht ZUSAETZLICH als Zettel in den laufenden Auftrag
+            # und kommt dort an der naechsten Werkzeuggrenze an -- also in
+            # Sekunden, ohne zu stoppen. Der eingereihte Zwilling bleibt als
+            # Sicherung liegen; hat der laufende Auftrag den Zettel bekommen
+            # UND ist er beantwortet, wird der Zwilling uebersprungen.
+            gereicht = nachsteuer_schreiben(
+                user_id, _fd_thread, _auftrag_kennung(mb.current_job),
+                update.message.message_id, text)
+            if gereicht:
+                await update.message.reply_text(
+                    "📨 Notiert — ich reiche es dem laufenden Vorgang gleich "
+                    "hinein, ohne ihn zu stoppen.\n"
+                    f"Läuft gerade: „{running}“\n"
+                    "Falls es dort nicht mehr rechtzeitig ankommt, wird es "
+                    f"danach als eigene Aufgabe bearbeitet (Position {pos}).",
+                    reply_parameters=_reply_params(update.message.message_id),
+                )
+            else:
+                await update.message.reply_text(
+                    "📥 Notiert — reiht sich hinten ein (kommt der Reihe nach dran).\n"
+                    f"Läuft gerade: „{running}“\n"
+                    f"Warteschlange-Position: {pos}",
+                    reply_parameters=_reply_params(update.message.message_id),
+                )
 
     _ensure_worker(user_id, _fd_thread)
 
@@ -10106,6 +10356,8 @@ def _build_restart_reason(user_id: int) -> str:
     Schlusszeile bestätigt, dass im Restart-Fenster eingegangene Nachrichten
     automatisch nachgeholt werden (DROP_PENDING_UPDATES=False)."""
     tail = " Falls du während des Neustarts noch etwas geschickt hast, hole ich es jetzt nach."
+    # Hauptfaden: Die Startnachricht nach einem Neustart geht in den Hauptchat --
+    # sie hat keinen Absender-Faden, weil niemand sie ausgeloest hat.
     mb = _mb_opt(user_id)
     if mb and mb.current_job is not None:
         return (f"Bin wieder da. Der Vorgang „{_job_preview(mb.current_job.text)}“ "
@@ -10345,6 +10597,8 @@ async def _do_restart(update: Update, user_id: int, via_callback: bool = False) 
     )
     # Bestätigung folgt dem TTS-Toggle (analog zur Startup-Bestätigung).
     try:
+        # Hauptfaden: Vorlesen ist eine Einstellung der Person; steht keine
+        # Sitzung offen, entscheidet ohnehin `prefs`.
         sess = _sess(user_id)
         tts_on = (sess.tts_enabled if sess is not None
                   else _USER_PREFS.get(str(user_id), {}).get("tts_enabled", False))
@@ -10378,6 +10632,12 @@ async def cmd_restart(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 async def _handle_keyboard_btn(update: Update, text: str) -> None:
     """Verarbeitet Tastendrücke der persistenten ReplyKeyboard."""
     user_id = update.effective_user.id
+    # **[GEAENDERT 09.09.2026, Block 1b]** Die Tastatur liegt in dem Chat, in dem
+    # gedrueckt wird -- also wirkt sie dort. Besonders bei den Knoepfen, die eine
+    # Sitzung SCHLIESSEN und neu oeffnen (Modell, Tempo): ohne den Faden
+    # rotierten sie eine fremde Sitzung, waehrend die eigene unveraendert
+    # weiterlief. Die Einstellung selbst bleibt in `prefs` je Person.
+    _fd = fd_von_update(update)
 
     if text == _BTN_RESTART:
         await _request_restart_confirm(update, user_id)
@@ -10401,7 +10661,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         neu_an = not _bash_auto_on(user_id)
         _set_bash_auto(user_id, neu_an)
         _p = _USER_PREFS.get(str(user_id), {})
-        sess = _sess(user_id)
+        sess = _sess(user_id, _fd)
         tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
         cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
         if neu_an:
@@ -10420,8 +10680,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         # Haken-Fassung als Frage beim Agenten an.
         neu = not _thorough_on(user_id)
         _set_thorough(user_id, neu)
-        mb = _mb_opt(user_id)
-        sess = _sess(user_id)
+        mb = _mb_opt(user_id, _fd)
+        sess = _sess(user_id, _fd)
         _p = _USER_PREFS.get(str(user_id), {})
         tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
         cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
@@ -10448,8 +10708,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             # das hätte den Gesprächsfaden dauerhaft zerschnitten. Hier reißt er
             # einmalig, beim bewussten Umschalten, und das wird jetzt auch
             # gesagt statt verschwiegen.
-            await close_session(user_id)
-            await ensure_session(user_id)
+            await close_session(user_id, _fd)
+            await ensure_session(user_id, thread_id=_fd)
             zusatz = "\n\n(Neue Sitzung gestartet — der bisherige Gesprächsfaden endet hier.)"
 
         if neu:
@@ -10470,7 +10730,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         return
 
     if text in (_BTN_TTS_ON, _BTN_TTS_OFF):
-        sess = await ensure_session(user_id)
+        sess = await ensure_session(user_id, thread_id=_fd)
         sess.tts_enabled = (text == _BTN_TTS_ON)
         _USER_PREFS.setdefault(str(user_id), {})["tts_enabled"] = sess.tts_enabled
         _save_prefs(_USER_PREFS)
@@ -10481,7 +10741,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
 
     new_model = _MODEL_IDS.get(text)
     if new_model is not None:
-        sess = _sess(user_id)
+        sess = _sess(user_id, _fd)
         if sess and sess.current_model == new_model:
             keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
             model_label = ("Opus" if "opus" in new_model
@@ -10497,7 +10757,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         _USER_PREFS.setdefault(str(user_id), {})["model"] = new_model
         _save_prefs(_USER_PREFS)
         model_label = _model_btn_label(new_model)
-        mb = _mb_opt(user_id)
+        mb = _mb_opt(user_id, _fd)
         if mb and mb.current_job is not None:
             mb.switch_pending = True
             _p = _USER_PREFS.get(str(user_id), {})
@@ -10509,8 +10769,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             )
             return
         # Leerlauf: Modell wechseln, Session sofort neu starten
-        await close_session(user_id)
-        new_sess = await ensure_session(user_id)
+        await close_session(user_id, _fd)
+        new_sess = await ensure_session(user_id, thread_id=_fd)
         keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort, user_id=user_id)
         # Konkret vor Label (Adam 25.07.): Die vollständige Kennung mit
         # nennen, damit ein stiller Alias-Wechsel sichtbar wird — mit
@@ -10526,7 +10786,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
     # --- Thinking-Effort-Button ---
     if text in _EFFORT_IDS:
         new_effort = _EFFORT_IDS[text]
-        sess = _sess(user_id)
+        sess = _sess(user_id, _fd)
         if sess and sess.current_effort == new_effort:
             keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
             effort_name = {None: "Normal", "low": "Schnell", "max": "Max"}.get(new_effort, str(new_effort))
@@ -10542,7 +10802,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         _save_prefs(_USER_PREFS)
         effort_labels = {None: "🧠 Normal", "low": "⚡ Schnell", "max": "🚀 Max"}
         effort_label = effort_labels.get(new_effort, str(new_effort))
-        mb = _mb_opt(user_id)
+        mb = _mb_opt(user_id, _fd)
         if mb and mb.current_job is not None:
             mb.switch_pending = True
             _p = _USER_PREFS.get(str(user_id), {})
@@ -10556,8 +10816,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             )
             return
         # Leerlauf: Session sofort neu starten (effort ist ein Session-Start-Parameter)
-        await close_session(user_id)
-        new_sess = await ensure_session(user_id)
+        await close_session(user_id, _fd)
+        new_sess = await ensure_session(user_id, thread_id=_fd)
         keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort, user_id=user_id)
         # **KORRIGIERT 18.08.2026 (Gegenprüfung).** Bei aktivem Gründlich
         # erzwingt `ensure_session` die höchste Tiefe — die eben getroffene Wahl
@@ -10586,7 +10846,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
     if text in _STT_BTN_TARGET:
         global _ACTIVE_STT
         want = _STT_BTN_TARGET[text]
-        sess = _sess(user_id)
+        sess = _sess(user_id, _fd)
         _p = _USER_PREFS.get(str(user_id), {})
         tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
         cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
@@ -10616,8 +10876,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
 
     # --- Info-Button ---
     if text == _BTN_INFO:
-        sess = _sess(user_id)
-        mb = _mb_opt(user_id)
+        sess = _sess(user_id, _fd)
+        mb = _mb_opt(user_id, _fd)
         today = _usage_today()
 
         # Aktuelle Werte: aus Session wenn aktiv, sonst aus gespeicherten Prefs

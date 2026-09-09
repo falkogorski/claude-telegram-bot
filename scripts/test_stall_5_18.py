@@ -43,7 +43,10 @@ async def main():
     # `[GEAENDERT 09.09.2026]` Die Attrappe spiegelt die ECHTE Signatur —
     # seit dem Schluesselwechsel nimmt der Worker Person UND Faden. Eine
     # nachsichtige Attrappe (`*args`) haette den Wechsel verschluckt.
-    bot._ensure_worker = lambda u, t=None: RESTARTED.append(u)
+    # **Block 1b:** sie merkt sich jetzt den FADEN mit. Vorher sammelte sie nur
+    # die Person — damit war nicht messbar, WELCHES Zimmer geweckt wurde, und
+    # genau dort lag der Fehler.
+    bot._ensure_worker = lambda u, t=None: RESTARTED.append((u, t))
     key = pending.make_key(999, 1)
     pending.record(key, {"text": "haengende Frage", "status": pending.STATUS_OPEN,
                          "user_id": uid, "chat_id": 999})
@@ -87,7 +90,7 @@ async def main():
     rec = next((r for r in pending.load_all() if r.get("_key") == key), None)
     assert rec and rec["status"] == pending.STATUS_OPEN, "FEHLER: Persistenz-Status falsch"
     print("✓ Persistenz-Record steht wieder auf offen")
-    assert RESTARTED == [uid], "FEHLER: Arbeit wird nicht wieder aufgenommen"
+    assert RESTARTED == [(uid, None)], "FEHLER: Arbeit wird nicht wieder aufgenommen"
     print("✓ frischer Worker angeworfen (neue Session beim nächsten Job)")
     assert SENT and "nicht mehr reagiert" in SENT[0][1], "FEHLER: keine Meldung an Adam"
     assert "nochmal dran" in SENT[0][1], "FEHLER: Meldung nennt die Wiederaufnahme nicht"
@@ -102,7 +105,7 @@ async def main():
     sess2.last_activity = bot.time.monotonic() - 600
     bot.SESSIONS[bot.faden(uid)] = sess2
     mb.worker = asyncio.create_task(haengt())
-    await bot._handle_stalled_session(uid, mb, sess2, 600)
+    await bot._handle_stalled_session(uid, mb, sess2, 600, thread_id=None)
     assert not mb.queue, "FEHLER: Job trotz Wiederholungsbremse erneut eingereiht"
     assert not pending.load_all(), "FEHLER: Record nicht aufgelöst"
     assert "nicht weiter" in SENT[0][1], "FEHLER: Meldung nennt das Aufgeben nicht"
@@ -131,6 +134,43 @@ async def main():
     assert len(mb.queue) == 1 and mb.queue[0] is job2, "FEHLER: Job nicht gerettet"
     print("✓ hängender Session-AUFBAU wird erkannt:\n    "
           + SENT[0][1].replace("\n", "\n    "))
+
+    # --- Fall 5: haengendes ZIMMER, keine Sitzung -- Block 1b ---
+    #
+    # Die Stelle, fuer die Block 1b gebaut wurde: Haengt der Aufbau, gibt es
+    # keine Sitzung, die ihren Faden nennen koennte. Vorher las der Waechter den
+    # Faden aus `sess` — bei `sess is None` war das der HAUPTFADEN. Also wurde
+    # der Hauptfaden entmachtet und dessen Worker geweckt, waehrend das
+    # haengende Zimmer unberuehrt liegen blieb.
+    #
+    # Gemessen wird beides: dass Zimmer 7 geweckt wird UND dass die
+    # Hauptfaden-Sitzung ueberlebt.
+    SENT.clear()
+    RESTARTED.clear()
+    bot.SESSIONS.clear()
+    bot.MAILBOXES.clear()
+    haupt = bot.UserSession(client=FakeClient(), bot=FakeBot(), chat_id=999)
+    haupt.last_activity = bot.time.monotonic()          # quicklebendig
+    bot.SESSIONS[bot.faden(uid)] = haupt
+    mb7 = bot._get_mailbox(uid, 7)
+    job7 = bot.QueuedJob(update=None, text="Frage aus Zimmer 7", user_id=uid,
+                         chat_id=999, message_id=7, thread_id=7, bot=FakeBot())
+    mb7.current_job = job7
+    mb7.current_started = bot.time.monotonic() - 600
+    mb7.worker = asyncio.create_task(haengt())
+    wd3 = asyncio.create_task(bot.stall_watchdog(None))
+    await asyncio.sleep(2.5)
+    wd3.cancel()
+
+    assert RESTARTED == [(uid, 7)], \
+        f"FEHLER: falsches Zimmer geweckt — {RESTARTED!r} statt [({uid}, 7)]"
+    print("✓ haengendes Zimmer 7 wird in SEINEM Faden neu angeworfen")
+    assert bot.SESSIONS.get(bot.faden(uid)) is haupt, \
+        "FEHLER: Hauptfaden-Sitzung wurde mit entmachtet"
+    print("✓ die Sitzung des Hauptfadens bleibt unberuehrt")
+    assert len(mb7.queue) == 1 and mb7.queue[0] is job7, \
+        "FEHLER: Job aus Zimmer 7 nicht gerettet"
+    print("✓ die Nachricht aus Zimmer 7 liegt wieder in Zimmer 7")
 
     print("\nALLE TEILPRÜFUNGEN BESTANDEN")
 

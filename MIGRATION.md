@@ -743,6 +743,18 @@ Absturzfall ausdrücklich auf 5.18).
 - **Was der Leitstand ausdrücklich nicht tut: raten.** Ohne `chat_id` gibt es
   keinen Zimmernamen — Themen-Kennungen sind nur innerhalb eines Chats
   eindeutig. Dann steht die nackte Kennung da.
+- **Zwei Befunde aus Engywucks Nachprüfung, vor dem Deploy behoben:**
+  **B2-2** — `/zimmer` sendete als Markdown und setzte den Auftragstext
+  unverändert hinein; ein einzelner Unterstrich darin lässt Telegram den
+  Aufruf ablehnen, **die Antwort kommt nie** — und zwar genau dann, wenn
+  Adam am Bot arbeitet. Jetzt ohne `parse_mode`, wie `/status` es seit jeher
+  macht. Meine Prüfer-Attrappe hatte den Fehler verschluckt, weil sie `**kw`
+  entgegennahm und wegwarf; sie merkt sich jetzt den `parse_mode`.
+  **B2-1** — der hineingereichte Zettel stand in keinem Gesprächsprotokoll:
+  Eine Nutzernachricht entsteht dort nur in `_run_job`, und der übersprungene
+  Zwilling läuft nie. Adams Nachtrag fehlte damit im einzigen Gedächtnis, das
+  Wachposten, Mac-Sitzung und Log-Repo lesen. Jetzt schreibt der Hook ihn
+  mit, gekennzeichnet, und das Überspringen hinterlässt einen Vermerk.
 - **Akzeptanzkriterium:** Mehrere parallele Sessions je User möglich; Wechsel funktioniert; State wird persistiert (überlebt Bot-Neustart).
 - **Test:** Zwei Zimmer antworten gleichzeitig (Stoppuhr); ein absichtlich aufgehängtes Zimmer wird gemeldet, während ein anderes tippt. Dazu der alte Test: Bot killen, wieder hoch → Sessions noch da.
 - **Adam-Bestätigung:** —

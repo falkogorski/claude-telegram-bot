@@ -2085,6 +2085,17 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
             log.info("Nachsteuern: Auftrag %s uebersprungen -- als Zettel bereits "
                      "in den laufenden Vorgang gereicht und dort beantwortet",
                      job.message_id)
+            # B2-1: auch im Protokoll sichtbar, sonst endet der Faden dort im
+            # Nichts -- die Nachricht war da, die Antwort auch, und dazwischen
+            # stuende eine Luecke, die niemand erklaeren kann.
+            try:
+                _s = _sess(user_id, thread_id)
+                if _s is not None and _s.logger is not None:
+                    _s.logger.log_event(
+                        "↩️ derselbe Nachtrag lag zusaetzlich in der Warteschlange — "
+                        "nicht doppelt beantwortet")
+            except Exception:
+                log.exception("Nachsteuern: Uebersprungen-Vermerk fehlgeschlagen (nicht-fatal)")
             if job.pending_key:
                 pending.resolve(job.pending_key)
             _ZETTEL.pop(int(job.message_id or 0), None)
@@ -4642,6 +4653,22 @@ def _nachsteuer_hook(user_id: int, thread_id: "int | None" = None):
             return {}
         log.info("Nachsteuern: %d Zeichen an den laufenden Auftrag gereicht "
                  "(Zimmer %s)", len(text), thread_id if thread_id is not None else "haupt")
+        # **[NEU 09.09.2026, Engywucks Befund B2-1]** Auch ins Gespraechsprotokoll.
+        #
+        # Ohne diese Zeilen verschwindet Adams Nachtrag aus dem **einzigen
+        # Gedaechtnis**, das Wachposten, Mac-Sitzung und Log-Repo lesen: Eine
+        # Nutzernachricht wird sonst nur in `_run_job` geschrieben, und der
+        # uebersprungene Zwilling laeuft nie. Ausgerechnet die Nachricht, die
+        # der fliessende Dialog schneller machen soll, fehlte im Protokoll.
+        try:
+            _s = _sess(user_id, thread_id)
+            if _s is not None and _s.logger is not None:
+                _s.logger.log_event("📨 nachgesteuert, waehrend gearbeitet wurde")
+                _s.logger.log_user(text)
+        except Exception:
+            # Wie der ganze Hook: **wirft nie.** Ein fehlender Protokolleintrag
+            # ist schlimm, ein abgebrochener Auftrag schlimmer.
+            log.exception("Nachsteuern: Protokolleintrag fehlgeschlagen (nicht-fatal)")
         return {"hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "additionalContext": f"[Adam hat nachgesteuert, waehrend du "
@@ -4842,6 +4869,15 @@ async def cmd_zimmer(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     **Was er NICHT tut:** raten. Kann ein Zimmername nicht aufgeloest werden,
     steht die nackte Kennung da. Ein erfundener Name waere genau die Auskunft,
     wegen der der Leitstand vor der Sekretaerin gebaut wird.
+
+    **`[BERICHTIGT 09.09.2026, Engywucks Befund B2-2]` Ohne `parse_mode`.**
+    Die erste Fassung sendete als Markdown und setzte den **Auftragstext
+    unveraendert** hinein. Ein einzelner Unterstrich darin -- `bot.py`,
+    `test_zimmer_block1.py`, jeder Dateiname aus Adams Alltag -- ist fuer
+    Telegram eine unpaarige Entitaet: Der Aufruf wirft, **die Antwort kommt
+    nie**. Ein Leitstand, der genau dann schweigt, wenn gearbeitet wird, ist
+    die Fehlerrichtung, gegen die er gebaut wurde. `/status` sendet aus
+    demselben Grund seit jeher ohne `parse_mode`.
     """
     if not authorized(update):
         return
@@ -4853,17 +4889,17 @@ async def cmd_zimmer(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             "Nachricht — im Hauptchat oder in einem Thema.")
         return
 
-    zeilen = ["🏠 **Zimmer — Leitstand**", ""]
+    zeilen = ["🏠 Zimmer — Leitstand", ""]
     for z in stand:
         if z["arbeitet_an"]:
-            kopf = f"▶️ **{z['name']}** — arbeitet an „{z['arbeitet_an']}“"
+            kopf = f"▶️ {z['name']} — arbeitet an „{z['arbeitet_an']}“"
             zeilen.append(f"{kopf}, {_dauer_kurz(z['seit_s'])}")
         elif z["pausiert_rest_s"] > 0:
-            zeilen.append(f"⏸ **{z['name']}** — wartet auf das Kontingent")
+            zeilen.append(f"⏸ {z['name']} — wartet auf das Kontingent")
         elif z["wach"]:
-            zeilen.append(f"💤 **{z['name']}** — wach, nichts zu tun")
+            zeilen.append(f"💤 {z['name']} — wach, nichts zu tun")
         else:
-            zeilen.append(f"⚫ **{z['name']}** — schläft (keine Sitzung offen)")
+            zeilen.append(f"⚫ {z['name']} — schläft (keine Sitzung offen)")
         unten = []
         if z["warteschlange"]:
             unten.append(f"Warteschlange: {z['warteschlange']}")
@@ -4876,10 +4912,9 @@ async def cmd_zimmer(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         if unten:
             zeilen.append("   " + " · ".join(unten))
     zeilen.append("")
-    zeilen.append("_Antwortweg: schreib in das Thema, dessen Zimmer du meinst — "
-                  "`/stopp` und `/reset` wirken dort, wo du sie tippst._")
-    await update.message.reply_text("\n".join(zeilen),
-                                    parse_mode=ParseMode.MARKDOWN)
+    zeilen.append("Antwortweg: schreib in das Thema, dessen Zimmer du meinst — "
+                  "/stopp und /reset wirken dort, wo du sie tippst.")
+    await update.message.reply_text("\n".join(zeilen))
 
 
 async def cmd_whoami(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:

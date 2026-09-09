@@ -48,7 +48,8 @@ UID = 4711
 print("== Block 2: Leitstand und Protokoll je Zimmer ==")
 
 # ---- Aufbau: zwei Zimmer, eines arbeitet, eines schlaeft -------------------
-job7 = bot.QueuedJob(update=None, text="Rechne die Aufstellung fuer Norderney",
+job7 = bot.QueuedJob(update=None,
+                     text="Lies test_zimmer_block1.py und die Aufstellung fuer Norderney",
                      user_id=UID, chat_id=999, message_id=7, thread_id=7)
 mb7 = bot._get_mailbox(UID, 7)
 mb7.current_job = job7
@@ -68,7 +69,7 @@ stand = {z["thread_id"]: z for z in bot.leitstand(UID)}
 zeile("beide Zimmer stehen im Leitstand",
       set(stand) == {7, 8}, gemessen=str(sorted(stand)))
 zeile("das arbeitende Zimmer nennt SEINEN Auftrag",
-      stand[7]["arbeitet_an"] and "Norderney" in stand[7]["arbeitet_an"],
+      stand[7]["arbeitet_an"] and "test_zimmer_block1" in stand[7]["arbeitet_an"],
       gemessen=str(stand[7]["arbeitet_an"]))
 zeile("und das andere arbeitet an nichts (Gegenrichtung)",
       stand[8]["arbeitet_an"] is None, gemessen=str(stand[8]["arbeitet_an"]))
@@ -110,6 +111,7 @@ zeile("ein anderer Chat mit derselben Themen-Kennung bekommt den Namen NICHT",
 
 # ---- Der Befehl selbst, ausgefuehrt ---------------------------------------
 GESENDET: list[str] = []
+ARGUMENTE: list[dict] = []
 
 
 class _Nachricht:
@@ -117,7 +119,12 @@ class _Nachricht:
     message_thread_id = None
 
     async def reply_text(self, text, **kw):
+        # **[GEAENDERT 09.09.2026, Befund B2-2]** Die erste Fassung nahm `**kw`
+        # entgegen und warf es weg -- damit war der `parse_mode` unsichtbar,
+        # und genau darin steckte der Fehler. Eine Attrappe, die weniger sieht
+        # als die echte Schnittstelle, macht den naechsten Fehler unsichtbar.
         GESENDET.append(text)
+        ARGUMENTE.append(kw)
         return None
 
 
@@ -137,7 +144,19 @@ text = GESENDET[0] if GESENDET else ""
 
 zeile("/zimmer antwortet ueberhaupt", bool(text), gemessen=text[:60])
 zeile("und nennt das arbeitende Zimmer mit seinem Auftrag",
-      "Norderney" in text and "arbeitet an" in text, gemessen=text[:120])
+      "test_zimmer_block1" in text and "arbeitet an" in text, gemessen=text[:120])
+
+# **Befund B2-2 (Engywuck, 09.09.):** Die erste Fassung sendete als Markdown
+# und setzte den Auftragstext unveraendert hinein. Ein einzelner Unterstrich
+# darin ist fuer Telegram eine unpaarige Entitaet -- der Aufruf wirft, die
+# Antwort kommt NIE. Und zwar genau dann, wenn Adam am Bot arbeitet.
+zeile("der Auftragstext mit Unterstrich steht wirklich in der Meldung",
+      "test_zimmer_block1.py" in text, gemessen=text[:120])
+zeile("gesendet wird OHNE parse_mode (sonst zerbricht ein Unterstrich alles)",
+      ARGUMENTE and ARGUMENTE[0].get("parse_mode") is None,
+      gemessen=str(ARGUMENTE[0] if ARGUMENTE else "nichts gesendet"))
+zeile("und ohne Markdown-Auszeichnung, die sonst als Sternchen dastuende",
+      "**" not in text, gemessen=text[:120])
 zeile("das schlafende Zimmer steht als schlafend da",
       "schläft" in text, gemessen=text[:200])
 # Erste Fassung dieser Zeile mass die falsche Sache: `" s" not in text` traf
@@ -182,6 +201,35 @@ zeile("und die Eintraege landen nicht im falschen Protokoll",
 zeile("die Kopfzeile des Zimmer-Protokolls nennt das Zimmer",
       "Zimmer 7" in _inhalt(zimmer),
       gemessen=_inhalt(zimmer)[:60].replace("\n", " "))
+
+# ---- B2-1: der Nachtrag steht im Protokoll seines Zimmers ------------------
+#
+# **Engywucks Befund:** Eine Nutzernachricht wird sonst nur in `_run_job`
+# geschrieben -- und der uebersprungene Zwilling laeuft nie. Adams Nachtrag
+# verschwaende damit aus dem einzigen Gedaechtnis, das Wachposten, Mac-Sitzung
+# und Log-Repo lesen. Ausgerechnet die Nachricht, die der fliessende Dialog
+# schneller machen soll.
+sess11 = bot.UserSession(client=None, chat_id=999)
+sess11.logger = bot.ConversationLogger(UID, 11)
+bot.SESSIONS[bot.faden(UID, 11)] = sess11
+mb11 = bot._get_mailbox(UID, 11)
+job11 = bot.QueuedJob(update=None, text="der laufende Auftrag", user_id=UID,
+                      chat_id=999, message_id=11, thread_id=11)
+mb11.current_job = job11
+bot.nachsteuer_schreiben(UID, 11, bot._auftrag_kennung(job11), 511,
+                         "und nenne bitte auch das Datum")
+asyncio.run(bot._nachsteuer_hook(UID, 11)({}, None, None))
+prot11 = bot.LOG_DIR / f"{tag}_zimmer-11.md"
+inhalt11 = prot11.read_text(encoding="utf-8") if prot11.exists() else ""
+
+zeile("der hineingereichte Nachtrag steht im Protokoll SEINES Zimmers",
+      "und nenne bitte auch das Datum" in inhalt11,
+      gemessen=inhalt11[-120:].replace("\n", " "))
+zeile("und ist als Nachsteuerung gekennzeichnet",
+      "nachgesteuert" in inhalt11, gemessen=inhalt11[-120:].replace("\n", " "))
+zeile("im Protokoll eines anderen Zimmers steht er nicht (Gegenrichtung)",
+      "und nenne bitte auch das Datum" not in _inhalt(zimmer),
+      gemessen=_inhalt(zimmer)[-80:].replace("\n", " "))
 
 import shutil                                                   # noqa: E402
 shutil.rmtree(_TMP, ignore_errors=True)

@@ -403,6 +403,14 @@ GEWOLLT_OFFEN = {
                            "Umgebogen zeigt es ins Leere, und ein Riegel, der "
                            "ins Leere zeigt, sperrt nichts (der Regressionslauf "
                            "hat genau das sofort gemeldet)",
+    "HOME": "der RUECKFALL des PDF-Skripts (M-4), wenn KONZEPT_PDF_BEREICHE "
+            "fehlt — und der steht seit dem 09.09. in der Wegwerf-Umgebung, "
+            "der Riegel ist also da und heisst nur anders. HOME selbst laesst "
+            "sich nicht umbiegen: Ein halbes Dutzend Pruefer liest daraus das "
+            "echte Gedaechtnis und die echte SSH-Konfiguration. **Eng zu "
+            "halten** — wer hier eine zweite HOME-Nutzung baut, die WIRKLICH "
+            "schreibt, hebelt mit diesem Eintrag den Riegel aus, ohne dass "
+            "etwas rot wird",
     "CLAUDE_WORKDIR": "Adams Arbeitsverzeichnis. Im Pruflauf laeuft kein Agent, "
                       "der dort schriebe; umgebogen wuerden dagegen Pruefer "
                       "blind, die Pfade GEGEN das Arbeitsverzeichnis vergleichen "

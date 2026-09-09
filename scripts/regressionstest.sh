@@ -111,12 +111,15 @@ export VERSION_MONITOR_LOG="$PRUEFHEIM/version-monitor.log"
 export VERSION_MONITOR_SEEN="$PRUEFHEIM/version-gesehen.json"
 export WACHPOSTEN_DIR="$PRUEFHEIM/wachposten"
 export WACHPOSTEN_LOGDIR="$PRUEFHEIM/wachposten-logs"
+# `[NEU 09.09.]` Das PDF-Skript (M-4) schreibt in die Arbeitsbereiche — im
+# Prueflauf also in den Wegwerf-Ordner, nicht nach ~/workspace.
+export KONZEPT_PDF_BEREICHE="$PRUEFHEIM/pdf"
 mkdir -p "$POSTFACH_DIR/outbox" "$FREIGABE_DIR" "$HORA_DIR" "$BLUMEN_DIR" \
          "$AUFTRAGSBUCH_DIR" "$PENDING_DIR" "$LINK_INBOX_DIR" \
          "$CONVERSATION_LOG_DIR" "$UPLOAD_DIR" \
          "$ERINNERUNG_DIR" "$KONTINGENT_HOME" "$LOG_SYNC_REPO" \
          "$UPDATER_STATE_DIR" "$WACHPOSTEN_DIR" "$WACHPOSTEN_LOGDIR" \
-         "$AUSARBEITUNGEN_DIR"
+         "$AUSARBEITUNGEN_DIR" "$KONZEPT_PDF_BEREICHE"
 # **[VERTEIDIGT 30.08.] Der EINZIGE EXIT-Trap dieses Skripts.**
 #
 # `457ba5f` hat hier einen zweiten hinzugefuegt (fuer die Protokolldatei) —

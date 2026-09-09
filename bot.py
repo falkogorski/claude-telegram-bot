@@ -519,6 +519,20 @@ async def _limit_warnung_melden(sess, chat_id: int, thread_id, ereignis) -> None
     status = getattr(info, "status", "") or ""
     art = getattr(info, "rate_limit_type", "") or "unbekannt"
     resets_at = getattr(info, "resets_at", None)
+    # **[NEU 09.09.2026] Dass das Ereignis KAM, gehört ins Protokoll.**
+    #
+    # Engywuck bat, im Log nachzumessen, ob am 05.09. um 18:43 ein
+    # `RateLimitEvent` eintraf — als Grundlage für die enge Signatur in M-7.
+    # **Die Messung war nicht möglich:** Dieser Pfad schrieb keine Zeile. Im
+    # Log stand nichts, und „nichts gefunden" wäre als „kam nicht" gelesen
+    # worden — eine Aussage über den Anbieter, gestützt auf eine Lücke im
+    # eigenen Code.
+    #
+    # Dieselbe Klasse wie M-3 vom Vormittag: Es wurde über eine Zahl
+    # gestritten, die niemand maß. Eine Zeile, damit die nächste Messung
+    # eine ist.
+    log.info("Kontingent-Ereignis: art=%s status=%s reset=%s",
+             art, status or "-", resets_at or "-")
     name = _LIMIT_NAMEN.get(art, art)
 
     # F-5: der Zustand hängt am Nutzer, nicht am Prozess.

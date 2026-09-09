@@ -191,7 +191,7 @@ def _apostroph_im_ordnernamen_kommt_vollstaendig_an():
     text = auftraege[0].get("text", "")
     assert "L'Osteria/Bar" in text, \
         f"der Ordnername kam zerrissen an: {text!r}"
-    assert text.startswith("📁 1 Rechnung(en)"), \
+    assert text.startswith("📁 1 Datei(en)"), \
         f"der Text ist beschaedigt: {text!r}"
 
 

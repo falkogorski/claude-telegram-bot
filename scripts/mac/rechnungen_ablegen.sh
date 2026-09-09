@@ -221,7 +221,13 @@ fi
 # Rauschen, und Rauschen wird abgeschaltet — dann bliebe auch die echte
 # Meldung ungelesen.
 if [ "$_tief" -gt 0 ] && [ -n "${RECHNUNGEN_CHAT:-}" ]; then
-  _text="📁 $_tief Rechnung(en) nach iCloud gelegt: ${_wohin:-(ohne Unterordner)}"
+  # **[GEAENDERT 09.09.2026, M-6] „Datei(en)", nicht „Rechnung(en)".**
+  # Der Weg traegt seit dem 07.09. auch Claudias Register und die
+  # Rechnungsregeln nach iCloud (Adams Wunsch vom 06.09.). Eine Meldung, die
+  # „1 Rechnung(en) gelegt" sagt, waehrend ein Regelblatt ankam, ist eine
+  # kleine Falschaussage — und kleine Falschaussagen sind die, die man
+  # spaeter glaubt.
+  _text="📁 $_tief Datei(en) nach iCloud gelegt: ${_wohin:-(ohne Unterordner)}"
   # ── **[GEAENDERT 04.09.] Der Text geht ueber stdin, nie in die Befehlszeile**
   #
   # **Engywucks Befund 3**, gemessen mit einem Ordner `L'Osteria/Bar`: Der

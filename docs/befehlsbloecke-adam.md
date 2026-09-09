@@ -608,3 +608,73 @@ ssh claudebot 'cd ~/claude-telegram-bot && bash scripts/regressionstest.sh > /tm
 jede andere Zahl nicht. Die Zahl `74/75` hängt an der Maschine: im Container
 fehlt ffmpeg, auf dem VPS läuft der Bot — beide Male eine übersprungene Zeile,
 aber aus verschiedenen Gründen.
+
+---
+
+# 09.09.2026, 21:11 — Deploy Block 1b (Stand `b30a460`)
+
+Engywuck hat abgenommen. **Schritt 3 ist diesmal der Beweis, der seit dem
+Deploy von `23d01d6` offen steht** — der Hook durch das SDK, in beide
+Richtungen. Ich baue parallel an Block 2; sollte Schritt 3 rot sein, wird der
+Hook in 1b repariert, nicht Block 2 zurückgedreht.
+
+## Schritt 0 — den laufenden Stand ablesen und notieren
+
+```bash
+ssh claudebot 'git -C ~/claude-telegram-bot log -1 --format="%h %ad %s" --date=format:"%d.%m. %H:%M"'
+```
+
+Das ist der Rückweg. Erwartet: `23d01d6`.
+
+## Schritt 1 — ziehen und prüfen
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git fetch -q origin && git merge --ff-only 6f9aefe && bash scripts/regressionstest.sh > /tmp/reg.log 2>&1; echo "rc=$?"; tail -6 /tmp/reg.log'
+```
+
+**Prüfzeile:** `rc=0` oder `rc=77`. Alles andere: nicht neu starten, `/tmp/reg.log`
+schicken.
+
+## Schritt 2 — Neustart
+
+```bash
+ssh claudevps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
+```
+
+## Schritt 3 — der Hook-Beweis (Engywucks Wortlaut)
+
+**Erst ein Auftrag mit mehreren Werkzeugschritten:**
+
+> Lies nacheinander die letzten drei Dateien in `docs/auftraege` und fasse jede
+> in einem Satz zusammen.
+
+**Sofort danach, während er arbeitet, eine zweite Nachricht:**
+
+> Und nenne bei jeder auch das Datum aus dem Dateinamen.
+
+**Die Quittung auf die zweite Nachricht muss lauten:** „📨 Notiert — ich reiche
+es dem laufenden Vorgang gleich hinein, ohne ihn zu stoppen."
+
+Danach:
+
+```bash
+ssh claudebot 'grep -h "Nachsteuern" ~/claude-telegram-bot/logs/bot.err.log | tail -5'
+```
+
+**Prüfzeile — zwei Zeilen:**
+
+```
+Nachsteuern: N Zeichen an den laufenden Auftrag gereicht (Zimmer haupt)
+Nachsteuern: Auftrag <id> uebersprungen — als Zettel bereits …
+```
+
+Und im Chat **genau eine** Antwort, die die Daten nennt. Zwei Antworten, oder
+eine ohne Daten, oder keine „uebersprungen"-Zeile → an Engywuck, nicht neu
+deployen.
+
+**Eine Grenze, die kein Fehler ist** (Engywuck hat sie benannt): „Hineingereicht"
+heißt nicht „berücksichtigt". Kommt der Nachtrag erst beim letzten
+Werkzeugschritt an, streift die Antwort ihn nur. Das ist der Preis des
+fließenden Dialogs.
+
+**Rückweg:** `reset --hard` auf den Hash aus Schritt 0, dann Neustart.

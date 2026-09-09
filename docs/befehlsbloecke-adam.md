@@ -510,3 +510,60 @@ kein Ablageort. Es gibt in iCloud keinen Rechnungsordner, sondern deine
 gewachsene Kundenstruktur, und der Generator kennt kein Einsortier-Schema. Ich
 stelle deshalb zu und sortiere nicht ein. **Sag mir, wohin die Dateien
 sollen** — dann trage ich es fest ein.
+
+---
+
+# 09.09.2026, 19:20 — Deploy Block 1 (Stand `23d01d6`)
+
+**Warum jetzt:** Engywucks Nachprüfung ist da. Der Kern von Block 1 ist
+abgenommen; der Deploy ist heute **verhaltensneutral** (dein Chat ist privat,
+`message_thread_id` ist überall leer — jeder Weg landet im Hauptfaden wie
+bisher). Was er **bringt**: die Postfach-Drossel meldet ihren Stau sofort ·
+die Rechnungsskripte laufen ohne Dialog · die Dialogzahl wird zum ersten Mal
+gemessen · das Kontingent-Ereignis steht im Protokoll · das PDF-Skript ·
+`_Regeln` eine Ebene höher.
+
+**`bot.py` ist geändert → diesmal mit Neustart.**
+
+## Schritt 1 — Stand ziehen und prüfen
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git fetch -q origin && git merge --ff-only 23d01d6 && bash scripts/regressionstest.sh 2>&1 | tail -5'
+```
+
+**Warum hier `merge --ff-only 23d01d6` statt `git pull` steht:** Ich baue
+parallel an Block 1b weiter. Der feste Stand holt genau das Geprüfte und
+nichts, was danach entsteht.
+
+**Prüfzeile:** Der Lauf endet ohne `❌`. Engywuck erwartet `74/75 bestanden`
+mit einer übersprungenen Zeile (Heartbeat-Wache) — das ist seine Messung, nicht
+meine; ich habe keinen Serverzugriff. Kommt eine kleinere Zahl oder ein `❌`:
+**nicht neu starten**, Ausgabe schicken.
+
+## Schritt 2 — Neustart
+
+```bash
+ssh claudevps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
+```
+
+**Prüfzeile:** `active`.
+
+## Schritt 3 — die eine Zeile, die wirklich neu ist
+
+Schreib dem Bot eine normale Nachricht, die einen Werkzeuglauf auslöst (etwa:
+*„lies mir die letzten drei Zeilen aus dem Tagescheck-Protokoll vor"*).
+
+**Worauf es ankommt:** Er antwortet. Damit läuft der Nachsteuer-Hook zum
+**ersten Mal durch das SDK** — mein Prüfstand ruft ihn direkt auf, das ist
+nicht dasselbe. Danach:
+
+```bash
+ssh claudebot 'tail -20 ~/claude-telegram-bot/logs/bot.err.log'
+```
+
+**Prüfzeile:** keine Hook-Fehlerzeile. Steht dort eine, ist der Rückweg
+`git revert f3d1b58` — nur der Hook, nicht der ganze Block.
+
+**Rückweg insgesamt**, falls etwas hakt:
+`git -C ~/claude-telegram-bot reset --hard 0270fd7` auf dem Server, dann
+Neustart. Das ist der Stand, der heute läuft.

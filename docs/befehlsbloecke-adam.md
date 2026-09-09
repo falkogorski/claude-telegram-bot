@@ -678,3 +678,54 @@ Werkzeugschritt an, streift die Antwort ihn nur. Das ist der Preis des
 fließenden Dialogs.
 
 **Rückweg:** `reset --hard` auf den Hash aus Schritt 0, dann Neustart.
+
+---
+
+# 09.09.2026, 23:15 — Deploy Block 2 (Leitstand), Stand `590b7e8`
+
+Engywuck hat Block 2 abgenommen; seine zwei Befunde sind **vor** dem Deploy
+behoben (`/zimmer` ohne Markdown, Zettel im Protokoll). Schritte 0 bis 2 wie
+gehabt:
+
+```bash
+ssh claudebot 'git -C ~/claude-telegram-bot log -1 --format="%h %ad %s" --date=format:"%d.%m. %H:%M"'
+```
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git fetch -q origin && git merge --ff-only 590b7e8 && bash scripts/regressionstest.sh > /tmp/reg.log 2>&1; echo "rc=$?"; tail -6 /tmp/reg.log'
+```
+
+**Prüfzeile:** `rc=0` oder `rc=77`. Erwartet: `75/76` mit einer übersprungenen
+(Heartbeat).
+
+```bash
+ssh claudevps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
+```
+
+## Schritt 3 — die Prüfzeile, die den behobenen Fehler misst
+
+**Erst einen Auftrag mit einem Unterstrich im Text starten:**
+
+> Lies `scripts/test_zimmer_block1.py` und sag mir in zwei Sätzen, was der
+> Prüfer misst.
+
+**Während er arbeitet, in denselben Chat:**
+
+```
+/zimmer
+```
+
+**Prüfzeile:** Es kommt eine Antwort, und sie nennt den Auftrag **mitsamt
+Dateinamen**. Genau hier brach die erste Fassung: Telegram lehnte die Nachricht
+wegen des einzelnen Unterstrichs ab, und der Leitstand schwieg — ausgerechnet
+während gearbeitet wurde.
+
+**Danach**, wenn der Auftrag durch ist:
+
+```bash
+ssh claudebot 'ls -la ~/claude-telegram-bot/logs/conversations/ | tail -5'
+```
+
+Im Privatchat bleibt es bei der einen Tagesdatei — Zimmer-Dateien entstehen
+erst mit Themen. Der Blick lohnt trotzdem: Er zeigt, dass am Namen des
+Hauptprotokolls nichts geändert wurde.

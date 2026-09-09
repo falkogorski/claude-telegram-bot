@@ -327,6 +327,32 @@ etwas mitreißt. **Vermerkt statt getan.**
 
 ---
 
+### F-22 · Der Zimmer-Schlüssel trägt keine `chat_id` `[offen, Auslöser benannt, 09.09.2026]`
+
+**Auslöser, an dem er fällig wird: vor dem ersten Haus** (Forum-Gruppe mit
+Themen). Nicht vorher — heute kollidiert nichts, weil Adams Chat privat ist
+und es keine Häuser gibt.
+
+**Der Befund:** `faden(user_id, thread_id)` aus Block 1 trägt die `chat_id`
+nicht. Telegram vergibt Themen-Kennungen **je Chat**, nicht global. Zwei
+Häuser mit derselben Themen-Kennung teilten sich damit eine Sitzung, eine
+Warteschlange und ein Protokoll — **und niemand sähe es**: Es gäbe keine
+Fehlermeldung, nur Antworten, die im falschen Haus landen.
+
+Gefunden beim Bau von Block 2, als der Leitstand einen Zimmernamen auflösen
+sollte: `channels.zimmer_name_fuer()` **braucht** die `chat_id`, weil die
+Zuordnung sonst geraten wäre. Genau dieselbe Mehrdeutigkeit steckt eine Ebene
+tiefer im Schlüssel selbst.
+
+**Wo es hingehört:** als Auflage in **Block 4** (Verbund), zusammen mit dem
+Zimmerfunk — dort entstehen die Häuser. Engywuck: *„richtig gemeldet, noch
+nicht bauen."*
+
+**Was es beim Bauen kostet:** `Faden` wird zum Tripel. Der Schlüsselwechsel
+selbst ist wieder ein Klon-Fall (R4), und die Lehre aus Block 1 gilt
+unverändert: **Die gefährlichen Stellen sind die Iterationen über die
+Schlüssel, nicht die Aufrufe.**
+
 ### F-21 · `echo` steht in zwei Listen und erzeugt dadurch Dialoge `[offen, klein, 02.09.2026]`
 
 Gemessen beim Bau von U-3b: **`echo fertig` fällt in den Dialog**, Grund

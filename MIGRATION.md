@@ -656,7 +656,8 @@ Absturzfall ausdrücklich auf 5.18).
 ## Phase 5 — Bot-Features (mit/nach Migration)
 
 ### 5.1 Multi-Session (`/new`, `/sessions`, `/switch`, `/stop`)
-- **Status:** OFFEN — **die konkrete Form steht seit 09.09.2026 fest**
+- **Status:** 🔄 **Block 1 GEBAUT am 09.09.2026** (Schlüsselwechsel, im
+  Probelauf-Klon nach R4, 75/75) — die Blöcke 2 bis 4 folgen einzeln
 - **Die Form: eine Sitzung je Zimmer** (Claudias Konzept „Sitzung je Zimmer"
   vom 05.09.), nicht eine abstrakte Zahl paralleler Sitzungen. Technisch ist es
   ein **Schlüsselwechsel von `user_id` auf `(user_id, thread_id)`** —
@@ -665,6 +666,14 @@ Absturzfall ausdrücklich auf 5.18).
   Kettenwirkung: **Probelauf im Klon (R4) ist zwingend.** Mitzuziehen:
   Stall-Wächter je Faden · Freigabe-Knöpfe kennen ihren Faden · Prefs bleiben
   je Person · Startup-Reconcile je Faden · Wecker/H2 je Faden.
+- **Was Block 1 gebracht hat, gemessen:** `faden(user_id, thread_id)` ist
+  der Schlüssel, `_sess()`/`_mb_opt()`/`_get_mailbox()` sind die Türen;
+  Einreihen, Worker und `_run_job` arbeiten je Zimmer. **Zwei Stellen
+  fand erst der Klon:** Stall-Wächter und Startup-Reconcile *laufen* über
+  die Schlüssel und reichten das Tupel als Person weiter — Iterationen,
+  keine Aufrufe, für einen mechanischen Ersatz unsichtbar. **Offen aus
+  Engywucks Auflagen:** Nachsteuer-Hook (Auftrag 8) und Limit je Person
+  statt je Zimmer; beides gehört noch in Block 1.
 - **Zielbild dahinter** (Adams Entscheid 09.09., mein Papier vom 06.09. unter
   `docs/auftraege/20260906_empfehlung_fliessender_dialog_final.md`): Die
   Sekretärin ist eine **eigene, werkzeuglose Dialogsitzung NEBEN den

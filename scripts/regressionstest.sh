@@ -338,7 +338,9 @@ run "Rangvermerk zuerst (Rang 2)"   "$PY" scripts/test_rangvermerk_rang2.py
 run "Keine Verknuepfung (Rang 2)"   "$PY" scripts/test_verknuepfung_rang2.py
 run "Hermetik der Pruefläufe (L)"       "$PY" scripts/test_hermetik.py
 run "Zielumgebung (bash -n + env -i)"  bash scripts/test_zielumgebung.sh
+run "Keine undefinierten Namen"        "$PY" scripts/test_undefinierte_namen.py
 run "Sendepfad-Rauchtest (Pflicht 1)"  "$PY" scripts/test_sendepfad_rauch.py
+run "Freigabeweg (Genehmigen=erlaubt)" "$PY" scripts/test_freigabeweg.py
 run "Gruendlich-Umschalter (B3)"        "$PY" scripts/test_gruendlich_b3.py
 run "Limit-Vorwarnung 5.20 (B4)"        "$PY" scripts/test_limitwarnung_b4.py
 run "Vorlese-Regeln (B5)"               "$PY" scripts/test_vorlese_b5.py

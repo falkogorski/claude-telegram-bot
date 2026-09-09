@@ -1666,6 +1666,43 @@ täglichen Wächter einundzwanzig Tage lang. Am Mac lief alles.
 `scripts/test_zielumgebung.sh` fährt deshalb `bash -n` über jedes Skript und
 **startet** die zeitgesteuerten mit `env -i`.
 
+### `[NEU 2026-09-10]` Buchführung sitzt nie in der Klammer, die eine Entscheidung trägt
+
+**Zweiter `NameError` in einem abgesicherten Pfad binnen drei Wochen** — und
+beide Male hat ein `try/except` den Fehler in **Ruhe** verwandelt. Am 09.09.
+kam mit der Dialog-Messung ein `datetime.now()` in `can_use_tool`, ohne Import,
+**mitten in der Klammer, die das Senden des Dialogs absichert.** Der `except`
+antwortet dort mit `PermissionResultDeny("bot failed to ask user")`. Folge:
+Der Dialog kam an, **Adam drückte Genehmigen, und das Werkzeug war trotzdem
+verweigert** — fünfeinhalb Stunden lang unbemerkt, weil in der Zeit kein
+Schreibwerkzeug fragte und Bash im Auto-Zustand am Dialog vorbeiläuft.
+
+> **Wer zählt, protokolliert oder meldet, tut das in einer EIGENEN Klammer,
+> hinter der Entscheidung — nie in der, die sie trägt.**
+
+Sonst wird aus einem Buchführungsfehler eine Verweigerung, aus einer
+Zustellung ein Abbruch. Eine Messung darf nie schwerer wiegen als das, was
+sie messen soll.
+
+**Zwei Prüfer, weil zwei Klassen** — der eine misst diesen Pfad, der andere
+die Klasse:
+- `scripts/test_undefinierte_namen.py` fährt **`pyflakes`** über alle eigenen
+  Module und ist rot bei jedem `undefined name`. Deterministisch, unter einer
+  Sekunde, hätte **beide** Fälle gefunden, bevor sie committet waren. Nur
+  `undefined name` schlägt an — die übrigen Meldungen (ungenutzte Importe)
+  würden den Prüfer binnen einer Woche abschalten. Fehlt `pyflakes`, wird
+  **übersprungen (77), nicht bestanden.**
+- `scripts/test_freigabeweg.py` **führt den Dialogpfad aus**: Attrappen nur an
+  den Rändern (Telegram, der Knopfdruck), die Mitte ist echter Code. Gemessen
+  wird, dass „Genehmigen" **erlaubt** heißt. Die Gegenprobe stellt den
+  Originalzustand nach und liefert wortgleich `PermissionResultDeny: bot
+  failed to ask user`.
+
+**Die Lehre über den Fall hinaus:** Die vorhandene Prüfung mass per `ast`, dass
+`dialog_gezeigt` **aufgerufen wird** — nicht, dass die Zeile **läuft**. Ein
+Aufrufknoten im Baum ist kein ausgeführter Pfad. Das stand seit dem 22.08. in
+diesem Dokument und hat genau hier nicht getragen.
+
 **Zwei Regeln für den Prüfer selbst**, beide an einem Tag zweimal gebrochen:
 Er darf **keine Formatierung verlangen** (Schreibweise offenlassen, Umfeld in
 beide Richtungen lesen), und er darf **die Beschreibung seines eigenen

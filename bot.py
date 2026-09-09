@@ -65,6 +65,20 @@ except ImportError:      # pragma: no cover — älteres SDK
     _RateLimitEvent = None
 
 import tempfile
+# **[NEU 10.09.2026, Befund Freigabeweg]** Am MODULKOPF, nicht lokal.
+#
+# Am 09.09. kam mit M-3 ein `datetime.now()` in `can_use_tool` hinzu -- ohne
+# Import. Die sieben vorhandenen Importe liegen alle in anderen Funktionen.
+# Ergebnis: `NameError` bei JEDEM gezeigten Dialog, und weil die Zeile in der
+# Klammer stand, die das Senden absichert, antwortete der `except` mit
+# `PermissionResultDeny`. **Adam druckte Genehmigen, und das Werkzeug war
+# trotzdem verweigert** -- fuenfeinhalb Stunden lang, unbemerkt, weil in der
+# Zeit kein Schreibwerkzeug fragte und Bash im Auto-Zustand am Dialog
+# vorbeilaeuft.
+#
+# Gemessen vor dem Eingriff: `datetime.datetime` kommt in dieser Datei
+# **null**-mal vor -- der Modul-Import kann also nichts ueberschatten.
+from datetime import datetime
 
 from transcribe import Transcriber, build_transcriber
 import ampel
@@ -3930,24 +3944,35 @@ def make_permission_callback(user_id: int, thread_id: "int | None" = None):
                 message_thread_id=sess.thread_id,
             )
             sess.message_permissions[sent.message_id] = request_id
-            # **Hier, und nur hier, ist ein Dialog wirklich gezeigt worden.**
-            # `[NEU 09.09.2026, M-3]` Bis heute gab es an dieser Stelle keine
-            # Protokollzeile: Das jsonl fuehrte das URTEIL der Positivliste,
-            # und seit dem Auto-Zustand vom 01.09. sagt das nichts mehr
-            # darueber, ob Adam gefragt wurde. Drei Mahnungen und zwei
-            # Auswertungen stritten seither ueber eine Zahl, die niemand mass.
-            #
-            # Nach dem Senden protokolliert, nicht davor — sonst zaehlte auch
-            # ein Dialog mit, den Telegram gar nicht angenommen hat.
+        except Exception:
+            log.exception("failed to send permission prompt")
+            sess.pending_permissions.pop(request_id, None)
+            return PermissionResultDeny(message="bot failed to ask user")
+
+        # **Hier, und nur hier, ist ein Dialog wirklich gezeigt worden.**
+        # `[NEU 09.09.2026, M-3]` Bis dahin gab es an dieser Stelle keine
+        # Protokollzeile: Das jsonl fuehrte das URTEIL der Positivliste,
+        # und seit dem Auto-Zustand vom 01.09. sagt das nichts mehr
+        # darueber, ob Adam gefragt wurde. Drei Mahnungen und zwei
+        # Auswertungen stritten seither ueber eine Zahl, die niemand mass.
+        #
+        # Nach dem Senden protokolliert, nicht davor — sonst zaehlte auch
+        # ein Dialog mit, den Telegram gar nicht angenommen hat.
+        #
+        # **[GEAENDERT 10.09.2026] EIGENE Klammer, ausserhalb der Sende-Absicherung.**
+        # Die Regel dahinter, und sie gilt ueber diesen Fall hinaus:
+        # **Buchfuehrung sitzt nie in der Klammer, die eine Entscheidung
+        # traegt.** Stand sie darin, verwandelte jeder Fehler beim Zaehlen
+        # eine erteilte Freigabe in eine Verweigerung -- genau das ist heute
+        # Abend passiert.
+        try:
             bashfreigabe.dialog_gezeigt(
                 zeit=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 werkzeug=tool_name,
                 art=(_erg.befehlsart if _erg else ""),
                 bereich=(_erg.bereich if _erg else ""))
         except Exception:
-            log.exception("failed to send permission prompt")
-            sess.pending_permissions.pop(request_id, None)
-            return PermissionResultDeny(message="bot failed to ask user")
+            log.exception("Dialog-Protokollzeile fehlgeschlagen (nicht-fatal)")
 
         # ---- Warten mit Erinnerungen (N-1, 03.09.2026)
         #

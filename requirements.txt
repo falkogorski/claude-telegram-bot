@@ -37,3 +37,7 @@ pymupdf>=1.28.2
 # pro Zeichen offen, ohne dass ihn jemand braucht.
 faster-whisper>=1.2
 caldav>=3.2
+
+# Statische Namensprüfung im Regressionslauf (Befund 10.09.: zweiter NameError
+# in einem abgesicherten Pfad). Reines Python, kostenfrei, keine Laufzeit-Abhängigkeit.
+pyflakes

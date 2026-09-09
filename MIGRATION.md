@@ -709,6 +709,24 @@ Absturzfall ausdrücklich auf 5.18).
 - **Damit ist auch der „zweite Chat" vom 02.09. beantwortet:** Er trennt die
   **Sitzung**, nicht die Ansicht. Sonst wäre „ohne Auto-Bash" eine
   Anzeigeregel — und eine Anzeigeregel schützt nichts.
+- **Der Hook-Beweis ist erbracht** (09.09., 22:50, auf dem Server, Stand
+  `6f9aefe`). Das war das Risiko, das seit dem Deploy von `23d01d6` offen
+  stand: Ein leeres Fehlerprotokoll beweist **nichts**, weil der Hook auf dem
+  leeren Pfad keine Zeile schreibt und eine Hook-Ausnahme vom SDK gar nicht
+  protokolliert wird (Engywuck, am SDK gemessen). Gemessen wurde deshalb der
+  volle Weg — Auftrag mit mehreren Werkzeugschritten, zweite Nachricht
+  hinterher:
+
+  ```
+  22:50:09 Nachsteuern: 54 Zeichen an den laufenden Auftrag gereicht (Zimmer haupt)
+  22:50:53 Nachsteuern: Auftrag 9865 uebersprungen -- als Zettel bereits in den
+           laufenden Vorgang gereicht und dort beantwortet
+  ```
+
+  Und im Chat **genau eine** Antwort — die den Nachtrag tatsächlich
+  berücksichtigt hat (sie nennt zu jeder Datei das Datum aus dem Dateinamen,
+  wonach erst die zweite Nachricht gefragt hatte). Beide Richtungen des
+  Zettel-Wegs sind damit live belegt, nicht nur am Prüfstand.
 - **Block 2 (09.09.): die Sicht.** Auftrag 6 aus dem Bauauftrag, und nach
   Engywucks Auflage 7 **vor** der Sekretärin — er ist die Quelle ihres
   Kontexts, und ohne eingespeisten Stand erfindet sie Auskünfte.

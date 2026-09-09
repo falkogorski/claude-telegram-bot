@@ -107,6 +107,19 @@ PDF aussieht — das ist Adams Geschmack, nicht meine Ableitung.
 Was aus HTML heraus nachlädt, lädt aus dem Netz — ohne `url_fetcher`, der
 alles außer lokalen Pfaden abweist, ist „kein Netz" eine Behauptung.
 
+**Adams Neigung, 09.09. 11:4x, ausdrücklich unter Vorbehalt:** *„ich schätze
+pandoc und typst, wie bei den anderen Dateien, warte aber vorher noch auf
+Engys Einschätzung."* Also **kein Bau, bis du dich geäußert hast.** Der
+Vorbehalt gilt der Werkzeugkette, nicht deiner Auflage.
+
+⚠️ **Falls es `typst` wird, ändert sich deine Auflage in der Form, nicht im
+Ziel:** `typst` lädt nicht aus HTML nach, aber es kennt `image()` und
+Paketimporte (`@preview`). Ein `url_fetcher` ist dort das falsche Werkzeug;
+die entsprechende Schranke wäre `--ignore-system-fonts` samt einem
+Wurzelverzeichnis (`--root`), das nichts außerhalb des Arbeitsordners
+erreichbar macht. **Wer die Auflage eins zu eins überträgt, baut eine
+Schranke, die es in dieser Kette nicht gibt** — und hält sie dann für gesetzt.
+
 ## Was in einen eigenen Block gehört
 
 **M-9** (SDK 0.2.152 + CLI 2.1.263 im Klon, danach Limit-Signatur messen) und

@@ -289,8 +289,23 @@ zeile("ohne Sitzung verweigert der Rueckruf im Hauptfaden (Gegenrichtung)",
 
 _cb22 = bot.make_permission_callback(UID, 22)
 _erg22 = _a.run(_cb22("Read", {}, None))
+# **[VERSCHAERFT 10.09.2026, Claudias Befund]** Hier stand
+# `"no active session" not in message` -- zu schwach, denn das misst **eine
+# bestimmte Ablehnung**, nicht die Erlaubnis. Jetzt wird auf ERLAUBT geprueft.
+#
+# **Ihre Begruendung trifft allerdings nicht, und das ist nachgemessen:** Sie
+# vermutete, ein `NameError` im Sendepfad haette diese Zeile gruen gelassen.
+# Der Zustand von gestern Nacht wurde nachgestellt (Import weg, Buchfuehrung
+# zurueck in die Sende-Klammer) -- die Zeile blieb **auch mit der
+# Verschaerfung** gruen. Der Grund liegt tiefer: `Read` ist ein Lesewerkzeug
+# und wird ohne Dialog erlaubt, der defekte Sendepfad wird hier also gar nicht
+# betreten. **Eine schaerfere Bedingung macht aus einer Zeile, die den Pfad
+# nicht beruehrt, keine, die ihn prueft.**
+#
+# Den Fall faengt `scripts/test_freigabeweg.py` -- dort wird ein `Write`
+# gefragt, und das geht wirklich durch den Dialog.
 zeile("ein Zimmer mit eigener Sitzung bekommt seine Freigabe",
-      "no active session" not in str(getattr(_erg22, "message", "")),
+      type(_erg22).__name__ == "PermissionResultAllow",
       gemessen=type(_erg22).__name__ + ": " + str(getattr(_erg22, "message", ""))[:50])
 
 # (2) Ein nach dem Neustart nachgeholter Auftrag gehoert in SEIN Zimmer.

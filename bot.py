@@ -2089,12 +2089,33 @@ def arbeitende_zimmer(user_id: int, ausser: "int | None" = None) -> int:
     ist an diesem Projekt schon einmal aufgeschlagen (die Prozess-Zählung, die
     sich selbst mitzählte).
     """
-    return sum(1 for fd, mb in list(MAILBOXES.items())
-               if fd[0] == int(user_id) and fd[1] != ausser
-               and mb.current_job is not None)
+    treffer = 0
+    for fd, mb in list(MAILBOXES.items()):
+        if fd[0] != int(user_id) or fd[1] == ausser or mb.current_job is None:
+            continue
+        # **[NEU 10.09.2026, Ultracode-Befund A-4] Wer auf Adams Freigabe
+        # wartet, RECHNET NICHT.**
+        #
+        # Ein Dialog darf bis zu einer Stunde offen stehen — das ist gewollt,
+        # der Stall-Waechter laesst ihn ausdruecklich in Ruhe. Zaehlte er als
+        # arbeitendes Zimmer, blockierten drei wartende Freigaben jedes
+        # weitere Zimmer bis zu einer Stunde: ein 🚦, dann Stille. Weder der
+        # Waechter noch das Einschlafen greifen in diesem Zustand.
+        sess = SESSIONS.get(fd)
+        if sess is not None and getattr(sess, "pending_permissions", None):
+            continue
+        treffer += 1
+    return treffer
 
 
-def darf_einschlafen(sess, mb, jetzt_mono: float) -> bool:
+# Sentinel fuer „nicht gesagt" — eigener, weil `_UNSET` erst weiter unten
+# steht. **pyflakes hat das gefunden, bevor es committet war**; ohne den
+# Pruefer waere daraus ein `NameError` im Waechter geworden, dieselbe Klasse
+# wie der tote Freigabeweg vom 09.09.
+_KEIN_FADEN = object()
+
+
+def darf_einschlafen(sess, mb, jetzt_mono: float, thread_id=_KEIN_FADEN) -> bool:
     """Darf diese Zimmer-Sitzung geschlossen werden? — Auftrag 5.
 
     **Eigene Funktion aus demselben Grund wie `darf_starten`:** Stünde die
@@ -2110,12 +2131,27 @@ def darf_einschlafen(sess, mb, jetzt_mono: float) -> bool:
     * **Es gab noch nie eine Regung** (`last_activity` ist 0) — eine frisch
       geöffnete Sitzung sähe sonst wie eine ewig stille aus.
     """
+    # **[NEU 10.09.2026, Adams Entscheid ① zum Ultracode-Befund A-4] Der
+    # Hauptfaden schlaeft NICHT ein.**
+    #
+    # Das Einschlafen traf ihn mit: Nach 35 Minuten Mittagspause war Adams
+    # Gespraechsfaden weg — still, und im Protokoll stand „closed by /reset",
+    # was niemand ausgeloest hatte. Zimmer sind Arbeitsplaetze, der Hauptchat
+    # ist das Gespraech. `_KEIN_FADEN` heisst „nicht gesagt" und laesst die Regel
+    # gelten; wer `None` uebergibt, meint den Hauptfaden ausdruecklich.
+    if thread_id is None:
+        return False
     if mb is not None and (mb.current_job is not None or mb.queue):
         return False
     if getattr(sess, "pending_permissions", None):
         return False
     letzte = getattr(sess, "last_activity", 0)
     if not letzte:
+        return False
+    # **0 heisst AUS, nicht „sofort"** — dieselbe Bedeutung wie bei
+    # `ZIMMER_GLEICHZEITIG`. Zwei Schalter mit derselben Null und
+    # entgegengesetzter Wirkung sind eine Falle, die genau einmal zuschlaegt.
+    if ZIMMER_SCHLAF_NACH_S <= 0:
         return False
     return (jetzt_mono - letzte) > ZIMMER_SCHLAF_NACH_S
 
@@ -2206,6 +2242,17 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
                     except Exception:
                         log.exception("Drossel-Meldung nicht zustellbar (nicht-fatal)")
             await asyncio.sleep(2.0)
+            if not mb.queue:
+                # **[NEU 10.09.2026, Ultracode-Befund A-4]** In der
+                # Wartezeit kann die Schlange geleert werden (ein
+                # zurueckgezogener Auftrag, ein Reset). Ohne diese Zeile
+                # riefe `popleft()` gleich darauf auf eine leere Schlange
+                # und der Arbeiter staerbe **still** — die Fehlerklasse,
+                # auf die dieses Projekt zuerst sieht.
+                break
+
+        if not mb.queue:
+            break
 
         job = mb.queue.popleft()
         # **[NEU 09.09.2026, Block 1b]** Der Nachtrag ist im vorigen Auftrag
@@ -5656,6 +5703,21 @@ def werkzeugfreie_optionen(system_prompt: str, modell: str | None = None,
         # hier die ausdrueckliche Verbotsliste, die laut Dokumentation selbst
         # `bypassPermissions` ueberstimmt ("except explicit deny rules").
         disallowed_tools=list(_WERKZEUGE_VERBOTEN),
+        # **[NEU 10.09.2026, Ultracode-Befund A-3] Keine Einstellungen von
+        # aussen, keine fremden Werkzeug-Server.**
+        #
+        # Ohne diese zwei Zeilen laedt die Oberflaeche `~/.claude/settings.json`
+        # und `<cwd>/.claude/settings.json` — mit `permissions.allow`,
+        # `mcpServers` und Hooks. **MCP-Werkzeuge von dort fallen NICHT unter
+        # `--tools ""`**, denn das verengt nur den eingebauten Satz. Ein Lauf,
+        # der „kein einziges Werkzeug" heisst, haette damit alles gehabt, was
+        # in einer Einstellungsdatei steht — und die schreibt niemand mit
+        # diesem Lauf im Sinn.
+        #
+        # Der Kommentar „kein cwd mit Inhalt" beschrieb bis heute einen
+        # Zustand, den der Code nicht erzwungen hat. Jetzt erzwingt er ihn.
+        setting_sources=[],
+        strict_mcp_config=True,
         system_prompt=system_prompt,
         max_buffer_size=SDK_MAX_BUFFER,
         **({"model": modell} if modell else {}),
@@ -5682,8 +5744,12 @@ def werkzeugfreie_optionen(system_prompt: str, modell: str | None = None,
 # Es gibt nichts, worin sie warten könnte.
 # ══════════════════════════════════════════════════════════════════════════
 
-# Je Person: Client, letzte bekannte Bot-Instanz und Chat, Protokoll.
+# Je Person: Client, Schloss, letzte bekannte Bot-Instanz und Chat.
 _EMPFANG: dict[int, dict] = {}
+
+# Die Protokollschreiber des Empfangs, **je Faden** und getrennt von `_EMPFANG`
+# (A-1): Ein Protokolleintrag darf keine Sitzung anlegen.
+_EMPFANG_LOGGER: dict[tuple, object] = {}
 
 # Zählt abwärts. **Negativ, damit nichts mit Telegram kollidiert:** Dort sind
 # Nachrichtennummern immer positiv. Ein Auftrag aus dem Empfang trägt seine
@@ -5939,36 +6005,83 @@ def sekretaerin_optionen(user_id: int, modell: "str | None" = None):
     )
 
 
-async def sekretaerin_sitzung(user_id: int, *, bot=None,
-                              chat_id: "int | None" = None) -> dict:
-    """Die laufende Sitzung des Empfangs — eine je Person, über Zimmer hinweg.
+def empfangs_eintrag(user_id: int) -> dict:
+    """Der Eintrag dieser Person — **synchron angelegt, mit Schloss.**
 
-    Sie bleibt offen, damit der Gesprächsfaden hält: Adam soll im Empfang
-    weitersprechen können, ohne jedes Mal von vorn zu beginnen.
+    **[UMGEBAUT 10.09.2026, Ultracode-Befund A-1]** Vorher wurde der Eintrag
+    erst NACH `connect()` abgelegt. Der Bot läuft mit `concurrent_updates`:
+    Zwei Nachrichten binnen weniger Sekunden sind der Normalfall, und beide
+    fanden dann keinen Eintrag — **zwei Aufbauten, zwei Prozesse, zwei
+    Verbraucher an einem Strom.** Was ein Verbraucher liest, fehlt dem
+    anderen; die Antwort auf Frage B enthielt Sätze aus Frage A.
+
+    Synchron heißt hier: **kein `await` zwischen Nachsehen und Ablegen.**
+    Damit kann es genau ein Schloss je Person geben — dieselbe Bauform wie bei
+    `_ensure_worker`, aus demselben Grund.
+
+    Der Client steht bewusst auf `None`: Ihn baut der Lauf auf, **innerhalb**
+    seiner Zeitgrenze.
     """
     eintrag = _EMPFANG.get(int(user_id))
     if eintrag is None:
-        client = ClaudeSDKClient(options=sekretaerin_optionen(user_id))
-        await client.connect()
-        eintrag = {"client": client, "bot": bot, "chat_id": chat_id}
+        eintrag = {"client": None, "schloss": asyncio.Lock(),
+                   "bot": None, "chat_id": None, "nur_antworten": False}
         _EMPFANG[int(user_id)] = eintrag
-        log.info("Empfang: Sitzung geoeffnet (user=%s)", user_id)
-    if bot is not None:
-        eintrag["bot"] = bot
-    if chat_id is not None:
-        eintrag["chat_id"] = chat_id
     return eintrag
 
 
-async def sekretaerin_schliessen(user_id: int) -> None:
-    """Die Sitzung des Empfangs beenden. Wirft nie."""
-    eintrag = _EMPFANG.pop(int(user_id), None)
-    if eintrag is None:
+async def _empfang_client(eintrag: dict, user_id: int):
+    """Der verbundene Client — vorhanden oder frisch aufgebaut.
+
+    Wird **innerhalb** der Zeitgrenze gerufen. Vorher lag `connect()` davor:
+    Hing der Aufbau, hing der Handler unbegrenzt, und jede weitere Nachricht
+    startete einen weiteren Prozess. Der Stall-Wächter sieht den Empfang
+    nicht — er hätte also niemand gemeldet.
+    """
+    if eintrag.get("client") is None:
+        client = ClaudeSDKClient(options=sekretaerin_optionen(user_id))
+        await client.connect()
+        eintrag["client"] = client
+        log.info("Empfang: Sitzung geoeffnet (user=%s)", user_id)
+    return eintrag["client"]
+
+
+async def empfang_verwerfen(user_id: int, grund: str) -> None:
+    """Den Client dieser Empfangs-Sitzung wegwerfen. Wirft nie.
+
+    **Der wichtigste Teil von A-1, und er ist unscheinbar:** Nach einem
+    Zeitüberlauf bricht `wait_for` nur den **Verbraucher** ab — die Oberfläche
+    rechnet weiter und legt ihre Antwort in den Strom. Der nächste Lauf liest
+    diese Reste als seine eigene Antwort. **Der Versatz bliebe dauerhaft**,
+    bis jemand den Empfang aus- und einschaltet. Die Sicherung wäre selbst der
+    Auslöser gewesen.
+
+    **Der Eintrag bleibt, nur der Client geht** — und das ist eine bewusste
+    Abweichung von der Empfehlung, den Eintrag zu entfernen: Wartende Läufe
+    halten bereits eine Referenz auf **dieses** Schloss. Verschwände der
+    Eintrag, bekäme der nächste ein neues Schloss, und die Serialisierung —
+    der eigentliche Fix — wäre für diesen Moment aufgehoben.
+    """
+    eintrag = _EMPFANG.get(int(user_id))
+    if eintrag is None or eintrag.get("client") is None:
         return
+    client = eintrag["client"]
+    eintrag["client"] = None
+    log.warning("Empfang: Sitzung verworfen (%s)", grund)
     try:
-        await eintrag["client"].disconnect()
+        await client.interrupt()
     except Exception:
-        log.debug("Empfang: Trennen fehlgeschlagen (nicht-fatal)", exc_info=True)
+        log.debug("Empfang: interrupt fehlgeschlagen", exc_info=True)
+    try:
+        await client.disconnect()
+    except Exception:
+        log.debug("Empfang: Trennen fehlgeschlagen", exc_info=True)
+
+
+async def sekretaerin_schliessen(user_id: int) -> None:
+    """Die Sitzung des Empfangs beenden — für `/empfang aus`. Wirft nie."""
+    await empfang_verwerfen(user_id, "ausgeschaltet")
+    _EMPFANG.pop(int(user_id), None)
 
 
 async def sekretaerin_fragen(user_id: int, text: str, *, bot=None,
@@ -5990,19 +6103,31 @@ async def sekretaerin_fragen(user_id: int, text: str, *, bot=None,
 
     Wirft nie — der Empfang ist eine Bequemlichkeit, kein tragender Pfad.
     """
-    try:
-        eintrag = await sekretaerin_sitzung(user_id, bot=bot, chat_id=chat_id)
-        # **Der Riegel gegen den doppelten Auftrag, und er ist Code.**
-        # Bei einer Zwischenantwort steht Adams Nachricht bereits in der
-        # Warteschlange des Zimmers. Riefe der Empfang jetzt sein Werkzeug,
-        # laege derselbe Auftrag zweimal vor. Ein Satz im Prompt waere eine
-        # Bitte; dieses Feld ist eine Bedingung.
+    eintrag = empfangs_eintrag(user_id)
+    if bot is not None:
+        eintrag["bot"] = bot
+    if chat_id is not None:
+        eintrag["chat_id"] = chat_id
+
+    # **Das Schloss ist der Kern von A-1.** Zwei Nachrichten binnen Sekunden
+    # sind der Normalfall; ohne Serialisierung lesen zwei Verbraucher
+    # **denselben Strom** und bekommen die Nachrichten reihum. Die Antwort auf
+    # Frage B enthielte dann Saetze aus Frage A -- signiert, als waere sie eine.
+    #
+    # Und erst dadurch stimmt der Riegel wieder: `nur_antworten` haengt an der
+    # Sitzung und gilt je Lauf. Bei zwei gleichzeitigen Laeufen setzte der eine
+    # zurueck, was der andere braucht.
+    async with eintrag["schloss"]:
         eintrag["nur_antworten"] = bool(nur_antworten)
         stand = empfang.kontext_text(leitstand(user_id))
         anfrage = f"{stand}\n\n---\n\nAdam schreibt dir:\n{text}"
-        client = eintrag["client"]
 
         async def _lauf() -> str:
+            # **Der Aufbau liegt INNERHALB der Zeitgrenze** (A-1): Haengt er,
+            # haengt sonst der Handler unbegrenzt, und jede weitere Nachricht
+            # startet einen weiteren Prozess. Den Empfang bewacht niemand --
+            # er steht nicht in `SESSIONS`.
+            client = await _empfang_client(eintrag, user_id)
             await client.query(anfrage)
             teile: list[str] = []
             async for msg in client.receive_response():
@@ -6016,16 +6141,23 @@ async def sekretaerin_fragen(user_id: int, text: str, *, bot=None,
 
         try:
             antwort = await asyncio.wait_for(_lauf(), timeout=zeitgrenze)
+        except asyncio.TimeoutError:
+            # **Die Sitzung wird verworfen, nicht nur der Verbraucher.**
+            # `wait_for` bricht nur das Lesen ab; die Oberflaeche rechnet
+            # weiter und legt ihre Antwort in den Strom. Der naechste Lauf
+            # laese sie als seine eigene -- ein Versatz, der bleibt, bis
+            # jemand den Empfang aus- und einschaltet.
+            await empfang_verwerfen(user_id, "Zeitgrenze")
+            log.warning("Empfang: keine Antwort binnen %.0f s -- uebersprungen",
+                        zeitgrenze)
+            return None
+        except Exception:
+            await empfang_verwerfen(user_id, "Fehler im Lauf")
+            log.exception("Empfang: Lauf fehlgeschlagen (nicht-fatal)")
+            return None
         finally:
-            # Der Riegel gilt fuer DIESEN Lauf, nicht fuer die Sitzung.
             eintrag["nur_antworten"] = False
-    except asyncio.TimeoutError:
-        log.warning("Empfang: keine Antwort binnen %.0f s -- uebersprungen",
-                    zeitgrenze)
-        return None
-    except Exception:
-        log.exception("Empfang: Lauf fehlgeschlagen (nicht-fatal)")
-        return None
+
     if not antwort:
         return None
     return empfang.mit_signatur(antwort)
@@ -6084,11 +6216,20 @@ def _empfang_protokoll(user_id: int, frage: str, antwort: str,
         sess = _sess(user_id, thread_id)
         logger = sess.logger if sess is not None else None
         if logger is None:
-            eintrag = _EMPFANG.setdefault(int(user_id), {})
-            logger = eintrag.get("logger")
+            # **[BERICHTIGT 10.09.2026, Ultracode-Befund A-1]** Hier stand
+            # `_EMPFANG.setdefault(...)` — und legte damit einen Eintrag
+            # **ohne** `schloss` und **ohne** `client` an. Der naechste Lauf
+            # griff dann auf ein Feld zu, das es nicht gab: `KeyError`,
+            # verschluckt vom `except`, **Empfang tot**, waehrend `/status`
+            # weiter „an" sagte.
+            #
+            # Ein Protokolleintrag legt keine Sitzung an. Der Logger haengt
+            # jetzt an einem eigenen Speicher, der nichts ueber den Zustand
+            # des Empfangs behauptet.
+            logger = _EMPFANG_LOGGER.get((int(user_id), thread_id))
             if logger is None:
                 logger = ConversationLogger(user_id, thread_id)
-                eintrag["logger"] = logger
+                _EMPFANG_LOGGER[(int(user_id), thread_id)] = logger
         logger.log_user(frage)
         logger.log_event(f"{empfang.SIGNATUR} Empfang")
         logger.log_assistant_text(antwort)
@@ -9211,13 +9352,50 @@ async def stall_watchdog(app: Application) -> None:
             # Der Empfang ist davon nicht betroffen: Er steht nicht in
             # `SESSIONS`. Ein schlafender Empfang hoebe seinen Zweck auf.
             for fd, sess in list(SESSIONS.items()):
-                if not darf_einschlafen(sess, MAILBOXES.get(fd), now):
+                if not darf_einschlafen(sess, MAILBOXES.get(fd), now, fd[1]):
                     continue
                 still = now - getattr(sess, "last_activity", 0)
-                log.info("Zimmer %s schlaeft ein (%d Minuten still)",
-                         fd[1] if fd[1] is not None else "haupt", int(still // 60))
+                name = None
                 try:
-                    await close_session(fd[0], fd[1])
+                    name = channels.zimmer_name_fuer(
+                        _USER_PREFS, getattr(sess, "chat_id", None), fd[1])
+                except Exception:
+                    log.exception("Einschlafen: Zimmername nicht aufloesbar")
+                name = name or f"Zimmer {fd[1]}"
+                log.info("%s schlaeft ein (%d Minuten still)", name,
+                         int(still // 60))
+                # **[NEU 10.09.2026, Adams Entscheid ①] Eine Zeile an Adam.**
+                #
+                # Ein Zimmer, dessen Gespraechsfaden verschwindet, ohne dass
+                # es jemand sagt, ist ein Gedaechtnisverlust, den erst die
+                # naechste Antwort verraet — und dann sieht es wie Vergessen
+                # aus, nicht wie Aufraeumen. **Ohne `parse_mode`:** Im Namen
+                # steht ein Zimmertitel aus Adams Ablage, und ein einzelner
+                # Unterstrich darin liesse den Aufruf scheitern.
+                bot_obj = getattr(sess, "bot", None)
+                ziel = getattr(sess, "chat_id", None)
+                if bot_obj is not None and ziel is not None:
+                    try:
+                        await bot_obj.send_message(
+                            chat_id=ziel, message_thread_id=fd[1],
+                            text=(f"💤 {name} war {int(still // 60)} Minuten "
+                                  "still — ich lege den Gespraechsfaden "
+                                  "schlafen. Deine naechste Nachricht weckt "
+                                  "ihn; er beginnt dann frisch."))
+                    except Exception:
+                        log.exception("Einschlaf-Meldung nicht zustellbar "
+                                      "(nicht-fatal)")
+                try:
+                    # **Mit Zeitgrenze.** Ohne sie legt ein haengender
+                    # Transport den GANZEN Waechter still — fuer alle Zimmer,
+                    # samt Stall-Erkennung. `_disconnect_quietly` daneben hat
+                    # aus demselben Grund seit jeher eine.
+                    await asyncio.wait_for(close_session(fd[0], fd[1]),
+                                           timeout=20)
+                except asyncio.TimeoutError:
+                    log.warning("Einschlafen: %s liess sich in 20 s nicht "
+                                "schliessen -- Waechter laeuft weiter", name)
+                    SESSIONS.pop(fd, None)
                 except Exception:
                     log.exception("Einschlafen fehlgeschlagen (nicht-fatal)")
 

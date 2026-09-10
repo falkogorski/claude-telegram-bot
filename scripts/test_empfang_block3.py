@@ -314,6 +314,48 @@ zeile("der Empfang taucht im Leitstand nicht auf — er ist kein Zimmer",
       all("mpfang" not in (z.get("name") or "") for z in bot.leitstand(UID)),
       gemessen=str([z.get("name") for z in bot.leitstand(UID)]))
 
+# ── A-4 (Ultracode 10.09.): was OHNE den Knopf wirkt ────────────────────────
+#
+# **Diese vier Zeilen sind die dringendsten des ganzen Blocks:** Der Haushalt
+# läuft unabhängig vom Empfangs-Knopf, also seit dem Deploy im Betrieb.
+zeile("A-4: der HAUPTFADEN schläft nicht ein (Adams Entscheid)",
+      bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt, None) is False)
+zeile("A-4: ein Zimmer schläft weiterhin ein (Gegenrichtung)",
+      bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt, 47) is True)
+zeile("A-4: ohne Angabe gilt die Regel wie bisher",
+      bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt) is True)
+
+# `0` heißt AUS, nicht „sofort" — bei `ZIMMER_GLEICHZEITIG` heißt es dasselbe.
+# Zwei Schalter mit derselben Null und entgegengesetzter Wirkung sind eine
+# Falle, die genau einmal zuschlägt.
+_alt = bot.ZIMMER_SCHLAF_NACH_S
+bot.ZIMMER_SCHLAF_NACH_S = 0
+zeile("A-4: die Null schaltet das Einschlafen AUS, nicht scharf",
+      bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt, 47) is False)
+bot.ZIMMER_SCHLAF_NACH_S = _alt
+
+# Ein Zimmer, das auf Adams Freigabe wartet, rechnet nicht — sonst blockierten
+# drei offene Dialoge jedes weitere Zimmer bis zu einer Stunde.
+for fd in list(bot.MAILBOXES):
+    bot.MAILBOXES.pop(fd)
+for fd in list(bot.SESSIONS):
+    bot.SESSIONS.pop(fd)
+for tid in (1, 2, 3):
+    m = bot._get_mailbox(UID, tid)
+    m.current_job = bot.QueuedJob(update=None, text=f"job {tid}", user_id=UID)
+zeile("A-4: drei rechnende Zimmer füllen die Grenze",
+      bot.darf_starten(UID, 9) is False)
+_wartend = bot.UserSession(client=None)
+_wartend.pending_permissions = {"r1": "wartet auf Adam"}
+bot.SESSIONS[bot.faden(UID, 2)] = _wartend
+zeile("A-4: ein Zimmer, das auf eine Freigabe wartet, zählt NICHT als rechnend",
+      bot.arbeitende_zimmer(UID) == 2 and bot.darf_starten(UID, 9) is True,
+      gemessen=str(bot.arbeitende_zimmer(UID)))
+for fd in list(bot.SESSIONS):
+    bot.SESSIONS.pop(fd)
+for fd in list(bot.MAILBOXES):
+    bot.MAILBOXES.pop(fd)
+
 zeile("die Obergrenze ist eine Einstellgröße, kein Wert im Code",
       bot.ZIMMER_GLEICHZEITIG == int(os.environ.get("ZIMMER_GLEICHZEITIG", "3")))
 zeile("das Einschlafen ebenso, mit 30 Minuten als Startwert",

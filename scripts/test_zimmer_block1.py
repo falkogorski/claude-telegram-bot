@@ -31,6 +31,20 @@ os.environ["POSTFACH_DIR"] = str(_TMP / "postfach")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import bot                                                      # noqa: E402
 
+# Der Chat des Pruefstands (F-22: der Schluessel traegt ihn).
+CHAT_PRUEF = 999
+
+
+def F(person, thema=None, chat=None):
+    """Ein Faden fuer den Pruefstand — `chat` faellt auf `CHAT_PRUEF` zurueck.
+
+    **[NEU 11.09.2026, F-22]** Der Schluessel traegt jetzt drei Teile. Ein
+    Helfer statt 44 einzelner Aufrufe: Wer den Chat wechseln will, uebergibt
+    ihn; wer nur ein Zimmer meint, schreibt weiter zwei Zahlen.
+    """
+    return bot.faden(person, CHAT_PRUEF if chat is None else chat, thema)
+
+
 fehler: list[str] = []
 zeilen = 0
 
@@ -53,54 +67,54 @@ print("== Block 1: Sitzung je Zimmer ==")
 
 # ---- Der Schluessel selbst -------------------------------------------------
 zeile("derselbe Faden ergibt denselben Schlüssel",
-      bot.faden(UID, 7) == bot.faden(UID, 7))
+      F(UID, 7) == F(UID, 7))
 zeile("zwei Zimmer sind zwei Schlüssel",
-      bot.faden(UID, 7) != bot.faden(UID, 8),
-      gemessen=f"{bot.faden(UID, 7)} vs {bot.faden(UID, 8)}")
+      F(UID, 7) != F(UID, 8),
+      gemessen=f"{F(UID, 7)} vs {F(UID, 8)}")
 zeile("der Hauptfaden ist ein eigenes Zimmer, nicht dasselbe wie Thema 0",
-      bot.faden(UID, None) != bot.faden(UID, 0),
-      gemessen=f"{bot.faden(UID, None)} vs {bot.faden(UID, 0)}")
+      F(UID, None) != F(UID, 0),
+      gemessen=f"{F(UID, None)} vs {F(UID, 0)}")
 # **Die Kennung als Zeichenkette war die Falle, die im Kopf von `faden()` steht.**
 zeile("Kennung als Zeichenkette ergibt KEIN zweites Zimmer",
-      bot.faden("4711", 7) == bot.faden(4711, 7),
-      gemessen=f"{bot.faden('4711', 7)} vs {bot.faden(4711, 7)}")
+      F("4711", 7) == F(4711, 7),
+      gemessen=f"{F('4711', 7)} vs {F(4711, 7)}")
 
 # ---- Zwei Warteschlangen ---------------------------------------------------
 bot.MAILBOXES.clear()
-mb_a = bot._get_mailbox(UID, 7)
-mb_b = bot._get_mailbox(UID, 8)
+mb_a = bot._get_mailbox(F(UID, 7))
+mb_b = bot._get_mailbox(F(UID, 8))
 zeile("zwei Zimmer bekommen zwei Warteschlangen", mb_a is not mb_b)
 zeile("dasselbe Zimmer bekommt dieselbe zurück",
-      bot._get_mailbox(UID, 7) is mb_a)
+      bot._get_mailbox(F(UID, 7)) is mb_a)
 mb_a.queue.append("etwas")
 zeile("was in einem Zimmer liegt, liegt nicht im anderen",
       len(mb_b.queue) == 0, gemessen=f"B hat {len(mb_b.queue)}")
 zeile("der Hauptfaden ist von beiden getrennt",
-      bot._get_mailbox(UID) is not mb_a and bot._get_mailbox(UID) is not mb_b)
+      bot._get_mailbox(F(UID)) is not mb_a and bot._get_mailbox(F(UID)) is not mb_b)
 
 # ---- Nur-Nachsehen legt kein Zimmer an -------------------------------------
 bot.MAILBOXES.clear()
 zeile("Nachsehen legt kein Zimmer an (der Wächter zählt sonst sein Werk mit)",
-      bot._mb_opt(UID, 99) is None and not bot.MAILBOXES,
+      bot._mb_opt(F(UID, 99)) is None and not bot.MAILBOXES,
       gemessen=f"{len(bot.MAILBOXES)} Zimmer nach dem Nachsehen")
 
 # ---- Zwei Sitzungen --------------------------------------------------------
 bot.SESSIONS.clear()
-bot.SESSIONS[bot.faden(UID, 7)] = "SITZUNG-A"
-bot.SESSIONS[bot.faden(UID, 8)] = "SITZUNG-B"
+bot.SESSIONS[F(UID, 7)] = "SITZUNG-A"
+bot.SESSIONS[F(UID, 8)] = "SITZUNG-B"
 zeile("jedes Zimmer findet seine eigene Sitzung",
-      bot._sess(UID, 7) == "SITZUNG-A" and bot._sess(UID, 8) == "SITZUNG-B",
-      gemessen=f"{bot._sess(UID, 7)} / {bot._sess(UID, 8)}")
+      bot._sess(F(UID, 7)) == "SITZUNG-A" and bot._sess(F(UID, 8)) == "SITZUNG-B",
+      gemessen=f"{bot._sess(F(UID, 7))} / {bot._sess(F(UID, 8))}")
 zeile("der Hauptfaden findet KEINE der beiden",
-      bot._sess(UID) is None, gemessen=str(bot._sess(UID)))
+      bot._sess(F(UID)) is None, gemessen=str(bot._sess(F(UID))))
 
 # ---- Die Gegenrichtung: ein Zimmer schliessen laesst das andere leben ------
 bot.SESSIONS.clear()
-bot.SESSIONS[bot.faden(UID, 7)] = "A"
-bot.SESSIONS[bot.faden(UID, 8)] = "B"
-bot.SESSIONS.pop(bot.faden(UID, 7), None)
+bot.SESSIONS[F(UID, 7)] = "A"
+bot.SESSIONS[F(UID, 8)] = "B"
+bot.SESSIONS.pop(F(UID, 7), None)
 zeile("ein Zimmer schließen lässt das andere stehen (Gegenrichtung)",
-      bot._sess(UID, 7) is None and bot._sess(UID, 8) == "B")
+      bot._sess(F(UID, 7)) is None and bot._sess(F(UID, 8)) == "B")
 
 # ---- Der Job traegt den Faden bis zur Sitzung ------------------------------
 # **Die Stelle, an der der Umbau haette scheitern koennen:** Der Job kannte
@@ -108,7 +122,7 @@ zeile("ein Zimmer schließen lässt das andere stehen (Gegenrichtung)",
 import inspect                                                  # noqa: E402
 _quelle = inspect.getsource(bot._run_job)
 zeile("der Auftrag holt die Sitzung SEINES Zimmers",
-      "ensure_session(user_id, thread_id=job.thread_id)" in _quelle,
+      "ensure_session(faden_von_job(job))" in _quelle,
       gemessen=[z.strip() for z in _quelle.splitlines()
                 if "ensure_session" in z][:1])
 
@@ -171,19 +185,19 @@ def _job(mid: int, wann: int = 1000):
     return bot.QueuedJob(update=None, text=f"Auftrag {mid}", user_id=UID,
                          chat_id=999, message_id=mid, received_at=wann)
 
-_mb7 = bot._get_mailbox(UID, 7)
+_mb7 = bot._get_mailbox(F(UID, 7))
 _j7 = _job(101)
 _mb7.current_job = _j7
 _k7_kennung = bot._auftrag_kennung(_j7)
 
-_hook = bot._nachsteuer_hook(UID, 7)
+_hook = bot._nachsteuer_hook(F(UID, 7))
 zeile("ohne Zettel reicht der Hook nichts hinein",
       _a.run(_hook({}, None, None)) == {},
       gemessen=str(_a.run(_hook({}, None, None)))[:80])
 
 zeile("der Schreiber legt einen Zettel für den laufenden Auftrag ab",
-      bot.nachsteuer_schreiben(UID, 7, _k7_kennung, (CHAT, 501), "stopp, andere Farbe"),
-      gemessen=str(sorted(x.name for x in bot.nachsteuer_ordner(UID, 7).glob("*.txt"))))
+      bot.nachsteuer_schreiben(F(UID, 7), _k7_kennung, (CHAT, 501), "stopp, andere Farbe"),
+      gemessen=str(sorted(x.name for x in bot.nachsteuer_ordner(F(UID, 7)).glob("*.txt"))))
 
 _erg = _a.run(_hook({}, None, None))
 _kontext = (_erg.get("hookSpecificOutput") or {}).get("additionalContext", "")
@@ -198,14 +212,14 @@ zeile("derselbe Zettel kommt kein zweites Mal",
       _a.run(_hook({}, None, None)) == {})
 
 # **Und er landet im richtigen Zimmer.**
-_mb8 = bot._get_mailbox(UID, 8)
+_mb8 = bot._get_mailbox(F(UID, 8))
 _j8 = _job(108)
 _mb8.current_job = _j8
-bot.nachsteuer_schreiben(UID, 8, bot._auftrag_kennung(_j8), (CHAT, 508), "fuer Zimmer acht")
-_hook7 = bot._nachsteuer_hook(UID, 7)
+bot.nachsteuer_schreiben(F(UID, 8), bot._auftrag_kennung(_j8), (CHAT, 508), "fuer Zimmer acht")
+_hook7 = bot._nachsteuer_hook(F(UID, 7))
 zeile("ein Zettel für Zimmer 8 erreicht Zimmer 7 nicht (Gegenrichtung)",
       _a.run(_hook7({}, None, None)) == {})
-_hook8 = bot._nachsteuer_hook(UID, 8)
+_hook8 = bot._nachsteuer_hook(F(UID, 8))
 _k8 = (_a.run(_hook8({}, None, None)).get("hookSpecificOutput") or {}).get("additionalContext", "")
 zeile("Zimmer 8 bekommt seinen eigenen",
       "Zimmer acht" in _k8, gemessen=_k8[:60])
@@ -216,57 +230,57 @@ zeile("Zimmer 8 bekommt seinen eigenen",
 
 # (a) NICHTS ALTES: ein Zettel, der es nicht mehr in seinen Auftrag geschafft
 #     hat, darf den naechsten nicht erreichen -- der bearbeitet etwas anderes.
-bot.nachsteuer_schreiben(UID, 7, _k7_kennung, (CHAT, 502), "gehoert zum alten Auftrag")
+bot.nachsteuer_schreiben(F(UID, 7), _k7_kennung, (CHAT, 502), "gehoert zum alten Auftrag")
 _mb7.current_job = _job(102, 2000)                       # neuer Auftrag im selben Zimmer
-_neu = _a.run(bot._nachsteuer_hook(UID, 7)({}, None, None))
+_neu = _a.run(bot._nachsteuer_hook(F(UID, 7))({}, None, None))
 zeile("ein Zettel aus einem fremden Auftrag kommt NICHT an",
       _neu == {}, gemessen=str(_neu)[:60])
 
 # (b) und beim Auftragsende ist der Rest wirklich weg (nicht bloss ungelesen).
-bot.nachsteuer_aufraeumen(UID, 7, _k7_kennung, beantwortet=False)
+bot.nachsteuer_aufraeumen(F(UID, 7), _k7_kennung, beantwortet=False)
 zeile("Auftragsende wirft die Reste weg",
-      not list(bot.nachsteuer_ordner(UID, 7).glob(f"{_k7_kennung}__*.txt")),
-      gemessen=str(sorted(x.name for x in bot.nachsteuer_ordner(UID, 7).glob("*.txt"))))
+      not list(bot.nachsteuer_ordner(F(UID, 7)).glob(f"{_k7_kennung}__*.txt")),
+      gemessen=str(sorted(x.name for x in bot.nachsteuer_ordner(F(UID, 7)).glob("*.txt"))))
 
 # (c) NICHTS DOPPELT: Zettel angekommen UND Auftrag beantwortet -> der
 #     eingereihte Zwilling braucht keinen eigenen Lauf.
-_mbz = bot._get_mailbox(UID, 11)
+_mbz = bot._get_mailbox(F(UID, 11))
 _jz = _job(111)
 _mbz.current_job = _jz
 _kz = bot._auftrag_kennung(_jz)
-bot.nachsteuer_schreiben(UID, 11, _kz, (CHAT, 511), "Nachtrag zum laufenden")
-_a.run(bot._nachsteuer_hook(UID, 11)({}, None, None))     # der Hook reicht ihn hinein
-bot.nachsteuer_aufraeumen(UID, 11, _kz, beantwortet=True)
+bot.nachsteuer_schreiben(F(UID, 11), _kz, (CHAT, 511), "Nachtrag zum laufenden")
+_a.run(bot._nachsteuer_hook(F(UID, 11))({}, None, None))     # der Hook reicht ihn hinein
+bot.nachsteuer_aufraeumen(F(UID, 11), _kz, beantwortet=True)
 zeile("angekommen und beantwortet -> der Zwilling wird übersprungen",
       bot.zettel_erledigt((CHAT, 511)), gemessen=str(bot._ZETTEL.get((CHAT, 511))))
 
 # (d) NICHTS VERLOREN: derselbe Weg, aber der Auftrag scheitert -> der
 #     Zwilling laeuft ganz normal. Im Zweifel lieber einmal zu viel arbeiten.
-_mbf = bot._get_mailbox(UID, 12)
+_mbf = bot._get_mailbox(F(UID, 12))
 _jf = _job(112)
 _mbf.current_job = _jf
 _kf = bot._auftrag_kennung(_jf)
-bot.nachsteuer_schreiben(UID, 12, _kf, (CHAT, 512), "Nachtrag zum gescheiterten")
-_a.run(bot._nachsteuer_hook(UID, 12)({}, None, None))
-bot.nachsteuer_aufraeumen(UID, 12, _kf, beantwortet=False)
+bot.nachsteuer_schreiben(F(UID, 12), _kf, (CHAT, 512), "Nachtrag zum gescheiterten")
+_a.run(bot._nachsteuer_hook(F(UID, 12))({}, None, None))
+bot.nachsteuer_aufraeumen(F(UID, 12), _kf, beantwortet=False)
 zeile("angekommen, aber Auftrag gescheitert -> der Zwilling läuft normal",
       not bot.zettel_erledigt(512), gemessen=str(bot._ZETTEL.get(512)))
 
 # (e) und ein Zettel, den niemand gelesen hat, macht den Zwilling ebenfalls
 #     nicht ueberfluessig.
-_mbu = bot._get_mailbox(UID, 13)
+_mbu = bot._get_mailbox(F(UID, 13))
 _ju = _job(113)
 _mbu.current_job = _ju
-bot.nachsteuer_schreiben(UID, 13, bot._auftrag_kennung(_ju), (CHAT, 513), "nie gelesen")
-bot.nachsteuer_aufraeumen(UID, 13, bot._auftrag_kennung(_ju), beantwortet=True)
+bot.nachsteuer_schreiben(F(UID, 13), bot._auftrag_kennung(_ju), (CHAT, 513), "nie gelesen")
+bot.nachsteuer_aufraeumen(F(UID, 13), bot._auftrag_kennung(_ju), beantwortet=True)
 zeile("nie gelesen -> der Zwilling läuft normal",
       not bot.zettel_erledigt(513), gemessen=str(bot._ZETTEL.get(513)))
 
 # **Der Hook haengt wirklich an den Optionen** — sonst waere er eine Funktion,
 # die niemand ruft. Gemessen am fertigen Optionen-Objekt, nicht am Quelltext.
-_opt = bot.hauptsitzungs_optionen(user_id=UID, model_full="x", effort=None,
+_opt = bot.hauptsitzungs_optionen(fd=F(UID, 7), model_full="x", effort=None,
                                   add_dirs=[], context="", context_via_file=False,
-                                  thread_id=7)
+                                  )
 # **[VERSCHÄRFT 10.09.2026, Ultracode-Befund E2] `bool(...)` misst, dass
 # IRGENDEIN Hook dasteht.** Im Probelauf wurde der Nachsteuer-Hook durch eine
 # Attrappe ersetzt — die Zeile blieb grün, und die halbe Zusage von Auftrag 8
@@ -287,10 +301,10 @@ for _m in _hooks:
 # **Die Kennung kommt aus dem laufenden Auftrag, nicht aus der Luft:** Der
 # Hook liest nur Zettel SEINES Auftrags -- das ist der Sinn der Kennung
 # (ein Nachtrag aus fremdem Zusammenhang ist schlimmer als keiner).
-_mb_e2 = bot._get_mailbox(UID, 7)
+_mb_e2 = bot._get_mailbox(F(UID, 7))
 _mb_e2.current_job = bot.QueuedJob(update=None, text="laeuft", user_id=UID,
                                    message_id=4241, received_at=1000)
-bot.nachsteuer_schreiben(UID, 7, bot._auftrag_kennung(_mb_e2.current_job),
+bot.nachsteuer_schreiben(F(UID, 7), bot._auftrag_kennung(_mb_e2.current_job),
                          4242, "Nachtrag aus E2")
 # **Ein Bruch macht diese Zeile rot, er stuerzt den Pruefer nicht ab** --
 # eine Attrappe an der Hook-Stelle kann jede Form haben, auch eine, die
@@ -315,18 +329,18 @@ _mb_e2.current_job = None
 # (1) Der Freigabe-Rueckruf gehoert dem Zimmer, das gefragt hat.
 #     Vorher war er nur an die Person gebunden: In einem Zimmer OHNE
 #     Hauptfaden-Sitzung verweigerte er jedes Werkzeug ("no active session").
-bot.SESSIONS.pop(bot.faden(UID), None)                  # kein Hauptfaden offen
+bot.SESSIONS.pop(F(UID), None)                  # kein Hauptfaden offen
 _s22 = bot.UserSession(client=None, chat_id=999)
 _s22.bot = object()
-bot.SESSIONS[bot.faden(UID, 22)] = _s22
+bot.SESSIONS[F(UID, 22)] = _s22
 
-_cb_haupt = bot.make_permission_callback(UID)
+_cb_haupt = bot.make_permission_callback(F(UID))
 _erg_haupt = _a.run(_cb_haupt("Read", {}, None))
 zeile("ohne Sitzung verweigert der Rückruf im Hauptfaden (Gegenrichtung)",
       "no active session" in str(getattr(_erg_haupt, "message", "")),
       gemessen=str(getattr(_erg_haupt, "message", ""))[:60])
 
-_cb22 = bot.make_permission_callback(UID, 22)
+_cb22 = bot.make_permission_callback(F(UID, 22))
 _erg22 = _a.run(_cb22("Read", {}, None))
 # **[VERSCHAERFT 10.09.2026, Claudias Befund]** Hier stand
 # `"no active session" not in message` -- zu schwach, denn das misst **eine
@@ -363,12 +377,12 @@ class _AppAttrappe:
 
 bot._reconcile_pending(_AppAttrappe())
 zeile("ein nachgeholter Auftrag landet in SEINEM Zimmer",
-      any(j.thread_id == 21 for j in bot._get_mailbox(UID, 21).queue),
-      gemessen=str([(j.thread_id, j.text[:20]) for j in bot._get_mailbox(UID, 21).queue]))
+      any(j.thread_id == 21 for j in bot._get_mailbox(F(UID, 21)).queue),
+      gemessen=str([(j.thread_id, j.text[:20]) for j in bot._get_mailbox(F(UID, 21)).queue]))
 zeile("und nicht im Hauptfaden (Gegenrichtung)",
       not any(j.text.startswith("Frage aus Zimmer 21")
-              for j in bot._get_mailbox(UID).queue),
-      gemessen=str([j.text[:20] for j in bot._get_mailbox(UID).queue]))
+              for j in bot._get_mailbox(F(UID)).queue),
+      gemessen=str([j.text[:20] for j in bot._get_mailbox(F(UID)).queue]))
 
 # ---- Block 1b: die MENGE, nicht die Liste ---------------------------------
 #
@@ -390,97 +404,84 @@ zeile("und nicht im Hauptfaden (Gegenrichtung)",
 import ast as _ast                                              # noqa: E402
 
 _TUEREN = {"_sess", "_mb_opt", "_get_mailbox", "_ensure_worker",
-           "close_session", "ensure_session", "make_permission_callback"}
+           "close_session", "ensure_session", "make_permission_callback",
+           "nachsteuer_ordner", "_session_worker"}
 _quelle = (Path(__file__).resolve().parent.parent / "bot.py").read_text(encoding="utf-8")
-_zeilen = _quelle.split(chr(10))     # NICHT splitlines(): bot.py enthaelt
-                                     # U+2028/U+2029, die dort mitteilen wuerden
-                                     # und alle Zeilennummern verschoeben.
-_ohne_grund = []
-for _kn in _ast.walk(_ast.parse(_quelle)):
-    if not (isinstance(_kn, _ast.Call) and isinstance(_kn.func, _ast.Name)
-            and _kn.func.id in _TUEREN):
+_baum = _ast.parse(_quelle)
+
+# ── F-22 voll: derselbe Faden-Wert aus ZWEI Chats ───────────────────────────
+#
+# **Die Zusage des Zimmer-Baus, jetzt vollständig.** Bis zum 11.09. fielen
+# Privatchat, der General-Bereich einer Forum-Gruppe und jede normale Gruppe
+# auf **denselben** Schlüssel: eine Sitzung, ein Protokoll, eine
+# Warteschlange für drei verschiedene Orte.
+zeile("zwei Chats derselben Person sind ZWEI Zimmer",
+      F(UID, None, chat=111) != F(UID, None, chat=222),
+      gemessen=f"{F(UID, None, chat=111)} vs {F(UID, None, chat=222)}")
+zeile("dasselbe Thema in zwei Chats ist NICHT dasselbe Zimmer",
+      F(UID, 7, chat=111) != F(UID, 7, chat=222))
+zeile("und derselbe Ort bleibt dasselbe Zimmer (Gegenrichtung)",
+      F(UID, 7, chat=111) == F(UID, 7, chat=111))
+
+# Die Teile heißen, statt gezählt zu werden — ein viertes Feld würde sonst
+# jede Index-Stelle still verschieben.
+_f22 = F(UID, 7, chat=111)
+zeile("der Faden nennt seine Teile beim Namen",
+      (_f22.person, _f22.chat, _f22.thema) == (UID, 111, 7),
+      gemessen=str(_f22))
+
+# Und die Wirkung: getrennte Warteschlangen.
+bot.MAILBOXES.clear()
+bot._get_mailbox(F(UID, None, chat=111)).queue.append("A")
+bot._get_mailbox(F(UID, None, chat=222)).queue.append("B")
+zeile("was im einen Chat liegt, liegt nicht im anderen",
+      list(bot._get_mailbox(F(UID, None, chat=111)).queue) == ["A"]
+      and list(bot._get_mailbox(F(UID, None, chat=222)).queue) == ["B"])
+bot.MAILBOXES.clear()
+
+# Auch der Nachsteuer-Ordner trennt die Chats.
+zeile("der Zettel-Ordner trennt die Chats",
+      bot.nachsteuer_ordner(F(UID, None, chat=111))
+      != bot.nachsteuer_ordner(F(UID, None, chat=222)),
+      gemessen=bot.nachsteuer_ordner(F(UID, None, chat=111)).name)
+
+# **[UMGESTELLT 11.09.2026, F-22] Die Zusage hat sich geändert, also misst die
+# Zeile etwas anderes.**
+#
+# Bis gestern hieß sie „kein Ein-Argument-Aufruf" — damals waren Person und
+# Thema zwei Zahlen, und ein fehlendes zweites Argument bedeutete: Faden
+# vergessen. **Jetzt ist ein Argument die richtige Form**, denn der Faden ist
+# ein Wert. Die alte Zeile hätte ab hier jeden Aufruf angeschwärzt.
+#
+# Gemessen wird deshalb die **Bauform selbst**: Keine dieser Türen darf noch
+# einen `thread_id`- oder `user_id`-Parameter tragen. Solange das gilt, kann
+# keine Aufrufstelle den Chat vergessen — nicht weil jemand daran denkt,
+# sondern weil es keinen Weg gibt, ihn wegzulassen.
+_mit_alten_teilen = []
+for _fn in _ast.walk(_baum):
+    if not isinstance(_fn, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
         continue
-    if len(_kn.args) + len(_kn.keywords) > 1:
+    if _fn.name not in _TUEREN:
         continue
-    _ohne_grund.append(f"{_kn.func.id}:{_kn.lineno}")
+    _namen = {a.arg for a in _fn.args.args} | {a.arg for a in _fn.args.kwonlyargs}
+    if {"thread_id", "user_id"} & _namen:
+        _mit_alten_teilen.append(f"{_fn.name}({', '.join(sorted(_namen))})")
+zeile("keine Tür nimmt Person und Thema einzeln — der Faden ist EIN Wert",
+      not _mit_alten_teilen, gemessen="; ".join(_mit_alten_teilen))
 
-# **[VERSCHÄRFT 10.09.2026, Ultracode-Befund E1b] Der Kommentar ist kein
-# Freibrief mehr.**
-#
-# Vorher genügte eine Zeile `# Hauptfaden: …` im Umfeld — gemessen wurde, dass
-# jemand etwas **behauptet**, nicht dass es stimmt. Der Probelauf hat es
-# gezeigt: `ensure_session(user_id)` plus Kommentar, und **beide** Prüfzeilen
-# blieben grün, während die Kernzusage von Block 1 unbewacht war.
-#
-# Jetzt gilt: **kein Ein-Argument-Aufruf, Punkt.** Wer den Hauptfaden meint,
-# schreibt `thread_id=None` hin — das ist dieselbe Aussage, nur im Code statt
-# im Kommentar, und sie lässt sich nicht behaupten, sondern nur setzen. Es
-# kostete vier Zeilen; die Kommentare bleiben als **Begründung** stehen, wofür
-# sie gut sind.
-zeile("keine Tür wird ohne Faden gerufen — auch nicht mit Kommentar",
-      not _ohne_grund,
-      gemessen=(", ".join(_ohne_grund) if _ohne_grund
-                else "alle mit Faden"))
+# Und die Gegenprobe der Bauform: Der Faden trägt wirklich drei Teile, und der
+# Chat ist einer davon.
+zeile("der Faden trägt Person, Chat und Thema",
+      bot.Faden._fields == ("person", "chat", "thema"),
+      gemessen=str(bot.Faden._fields))
 
-# Und die Gegenrichtung: Der Zaehler findet ueberhaupt etwas. Eine Pruefzeile,
-# die ueber einer leeren Menge laeuft, ist immer gruen und misst nichts.
-_alle_tueren = sum(1 for _kn in _ast.walk(_ast.parse(_quelle))
-                   if isinstance(_kn, _ast.Call) and isinstance(_kn.func, _ast.Name)
-                   and _kn.func.id in _TUEREN)
-# ── F-22 Teil 1: derselbe Nummernwert aus ZWEI Chats ────────────────────────
-#
-# **Der Teil von F-22, der heute schon schadet.** Telegram vergibt
-# `message_id` je Chat: Nummer 42 im Privatchat und Nummer 42 in einer Gruppe
-# waren im Register **derselbe Eintrag**. Ein Auftrag aus dem einen Chat
-# konnte damit den Zwilling aus dem anderen als „schon beantwortet"
-# überspringen lassen — **Adams Nachricht wäre spurlos verschwunden.**
-bot._ZETTEL.clear()
-_jobA = bot.QueuedJob(update=None, text="aus Chat A", user_id=UID,
-                      chat_id=111, message_id=42)
-_jobB = bot.QueuedJob(update=None, text="aus Chat B", user_id=UID,
-                      chat_id=222, message_id=42)
-zeile("zwei Chats mit derselben Nummer sind ZWEI Schlüssel",
-      bot.zettel_schluessel(_jobA) != bot.zettel_schluessel(_jobB),
-      gemessen=f"{bot.zettel_schluessel(_jobA)} vs {bot.zettel_schluessel(_jobB)}")
-
-bot.nachsteuer_schreiben(UID, None, "auftrag-A",
-                         bot.zettel_schluessel(_jobA), "Nachtrag aus Chat A")
-bot.nachsteuer_aufraeumen(UID, None, "auftrag-A", beantwortet=False)
-_ZA = bot._ZETTEL.get(bot.zettel_schluessel(_jobA))
-bot._ZETTEL[bot.zettel_schluessel(_jobA)] = {"auftrag": "auftrag-A",
-                                             "gelesen": True, "erledigt": True}
-zeile("ein erledigter Zettel aus Chat A lässt Chat B UNBERÜHRT",
-      bot.zettel_erledigt(bot.zettel_schluessel(_jobB)) is False,
-      gemessen=str(dict(bot._ZETTEL)))
-zeile("und für Chat A gilt er sehr wohl (Gegenrichtung)",
-      bot.zettel_erledigt(bot.zettel_schluessel(_jobA)) is True)
-
-# Auch der Dateiname trennt die Chats — sonst überschriebe der zweite Zettel
-# den ersten im selben Ordner.
-bot._ZETTEL.clear()
-bot.nachsteuer_schreiben(UID, None, "auftrag-X",
-                         bot.zettel_schluessel(_jobA), "aus A")
-bot.nachsteuer_schreiben(UID, None, "auftrag-X",
-                         bot.zettel_schluessel(_jobB), "aus B")
-_dateien = sorted(x.name for x in bot.nachsteuer_ordner(UID, None).glob("auftrag-X__*.txt"))
-zeile("zwei Chats erzeugen ZWEI Zettel-Dateien, nicht eine",
-      len(_dateien) == 2, gemessen=str(_dateien))
-
-# Und die Rückrichtung des Dateinamens: Was geschrieben wurde, wird auch
-# wiedererkannt — sonst fände das Einsammeln seinen eigenen Zettel nicht.
-zeile("der Dateiname lässt sich zum Schlüssel zurücklesen",
-      bot._zettel_schluessel_aus_dateiname(
-          bot._zettel_dateiname((111, 42))) == (111, 42),
-      gemessen=bot._zettel_dateiname((111, 42)))
-_text_ein = bot.nachsteuer_lesen(UID, None, "auftrag-X")
-zeile("und das Einsammeln setzt beide auf gelesen",
-      all(e.get("gelesen") for e in bot._ZETTEL.values())
-      and "aus A" in _text_ein and "aus B" in _text_ein,
-      gemessen=str(dict(bot._ZETTEL)))
-bot._ZETTEL.clear()
-
+# Die Gegenrichtung: Der Zähler läuft über eine nicht-leere Menge. Eine
+# Prüfzeile über null Funktionen ist immer grün und misst nichts.
+_gefunden = sum(1 for _fn in _ast.walk(_baum)
+                if isinstance(_fn, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                and _fn.name in _TUEREN)
 zeile("der Zähler sieht die Türen überhaupt",
-      _alle_tueren >= 40, gemessen=f"{_alle_tueren} Aufrufe")
+      _gefunden >= 8, gemessen=f"{_gefunden} von {len(_TUEREN)} Türen gefunden")
 
 import shutil                                                   # noqa: E402
 shutil.rmtree(_TMP, ignore_errors=True)

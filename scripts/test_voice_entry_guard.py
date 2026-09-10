@@ -62,7 +62,9 @@ def main() -> None:
     bot.MAILBOXES.clear()
     meldung = bot._reconcile_pending(FakeApp())
 
-    queue = list(bot._get_mailbox(uid).queue)
+    # **[GEAENDERT 11.09.2026, F-22]** Der Faden traegt den Chat -- der
+    # Reconcile legt den Auftrag dorthin, wo die Nachricht herkam.
+    queue = list(bot._get_mailbox(bot.faden(uid, chat, None)).queue)
     texte = [j.text for j in queue]
 
     if bot.VOICE_STAGE_PLACEHOLDER in texte:

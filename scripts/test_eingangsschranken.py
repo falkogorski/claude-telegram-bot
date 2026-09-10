@@ -97,7 +97,7 @@ def _sitzung(user_id=4711, antwort="deny", **felder):
     for k, v in felder.items():
         setattr(sess, k, v)
     sess.bot = _MitschreibenderBot(sess, antwort=antwort)
-    bot.SESSIONS[bot.faden(user_id)] = sess
+    bot.SESSIONS[bot.faden(user_id, user_id, None)] = sess
     return sess
 
 
@@ -250,7 +250,7 @@ def _die_hauptsitzung_genehmigt_nicht_vorab():
     """
     from claude_agent_sdk._internal.transport.subprocess_cli import SubprocessCLITransport
     o = bot.hauptsitzungs_optionen(
-        user_id=4711, model_full="claude-sonnet-4-5", effort="medium",
+        fd=bot.faden(4711, 4711, None), model_full="claude-sonnet-4-5", effort="medium",
         add_dirs=[], context="", context_via_file=False)
     transport = SubprocessCLITransport(prompt="x", options=o)
     transport._cli_path = "/bin/echo"
@@ -382,7 +382,7 @@ def _adresse_mit_anhang_wird_nicht_automatisch_freigegeben():
     # die Felder, an die der Schreiber gedacht hat - und deckt damit den
     # Fehler, den sie finden soll (in diesem Projekt schon vorgekommen).
     sess = _sitzung(task_origins={"wikipedia.org"})
-    rueckruf = bot.make_permission_callback(4711)
+    rueckruf = bot.make_permission_callback(bot.faden(4711, 4711, None))
 
     class _Ctx:
         suggestions = None
@@ -424,7 +424,7 @@ def _suche_mit_geheimnis_wird_nicht_durchgewunken():
     """
     from claude_agent_sdk import PermissionResultAllow
     sess = _sitzung()
-    rueckruf = bot.make_permission_callback(4711)
+    rueckruf = bot.make_permission_callback(bot.faden(4711, 4711, None))
 
     class _Ctx:
         suggestions = None
@@ -787,7 +787,7 @@ def _eine_alte_bash_freigabe_greift_nicht_mehr():
     """
     from claude_agent_sdk import PermissionResultAllow
     sess = _sitzung(always_allowed_tools={"Bash"})   # so, als haette Adam geklickt
-    rueckruf = bot.make_permission_callback(4711)
+    rueckruf = bot.make_permission_callback(bot.faden(4711, 4711, None))
 
     class _Ctx:
         suggestions = None
@@ -855,7 +855,7 @@ def _die_positivliste_wirkt_ohne_jede_dauerfreigabe():
     """
     from claude_agent_sdk import PermissionResultAllow
     sess = _sitzung(always_allowed_tools=set())     # ausdruecklich LEER
-    rueckruf = bot.make_permission_callback(4711)
+    rueckruf = bot.make_permission_callback(bot.faden(4711, 4711, None))
 
     class _Ctx:
         suggestions = None
@@ -1027,7 +1027,7 @@ def _die_or_kette_versteckt_nichts_mehr():
     """
     from claude_agent_sdk import PermissionResultAllow
     sess = _sitzung()
-    rueckruf = bot.make_permission_callback(4711)
+    rueckruf = bot.make_permission_callback(bot.faden(4711, 4711, None))
 
     class _Ctx:
         suggestions = None
@@ -1149,7 +1149,7 @@ def _ein_fragment_ist_kein_ausgangskanal():
     """
     from claude_agent_sdk import PermissionResultAllow
     sess = _sitzung(task_origins={"youtube.com", "wikipedia.org"})
-    rueckruf = bot.make_permission_callback(4711)
+    rueckruf = bot.make_permission_callback(bot.faden(4711, 4711, None))
 
     class _Ctx:
         suggestions = None
@@ -1188,7 +1188,7 @@ def _lesen_im_gedaechtnis_braucht_keinen_dialog():
     """
     from claude_agent_sdk import PermissionResultAllow
     sess = _sitzung()
-    rueckruf = bot.make_permission_callback(4711)
+    rueckruf = bot.make_permission_callback(bot.faden(4711, 4711, None))
 
     class _Ctx:
         suggestions = None
@@ -2019,7 +2019,7 @@ def _dauerfreigabe_erspart_die_rueckfrage_nicht_die_ablehnung():
     from claude_agent_sdk import PermissionResultAllow
     sess = _sitzung(always_allowed_tools={"Bash"})
     bot._USER_PREFS["4711"] = {"always_allow": ["Bash"]}
-    rueckruf = bot.make_permission_callback(4711)
+    rueckruf = bot.make_permission_callback(bot.faden(4711, 4711, None))
 
     class _Ctx:
         suggestions = None
@@ -2080,7 +2080,7 @@ def _der_weg_nach_draussen_bleibt_im_dialog():
     from claude_agent_sdk import PermissionResultAllow
     sess = _sitzung(always_allowed_tools={"Bash"})
     bot._USER_PREFS["4711"] = {"always_allow": ["Bash"]}
-    rueckruf = bot.make_permission_callback(4711)
+    rueckruf = bot.make_permission_callback(bot.faden(4711, 4711, None))
 
     class _Ctx:
         suggestions = None

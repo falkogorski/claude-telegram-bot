@@ -28,6 +28,20 @@ os.environ["POSTFACH_DIR"] = str(_TMP / "postfach")
 os.environ["CONVERSATION_LOG_DIR"] = str(_TMP / "conversations")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import bot                                                      # noqa: E402
+
+# Der Chat des Pruefstands (F-22: der Schluessel traegt ihn).
+CHAT_PRUEF = 999
+
+
+def F(person, thema=None, chat=None):
+    """Ein Faden fuer den Pruefstand — `chat` faellt auf `CHAT_PRUEF` zurueck.
+
+    **[NEU 11.09.2026, F-22]** Der Schluessel traegt jetzt drei Teile. Ein
+    Helfer statt 44 einzelner Aufrufe: Wer den Chat wechseln will, uebergibt
+    ihn; wer nur ein Zimmer meint, schreibt weiter zwei Zahlen.
+    """
+    return bot.faden(person, CHAT_PRUEF if chat is None else chat, thema)
+
 import channels                                                 # noqa: E402
 
 fehler: list[str] = []
@@ -51,15 +65,15 @@ print("== Block 2: Leitstand und Protokoll je Zimmer ==")
 job7 = bot.QueuedJob(update=None,
                      text="Lies test_zimmer_block1.py und die Aufstellung fuer Norderney",
                      user_id=UID, chat_id=999, message_id=7, thread_id=7)
-mb7 = bot._get_mailbox(UID, 7)
+mb7 = bot._get_mailbox(F(UID, 7))
 mb7.current_job = job7
 mb7.current_started = time.monotonic() - 180          # laeuft seit drei Minuten
 sess7 = bot.UserSession(client=None, chat_id=999)
 sess7.last_activity = time.monotonic()
-bot.SESSIONS[bot.faden(UID, 7)] = sess7
+bot.SESSIONS[F(UID, 7)] = sess7
 
 # Zimmer 8: Warteschlange und eine erledigte Aufgabe, aber KEINE Sitzung.
-mb8 = bot._get_mailbox(UID, 8)
+mb8 = bot._get_mailbox(F(UID, 8))
 mb8.done_log.append((time.time() - 3600, "Angebot geschrieben"))
 mb8.queue.append(bot.QueuedJob(update=None, text="warte hier", user_id=UID,
                                chat_id=999, message_id=8, thread_id=8))
@@ -251,15 +265,15 @@ zeile("die Kopfzeile des Zimmer-Protokolls nennt das Zimmer",
 # schneller machen soll.
 sess11 = bot.UserSession(client=None, chat_id=999)
 sess11.logger = bot.ConversationLogger(UID, 11)
-bot.SESSIONS[bot.faden(UID, 11)] = sess11
-mb11 = bot._get_mailbox(UID, 11)
+bot.SESSIONS[F(UID, 11)] = sess11
+mb11 = bot._get_mailbox(F(UID, 11))
 job11 = bot.QueuedJob(update=None, text="der laufende Auftrag", user_id=UID,
                       chat_id=999, message_id=11, thread_id=11)
 mb11.current_job = job11
 # **[GEAENDERT 10.09.2026, F-22 Teil 1]** Der Schluessel traegt den Chat.
-bot.nachsteuer_schreiben(UID, 11, bot._auftrag_kennung(job11), (999, 511),
+bot.nachsteuer_schreiben(F(UID, 11), bot._auftrag_kennung(job11), (999, 511),
                          "und nenne bitte auch das Datum")
-asyncio.run(bot._nachsteuer_hook(UID, 11)({}, None, None))
+asyncio.run(bot._nachsteuer_hook(F(UID, 11))({}, None, None))
 prot11 = bot.LOG_DIR / f"{tag}_zimmer-11.md"
 inhalt11 = prot11.read_text(encoding="utf-8") if prot11.exists() else ""
 

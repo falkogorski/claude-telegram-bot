@@ -46,19 +46,19 @@ async def main():
     # **Block 1b:** sie merkt sich jetzt den FADEN mit. Vorher sammelte sie nur
     # die Person — damit war nicht messbar, WELCHES Zimmer geweckt wurde, und
     # genau dort lag der Fehler.
-    bot._ensure_worker = lambda u, t=None: RESTARTED.append((u, t))
+    bot._ensure_worker = lambda fd: RESTARTED.append((fd.person, fd.thema))
     key = pending.make_key(999, 1)
     pending.record(key, {"text": "haengende Frage", "status": pending.STATUS_OPEN,
                          "user_id": uid, "chat_id": 999})
 
     job = bot.QueuedJob(update=None, text="haengende Frage", user_id=uid,
                         chat_id=999, message_id=1, pending_key=key, bot=FakeBot())
-    mb = bot._get_mailbox(uid)
+    mb = bot._get_mailbox(bot.faden(uid, uid, None))
     mb.current_job = job
     mb.current_started = bot.time.monotonic() - 600      # läuft seit 10 Min
     sess = bot.UserSession(client=FakeClient(), bot=FakeBot(), chat_id=999)
     sess.last_activity = bot.time.monotonic() - 600      # seit 10 Min stumm
-    bot.SESSIONS[bot.faden(uid)] = sess
+    bot.SESSIONS[bot.faden(uid, uid, None)] = sess
 
     async def haengt():
         await asyncio.sleep(3600)
@@ -69,7 +69,7 @@ async def main():
                                          asyncio.get_running_loop().create_future())
     wd = asyncio.create_task(bot.stall_watchdog(None))
     await asyncio.sleep(2.5)
-    assert bot.SESSIONS.get(bot.faden(uid)) is sess, "FEHLER: Session trotz offener Freigabe gekillt"
+    assert bot.SESSIONS.get(bot.faden(uid, uid, None)) is sess, "FEHLER: Session trotz offener Freigabe gekillt"
     assert not SENT, "FEHLER: Meldung trotz offener Freigabe"
     print("✓ wartende Freigabe schützt die Session vor dem Wächter")
 
@@ -78,7 +78,7 @@ async def main():
     await asyncio.sleep(2.5)
     wd.cancel()
 
-    assert bot.SESSIONS.get(bot.faden(uid)) is None, "FEHLER: Session nicht entmachtet"
+    assert bot.SESSIONS.get(bot.faden(uid, uid, None)) is None, "FEHLER: Session nicht entmachtet"
     print("✓ hängende Session aus SESSIONS entfernt")
     assert FakeClient.disconnected, "FEHLER: disconnect nicht aufgerufen"
     print("✓ disconnect angestoßen")
@@ -90,7 +90,7 @@ async def main():
     rec = next((r for r in pending.load_all() if r.get("_key") == key), None)
     assert rec and rec["status"] == pending.STATUS_OPEN, "FEHLER: Persistenz-Status falsch"
     print("✓ Persistenz-Record steht wieder auf offen")
-    assert RESTARTED == [(uid, None)], "FEHLER: Arbeit wird nicht wieder aufgenommen"
+    assert RESTARTED == [(uid, None)], f"FEHLER: Arbeit wird nicht wieder aufgenommen ({RESTARTED})"
     print("✓ frischer Worker angeworfen (neue Session beim nächsten Job)")
     assert SENT and "nicht mehr reagiert" in SENT[0][1], "FEHLER: keine Meldung an Adam"
     assert "nochmal dran" in SENT[0][1], "FEHLER: Meldung nennt die Wiederaufnahme nicht"
@@ -103,9 +103,9 @@ async def main():
     mb.current_started = bot.time.monotonic() - 600
     sess2 = bot.UserSession(client=FakeClient(), bot=FakeBot(), chat_id=999)
     sess2.last_activity = bot.time.monotonic() - 600
-    bot.SESSIONS[bot.faden(uid)] = sess2
+    bot.SESSIONS[bot.faden(uid, uid, None)] = sess2
     mb.worker = asyncio.create_task(haengt())
-    await bot._handle_stalled_session(uid, mb, sess2, 600, thread_id=None)
+    await bot._handle_stalled_session(bot.faden(uid, uid, None), mb, sess2, 600)
     assert not mb.queue, "FEHLER: Job trotz Wiederholungsbremse erneut eingereiht"
     assert not pending.load_all(), "FEHLER: Record nicht aufgelöst"
     assert "nicht weiter" in SENT[0][1], "FEHLER: Meldung nennt das Aufgeben nicht"
@@ -119,7 +119,7 @@ async def main():
     # derselbe Fall wie eine tote Session.
     SENT.clear()
     RESTARTED.clear()
-    bot.SESSIONS.pop(bot.faden(uid), None)
+    bot.SESSIONS.pop(bot.faden(uid, uid, None), None)
     job2 = bot.QueuedJob(update=None, text="Frage ohne Sitzung", user_id=uid,
                          chat_id=999, message_id=2, bot=FakeBot())
     mb.queue.clear()
@@ -151,8 +151,8 @@ async def main():
     bot.MAILBOXES.clear()
     haupt = bot.UserSession(client=FakeClient(), bot=FakeBot(), chat_id=999)
     haupt.last_activity = bot.time.monotonic()          # quicklebendig
-    bot.SESSIONS[bot.faden(uid)] = haupt
-    mb7 = bot._get_mailbox(uid, 7)
+    bot.SESSIONS[bot.faden(uid, uid, None)] = haupt
+    mb7 = bot._get_mailbox(bot.faden(uid, uid, 7))
     job7 = bot.QueuedJob(update=None, text="Frage aus Zimmer 7", user_id=uid,
                          chat_id=999, message_id=7, thread_id=7, bot=FakeBot())
     mb7.current_job = job7
@@ -165,7 +165,7 @@ async def main():
     assert RESTARTED == [(uid, 7)], \
         f"FEHLER: falsches Zimmer geweckt — {RESTARTED!r} statt [({uid}, 7)]"
     print("✓ haengendes Zimmer 7 wird in SEINEM Faden neu angeworfen")
-    assert bot.SESSIONS.get(bot.faden(uid)) is haupt, \
+    assert bot.SESSIONS.get(bot.faden(uid, uid, None)) is haupt, \
         "FEHLER: Hauptfaden-Sitzung wurde mit entmachtet"
     print("✓ die Sitzung des Hauptfadens bleibt unberuehrt")
     assert len(mb7.queue) == 1 and mb7.queue[0] is job7, \

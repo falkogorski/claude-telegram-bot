@@ -32,6 +32,20 @@ os.environ["POSTFACH_DIR"] = str(_TMP / "postfach")
 os.environ["CONVERSATION_LOG_DIR"] = str(_TMP / "conversations")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import bot                                                      # noqa: E402
+
+# Der Chat des Pruefstands (F-22: der Schluessel traegt ihn).
+CHAT_PRUEF = 999
+
+
+def F(person, thema=None, chat=None):
+    """Ein Faden fuer den Pruefstand — `chat` faellt auf `CHAT_PRUEF` zurueck.
+
+    **[NEU 11.09.2026, F-22]** Der Schluessel traegt jetzt drei Teile. Ein
+    Helfer statt 44 einzelner Aufrufe: Wer den Chat wechseln will, uebergibt
+    ihn; wer nur ein Zimmer meint, schreibt weiter zwei Zahlen.
+    """
+    return bot.faden(person, CHAT_PRUEF if chat is None else chat, thema)
+
 import channels                                                 # noqa: E402
 import empfang                                              # noqa: E402
 from claude_agent_sdk._internal.transport.subprocess_cli import (  # noqa: E402
@@ -150,10 +164,18 @@ asyncio.set_event_loop(asyncio.new_event_loop())
 # — gemessen würde dann die Abarbeitung, nicht die Einreihung. Dass der
 # Arbeiter angestoßen wird, prüft die Zeile darunter eigens.
 _GEWECKT: list = []
-bot._ensure_worker = lambda uid, tid=None: _GEWECKT.append((uid, tid))
+bot._ensure_worker = lambda fd: _GEWECKT.append((fd.person, fd.thema))
+
+# **[NEU 11.09.2026, F-22]** Der Empfang kennt seinen Chat — daraus wird der
+# Faden für „Hauptchat". Ohne diesen Eintrag fiele `zimmer_ziel` auf die
+# Person zurück, und der Auftrag landete in einem anderen Faden als dem, in
+# dem der Empfang sitzt.
+bot._EMPFANG[UID] = {"client": None, "schloss": asyncio.Lock(), "bot": None,
+                     "chat_id": CHAT_PRUEF, "nur_antworten": False,
+                     "zettel_im_lauf": 0}
 
 # Ein Zimmer, das es wirklich gibt: über die laufenden Fäden (ohne Häuser).
-mb_haupt = bot._get_mailbox(UID, None)
+mb_haupt = bot._get_mailbox(F(UID, None))
 erg = lauf(werkzeug({"zimmer": "Hauptchat", "text": "MIGRATION.md lesen"}))
 zeile("ein Auftrag an ein bekanntes Zimmer landet in dessen Warteschlange",
       len(mb_haupt.queue) == 1
@@ -187,7 +209,7 @@ bot._EMPFANG[UID]["nur_antworten"] = False
 # ── 3. Zettel und Registerschlüssel ─────────────────────────────────────────
 mb_haupt.current_job = bot.QueuedJob(update=None, text="laeuft gerade",
                                      user_id=UID, message_id=77)
-erg = bot.auftrag_einreihen(UID, None, "waehrend gearbeitet wird", chat_id=UID)
+erg = bot.auftrag_einreihen(F(UID, None), "waehrend gearbeitet wird")
 zwilling = mb_haupt.queue[-1]
 zeile("in ein arbeitendes Zimmer geht der Auftrag ein UND als Zettel hinein",
       erg["lief"] and erg["gereicht"], gemessen=str(erg))
@@ -208,12 +230,12 @@ mb_haupt.current_job = None
 # unter der Null — und übersprungen würde dann JEDER Auftrag ohne
 # Telegram-Nummer, weil `int(None or 0)` dieselbe Null ergibt.
 bot._ZETTEL.clear()
-geschrieben = bot.nachsteuer_schreiben(UID, None, "auftrag-x", None, "text")
+geschrieben = bot.nachsteuer_schreiben(F(UID, None), "auftrag-x", None, "text")
 zeile("ein Zettel ohne Kennung wird abgelehnt und registriert nichts",
       geschrieben is False and not bot._ZETTEL,
       gemessen=str(dict(bot._ZETTEL)))
 zeile("auch ein Schlüssel mit leerer Kennung wird abgelehnt",
-      bot.nachsteuer_schreiben(UID, None, "auftrag-x", (7, None), "text") is False)
+      bot.nachsteuer_schreiben(F(UID, None), "auftrag-x", (7, None), "text") is False)
 
 # ── 4. Signatur (Auflage 5) ─────────────────────────────────────────────────
 zeile("jede Antwort des Empfangs trägt sein Zeichen",
@@ -294,7 +316,7 @@ zeile("ohne arbeitende Zimmer darf jedes starten",
       bot.darf_starten(UID, None) is True)
 
 for tid in (1, 2, 3):
-    m = bot._get_mailbox(UID, tid)
+    m = bot._get_mailbox(F(UID, tid))
     m.current_job = bot.QueuedJob(update=None, text=f"job {tid}", user_id=UID)
 zeile("die Obergrenze zählt die arbeitenden Zimmer der PERSON",
       bot.arbeitende_zimmer(UID) == 3, gemessen=str(bot.arbeitende_zimmer(UID)))
@@ -304,7 +326,7 @@ zeile("ein Zimmer zählt sich selbst nicht mit",
       bot.arbeitende_zimmer(UID, ausser=1) == 2)
 zeile("eine fremde Person ist von der Grenze nicht betroffen",
       bot.darf_starten(9999, None) is True)
-bot.MAILBOXES[bot.faden(UID, 1)].current_job = None
+bot.MAILBOXES[F(UID, 1)].current_job = None
 zeile("wird ein Zimmer fertig, darf das wartende starten",
       bot.darf_starten(UID, 9) is True)
 
@@ -342,7 +364,7 @@ zeile("eine frisch geöffnete Sitzung ohne jede Regung schläft nicht ein",
 bot._EMPFANG[UID] = {"client": None, "bot": None, "chat_id": UID}
 zeile("der Empfang liegt in einem eigenen Register, nicht bei den Zimmern",
       UID in bot._EMPFANG
-      and not any(fd for fd in bot.SESSIONS if fd == bot.faden(UID, None)),
+      and not any(fd for fd in bot.SESSIONS if fd == F(UID, None)),
       gemessen=f"SESSIONS={list(bot.SESSIONS)}")
 zeile("der Empfang taucht im Leitstand nicht auf — er ist kein Zimmer",
       all("mpfang" not in (z.get("name") or "") for z in bot.leitstand(UID)),
@@ -384,13 +406,13 @@ for fd in list(bot.MAILBOXES):
 for fd in list(bot.SESSIONS):
     bot.SESSIONS.pop(fd)
 for tid in (1, 2, 3):
-    m = bot._get_mailbox(UID, tid)
+    m = bot._get_mailbox(F(UID, tid))
     m.current_job = bot.QueuedJob(update=None, text=f"job {tid}", user_id=UID)
 zeile("A-4: drei rechnende Zimmer füllen die Grenze",
       bot.darf_starten(UID, 9) is False)
 _wartend = bot.UserSession(client=None)
 _wartend.pending_permissions = {"r1": "wartet auf Adam"}
-bot.SESSIONS[bot.faden(UID, 2)] = _wartend
+bot.SESSIONS[F(UID, 2)] = _wartend
 zeile("A-4: ein Zimmer, das auf eine Freigabe wartet, zählt NICHT als rechnend",
       bot.arbeitende_zimmer(UID) == 2 and bot.darf_starten(UID, 9) is True,
       gemessen=str(bot.arbeitende_zimmer(UID)))
@@ -424,12 +446,12 @@ async def _run_attrappe(uid, job):
 
 
 bot._run_job = _run_attrappe
-_mb4 = bot._get_mailbox(UID, 4)
+_mb4 = bot._get_mailbox(F(UID, 4))
 _mb4.queue.append(bot.QueuedJob(update=None, text="wartet", user_id=UID))
 
 
 async def _kurz_laufen():
-    _t_ = asyncio.ensure_future(bot._session_worker(UID, 4))
+    _t_ = asyncio.ensure_future(bot._session_worker(F(UID, 4)))
     await asyncio.sleep(0.05)
     _t_.cancel()
     try:
@@ -452,9 +474,9 @@ _geschlossen: list = []
 _echt_close = bot.close_session
 
 
-async def _close_attrappe(uid, tid=None):
-    _geschlossen.append((uid, tid))
-    bot.SESSIONS.pop(bot.faden(uid, tid), None)
+async def _close_attrappe(fd):
+    _geschlossen.append((fd.person, fd.thema))
+    bot.SESSIONS.pop(fd, None)
 
 
 bot.close_session = _close_attrappe
@@ -462,7 +484,7 @@ _alt_intervall = bot.STALL_CHECK_INTERVAL_S
 bot.STALL_CHECK_INTERVAL_S = 0.01
 _schlaefrig = bot.UserSession(client=None)
 _schlaefrig.last_activity = _t.monotonic() - 99 * 60
-bot.SESSIONS[bot.faden(UID, 8)] = _schlaefrig
+bot.SESSIONS[F(UID, 8)] = _schlaefrig
 
 
 async def _wache_kurz():
@@ -528,8 +550,9 @@ zeile("A-3: ohne Nachricht gilt fail-closed",
 
 # Der Deckel je Lauf — ausgeführt, mit echtem Werkzeug.
 bot._EMPFANG[UID] = {"client": None, "schloss": asyncio.Lock(), "bot": None,
-                     "chat_id": UID, "nur_antworten": False, "zettel_im_lauf": 0}
-bot._ensure_worker = lambda uid, tid=None: None
+                     "chat_id": CHAT_PRUEF, "nur_antworten": False,
+                     "zettel_im_lauf": 0}
+bot._ensure_worker = lambda fd: None
 _erg = [lauf(werkzeug({"zimmer": "Hauptchat", "text": f"auftrag {i}"}))
         for i in range(bot.EMPFANG_ZETTEL_JE_LAUF + 1)]
 zeile("A-3: der Deckel je Lauf greift beim Zettel darüber",
@@ -581,16 +604,16 @@ print("-- A-2: Rückadresse, Kennung, Zwilling")
 
 for fd in list(bot.MAILBOXES):
     bot.MAILBOXES.pop(fd)
-bot._ensure_worker = lambda uid, tid=None: None
-bot.auftrag_einreihen(UID, 47, "etwas tun", chat_id=-100)
-_j = bot._get_mailbox(UID, 47).queue[-1]
+bot._ensure_worker = lambda fd: None
+bot.auftrag_einreihen(F(UID, 47, chat=-100), "etwas tun")
+_j = bot._get_mailbox(F(UID, 47, chat=-100)).queue[-1]
 zeile("A-2: der Auftrag trägt seine Rückadresse ins ZIMMER, nicht ins General",
       _j.output_thread_id == 47,
       gemessen=f"output_thread_id={_j.output_thread_id}")
 zeile("A-2: eine ausdrücklich genannte Rückadresse gewinnt (Gegenrichtung)",
-      bot.auftrag_einreihen(UID, 47, "x", chat_id=-100,
+      bot.auftrag_einreihen(F(UID, 47, chat=-100), "x",
                             output_thread_id=9) is not None
-      and bot._get_mailbox(UID, 47).queue[-1].output_thread_id == 9)
+      and bot._get_mailbox(F(UID, 47, chat=-100)).queue[-1].output_thread_id == 9)
 
 # Zwei Aufträge aus dem Empfang in derselben Sekunde: verschiedene Kennungen.
 _a = bot.QueuedJob(update=None, text="a", user_id=UID, zettel_id=-1,
@@ -604,11 +627,12 @@ zeile("A-2: zwei Aufträge aus dem Empfang haben verschiedene Kennungen",
 # Der Zwilling eines Empfangs-Auftrags gilt als eingearbeitet.
 bot._ZETTEL.clear()
 _lauf_job = bot.QueuedJob(update=None, text="laeuft", user_id=UID,
-                          received_at=500.0, message_id=3)
-_mbz = bot._get_mailbox(UID, None)
+                          chat_id=CHAT_PRUEF, received_at=500.0, message_id=3)
+_mbz = bot._get_mailbox(F(UID, None))
 _mbz.queue.clear()
 _mbz.current_job = _lauf_job
-_zw = bot.QueuedJob(update=None, text="zwilling", user_id=UID, chat_id=UID,
+_zw = bot.QueuedJob(update=None, text="zwilling", user_id=UID,
+                    chat_id=CHAT_PRUEF,
                     zettel_id=-77, received_at=900.0)
 _mbz.queue.append(_zw)
 bot._ZETTEL[bot.zettel_schluessel(_zw)] = {"auftrag": "x", "gelesen": True,
@@ -634,8 +658,8 @@ for fd in list(bot.SESSIONS):
 bot._USER_PREFS.pop(str(UID), None)
 _s_haupt = bot.UserSession(client=None)
 _s_zimmer = bot.UserSession(client=None)
-bot.SESSIONS[bot.faden(UID, None)] = _s_haupt
-bot.SESSIONS[bot.faden(UID, 47)] = _s_zimmer
+bot.SESSIONS[F(UID, None)] = _s_haupt
+bot.SESSIONS[F(UID, 47)] = _s_zimmer
 
 bot.vorlesen_setzen(UID, True)
 zeile("A-6: Vorlesen wirkt in ALLEN Zimmern der Person",
@@ -669,7 +693,7 @@ zeile("A-6: und nimmt sie überall zurück (Gegenrichtung)",
 
 # Ein Zimmer einer ANDEREN Person bleibt unberührt.
 _fremd_sess = bot.UserSession(client=None)
-bot.SESSIONS[bot.faden(9999, None)] = _fremd_sess
+bot.SESSIONS[F(9999, None)] = _fremd_sess
 bot.vorlesen_setzen(UID, True)
 zeile("A-6: eine andere Person ist nicht betroffen (Gegenrichtung)",
       not _fremd_sess.tts_enabled)
@@ -749,10 +773,10 @@ for _f in Path(_pending._DIR).glob("*.json"):
     _f.unlink()
 for fd in list(bot.MAILBOXES):
     bot.MAILBOXES.pop(fd)
-bot._ensure_worker = lambda uid, tid=None: None
+bot._ensure_worker = lambda fd: None
 
-_e = bot.auftrag_einreihen(UID, 47, "MIGRATION.md lesen", chat_id=-100)
-_job = bot._get_mailbox(UID, 47).queue[-1]
+_e = bot.auftrag_einreihen(F(UID, 47, chat=-100), "MIGRATION.md lesen")
+_job = bot._get_mailbox(F(UID, 47, chat=-100)).queue[-1]
 # `load_all` liefert eine LISTE, jeder Datensatz mit `_key` — nachgesehen,
 # nicht angenommen; meine erste Fassung hier las ihn als Verzeichnis.
 _saetze = _pending.load_all()
@@ -788,7 +812,7 @@ bot._RESUMED_KEYS.clear()
 
 # Der Reconcile braucht nur `app.bot` — hier nichts, es wird nichts gesendet.
 _meldung = bot._reconcile_pending(type("A", (), {"bot": None})())
-_wieder = bot._get_mailbox(UID, 47).queue
+_wieder = bot._get_mailbox(F(UID, 47, chat=-100)).queue
 zeile("3c-1: der ECHTE Reconcile holt den Auftrag ins richtige Zimmer",
       len(_wieder) == 1 and _wieder[0].text == "MIGRATION.md lesen",
       gemessen=f"{_meldung} · {[j.text for j in _wieder]}")
@@ -833,7 +857,7 @@ _mb = bot.Mailbox()
 _mb.current_job = bot.QueuedJob(update=None, text="haengt", user_id=UID,
                                 chat_id=-100, thread_id=47, bot=_MeldeBot())
 _mb.current_started = _t.monotonic() - 999
-lauf(bot._handle_stalled_session(UID, _mb, None, 999.0, thread_id=47))
+lauf(bot._handle_stalled_session(F(UID, 47), _mb, None, 999.0))
 zeile("A-5: die Stall-Meldung nennt das Zimmer, das hängt",
       any(g.get("message_thread_id") == 47 for g in _GESENDET),
       gemessen=str(_GESENDET)[:200])

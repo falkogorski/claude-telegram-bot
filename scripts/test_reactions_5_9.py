@@ -32,6 +32,20 @@ os.environ["ALLOWED_USER_IDS"] = "4242"  # erzwungen: hermetisch (nie geerbte ec
 from telegram import ReactionTypeEmoji  # noqa: E402
 
 import bot        # noqa: E402
+
+# Der Chat des Pruefstands (F-22: der Schluessel traegt ihn).
+CHAT_PRUEF = 999
+
+
+def F(person, thema=None, chat=None):
+    """Ein Faden fuer den Pruefstand — `chat` faellt auf `CHAT_PRUEF` zurueck.
+
+    **[NEU 11.09.2026, F-22]** Der Schluessel traegt jetzt drei Teile. Ein
+    Helfer statt 44 einzelner Aufrufe: Wer den Chat wechseln will, uebergibt
+    ihn; wer nur ein Zimmer meint, schreibt weiter zwei Zahlen.
+    """
+    return bot.faden(person, CHAT_PRUEF if chat is None else chat, thema)
+
 import pending    # noqa: E402
 import reactions  # noqa: E402
 
@@ -69,9 +83,9 @@ def _fail(msg: str) -> None:
 
 
 async def main() -> None:
-    bot._ensure_worker = lambda uid, thread_id=None: None   # kein echter Worker im Test
+    bot._ensure_worker = lambda fd: None   # kein echter Worker im Test
     fake = FakeBot()
-    mb = bot._get_mailbox(UID)
+    mb = bot._get_mailbox(F(UID, None, chat=CHAT))
 
     # (1) Reaktion 👍 auf registrierte Frage → Job = Antwort
     reactions.register_question(CHAT, 500, "Soll ich das so umsetzen?")
@@ -116,7 +130,7 @@ async def main() -> None:
     # (5) Permission-Vorrang: wartende Freigabe frisst 👍
     loop = asyncio.get_running_loop()
     fut = loop.create_future()
-    bot.SESSIONS[bot.faden(UID)] = SimpleNamespace(
+    bot.SESSIONS[bot.faden(UID, UID, None)] = SimpleNamespace(
         message_permissions={600: "req-1"},
         pending_permissions={"req-1": (loop, fut)},
         logger=None,
@@ -127,7 +141,7 @@ async def main() -> None:
         _fail("Permission wurde nicht per Reaktion aufgelöst")
     if mb.queue:
         _fail("Permission-Reaktion hat zusätzlich einen 5.9-Job erzeugt")
-    bot.SESSIONS.pop(bot.faden(UID), None)
+    bot.SESSIONS.pop(bot.faden(UID, UID, None), None)
     print("✓ Permission-Vorrang: 👍 löst Freigabe, kein Doppel-Job")
 
     # (6) Ziffern-Knopf → Job „Option N"

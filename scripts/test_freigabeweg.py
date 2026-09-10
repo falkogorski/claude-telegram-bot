@@ -35,6 +35,14 @@ os.environ["BASHFREI_PROTOKOLL"] = str(_TMP / "bashfreigabe.jsonl")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import bot                                                      # noqa: E402
 
+CHAT_PRUEF = 999
+
+
+def F(person, thema=None, chat=None):
+    """Ein Faden fuer den Pruefstand (F-22: der Schluessel traegt drei Teile)."""
+    return bot.faden(person, CHAT_PRUEF if chat is None else chat, thema)
+
+
 fehler: list[str] = []
 zeilen = 0
 
@@ -83,9 +91,9 @@ async def _lauf(antwort: str = "allow", werkzeug: str = "Write",
     sess = bot.UserSession(client=None, chat_id=999)
     sess.bot = _BotAttrappe()
     sess.thread_id = thread_id
-    bot.SESSIONS[bot.faden(UID, thread_id)] = sess
+    bot.SESSIONS[F(UID, thread_id)] = sess
 
-    rueckruf = bot.make_permission_callback(UID, thread_id)
+    rueckruf = bot.make_permission_callback(F(UID, thread_id))
 
     async def _adam_drueckt():
         # Wie der echte Knopf: warten, bis die Anfrage registriert ist, dann

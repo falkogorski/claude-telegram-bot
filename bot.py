@@ -19,7 +19,7 @@ import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 from dotenv import load_dotenv
 from telegram import BotCommand, CopyTextButton, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, MessageEntity, ReactionTypeEmoji, ReplyKeyboardMarkup, ReplyParameters, Update
@@ -1652,10 +1652,27 @@ class UserSession:
 #
 # **`thread_id = None` ist der Hauptfaden** — der Chat ohne Thema. Das ist
 # heute der Normalfall und bleibt es; der Umbau ändert für ihn nichts.
-Faden = tuple[int, "int | None"]
+class Faden(NamedTuple):
+    """Der Schlüssel eines Zimmers: **Person, Chat und Thema.**
+
+    **[GEAENDERT 10.09.2026, F-22]** Bis heute war es `(person, thema)` — und
+    damit fielen Privatchat, der General-Bereich einer Forum-Gruppe und jede
+    normale Gruppe auf **denselben** Schlüssel `(uid, None)`. Eine Sitzung,
+    ein Protokoll, eine Warteschlange für drei verschiedene Orte.
+
+    **Warum ein benannter Typ und kein längeres Tupel:** Ein Tupel wird über
+    Zahlen gelesen (`fd.thema`), und beim Einfügen eines Feldes zeigt jede dieser
+    Stellen still auf etwas anderes. `fd.thema` kann das nicht — wer den Namen
+    nicht kennt, bekommt einen Fehler statt einer falschen Antwort. Das ist
+    der Unterschied zwischen einem Bruch, der auffällt, und einem, der wie
+    Ruhe aussieht.
+    """
+    person: int
+    chat: "int | None"
+    thema: "int | None"
 
 
-def faden(user_id: int, thread_id: "int | None" = None) -> Faden:
+def faden(user_id: int, chat_id: "int | None", thread_id: "int | None") -> Faden:
     """Der Schlüssel eines Zimmers: Person **und** Thema.
 
     **Die Person allein genügt nicht mehr**, sobald zwei Zimmer gleichzeitig
@@ -1666,29 +1683,59 @@ def faden(user_id: int, thread_id: "int | None" = None) -> Faden:
     erzeugt zwei Zimmer für dasselbe Thema — und das fiele erst auf, wenn eine
     Antwort im falschen landet.
     """
-    return (int(user_id), thread_id)
+    return Faden(int(user_id),
+                 int(chat_id) if chat_id is not None else None,
+                 thread_id)
 
 
 SESSIONS: dict[Faden, UserSession] = {}
 
 
-def _mb_opt(user_id: int, thread_id: "int | None" = None) -> "Mailbox | None":
+def _mb_opt(fd: Faden) -> "Mailbox | None":
     """Die Warteschlange dieses Zimmers, **ohne sie anzulegen**.
 
     Der Unterschied zu `_get_mailbox` ist bedeutsam: Ein Waechter, der nur
     nachsieht, darf kein Zimmer erzeugen — sonst zaehlt er gleich darauf sein
     eigenes Werk mit.
     """
-    return MAILBOXES.get(faden(user_id, thread_id))
+    return MAILBOXES.get(fd)
 
 
-def _sess(user_id: int, thread_id: "int | None" = None) -> "UserSession | None":
+def _sess(fd: Faden) -> "UserSession | None":
     """Die Sitzung dieses Zimmers — oder `None`.
 
     Ersetzt `_sess(user_id)` an allen Stellen. **Eine Tür statt
     vierzig**: Wer den Schlüssel ändert, ändert ihn hier.
     """
-    return SESSIONS.get(faden(user_id, thread_id))
+    return SESSIONS.get(fd)
+
+
+def faden_von_update(update) -> Faden:
+    """Aus einem Update den Faden — **die eine Tür von aussen herein.**
+
+    **[NEU 10.09.2026, F-22]** Vorher wurde der Faden aus zwei Zahlen gebildet,
+    die jede Aufrufstelle einzeln herbeischaffen musste. Der Chat fehlte dabei
+    ueberall, und niemand konnte es sehen: `(uid, None)` sah fuer den
+    Privatchat genauso aus wie fuer eine Gruppe.
+
+    Hier kommen alle drei Teile aus **einer** Quelle. Wer den Faden aus einem
+    Update bildet, ruft das hier; wer ihn weiterreicht, reicht den Wert.
+    """
+    chat = getattr(update, "effective_chat", None)
+    person = getattr(update, "effective_user", None)
+    return faden(getattr(person, "id", 0),
+                 getattr(chat, "id", None),
+                 fd_von_update(update))
+
+
+def faden_von_job(job) -> Faden:
+    """Aus einem Auftrag den Faden — die Tür fuer alles, was schon laeuft.
+
+    Aus **Primitiven** (5.2), damit sie auch fuer nachgeholte Auftraege gilt:
+    Dort gibt es kein lebendes Update mehr.
+    """
+    return faden(getattr(job, "user_id", 0), getattr(job, "chat_id", None),
+                 getattr(job, "thread_id", None))
 
 
 def fd_von_update(update) -> "int | None":
@@ -1756,7 +1803,7 @@ def _alle_sess(user_id: int) -> "list[UserSession]":
     Faden der Nachricht naehme, haette den Schalter in einem Zimmer umgelegt und
     in den anderen nicht -- ohne dass es jemand sieht.
     """
-    return [s for fd, s in list(SESSIONS.items()) if fd[0] == int(user_id)]
+    return [s for fd, s in list(SESSIONS.items()) if fd.person == int(user_id)]
 
 
 def _sess_mit_botnachricht(user_id: int, message_id: int) -> "UserSession | None":
@@ -1768,7 +1815,7 @@ def _sess_mit_botnachricht(user_id: int, message_id: int) -> "UserSession | None
     wurde -- und die kennt genau eine Sitzung.
     """
     for fd, s in list(SESSIONS.items()):
-        if fd[0] == int(user_id) and message_id in s.message_permissions:
+        if fd.person == int(user_id) and message_id in s.message_permissions:
             return s
     return None
 
@@ -1784,7 +1831,7 @@ def _sess_mit_anfrage(user_id: int, request_id: str) -> "UserSession | None":
     Fail-closed im Wortsinn: Findet sich kein Zimmer, wird nichts freigegeben.
     """
     for fd, s in list(SESSIONS.items()):
-        if fd[0] == int(user_id) and request_id in s.pending_permissions:
+        if fd.person == int(user_id) and request_id in s.pending_permissions:
             return s
     return None
 
@@ -1811,7 +1858,7 @@ def leitstand(user_id: "int | None" = None) -> "list[dict]":
     zeilen: list[dict] = []
     for fd in sorted(set(MAILBOXES) | set(SESSIONS),
                      key=lambda f: (f[0], -1 if f[1] is None else f[1])):
-        if user_id is not None and fd[0] != int(user_id):
+        if user_id is not None and fd.person != int(user_id):
             continue
         mb = MAILBOXES.get(fd)
         sess = SESSIONS.get(fd)
@@ -1819,22 +1866,22 @@ def leitstand(user_id: "int | None" = None) -> "list[dict]":
         chat_id = (getattr(job, "chat_id", None)
                    or getattr(sess, "chat_id", None))
         name = None
-        if fd[1] is not None:
+        if fd.thema is not None:
             try:
-                name = channels.zimmer_name_fuer(_USER_PREFS, chat_id, fd[1])
+                name = channels.zimmer_name_fuer(_USER_PREFS, chat_id, fd.thema)
             except Exception:
                 log.exception("Leitstand: Zimmername nicht aufloesbar (nicht-fatal)")
         letzte = (mb.done_log[-1] if mb is not None and mb.done_log else None)
         zeilen.append({
             "faden": fd,
-            "user_id": fd[0],
-            "thread_id": fd[1],
+            "user_id": fd.person,
+            "thread_id": fd.thema,
             # **[NEU 10.09.2026, Block 3]** Der Chat gehoert zur Adresse.
             # Ein Thema ist nur INNERHALB eines Chats eindeutig -- wer aus
             # dieser Liste ein Ziel bauen will (der Empfang tut das), braucht
             # beides. Ohne den Chat waere die Adresse geraten.
             "chat_id": chat_id,
-            "name": name or ("Hauptchat" if fd[1] is None else f"Zimmer {fd[1]}"),
+            "name": name or ("Hauptchat" if fd.thema is None else f"Zimmer {fd.thema}"),
             "wach": sess is not None,
             "arbeitet_an": _job_preview(job.text) if job is not None else None,
             # Dauer, aus monotonic -- nur gueltig, wenn wirklich etwas laeuft.
@@ -1848,7 +1895,7 @@ def leitstand(user_id: "int | None" = None) -> "list[dict]":
             "still_s": (jetzt_mono - sess.last_activity
                         if sess is not None and getattr(sess, "last_activity", 0)
                         else None),
-            "pausiert_rest_s": (pause_rest_s(mb, fd[0]) if mb is not None else 0.0),
+            "pausiert_rest_s": (pause_rest_s(mb, fd.person) if mb is not None else 0.0),
         })
     return zeilen
 
@@ -2076,12 +2123,12 @@ def _note_voice_audio(key: str | None, path: Path) -> None:
 _LAST_TRANSCRIPTION: dict[int, str] = {}
 
 
-def _get_mailbox(user_id: int, thread_id: "int | None" = None) -> Mailbox:
+def _get_mailbox(fd: Faden) -> Mailbox:
     """Die Warteschlange dieses Zimmers — wird angelegt, wenn es sie nicht gibt.
 
     `thread_id=None` ist der Hauptfaden; bis zum 09.09.2026 gab es nur ihn.
     """
-    schluessel = faden(user_id, thread_id)
+    schluessel = fd
     mb = MAILBOXES.get(schluessel)
     if mb is None:
         mb = Mailbox()
@@ -2134,7 +2181,7 @@ def arbeitende_zimmer(user_id: int, ausser: "int | None" = None) -> int:
     """
     treffer = 0
     for fd, mb in list(MAILBOXES.items()):
-        if fd[0] != int(user_id) or fd[1] == ausser or mb.current_job is None:
+        if fd.person != int(user_id) or fd.thema == ausser or mb.current_job is None:
             continue
         # **[NEU 10.09.2026, Ultracode-Befund A-4] Wer auf Adams Freigabe
         # wartet, RECHNET NICHT.**
@@ -2219,7 +2266,7 @@ def darf_starten(user_id: int, thread_id: "int | None" = None) -> bool:
     return arbeitende_zimmer(user_id, ausser=thread_id) < ZIMMER_GLEICHZEITIG
 
 
-def _ensure_worker(user_id: int, thread_id: "int | None" = None) -> None:
+def _ensure_worker(fd: Faden) -> None:
     """Startet den Drain-Worker DIESES ZIMMERS, falls keiner läuft.
 
     Synchron (kein await) → atomar gegenüber nebenläufigen Handler-Aufrufen.
@@ -2229,13 +2276,15 @@ def _ensure_worker(user_id: int, thread_id: "int | None" = None) -> None:
     arbeiten**. Ohne den Faden liefe fuer beide derselbe Worker, und das
     zweite Zimmer wartete auf das erste.
     """
-    mb = _get_mailbox(user_id, thread_id)
+    mb = _get_mailbox(fd)
     if mb.worker is None or mb.worker.done():
-        mb.worker = asyncio.create_task(_session_worker(user_id, thread_id))
+        mb.worker = asyncio.create_task(_session_worker(fd))
 
 
-async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
-    mb = _get_mailbox(user_id, thread_id)
+async def _session_worker(fd: Faden) -> None:
+    # Person und Thema aus dem Faden -- eine Quelle, kein zweiter Parameter.
+    user_id, thread_id = fd.person, fd.thema
+    mb = _get_mailbox(fd)
     while mb.queue:
         # H2 Ebene 1: Warten statt Wegwerfen. In Häppchen schlafen, damit ein
         # früher gesetzter Reset (oder ein Neustart) nicht ausgesessen wird.
@@ -2317,7 +2366,7 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
             # Nichts -- die Nachricht war da, die Antwort auch, und dazwischen
             # stuende eine Luecke, die niemand erklaeren kann.
             try:
-                _s = _sess(user_id, thread_id)
+                _s = _sess(faden_von_job(job))
                 if _s is not None and _s.logger is not None:
                     _s.logger.log_event(
                         "↩️ derselbe Nachtrag lag zusaetzlich in der Warteschlange — "
@@ -2346,7 +2395,7 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
             mb.current_job = None
             # Reste dieses Auftrags wegwerfen -- ein Zettel, der es nicht mehr
             # hineingeschafft hat, darf den NAECHSTEN Auftrag nicht erreichen.
-            nachsteuer_aufraeumen(user_id, thread_id, _auftrag_kennung(job),
+            nachsteuer_aufraeumen(faden_von_job(job), _auftrag_kennung(job),
                                   beantwortet=(outcome == "beantwortet"))
         # S1/G6: Erst hier steht fest, ob wirklich etwas herauskam.
         if job.links_abhaken:
@@ -2372,7 +2421,7 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
         # gespeicherten neuen Prefs (Modell/Tempo) auf.
         if mb.switch_pending:
             mb.switch_pending = False
-            await close_session(user_id, thread_id)
+            await close_session(fd)
     mb.worker = None
 
 
@@ -2417,7 +2466,7 @@ def _neuere_wartende(user_id: int, job: QueuedJob) -> "tuple[int, int]":
     das der Bot selbst bricht, ist schlimmer als gar keine Zeile.**
     """
     try:
-        mb = _mb_opt(user_id, job.thread_id)
+        mb = _mb_opt(faden_von_job(job))
         if not mb or not mb.queue:
             return 0, 0
         neuer = [j for j in mb.queue if j.received_at > job.received_at]
@@ -2519,7 +2568,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
     # **[GEAENDERT 09.09.2026]** Die Sitzung gehoert dem Zimmer, aus dem die
     # Nachricht kam — sonst antworteten zwei Zimmer aus derselben Sitzung und
     # teilten sich einen Gespraechsfaden.
-    sess = await ensure_session(user_id, thread_id=job.thread_id)
+    sess = await ensure_session(faden_von_job(job))
     # 5.25 (a): Herkunfts-Menge PRO AUFGABE frisch aufsetzen — Adressen aus Adams
     # Nachricht; Suchtreffer der Aufgabe kommen in stream_response dazu. Nur
     # dorthin darf WebFetch ohne Rückfrage.
@@ -2608,7 +2657,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 # richtig; hier fehlte dieselbe Behandlung. **Ein Zugangsfehler
                 # ist kein Scheitern der Nachricht, sondern ein Zustand des
                 # Systems** — die Nachricht ist nur noch nicht dran.
-                mb = _get_mailbox(user_id, job.thread_id)
+                mb = _get_mailbox(faden_von_job(job))
                 mb.queue.appendleft(job)
                 if job.pending_key:
                     pending.set_status(job.pending_key, pending.STATUS_OPEN)
@@ -2625,7 +2674,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                         parse_mode=ParseMode.MARKDOWN)
                 except Exception:
                     log.exception("failed to send auth-error message")
-                await close_session(user_id, job.thread_id)
+                await close_session(faden_von_job(job))
                 return "zurueckgelegt"
             # H2 Ebene 1: Kontingent-Limit — die Nachricht ist NICHT gescheitert,
             # sie ist nur noch nicht dran. Sie geht unverändert zurück an den
@@ -2633,7 +2682,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             # Worker legt sich bis zum Reset schlafen und spielt danach alles
             # der Reihe nach nach. Nichts geht verloren.
             if is_session_limit(e):
-                mb = _get_mailbox(user_id, job.thread_id)
+                mb = _get_mailbox(faden_von_job(job))
                 # **[RANG A, Stelle 6 — 29.08.] Die Rueckstellung ist jetzt eine
                 # eigene Funktion**, damit ein Pruefer sie AUFRUFEN kann.
                 # Vorher stand sie hier inline, und der Pruefer baute sie in
@@ -2665,7 +2714,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     )
                 except Exception:
                     log.exception("failed to send session-limit message")
-                await close_session(user_id, job.thread_id)
+                await close_session(faden_von_job(job))
                 return "offen"
             # H1: Transportgrenze der Leitung — eigener Zweig mit ehrlicher,
             # verständlicher Meldung. Vorher fiel dieser Fall in den allgemeinen
@@ -2685,7 +2734,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     )
                 except Exception:
                     log.exception("failed to send transport-overflow message")
-                await close_session(user_id, job.thread_id)
+                await close_session(faden_von_job(job))
                 return "aufgegeben"
             # Kontext-Überlauf: Session verwerfen, frisch starten und die
             # gescheiterte Nachricht AUTOMATISCH neu verarbeiten (kein Nutzer-Eingriff,
@@ -2693,9 +2742,9 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             if is_context_overflow(e):
                 if not job.context_retry:
                     log.warning("context overflow user_id=%s — rotiere Session + retry", user_id)
-                    await close_session(user_id, job.thread_id)
+                    await close_session(faden_von_job(job))
                     job.context_retry = True
-                    mb = _get_mailbox(user_id, job.thread_id)
+                    mb = _get_mailbox(faden_von_job(job))
                     mb.queue.appendleft(job)  # als Nächstes mit frischer Session
                     try:
                         # **[NEU 10.09.2026]** Diese Stelle stand in KEINER
@@ -2721,7 +2770,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     )
                 except Exception:
                     log.exception("failed to send context-overflow message")
-                await close_session(user_id, job.thread_id)
+                await close_session(faden_von_job(job))
                 return "aufgegeben"
             try:
                 await send_chunked(
@@ -2734,7 +2783,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 )
             except Exception:
                 log.exception("failed to send error message to user")
-            await close_session(user_id, job.thread_id)
+            await close_session(faden_von_job(job))
             return "fehler"
 
     # Senden erst JETZT — nach der Pre-Send-Prüfung (8.5), über den zentralen
@@ -3813,7 +3862,7 @@ def format_tool_call(tool_name: str, tool_input: dict[str, Any],
 
 # ---------- permission callback ----------
 
-def make_permission_callback(user_id: int, thread_id: "int | None" = None):
+def make_permission_callback(fd: Faden):
     """Returns a can_use_tool callback bound to this user AND this room.
 
     **[GEAENDERT 09.09.2026]** Bis hierher war der Rueckruf nur an die Person
@@ -3827,13 +3876,15 @@ def make_permission_callback(user_id: int, thread_id: "int | None" = None):
     right loop. Resolving a future from the wrong loop fails silently in some
     Python versions and that was masking real deadlocks.
     """
+    # Die Teile des Fadens -- eine Quelle, keine drei Parameter.
+    user_id, chat_id, thread_id = fd
 
     async def can_use_tool(
         tool_name: str,
         tool_input: dict[str, Any],
         context: ToolPermissionContext,
     ):
-        sess = _sess(user_id, thread_id)
+        sess = _sess(fd)
         if sess is None or sess.bot is None or sess.chat_id is None:
             log.error("permission request with no active session for %s (thread=%s)",
                       user_id, thread_id)
@@ -4752,7 +4803,7 @@ def _treffer_adressen(ergebnis: str) -> list[str]:
 _UNSET = object()  # Sentinel: effort=None ist ein gültiger Wert (Normal)
 
 
-def nachsteuer_ordner(user_id: int, thread_id: "int | None" = None) -> Path:
+def nachsteuer_ordner(fd: Faden) -> Path:
     """Wo Zettel liegen, die einem LAUFENDEN Zimmer nachgereicht werden.
 
     Je Faden ein Ordner: Ein Nachtrag gehoert in das Zimmer, in dem er gesagt
@@ -4760,8 +4811,11 @@ def nachsteuer_ordner(user_id: int, thread_id: "int | None" = None) -> Path:
     """
     basis = Path(os.environ.get("POSTFACH_DIR")
                  or (Path.home() / "postfach")) / "nachsteuern"
-    fd = faden(user_id, thread_id)
-    return basis / f"{fd[0]}_{fd[1] if fd[1] is not None else 'haupt'}"
+    # **[GEAENDERT 10.09.2026, F-22]** Der Chat gehoert in den Ordnernamen:
+    # Der Hauptfaden deckte Privatchat UND Gruppen ab, und zwei Nachrichten
+    # mit derselben Nummer landeten im selben Zettel.
+    chat = fd.chat if fd.chat is not None else "ohne"
+    return basis / f"{fd.person}_{chat}_{fd.thema if fd.thema is not None else 'haupt'}"
 
 
 # **[NEU 09.09.2026, Block 1b]** Zettel-Register (RAM).
@@ -4821,8 +4875,7 @@ def _zettel_schluessel_aus_dateiname(stueck: str):
         return None
 
 
-def nachsteuer_schreiben(user_id: int, thread_id: "int | None",
-                         auftrag: str, schluessel, text: str) -> bool:
+def nachsteuer_schreiben(fd: Faden, auftrag: str, schluessel, text: str) -> bool:
     """Einen Zettel fuer den LAUFENDEN Auftrag ablegen. Wirft nie.
 
     Die Kennung des Auftrags steht im Dateinamen: Ein Zettel, der es nicht mehr
@@ -4842,10 +4895,10 @@ def nachsteuer_schreiben(user_id: int, thread_id: "int | None",
     # kam.
     if not schluessel or (isinstance(schluessel, tuple) and schluessel[1] is None):
         log.warning("Nachsteuern: Zettel ohne Kennung abgelehnt (Zimmer %s)",
-                    thread_id if thread_id is not None else "haupt")
+                    fd.thema if fd.thema is not None else "haupt")
         return False
     try:
-        ordner = nachsteuer_ordner(user_id, thread_id)
+        ordner = nachsteuer_ordner(fd)
         ordner.mkdir(parents=True, exist_ok=True)
         # **Auch der Dateiname traegt den Chat.** Der Ordner steht je Person
         # und Zimmer — aber der Hauptfaden (`thread_id=None`) deckt heute
@@ -4861,8 +4914,7 @@ def nachsteuer_schreiben(user_id: int, thread_id: "int | None",
         return False
 
 
-def nachsteuer_aufraeumen(user_id: int, thread_id: "int | None",
-                          auftrag: str, beantwortet: bool) -> None:
+def nachsteuer_aufraeumen(fd: Faden, auftrag: str, beantwortet: bool) -> None:
     """Auftragsende: Reste wegwerfen und das Register nachziehen. Wirft nie.
 
     Zwei Ausgaenge, und der Unterschied ist der ganze Sinn:
@@ -4872,7 +4924,7 @@ def nachsteuer_aufraeumen(user_id: int, thread_id: "int | None",
       raus, der Zwilling laeuft ganz normal. Nichts geht verloren.
     """
     try:
-        ordner = nachsteuer_ordner(user_id, thread_id)
+        ordner = nachsteuer_ordner(fd)
         if ordner.is_dir():
             for datei in ordner.glob(f"{auftrag}__*.txt"):
                 try:
@@ -4941,8 +4993,7 @@ def zettel_erledigt(schluessel) -> bool:
     return bool(eintrag and eintrag.get("erledigt"))
 
 
-def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None,
-                     auftrag: "str | None" = None) -> str:
+def nachsteuer_lesen(fd: Faden, auftrag: "str | None" = None) -> str:
     """Neue Zettel einsammeln und **verbrauchen** — oder leerer Text.
 
     **Engywucks Auflage 4 / Auftrag 8.** Adam am 05.09.: *optimieren,
@@ -4958,7 +5009,7 @@ def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None,
     ist besser als ein abgebrochener Bau.
     """
     try:
-        ordner = nachsteuer_ordner(user_id, thread_id)
+        ordner = nachsteuer_ordner(fd)
         if not ordner.is_dir():
             return ""
         stuecke: list[str] = []
@@ -4986,7 +5037,7 @@ def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None,
         return ""
 
 
-def _nachsteuer_hook(user_id: int, thread_id: "int | None" = None):
+def _nachsteuer_hook(fd: Faden):
     """Der PreToolUse-Hook dieses Zimmers.
 
     Reicht Adams Nachtrag **an der naechsten Werkzeuggrenze** hinein — also
@@ -4998,13 +5049,14 @@ def _nachsteuer_hook(user_id: int, thread_id: "int | None" = None):
     async def _hook(eingabe, tool_use_id, context):
         # Der Hook laeuft IM laufenden Auftrag -- `mb.current_job` ist also
         # genau dieser. Damit liest er nur Zettel, die fuer ihn gedacht sind.
-        _mb = _mb_opt(user_id, thread_id)
+        _mb = _mb_opt(fd)
         _kennung = _auftrag_kennung(_mb.current_job if _mb is not None else None)
-        text = nachsteuer_lesen(user_id, thread_id, auftrag=_kennung)
+        text = nachsteuer_lesen(fd, auftrag=_kennung)
         if not text:
             return {}
         log.info("Nachsteuern: %d Zeichen an den laufenden Auftrag gereicht "
-                 "(Zimmer %s)", len(text), thread_id if thread_id is not None else "haupt")
+                 "(Zimmer %s)", len(text),
+                 fd.thema if fd.thema is not None else "haupt")
         # **[NEU 09.09.2026, Engywucks Befund B2-1]** Auch ins Gespraechsprotokoll.
         #
         # Ohne diese Zeilen verschwindet Adams Nachtrag aus dem **einzigen
@@ -5013,7 +5065,7 @@ def _nachsteuer_hook(user_id: int, thread_id: "int | None" = None):
         # uebersprungene Zwilling laeuft nie. Ausgerechnet die Nachricht, die
         # der fliessende Dialog schneller machen soll, fehlte im Protokoll.
         try:
-            _s = _sess(user_id, thread_id)
+            _s = _sess(fd)
             if _s is not None and _s.logger is not None:
                 _s.logger.log_event("📨 nachgesteuert, waehrend gearbeitet wurde")
                 _s.logger.log_user(text)
@@ -5029,9 +5081,8 @@ def _nachsteuer_hook(user_id: int, thread_id: "int | None" = None):
     return _hook
 
 
-def hauptsitzungs_optionen(*, user_id: int, model_full: str, effort,
-                           add_dirs: list, context, context_via_file: bool,
-                           thread_id: "int | None" = None):
+def hauptsitzungs_optionen(*, fd: Faden, model_full: str, effort,
+                           add_dirs: list, context, context_via_file: bool):
     """Die Optionen der HAUPTsitzung — als eigene Funktion, damit sie prüfbar ist.
 
     **Warum sie herausgezogen ist** (Engywuck, Befund K, 23.08.): Für die
@@ -5053,7 +5104,7 @@ def hauptsitzungs_optionen(*, user_id: int, model_full: str, effort,
     return ClaudeAgentOptions(
         cwd=str(WORKDIR),
         permission_mode="default",
-        can_use_tool=make_permission_callback(user_id, thread_id),
+        can_use_tool=make_permission_callback(fd),
         model=model_full,
         effort=effort,
         add_dirs=add_dirs,
@@ -5067,7 +5118,7 @@ def hauptsitzungs_optionen(*, user_id: int, model_full: str, effort,
         # sieht vor jedem Werkzeugaufruf nach, ob Adam etwas nachgereicht hat.
         # `matcher=None` heisst: bei jedem Werkzeug — der Nachtrag soll an der
         # NAECHSTEN Grenze ankommen, nicht an einer bestimmten.
-        hooks={"PreToolUse": [HookMatcher(hooks=[_nachsteuer_hook(user_id, thread_id)])]},
+        hooks={"PreToolUse": [HookMatcher(hooks=[_nachsteuer_hook(fd)])]},
         setting_sources=["project"] if context_via_file else None,
         system_prompt={
             "type": "preset",
@@ -5078,9 +5129,8 @@ def hauptsitzungs_optionen(*, user_id: int, model_full: str, effort,
 
 
 async def ensure_session(
-    user_id: int,
+    fd: Faden,
     *,
-    thread_id: "int | None" = None,
     model_override: str | None = None,
     effort_override=_UNSET,
     fresh: bool = False,
@@ -5091,11 +5141,13 @@ async def ensure_session(
     Parameter nicht setzt, bekommt genau das bisherige Verhalten; damit ist der
     Umbau in zwei Zuegen messbar statt in einem Sprung.
     """
-    sess = _sess(user_id, thread_id)
+    # Die Teile des Fadens -- eine Quelle, keine drei Parameter.
+    user_id, chat_id, thread_id = fd
+    sess = _sess(fd)
     if sess is not None and not fresh:
         return sess
     if sess is not None and fresh:
-        await close_session(user_id, thread_id)  # frische Session mit Overrides erzwingen (🎯 Gründlich)
+        await close_session(fd)  # frische Session mit Overrides erzwingen (🎯 Gründlich)
 
     memory = load_user_memory()
     context = _session_context(memory)
@@ -5120,9 +5172,8 @@ async def ensure_session(
     # kann (Session-Diät 5.23) — liegt außerhalb des WORKDIR.
     add_dirs = [str(_MEMORY_DIR)] if _MEMORY_DIR.exists() else []
     options = hauptsitzungs_optionen(
-        user_id=user_id, model_full=model_full, effort=effort,
-        add_dirs=add_dirs, context=context, context_via_file=context_via_file,
-        thread_id=thread_id)
+        fd=fd, model_full=model_full, effort=effort,
+        add_dirs=add_dirs, context=context, context_via_file=context_via_file)
     client = ClaudeSDKClient(options=options)
     await client.connect()
     # 5.25 (c): dauerhaft gemerkte Freigaben laden — dabei SELBSTHEILUNG:
@@ -5139,18 +5190,19 @@ async def ensure_session(
         logger=ConversationLogger(user_id, thread_id),
         always_allowed_tools=_cleaned_allow,
     )
-    SESSIONS[faden(user_id, thread_id)] = sess
+    SESSIONS[fd] = sess
     log.info("opened session for user_id=%s in %s", user_id, WORKDIR)
     return sess
 
 
-async def close_session(user_id: int, thread_id: "int | None" = None) -> None:
+async def close_session(fd: Faden) -> None:
     """`[GEAENDERT 09.09.2026]` Schliesst die Sitzung EINES Zimmers.
 
     Ohne `thread_id` den Hauptfaden — wer `/reset` im Chat tippt, meint sein
     Zimmer, nicht alle.
     """
-    sess = SESSIONS.pop(faden(user_id, thread_id), None)
+    user_id = fd.person
+    sess = SESSIONS.pop(fd, None)
     if sess is None:
         return
     cancel_pending_permissions(sess, reason="session closed by /reset")
@@ -5306,8 +5358,8 @@ async def cmd_reset(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     # **[GEAENDERT 09.09.2026, Block 1b]** Das Zimmer, in dem getippt wird --
     # `/reset` in Zimmer 7 raeumte sonst den Hauptfaden und liess Zimmer 7 stehen.
-    _fd = fd_von_update(update)
-    mb = _mb_opt(user_id, _fd)
+    _fd = faden_von_update(update)
+    mb = _mb_opt(_fd)
     dropped = 0
     if mb is not None:
         dropped = len(mb.queue)
@@ -5316,7 +5368,7 @@ async def cmd_reset(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             mb.worker.cancel()
         mb.worker = None
         mb.current_job = None
-    await close_session(user_id, _fd)
+    await close_session(_fd)
     user_prefs = _USER_PREFS.get(str(user_id), {})
     keyboard = _main_keyboard(
         tts_on=user_prefs.get("tts_enabled", False),
@@ -5425,9 +5477,9 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     # **[GEAENDERT 09.09.2026, Block 1b]** Auskunft ueber DIESES Zimmer -- wer in
     # Zimmer 7 fragt, will nicht die Warteschlange des Hauptchats sehen.
-    _fd = fd_von_update(update)
-    sess = _sess(user_id, _fd)
-    mb = _mb_opt(user_id, _fd)
+    _fd = faden_von_update(update)
+    sess = _sess(_fd)
+    mb = _mb_opt(_fd)
 
     lines: list[str] = ["📋 Übersicht", ""]
 
@@ -5908,8 +5960,8 @@ def empfang_setzen(user_id: int, an: bool) -> None:
 
 # ── Einreihen: EINE Stelle für Adams Nachricht und den Zettel des Empfangs ──
 
-def auftrag_einreihen(user_id: int, thread_id: "int | None", text: str, *,
-                      chat_id: "int | None" = None, bot=None,
+def auftrag_einreihen(fd: Faden, text: str, *,
+                      bot=None,
                       message_id: "int | None" = None,
                       zettel_id: "int | None" = None,
                       output_thread_id: "int | None" = None,
@@ -5925,7 +5977,9 @@ def auftrag_einreihen(user_id: int, thread_id: "int | None", text: str, *,
     Rückgabe: `{"position", "lief", "gereicht", "zettel_id"}`. Der Aufrufer
     formuliert daraus seine Meldung; diese Funktion schreibt keine Texte.
     """
-    mb = _get_mailbox(user_id, thread_id)
+    # Die Teile des Fadens -- eine Quelle, keine drei Parameter.
+    user_id, chat_id, thread_id = fd
+    mb = _get_mailbox(fd)
     lief = mb.current_job is not None
     # **[NEU 10.09.2026, Ultracode-Befund A-2] Die Rueckadresse.**
     #
@@ -5990,14 +6044,15 @@ def auftrag_einreihen(user_id: int, thread_id: "int | None", text: str, *,
         # Auftrags. Der eingereihte Zwilling bleibt als Sicherung liegen und
         # wird übersprungen, sobald der Zettel angekommen UND beantwortet ist.
         gereicht = nachsteuer_schreiben(
-            user_id, thread_id, _auftrag_kennung(mb.current_job),
+            fd, _auftrag_kennung(mb.current_job),
             zettel_schluessel(job), text)
-    _ensure_worker(user_id, thread_id)
+    _ensure_worker(fd)
     return {"position": len(mb.queue), "lief": lief, "gereicht": gereicht,
             "zettel_id": zettel_id}
 
 
-def zimmer_ziel(user_id: int, name: str) -> "dict | None":
+def zimmer_ziel(user_id: int, name: str,
+                standard_chat: "int | None" = None) -> "dict | None":
     """Klarname eines Zimmers → Adresse — oder `None`.
 
     Zwei Quellen, in dieser Reihenfolge:
@@ -6017,7 +6072,13 @@ def zimmer_ziel(user_id: int, name: str) -> "dict | None":
     if not gesucht:
         return None
     if gesucht in ("hauptchat", "haupt", "hauptfaden"):
-        return {"chat_id": int(user_id), "thread_id": None, "name": "Hauptchat"}
+        # **[GEAENDERT 11.09.2026, F-22]** Der Chat wird uebergeben, nicht
+        # geraten. Vorher stand hier `int(user_id)` -- die Annahme, der
+        # Hauptchat sei immer der Privatchat. In einer Gruppe waere der
+        # Auftrag damit in einem Faden gelandet, den es dort nicht gibt.
+        return {"chat_id": int(standard_chat if standard_chat is not None
+                               else user_id),
+                "thread_id": None, "name": "Hauptchat"}
     try:
         treffer = channels.zimmer_aufloesen(_USER_PREFS, name)
     except Exception:
@@ -6086,7 +6147,9 @@ def _empfang_mcp(user_id: int):
             return {"content": [{"type": "text",
                                  "text": "Kein Auftragstext angegeben."}],
                     "is_error": True}
-        ziel = zimmer_ziel(user_id, zimmer)
+        ziel = zimmer_ziel(user_id, zimmer,
+                           standard_chat=(_EMPFANG.get(int(user_id)) or {})
+                           .get("chat_id"))
         if ziel is None:
             # **Der Auftrag geht nicht verloren, er kommt zurück.** Ein still
             # verschwundener Auftrag ist die Fehlerklasse, auf die dieses
@@ -6124,8 +6187,8 @@ def _empfang_mcp(user_id: int):
                                          "antworte Adam einfach kurz."}],
                     "is_error": True}
         erg = auftrag_einreihen(
-            user_id, ziel["thread_id"], text,
-            chat_id=ziel["chat_id"], bot=eintrag.get("bot"))
+            faden(user_id, ziel["chat_id"], ziel["thread_id"]), text,
+            bot=eintrag.get("bot"))
         eintrag["zettel_im_lauf"] = _abgelegt + 1
         log.info("Empfang: Auftrag an %s abgelegt (Position %d, lief=%s, "
                  "Zettel gereicht=%s)", ziel["name"], erg["position"],
@@ -6431,8 +6494,7 @@ def _hat_anhang(log_note: "str | None") -> bool:
     return any((log_note or "").startswith(z) for z in _ANHANG_ZEICHEN)
 
 
-def _empfang_protokoll(user_id: int, frage: str, antwort: str,
-                       thread_id: "int | None" = None) -> None:
+def _empfang_protokoll(fd: Faden, frage: str, antwort: str) -> None:
     """Den Empfangs-Dialog ins Gespraechsprotokoll schreiben. Wirft nie.
 
     **Dieselbe Luecke wie bei Engywucks Befund B2-1:** Eine Nutzernachricht
@@ -6441,8 +6503,10 @@ def _empfang_protokoll(user_id: int, frage: str, antwort: str,
     Gedaechtnis, das Wachposten, Log-Abgleich und Mac-Sitzung lesen. Und der
     Wachposten haette Stille gemeldet, waehrend gesprochen wird.
     """
+    # Die Teile des Fadens -- eine Quelle, keine drei Parameter.
+    user_id, chat_id, thread_id = fd
     try:
-        sess = _sess(user_id, thread_id)
+        sess = _sess(fd)
         logger = sess.logger if sess is not None else None
         if logger is None:
             # **[BERICHTIGT 10.09.2026, Ultracode-Befund A-1]** Hier stand
@@ -6983,7 +7047,7 @@ async def cmd_tts(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     # in JEDEM offenen Zimmer ankommen. Die Sitzung dieses Zimmers gibt den neuen
     # Zustand vor, die uebrigen ziehen mit -- sonst laege der Schalter hier um
     # und dort nicht, ohne dass es jemand sieht.
-    sess = await ensure_session(user_id, thread_id=fd_von_update(update))
+    sess = await ensure_session(faden_von_update(update))
     vorlesen_setzen(user_id, not sess.tts_enabled)
     keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
     if sess.tts_enabled:
@@ -7110,8 +7174,7 @@ async def on_pdf_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         if local_path_obj and local_path_obj.exists() and _ist_direkt_lesbar(local_path_obj):
             try:
                 summary = await _summarize_pdf_direct(local_path_obj)
-                sess = _sess(orig_update.effective_user.id,
-                             fd_von_update(orig_update))
+                sess = _sess(faden_von_update(orig_update))
                 tts_active = bool(sess and sess.tts_enabled)
                 if tts_active:
                     # Voice + Text gekoppelt: Voice mit Text als Caption, statt zweier separater Posts.
@@ -7453,8 +7516,7 @@ async def cmd_quiet(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
     # Block 1b: gilt der Person, wirkt in jedem Zimmer (siehe `/tts`).
-    sess = await ensure_session(update.effective_user.id,
-                                thread_id=fd_von_update(update))
+    sess = await ensure_session(faden_von_update(update))
     sess.quiet = True
     for _s in _alle_sess(update.effective_user.id):
         _s.quiet = True
@@ -7467,8 +7529,7 @@ async def cmd_verbose(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
     # Block 1b: gilt der Person, wirkt in jedem Zimmer (siehe `/tts`).
-    sess = await ensure_session(update.effective_user.id,
-                                thread_id=fd_von_update(update))
+    sess = await ensure_session(faden_von_update(update))
     sess.quiet = False
     for _s in _alle_sess(update.effective_user.id):
         _s.quiet = False
@@ -7977,7 +8038,7 @@ async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     freigabe_sess = _sess_mit_botnachricht(user_id, rx.message_id)
     # Hauptfaden: Reaktionen tragen kein Thema; der Zimmer-Bezug fuer das
     # 5.9-Vokabular kommt mit Block 2 (Protokoll je Zimmer).
-    sess = _sess(user_id, thread_id=None)
+    sess = _sess(faden(user_id, user_id, None))
 
     # ── Vorrang: wartende Permission (👍 Allow / 👎 Deny) — unverändert ──
     if freigabe_sess is not None:
@@ -8095,7 +8156,7 @@ async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
            if frage is not None else " Reagiere angemessen knapp.")
         + "]"
     )
-    _enqueue_reaction_job(user_id, chat_id, rx.message_id, prompt, update.get_bot())
+    _enqueue_reaction_job(faden(user_id, chat_id, None), chat_id, rx.message_id, prompt, update.get_bot())
 
 
 async def _handle_reaction_withdrawal(user_id: int, chat_id: int, message_id: int,
@@ -8107,7 +8168,12 @@ async def _handle_reaction_withdrawal(user_id: int, chat_id: int, message_id: in
         sess.logger.log_event(f"{emoji} Reaktion von Adam zurückgenommen")
     # Block 1b: die Schlange der uebergebenen Sitzung. Fehlt sie, der
     # Hauptfaden -- dort landen Reaktions-Auftraege ohnehin.
-    mb = _mb_opt(user_id, getattr(sess, "thread_id", None))
+    # **[GEAENDERT 11.09.2026, F-22]** Der Chat kommt aus der REAKTION, nicht
+    # aus der Sitzung: Der Auftrag wurde unter dem Chat eingereiht, in dem die
+    # Reaktion stand. Eine Sitzung ohne `chat_id` (oder gar keine) haette hier
+    # in einen anderen Faden gegriffen und den wartenden Auftrag nicht gefunden
+    # -- der Widerruf waere still ins Leere gelaufen.
+    mb = _mb_opt(faden(user_id, chat_id, getattr(sess, "thread_id", None)))
     if mb is not None:
         for job in list(mb.queue):
             if (job.update is None and job.message_id == message_id
@@ -8126,17 +8192,19 @@ async def _handle_reaction_withdrawal(user_id: int, chat_id: int, message_id: in
     entry = reactions.lookup(emoji)
     if entry is not None and entry.active:
         _enqueue_reaction_job(
-            user_id, chat_id, message_id,
+            faden(user_id, chat_id, None), chat_id, message_id,
             f"[Adam hat seine Reaktion {emoji} („{entry.meaning}“) auf deine "
             "Nachricht ZURÜCKGENOMMEN — behandle die frühere Reaktions-Antwort "
             "als widerrufen und bestätige das knapp.]", bot_obj)
 
 
-def _enqueue_reaction_job(user_id: int, chat_id: int, message_id: int,
+def _enqueue_reaction_job(fd: Faden, chat_id: int, message_id: int,
                           text: str, bot_obj, thread_id: "int | None" = None) -> None:
     """Baut aus einer Reaktion einen normalen Queue-Job (ohne Update-Objekt,
     wie die Reconcile-Jobs) — sofort 5.2-persistiert, Antwort als Reply auf
     die reagierte Nachricht."""
+    # Die Teile des Fadens -- eine Quelle, keine drei Parameter.
+    user_id, chat_id, thread_id = fd
     key = f"{chat_id}_r{message_id}_{int(time.time())}"
     job = QueuedJob(
         update=None,
@@ -8159,9 +8227,9 @@ def _enqueue_reaction_job(user_id: int, chat_id: int, message_id: int,
         })
     except Exception:
         log.exception("Reaktions-Job nicht persistierbar (nicht-fatal)")
-    mb = _get_mailbox(user_id, thread_id)
+    mb = _get_mailbox(fd)
     mb.queue.append(job)
-    _ensure_worker(user_id, thread_id)
+    _ensure_worker(fd)
 
 
 async def on_option_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -8190,7 +8258,7 @@ async def on_option_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
         + (f" — zu deiner Nachricht: „{bezug}“" if bezug else "")
         + ". Führe die gewählte Option aus bzw. antworte entsprechend.]"
     )
-    _enqueue_reaction_job(user_id, chat_id, message_id, prompt, query.get_bot())
+    _enqueue_reaction_job(faden(user_id, chat_id, None), chat_id, message_id, prompt, query.get_bot())
 
 
 async def cmd_technik(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -8579,14 +8647,14 @@ async def cmd_stopp(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     # **[GEAENDERT 09.09.2026, Block 1b]** Gestoppt wird, was in DIESEM Zimmer
     # laeuft. Sonst meldete `/stopp` in Zimmer 7 "hier laeuft nichts", waehrend
     # dort ein Auftrag lief -- und stoppte im schlechteren Fall einen fremden.
-    _fd = fd_von_update(update)
-    mb = _mb_opt(user_id, _fd)
+    _fd = faden_von_update(update)
+    mb = _mb_opt(_fd)
     if mb is None or mb.current_job is None:
         await update.message.reply_text("✋ Gerade läuft nichts, das ich stoppen könnte.")
         return
     stopped = _job_preview(mb.current_job.text)
     try:
-        sess = _sess(user_id, _fd)
+        sess = _sess(_fd)
         if sess is not None:
             await sess.client.interrupt()
         await update.message.reply_text(
@@ -9442,8 +9510,9 @@ async def _disconnect_quietly(sess: UserSession, user_id: int) -> None:
                     "fehlgeschlagen — ignoriert", user_id, exc_info=True)
 
 
-async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession | None,
-                                  stalled_for: float, *, thread_id: "int | None") -> None:
+async def _handle_stalled_session(fd: Faden, mb: Mailbox,
+                                  sess: UserSession | None,
+                                  stalled_for: float) -> None:
     """Eine hängende Session beenden, den Job retten, frisch weitermachen.
 
     LOCKFREI (Kern der Umsetzung): `_run_job` hält die Session-Sperre für die
@@ -9452,6 +9521,8 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession |
     Wächter greift deshalb bewusst an der Sperre vorbei; er nimmt der Session
     ihre Zuständigkeit weg (aus SESSIONS raus) und bricht den Worker-Task ab.
     """
+    # Die Teile des Fadens -- eine Quelle, keine drei Parameter.
+    user_id, chat_id, thread_id = fd
     job = mb.current_job
     bot = (job.bot if job is not None and job.bot is not None else None) \
         or (sess.bot if sess is not None else None)
@@ -9472,7 +9543,7 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession |
     if sess is not None:
         # Den FADEN entfernen, nicht die Person: Sonst bliebe die Sitzung des
         # aufgehaengten Zimmers stehen, waehrend ein anderes stirbt.
-        SESSIONS.pop(faden(user_id, thread_id), None)
+        SESSIONS.pop(fd, None)
         try:
             cancel_pending_permissions(sess, reason="Session-Stall (5.18)")
         except Exception:
@@ -9555,7 +9626,7 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession |
         # auf, waehrend das aufgehaengte Zimmer stehen bliebe. Der Faden kommt
         # von der MAILBOX (Aufrufer), nicht aus `sess` -- haengt der Aufbau, gibt
         # es gar keine Sitzung, die ihn kennen koennte.
-        _ensure_worker(user_id, thread_id)
+        _ensure_worker(fd)
 
 
 async def stall_watchdog(app: Application) -> None:
@@ -9583,16 +9654,16 @@ async def stall_watchdog(app: Application) -> None:
             # `SESSIONS`. Ein schlafender Empfang hoebe seinen Zweck auf.
             for fd, sess in list(SESSIONS.items()):
                 if not darf_einschlafen(sess, MAILBOXES.get(fd), now,
-                                        thread_id=fd[1]):
+                                        thread_id=fd.thema):
                     continue
                 still = now - getattr(sess, "last_activity", 0)
                 name = None
                 try:
                     name = channels.zimmer_name_fuer(
-                        _USER_PREFS, getattr(sess, "chat_id", None), fd[1])
+                        _USER_PREFS, getattr(sess, "chat_id", None), fd.thema)
                 except Exception:
                     log.exception("Einschlafen: Zimmername nicht aufloesbar")
-                name = name or f"Zimmer {fd[1]}"
+                name = name or f"Zimmer {fd.thema}"
                 log.info("%s schlaeft ein (%d Minuten still)", name,
                          int(still // 60))
                 # **[NEU 10.09.2026, Adams Entscheid ①] Eine Zeile an Adam.**
@@ -9608,7 +9679,7 @@ async def stall_watchdog(app: Application) -> None:
                 if bot_obj is not None and ziel is not None:
                     try:
                         await bot_obj.send_message(
-                            chat_id=ziel, message_thread_id=fd[1],
+                            chat_id=ziel, message_thread_id=fd.thema,
                             text=(f"💤 {name} war {int(still // 60)} Minuten "
                                   "still — ich lege den Gespraechsfaden "
                                   "schlafen. Deine naechste Nachricht weckt "
@@ -9621,7 +9692,7 @@ async def stall_watchdog(app: Application) -> None:
                     # Transport den GANZEN Waechter still — fuer alle Zimmer,
                     # samt Stall-Erkennung. `_disconnect_quietly` daneben hat
                     # aus demselben Grund seit jeher eine.
-                    await asyncio.wait_for(close_session(fd[0], fd[1]),
+                    await asyncio.wait_for(close_session(fd),
                                            timeout=20)
                 except asyncio.TimeoutError:
                     log.warning("Einschlafen: %s liess sich in 20 s nicht "
@@ -9633,7 +9704,7 @@ async def stall_watchdog(app: Application) -> None:
             for fd, mb in list(MAILBOXES.items()):
                 if mb.current_job is None:
                     continue
-                user_id = fd[0]
+                user_id = fd.person
                 sess = SESSIONS.get(fd)
                 # sess None = der Session-AUFBAU hängt (ensure_session kehrt nie
                 # zurück). Früher wurde hier abgebrochen — genau das war eine
@@ -9652,8 +9723,7 @@ async def stall_watchdog(app: Application) -> None:
                        else max(mb.current_started, sess.last_activity))
                 stalled_for = now - ref
                 if stalled_for > STALL_LIMIT_S:
-                    await _handle_stalled_session(user_id, mb, sess, stalled_for,
-                                                  thread_id=fd[1])
+                    await _handle_stalled_session(fd, mb, sess, stalled_for)
         except Exception:
             # Ein Fehler hier darf die Schleife nie beenden — sonst wäre der
             # Wächter still weg und niemand merkte es (dieselbe Klasse Fehler,
@@ -11124,7 +11194,7 @@ def _reconcile_pending(app: Application) -> str:
             )
             # **[GEAENDERT 09.09.2026]** In das Zimmer, aus dem die Nachricht kam --
             # `thread_id` steht zwei Zeilen darueber im Job und ging hier verloren.
-            _get_mailbox(uid, r.get("thread_id")).queue.append(job)   # ans Ende = chronologisch
+            _get_mailbox(faden(uid, r.get("chat_id"), r.get("thread_id"))).queue.append(job)   # ans Ende = chronologisch
             if r.get("message_id") is not None:
                 _RESUMED_KEYS.add(key)             # gegen Telegrams Zweitzustellung
             resumed.append(r)
@@ -11382,7 +11452,7 @@ async def post_init(app: Application) -> None:
                 await asyncio.sleep(2)
                 for fd, mb in list(MAILBOXES.items()):
                     if mb.queue:
-                        _ensure_worker(fd[0], fd[1])
+                        _ensure_worker(fd)
             app.create_task(_start_resumed_workers(), name="resumed-workers")
 
         # AUTORUN-Tasks als Hintergrundaufgaben starten (nach kurzer Pause,
@@ -11393,7 +11463,7 @@ async def post_init(app: Application) -> None:
                 try:
                     # Hauptfaden: Ein Autorun wird nicht von einer Nachricht
                     # ausgeloest -- es gibt kein Zimmer, aus dem er kaeme.
-                    sess = await ensure_session(u, thread_id=None)
+                    sess = await ensure_session(faden(u, u, None))
                     sess.bot = app.bot
                     sess.chat_id = u
                     if sess.logger:
@@ -11540,7 +11610,7 @@ async def process_user_text(
     # **[GEAENDERT 09.09.2026] Die Warteschlange des ZIMMERS.**
     # Der Faden steht schon im Job (`thread_id`) — er musste nur noch den
     # Schluessel bestimmen duerfen.
-    _fd_thread = getattr(msg, "message_thread_id", None)
+    _fd = faden_von_update(update)
 
     # **[NEU 10.09.2026, Block 3] Regel 1 — der Hauptchat ist der Empfang.**
     #
@@ -11559,7 +11629,7 @@ async def process_user_text(
     # zuerst: `on_link_callback` reicht ein Callback-Update herein, und dort
     # ist `update.message` leer. Der Empfangs-Zweig griff darauf zu — ein
     # `AttributeError`, und der Link blieb bei „⏳ Ich arbeite daran" stehen.
-    if msg is not None and geht_an_empfang(user_id, _fd_thread, log_note, text):
+    if msg is not None and geht_an_empfang(user_id, _fd.thema, log_note, text):
         # **[NEU 10.09.2026, Ultracode-Befund A-3] Fremdtext reicht nichts
         # weiter — und das entscheidet der CODE.**
         #
@@ -11587,7 +11657,7 @@ async def process_user_text(
             try:
                 pending.record(dedup_key, {
                     "user_id": user_id, "chat_id": chat_id,
-                    "message_id": message_id, "thread_id": _fd_thread,
+                    "message_id": message_id, "thread_id": _fd.thema,
                     "text": text, "force_tts": force_tts,
                     "output_chat_id": output_chat_id or chat_id,
                     "reply_to_override": reply_to_override,
@@ -11631,8 +11701,8 @@ async def process_user_text(
             # aus. Der Empfang antwortet kurz — aber „kurz" ist eine Annahme
             # ueber ein Modell, keine Zusage.
             await send_chunked(update.get_bot(), chat_id, _antwort,
-                               reply_to=message_id, thread_id=_fd_thread)
-            _empfang_protokoll(user_id, text, _antwort)
+                               reply_to=message_id, thread_id=_fd.thema)
+            _empfang_protokoll(_fd, text, _antwort)
             if dedup_key is not None:
                 pending.resolve(dedup_key)
             return
@@ -11640,7 +11710,7 @@ async def process_user_text(
         # den normalen Weg — dort wird er gleich darauf neu geschrieben.
         log.info("Empfang: keine Antwort -- Nachricht laeuft den normalen Weg")
 
-    mb = _get_mailbox(user_id, _fd_thread)
+    mb = _get_mailbox(_fd)
     job = QueuedJob(
         update=update,
         text=text,
@@ -11696,7 +11766,7 @@ async def process_user_text(
             # **[GEAENDERT 09.09.2026]** Das Zimmer, in dem gestoppt wird -- nicht
             # die Person. Sonst unterbrach ein Stopp-Wort in Zimmer 7 den
             # Hauptfaden und reihte trotzdem in Zimmer 7 ein.
-            sess = _sess(user_id, _fd_thread)
+            sess = _sess(_fd)
             if sess is not None:
                 await sess.client.interrupt()
         except Exception:
@@ -11719,7 +11789,7 @@ async def process_user_text(
             # Sicherung liegen; hat der laufende Auftrag den Zettel bekommen
             # UND ist er beantwortet, wird der Zwilling uebersprungen.
             gereicht = nachsteuer_schreiben(
-                user_id, _fd_thread, _auftrag_kennung(mb.current_job),
+                _fd, _auftrag_kennung(mb.current_job),
                 (chat_id, update.message.message_id), text)
             # **[NEU 10.09.2026, Block 3] Regel 2 — eine Stimme statt einer
             # Quittung.** Die Nachricht steht bereits in der Reihe; was hier
@@ -11742,7 +11812,7 @@ async def process_user_text(
             if _zwischen:
                 await update.message.reply_text(
                     _zwischen, reply_parameters=_reply_params(update.message.message_id))
-                _empfang_protokoll(user_id, text, _zwischen, thread_id=_fd_thread)
+                _empfang_protokoll(_fd, text, _zwischen)
             elif gereicht:
                 await update.message.reply_text(
                     "📨 Notiert — ich reiche es dem laufenden Vorgang gleich "
@@ -11760,7 +11830,7 @@ async def process_user_text(
                     reply_parameters=_reply_params(update.message.message_id),
                 )
 
-    _ensure_worker(user_id, _fd_thread)
+    _ensure_worker(_fd)
 
 
 def _extract_reply_context(update: Update) -> str:
@@ -11824,7 +11894,7 @@ def _build_restart_reason(user_id: int) -> str:
     tail = " Falls du während des Neustarts noch etwas geschickt hast, hole ich es jetzt nach."
     # Hauptfaden: Die Startnachricht nach einem Neustart geht in den Hauptchat --
     # sie hat keinen Absender-Faden, weil niemand sie ausgeloest hat.
-    mb = _mb_opt(user_id, thread_id=None)
+    mb = _mb_opt(faden(user_id, user_id, None))
     if mb and mb.current_job is not None:
         return (f"Bin wieder da. Der Vorgang „{_job_preview(mb.current_job.text)}“ "
                 "wurde durch den Neustart unterbrochen — soll ich da weitermachen?"
@@ -12065,7 +12135,7 @@ async def _do_restart(update: Update, user_id: int, via_callback: bool = False) 
     try:
         # Hauptfaden: Vorlesen ist eine Einstellung der Person; steht keine
         # Sitzung offen, entscheidet ohnehin `prefs`.
-        sess = _sess(user_id, thread_id=None)
+        sess = _sess(faden(user_id, user_id, None))
         tts_on = (sess.tts_enabled if sess is not None
                   else _USER_PREFS.get(str(user_id), {}).get("tts_enabled", False))
         if tts_on:
@@ -12103,7 +12173,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
     # Sitzung SCHLIESSEN und neu oeffnen (Modell, Tempo): ohne den Faden
     # rotierten sie eine fremde Sitzung, waehrend die eigene unveraendert
     # weiterlief. Die Einstellung selbst bleibt in `prefs` je Person.
-    _fd = fd_von_update(update)
+    _fd = faden_von_update(update)
 
     if text == _BTN_RESTART:
         await _request_restart_confirm(update, user_id)
@@ -12127,7 +12197,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         neu_an = not _bash_auto_on(user_id)
         _set_bash_auto(user_id, neu_an)
         _p = _USER_PREFS.get(str(user_id), {})
-        sess = _sess(user_id, _fd)
+        sess = _sess(_fd)
         tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
         cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
         if neu_an:
@@ -12146,8 +12216,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         # Haken-Fassung als Frage beim Agenten an.
         neu = not _thorough_on(user_id)
         _set_thorough(user_id, neu)
-        mb = _mb_opt(user_id, _fd)
-        sess = _sess(user_id, _fd)
+        mb = _mb_opt(_fd)
+        sess = _sess(_fd)
         _p = _USER_PREFS.get(str(user_id), {})
         tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
         cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
@@ -12174,8 +12244,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             # das hätte den Gesprächsfaden dauerhaft zerschnitten. Hier reißt er
             # einmalig, beim bewussten Umschalten, und das wird jetzt auch
             # gesagt statt verschwiegen.
-            await close_session(user_id, _fd)
-            await ensure_session(user_id, thread_id=_fd)
+            await close_session(_fd)
+            await ensure_session(_fd)
             zusatz = "\n\n(Neue Sitzung gestartet — der bisherige Gesprächsfaden endet hier.)"
 
         if neu:
@@ -12196,7 +12266,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         return
 
     if text in (_BTN_TTS_ON, _BTN_TTS_OFF):
-        sess = await ensure_session(user_id, thread_id=_fd)
+        sess = await ensure_session(_fd)
         # **[GEAENDERT 10.09.2026, A-6]** Eine Tuer: Der Knopf wirkt in allen
         # Zimmern, wie `/tts` seit Block 1b.
         vorlesen_setzen(user_id, text == _BTN_TTS_ON)
@@ -12207,7 +12277,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
 
     new_model = _MODEL_IDS.get(text)
     if new_model is not None:
-        sess = _sess(user_id, _fd)
+        sess = _sess(_fd)
         if sess and sess.current_model == new_model:
             keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
             model_label = ("Opus" if "opus" in new_model
@@ -12223,7 +12293,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         _USER_PREFS.setdefault(str(user_id), {})["model"] = new_model
         _save_prefs(_USER_PREFS)
         model_label = _model_btn_label(new_model)
-        mb = _mb_opt(user_id, _fd)
+        mb = _mb_opt(_fd)
         if mb and mb.current_job is not None:
             mb.switch_pending = True
             _p = _USER_PREFS.get(str(user_id), {})
@@ -12235,8 +12305,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             )
             return
         # Leerlauf: Modell wechseln, Session sofort neu starten
-        await close_session(user_id, _fd)
-        new_sess = await ensure_session(user_id, thread_id=_fd)
+        await close_session(_fd)
+        new_sess = await ensure_session(_fd)
         keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort, user_id=user_id)
         # Konkret vor Label (Adam 25.07.): Die vollständige Kennung mit
         # nennen, damit ein stiller Alias-Wechsel sichtbar wird — mit
@@ -12252,7 +12322,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
     # --- Thinking-Effort-Button ---
     if text in _EFFORT_IDS:
         new_effort = _EFFORT_IDS[text]
-        sess = _sess(user_id, _fd)
+        sess = _sess(_fd)
         if sess and sess.current_effort == new_effort:
             keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
             effort_name = {None: "Normal", "low": "Schnell", "max": "Max"}.get(new_effort, str(new_effort))
@@ -12268,7 +12338,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         _save_prefs(_USER_PREFS)
         effort_labels = {None: "🧠 Normal", "low": "⚡ Schnell", "max": "🚀 Max"}
         effort_label = effort_labels.get(new_effort, str(new_effort))
-        mb = _mb_opt(user_id, _fd)
+        mb = _mb_opt(_fd)
         if mb and mb.current_job is not None:
             mb.switch_pending = True
             _p = _USER_PREFS.get(str(user_id), {})
@@ -12282,8 +12352,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             )
             return
         # Leerlauf: Session sofort neu starten (effort ist ein Session-Start-Parameter)
-        await close_session(user_id, _fd)
-        new_sess = await ensure_session(user_id, thread_id=_fd)
+        await close_session(_fd)
+        new_sess = await ensure_session(_fd)
         keyboard = _main_keyboard(new_sess.tts_enabled, new_sess.current_model, new_sess.current_effort, user_id=user_id)
         # **KORRIGIERT 18.08.2026 (Gegenprüfung).** Bei aktivem Gründlich
         # erzwingt `ensure_session` die höchste Tiefe — die eben getroffene Wahl
@@ -12312,7 +12382,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
     if text in _STT_BTN_TARGET:
         global _ACTIVE_STT
         want = _STT_BTN_TARGET[text]
-        sess = _sess(user_id, _fd)
+        sess = _sess(_fd)
         _p = _USER_PREFS.get(str(user_id), {})
         tts_on = sess.tts_enabled if sess else _p.get("tts_enabled", False)
         cur_model = sess.current_model if sess else _p.get("model", DEFAULT_MODEL)
@@ -12342,8 +12412,8 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
 
     # --- Info-Button ---
     if text == _BTN_INFO:
-        sess = _sess(user_id, _fd)
-        mb = _mb_opt(user_id, _fd)
+        sess = _sess(_fd)
+        mb = _mb_opt(_fd)
         today = _usage_today()
 
         # Aktuelle Werte: aus Session wenn aktiv, sonst aus gespeicherten Prefs

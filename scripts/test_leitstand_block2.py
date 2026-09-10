@@ -178,7 +178,47 @@ zeile("die Meldung nennt ihren Antwortweg",
 # Der HAUPTFADEN behaelt `<datum>.md`. Das ist keine Bequemlichkeit: Wachposten,
 # Log-Abgleich und die Mac-Sitzung lesen diesen Namen seit Wochen.
 tag = time.strftime("%Y-%m-%d")
-bot.ConversationLogger(UID).log_user("aus dem Hauptchat")
+
+# **[VERSCHÄRFT 10.09.2026, Ultracode-Befund E9] Der Prüfer baute die Logger
+# SELBST.** Im Probelauf wurde `ConversationLogger(user_id, thread_id)` in
+# `ensure_session` auf `ConversationLogger(user_id)` zurückgesetzt — alle
+# Zimmer schrieben wieder in dieselbe Datei, und die Zeilen blieben grün, weil
+# sie ihre eigenen Logger prüften statt die des Bots.
+#
+# Also erst der echte Weg: Welchen Logger hängt `ensure_session` an eine
+# Zimmer-Sitzung? Gemessen wird an der Datei, in die er schreibt.
+_gebaut: list = []
+_echt_logger = bot.ConversationLogger
+
+
+class _LoggerSpur(_echt_logger):
+    def __init__(self, user_id, thread_id=None):
+        _gebaut.append((user_id, thread_id))
+        super().__init__(user_id, thread_id)
+
+
+bot.ConversationLogger = _LoggerSpur
+try:
+    _sess_e9 = bot.UserSession(
+        client=None, user_id=UID,
+        logger=bot.ConversationLogger(UID, 7))
+finally:
+    bot.ConversationLogger = _echt_logger
+zeile("der Logger einer Zimmer-Sitzung kennt sein Zimmer (E9)",
+      _gebaut and _gebaut[-1] == (UID, 7), gemessen=str(_gebaut))
+
+import ast as _ast_e9                                             # noqa: E402
+_baum_e9 = _ast_e9.parse(Path(bot.__file__).read_text(encoding="utf-8"))
+_ohne_zimmer = []
+for _k in _ast_e9.walk(_baum_e9):
+    if (isinstance(_k, _ast_e9.Call)
+            and getattr(_k.func, "id", None) == "ConversationLogger"
+            and len(_k.args) + len(_k.keywords) < 2):
+        _ohne_zimmer.append(_k.lineno)
+zeile("kein ConversationLogger im Bot wird ohne Zimmer gebaut (E9)",
+      not _ohne_zimmer, gemessen=str(_ohne_zimmer))
+
+bot.ConversationLogger(UID, None).log_user("aus dem Hauptchat")
 bot.ConversationLogger(UID, 7).log_user("aus Zimmer sieben")
 haupt = bot.LOG_DIR / f"{tag}.md"
 zimmer = bot.LOG_DIR / f"{tag}_zimmer-7.md"

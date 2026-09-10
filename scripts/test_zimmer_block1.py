@@ -14,6 +14,7 @@ Schluesselbildung. Sie laesst sich an den Traegern messen, ohne Telegram und
 ohne Modell — und genau deshalb kann dieser Pruefer im Regressionslauf mit
 laufen, statt einmal von Hand gefahren zu werden.
 """
+import asyncio
 import os
 import sys
 import tempfile
@@ -263,9 +264,44 @@ zeile("nie gelesen -> der Zwilling läuft normal",
 _opt = bot.hauptsitzungs_optionen(user_id=UID, model_full="x", effort=None,
                                   add_dirs=[], context="", context_via_file=False,
                                   thread_id=7)
-zeile("die Sitzung eines Zimmers trägt den Nachsteuer-Hook",
-      bool((getattr(_opt, "hooks", None) or {}).get("PreToolUse")),
-      gemessen=str(getattr(_opt, "hooks", None))[:80])
+# **[VERSCHÄRFT 10.09.2026, Ultracode-Befund E2] `bool(...)` misst, dass
+# IRGENDEIN Hook dasteht.** Im Probelauf wurde der Nachsteuer-Hook durch eine
+# Attrappe ersetzt — die Zeile blieb grün, und die halbe Zusage von Auftrag 8
+# war unbewacht.
+#
+# Jetzt wird der Hook **ausgeführt**: Ein Zettel wird abgelegt, der Hook
+# gerufen, und gemessen, dass genau dieser Text im Kontext ankommt. Eine
+# Attrappe an seiner Stelle liefert das nicht.
+_hooks = (getattr(_opt, "hooks", None) or {}).get("PreToolUse") or []
+zeile("die Sitzung eines Zimmers trägt einen PreToolUse-Hook",
+      bool(_hooks), gemessen=str(getattr(_opt, "hooks", None))[:80])
+
+_haken = None
+for _m in _hooks:
+    for _h in (getattr(_m, "hooks", None) or []):
+        _haken = _h
+        break
+# **Die Kennung kommt aus dem laufenden Auftrag, nicht aus der Luft:** Der
+# Hook liest nur Zettel SEINES Auftrags -- das ist der Sinn der Kennung
+# (ein Nachtrag aus fremdem Zusammenhang ist schlimmer als keiner).
+_mb_e2 = bot._get_mailbox(UID, 7)
+_mb_e2.current_job = bot.QueuedJob(update=None, text="laeuft", user_id=UID,
+                                   message_id=4241, received_at=1000)
+bot.nachsteuer_schreiben(UID, 7, bot._auftrag_kennung(_mb_e2.current_job),
+                         4242, "Nachtrag aus E2")
+# **Ein Bruch macht diese Zeile rot, er stuerzt den Pruefer nicht ab** --
+# eine Attrappe an der Hook-Stelle kann jede Form haben, auch eine, die
+# `asyncio.run` gar nicht annimmt. Ein abstuerzender Pruefer verdeckt alles
+# darunter (Lehre vom Block-2-Pruefer am 09.09.).
+try:
+    _erg_e2 = asyncio.run(_haken({}, None, None)) if _haken else {}
+except Exception as _ex_e2:
+    _erg_e2 = {"_fehler": str(_ex_e2)}
+_kontext_e2 = str(((_erg_e2 or {}).get("hookSpecificOutput") or {})
+                  .get("additionalContext", "")) or str(_erg_e2.get("_fehler", ""))
+zeile("und es ist WIRKLICH der Nachsteuer-Hook, keine Attrappe",
+      "Nachtrag aus E2" in _kontext_e2, gemessen=_kontext_e2[:120] or "leer")
+_mb_e2.current_job = None
 
 # ---- Block 1b: die Wege, nicht nur die Traeger ----------------------------
 #

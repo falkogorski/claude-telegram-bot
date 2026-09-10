@@ -571,9 +571,43 @@ def _auch_zimmer_protokolle_werden_gelesen():
     assert f"{tag}_zimmer-7.md" in namen, f"Zimmer-Protokoll fehlt: {namen}"
 
 
+def _der_posten_LIEST_beide_quellen_wirklich():
+    """**[NEU 10.09.2026, Ultracode-Befund E5]** Die Zeile darüber misst den
+    **Erzeuger** `_quellen()` — nicht den Verbraucher.
+
+    Im Probelauf wurde der Posten so verändert, dass er nur die **erste**
+    Quelle liest: Die Liste stimmte weiter, und die Prüfung blieb grün. Ein
+    Zimmer-Protokoll mit einem Fehler wäre unsichtbar geblieben, und der
+    Posten hätte Stille gemeldet, während etwas brennt.
+
+    Hier läuft der Posten **wirklich**, mit einem auffälligen Muster in der
+    ZWEITEN Quelle. Kommt keine Meldung, liest er sie nicht.
+    """
+    _frisch()
+    tag = time.strftime("%Y-%m-%d")
+    ordner = _TMP / "logs" / "conversations"
+    (ordner / f"{tag}.md").write_text("Ein ganz normaler Satz.\n",
+                                      encoding="utf-8")
+    (ordner / f"{tag}_zimmer-7.md").write_text(
+        "Traceback (most recent call last):\n", encoding="utf-8")
+    alt_schalter = wachposten.GESPRAECHE_LESEN
+    wachposten.GESPRAECHE_LESEN = True
+    try:
+        treffer = wachposten.lauf()
+    finally:
+        wachposten.GESPRAECHE_LESEN = alt_schalter
+    assert treffer >= 1, (
+        "der Posten meldet nichts, obwohl im ZWEITEN Protokoll ein Traceback "
+        "steht — er liest nur die erste Quelle")
+    assert any("zimmer-7" in str(g) for g in _GESENDET), \
+        f"die Meldung nennt das Zimmer nicht: {_GESENDET}"
+
+
 check("keine Frage ohne Wirkung (Adams Regel 20.08.)", _keine_frage_ohne_wirkung)
 check("auch Zimmer-Protokolle werden gelesen (Block 2)",
       _auch_zimmer_protokolle_werden_gelesen)
+check("der Posten LIEST beide Quellen wirklich (E5)",
+      _der_posten_LIEST_beide_quellen_wirklich)
 
 print()
 if fails:

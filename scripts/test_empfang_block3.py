@@ -75,8 +75,33 @@ zeile("der Modus ist dontAsk, nicht bypassPermissions",
 zeile("die Verbotsliste sperrt Bash, Read, Write und WebFetch ausdrücklich",
       all(w in (opts.disallowed_tools or []) for w in
           ("Bash", "Read", "Write", "WebFetch")))
-zeile("der Werkzeug-Server ist mitgegeben",
-      empfang.WERKZEUG_SERVER in (opts.mcp_servers or {}))
+# **[VERSCHÄRFT 10.09.2026, Ultracode-Befund E6]** Vorher wurde nur geprüft,
+# dass der SCHLÜSSEL dasteht. Im Probelauf wurde der Server durch einen mit
+# `tools=[]` unter demselben Schlüssel ersetzt — grün, und die Sekretärin
+# hätte kein Werkzeug gehabt. Jetzt wird der Server aus den **echten
+# Optionen** geholt und sein Werkzeug benannt.
+# Gemessen wird, was beim Bauen der ECHTEN Optionen registriert wird: Ein
+# Server mit `tools=[]` unter demselben Schlüssel — der Probelauf-Eingriff —
+# registriert null Werkzeuge und fällt hier auf.
+_REG: list = []
+_orig_server = bot.create_sdk_mcp_server
+
+
+def _mitschreiben(name, version="1.0.0", tools=None):
+    _REG.append((name, [getattr(w, "name", "?") for w in (tools or [])]))
+    return _orig_server(name=name, version=version, tools=tools)
+
+
+bot.create_sdk_mcp_server = _mitschreiben
+bot.sekretaerin_optionen(UID)
+bot.create_sdk_mcp_server = _orig_server
+zeile("der Werkzeug-Server trägt GENAU sein eines Werkzeug",
+      _REG and _REG[-1] == (empfang.WERKZEUG_SERVER, [empfang.WERKZEUG_KURZ]),
+      gemessen=str(_REG[-1:]))
+zeile("und der Name in der Positivliste passt zu diesem Werkzeug",
+      empfang.WERKZEUG_NAME.endswith("__" + empfang.WERKZEUG_KURZ)
+      and empfang.WERKZEUG_SERVER in empfang.WERKZEUG_NAME,
+      gemessen=empfang.WERKZEUG_NAME)
 zeile("die Websuche ist NICHT dabei",
       "suche" not in (opts.mcp_servers or {}))
 zeile("kein Ordner ist mitgegeben (add_dirs leer)",

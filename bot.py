@@ -2338,6 +2338,11 @@ async def _notify_job_failed(job: QueuedJob) -> None:
     try:
         await bot_obj.send_message(
             chat_id=job.chat_id,
+            # **[NEU 10.09.2026, Ultracode-Befund A-5]** Ins Zimmer, aus dem
+            # der Auftrag kam. Ohne diese Zeile meldet sich ein Fehler aus
+            # Zimmer 47 im General — und im Zimmer sieht es aus wie ein
+            # Haenger, also wie Ruhe.
+            message_thread_id=job.thread_id,
             text=(f"⚠️ Die Aufgabe „{_job_preview(job.text)}“ ist mit einem Fehler "
                   "abgebrochen. Schick sie neu, wenn sie noch gebraucht wird — "
                   "oder lass sie liegen."),
@@ -2561,8 +2566,8 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 # hieße, eine Rückkehr zu versprechen, die niemand geben kann.
                 try:
                     await send_chunked(
-                        sess.bot, sess.chat_id,
-                        AUTH_HELP + "\n\n📥 **Deine Nachricht ist nicht verloren** "
+                        sess.bot, sess.chat_id, thread_id=job.thread_id,
+                        text=AUTH_HELP + "\n\n📥 **Deine Nachricht ist nicht verloren** "
                         "— sie steht wieder an erster Stelle in der Warteschlange "
                         "und wird bearbeitet, sobald die Anmeldung wieder trägt.",
                         parse_mode=ParseMode.MARKDOWN)
@@ -2598,8 +2603,8 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                                 "ich versuche es in einer Viertelstunde erneut.")
                 try:
                     await send_chunked(
-                        sess.bot, sess.chat_id,
-                        "⏳ Das Nutzungskontingent ist gerade erschöpft.\n"
+                        sess.bot, sess.chat_id, thread_id=job.thread_id,
+                        text="⏳ Das Nutzungskontingent ist gerade erschöpft.\n"
                         f"{zeitsatz}\n"
                         f"Deine Nachricht ist gespeichert und steht vorn in der "
                         f"Schlange — du musst nichts wiederholen. "
@@ -2617,8 +2622,8 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             if is_transport_overflow(e):
                 try:
                     await send_chunked(
-                        sess.bot, sess.chat_id,
-                        "📦 Der Inhalt war für die Leitung zum Modell zu groß "
+                        sess.bot, sess.chat_id, thread_id=job.thread_id,
+                        text="📦 Der Inhalt war für die Leitung zum Modell zu groß "
                         f"(Grenze derzeit {SDK_MAX_BUFFER // 1_048_576} MB).\n"
                         "Deine Datei ist nicht verloren — sie liegt vollständig "
                         "im Upload-Ordner.\n"
@@ -2641,9 +2646,14 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     mb = _get_mailbox(user_id, job.thread_id)
                     mb.queue.appendleft(job)  # als Nächstes mit frischer Session
                     try:
+                        # **[NEU 10.09.2026]** Diese Stelle stand in KEINER
+                        # Liste — die Mengen-Prüfzeile hat sie gefunden. Genau
+                        # dafür zählt sie echte Aufrufknoten, statt eine
+                        # Aufzählung abzuarbeiten.
                         await sess.bot.send_message(
                             sess.chat_id,
                             "📏 Kontext war voll — neue Session, ich beantworte deine Nachricht jetzt …",
+                            message_thread_id=job.thread_id,
                         )
                     except Exception:
                         log.exception("failed to send context-rotate status")
@@ -2651,8 +2661,8 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 # Auch mit frischer Session zu groß → klare Meldung.
                 try:
                     await send_chunked(
-                        sess.bot, sess.chat_id,
-                        "📏 Auch mit frischer Session passt das nicht ins Kontextfenster. "
+                        sess.bot, sess.chat_id, thread_id=job.thread_id,
+                        text="📏 Auch mit frischer Session passt das nicht ins Kontextfenster. "
                         "Die Nachricht oder ein Anhang ist zu groß.\n"
                         "→ Bitte kürzen oder aufteilen (bei langen Dokumenten: relevanten "
                         "Ausschnitt schicken). Für sehr große Recherchen ist die Code-/Web-Sitzung besser geeignet.",
@@ -2665,7 +2675,8 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 await send_chunked(
                     sess.bot,
                     sess.chat_id,
-                    f"❌ Session-Fehler: {e}\n"
+                    thread_id=job.thread_id,
+                    text=f"❌ Session-Fehler: {e}\n"
                     + (f"({cancelled} ausstehende Permission(s) verworfen.) " if cancelled else "")
                     + "Nächste Nachricht startet eine frische Session.",
                 )
@@ -9311,7 +9322,12 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession |
                         "nicht weiter — bitte anders formuliert oder in kleineren Teilen "
                         "nochmal schicken.")
         try:
-            await bot.send_message(chat_id, msg)
+            # **[NEU 10.09.2026, Ultracode-Befund A-5]** In das Zimmer, das
+            # haengt. Die Meldung sagt „ich starte eine frische Sitzung" — im
+            # General gelesen bezieht Adam sie auf den Hauptchat und sucht den
+            # Fehler an der falschen Stelle. `thread_id` ist der Faden des
+            # Waechter-Aufrufs, pflichtig seit Block 1b.
+            await bot.send_message(chat_id, msg, message_thread_id=thread_id)
         except Exception:
             log.exception("Stall: Meldung an Adam konnte nicht gesendet werden")
     else:
@@ -12677,7 +12693,13 @@ async def on_voice(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     # Als Reply auf die Sprachnachricht selbst, damit der Bezug klar ist.
     echo_msg = None
     try:
-        echo_msg = await send_chunked(msg.get_bot(), msg.chat_id, f"🎙️ {text}", reply_to=msg.message_id)
+        # **[NEU 10.09.2026, Ultracode-Befund A-5]** Die Abschrift gehoert in
+        # das Zimmer, in dem gesprochen wurde. Ohne den Faden stand sie im
+        # General, waehrend die Antwort darauf im Zimmer landete — zwei Haelften
+        # desselben Dialogs an zwei Orten.
+        echo_msg = await send_chunked(
+            msg.get_bot(), msg.chat_id, f"🎙️ {text}", reply_to=msg.message_id,
+            thread_id=getattr(msg, "message_thread_id", None))
     except Exception:
         log.exception("voice echo failed (ignored)")
     prefix = _extract_reply_context(update)

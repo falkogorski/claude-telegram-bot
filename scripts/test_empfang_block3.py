@@ -361,5 +361,66 @@ zeile("die Obergrenze ist eine Einstellgröße, kein Wert im Code",
 zeile("das Einschlafen ebenso, mit 30 Minuten als Startwert",
       bot.ZIMMER_SCHLAF_NACH_S == 30 * 60)
 
+# ── A-5: Meldungen bleiben im Zimmer ────────────────────────────────────────
+#
+# **Auch das wirkt ohne den Knopf.** Ein Kontingent-Stopp in Zimmer 47 meldete
+# sich im General — und im Zimmer sah es aus wie ein Hänger, also wie Ruhe.
+print("-- A-5: Meldungen bleiben im Zimmer")
+
+_GESENDET: list = []
+
+
+class _MeldeBot:
+    async def send_message(self, *a, **kw):
+        _GESENDET.append(kw if kw else {"stellung": a})
+        return type("M", (), {"message_id": 1})()
+
+
+# Ausgeführt: die Fehler-Sofortmeldung.
+_GESENDET.clear()
+_job = bot.QueuedJob(update=None, text="etwas aus Zimmer 47", user_id=UID,
+                     chat_id=-100, thread_id=47, message_id=5,
+                     bot=_MeldeBot())
+lauf(bot._notify_job_failed(_job))
+zeile("A-5: die Fehlermeldung geht in das Zimmer, aus dem der Auftrag kam",
+      _GESENDET and _GESENDET[0].get("message_thread_id") == 47,
+      gemessen=str(_GESENDET))
+
+# Ausgeführt: die Stall-Meldung.
+_GESENDET.clear()
+_mb = bot.Mailbox()
+_mb.current_job = bot.QueuedJob(update=None, text="haengt", user_id=UID,
+                                chat_id=-100, thread_id=47, bot=_MeldeBot())
+_mb.current_started = _t.monotonic() - 999
+lauf(bot._handle_stalled_session(UID, _mb, None, 999.0, thread_id=47))
+zeile("A-5: die Stall-Meldung nennt das Zimmer, das hängt",
+      any(g.get("message_thread_id") == 47 for g in _GESENDET),
+      gemessen=str(_GESENDET)[:200])
+
+# Und die Menge: Kein Sendeaufruf in diesen drei Funktionen ohne Faden.
+# **Abwesenheit über echte Aufrufknoten gemessen**, nicht über Textsuche —
+# ein Name im Baum sagt nichts, ein fehlendes Schlüsselwort schon.
+import ast as _ast                                                # noqa: E402
+_quelle = (Path(bot.__file__).read_text(encoding="utf-8"))
+_baum = _ast.parse(_quelle)
+_ohne_faden: list[str] = []
+for _fn in _ast.walk(_baum):
+    if not isinstance(_fn, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+        continue
+    if _fn.name not in ("_run_job", "_notify_job_failed",
+                        "_handle_stalled_session"):
+        continue
+    for _k in _ast.walk(_fn):
+        if not isinstance(_k, _ast.Call):
+            continue
+        _name = getattr(_k.func, "attr", None) or getattr(_k.func, "id", None)
+        if _name not in ("send_chunked", "send_message"):
+            continue
+        _kw = {a.arg for a in _k.keywords}
+        if not ({"thread_id", "message_thread_id"} & _kw):
+            _ohne_faden.append(f"{_fn.name}:{_k.lineno}")
+zeile("A-5: kein Sendeaufruf in Auftrag, Fehlermeldung und Wächter ohne Faden",
+      not _ohne_faden, gemessen=", ".join(_ohne_faden))
+
 print(f"\n{zeilen - len(fehler)}/{zeilen} Zeilen grün")
 sys.exit(1 if fehler else 0)

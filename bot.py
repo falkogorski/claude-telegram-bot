@@ -7932,7 +7932,7 @@ async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     freigabe_sess = _sess_mit_botnachricht(user_id, rx.message_id)
     # Hauptfaden: Reaktionen tragen kein Thema; der Zimmer-Bezug fuer das
     # 5.9-Vokabular kommt mit Block 2 (Protokoll je Zimmer).
-    sess = _sess(user_id)
+    sess = _sess(user_id, thread_id=None)
 
     # ── Vorrang: wartende Permission (👍 Allow / 👎 Deny) — unverändert ──
     if freigabe_sess is not None:
@@ -11348,7 +11348,7 @@ async def post_init(app: Application) -> None:
                 try:
                     # Hauptfaden: Ein Autorun wird nicht von einer Nachricht
                     # ausgeloest -- es gibt kein Zimmer, aus dem er kaeme.
-                    sess = await ensure_session(u)
+                    sess = await ensure_session(u, thread_id=None)
                     sess.bot = app.bot
                     sess.chat_id = u
                     if sess.logger:
@@ -11779,7 +11779,7 @@ def _build_restart_reason(user_id: int) -> str:
     tail = " Falls du während des Neustarts noch etwas geschickt hast, hole ich es jetzt nach."
     # Hauptfaden: Die Startnachricht nach einem Neustart geht in den Hauptchat --
     # sie hat keinen Absender-Faden, weil niemand sie ausgeloest hat.
-    mb = _mb_opt(user_id)
+    mb = _mb_opt(user_id, thread_id=None)
     if mb and mb.current_job is not None:
         return (f"Bin wieder da. Der Vorgang „{_job_preview(mb.current_job.text)}“ "
                 "wurde durch den Neustart unterbrochen — soll ich da weitermachen?"
@@ -12020,7 +12020,7 @@ async def _do_restart(update: Update, user_id: int, via_callback: bool = False) 
     try:
         # Hauptfaden: Vorlesen ist eine Einstellung der Person; steht keine
         # Sitzung offen, entscheidet ohnehin `prefs`.
-        sess = _sess(user_id)
+        sess = _sess(user_id, thread_id=None)
         tts_on = (sess.tts_enabled if sess is not None
                   else _USER_PREFS.get(str(user_id), {}).get("tts_enabled", False))
         if tts_on:

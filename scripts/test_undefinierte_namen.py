@@ -27,7 +27,20 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-MODULE = sorted(p.name for p in ROOT.glob("*.py"))
+# **[ERWEITERT 10.09.2026, Ultracode-Befund E4] Auch `scripts/`.**
+#
+# Der Pruefer sah nur die Wurzelmodule. Gemessen wurde es, indem ein
+# undefinierter Name in `scripts/wachposten.py` gesetzt wurde — **er blieb
+# gruen.** Dabei sind es gerade die Skripte, die unbeaufsichtigt laufen: der
+# Wachposten, der Tagescheck, die Spiegelung. Ein `NameError` dort faellt
+# niemandem auf, weil niemand zusieht.
+#
+# Als **Menge**, nicht als Liste: `glob` findet auch das Skript, das morgen
+# dazukommt. Eine Aufzaehlung waere in einer Woche unvollstaendig.
+MODULE = sorted(
+    [str(p.relative_to(ROOT)) for p in ROOT.glob("*.py")]
+    + [str(p.relative_to(ROOT)) for p in ROOT.glob("scripts/*.py")]
+)
 
 try:
     import pyflakes  # noqa: F401

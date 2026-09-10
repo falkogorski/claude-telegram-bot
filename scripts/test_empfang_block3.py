@@ -368,6 +368,92 @@ for fd in list(bot.SESSIONS):
 for fd in list(bot.MAILBOXES):
     bot.MAILBOXES.pop(fd)
 
+# **A5-1 aus Engywucks Abschnitt P: keine Zeile mass die AUFRUFSTELLEN.**
+#
+# Legte man Drossel- und Einschlaf-Schleife tot, blieben alle Prüfer grün —
+# die Entscheidungen wurden geprüft, aber niemand prüfte, dass sie überhaupt
+# gefragt werden. Hier laufen beide Schleifen wirklich.
+print("-- A5-1: der Haushalt an der Aufrufstelle")
+
+for fd in list(bot.MAILBOXES):
+    bot.MAILBOXES.pop(fd)
+for fd in list(bot.SESSIONS):
+    bot.SESSIONS.pop(fd)
+
+# (1) Der ARBEITER fragt die Drossel. Drei Zimmer rechnen, ein viertes will
+# starten — es darf nicht, und der Auftrag bleibt liegen.
+_gefragt: list = []
+_echt_darf_starten = bot.darf_starten
+bot.darf_starten = lambda uid, tid=None: (_gefragt.append((uid, tid)), False)[1]
+_echt_run_job = bot._run_job
+
+
+async def _run_attrappe(uid, job):
+    return "beantwortet"
+
+
+bot._run_job = _run_attrappe
+_mb4 = bot._get_mailbox(UID, 4)
+_mb4.queue.append(bot.QueuedJob(update=None, text="wartet", user_id=UID))
+
+
+async def _kurz_laufen():
+    _t_ = asyncio.ensure_future(bot._session_worker(UID, 4))
+    await asyncio.sleep(0.05)
+    _t_.cancel()
+    try:
+        await _t_
+    except asyncio.CancelledError:
+        pass
+
+
+lauf(_kurz_laufen())
+zeile("A5-1: der Arbeiter FRAGT die Drossel, bevor er einen Auftrag nimmt",
+      (UID, 4) in _gefragt, gemessen=str(_gefragt))
+zeile("A5-1: und nimmt ihn nicht, solange sie nein sagt",
+      len(_mb4.queue) == 1, gemessen=str(len(_mb4.queue)))
+bot.darf_starten = _echt_darf_starten
+bot._run_job = _echt_run_job
+_mb4.queue.clear()
+
+# (2) Der WÄCHTER fragt das Einschlafen — und schließt, wenn es ja sagt.
+_geschlossen: list = []
+_echt_close = bot.close_session
+
+
+async def _close_attrappe(uid, tid=None):
+    _geschlossen.append((uid, tid))
+    bot.SESSIONS.pop(bot.faden(uid, tid), None)
+
+
+bot.close_session = _close_attrappe
+_alt_intervall = bot.STALL_CHECK_INTERVAL_S
+bot.STALL_CHECK_INTERVAL_S = 0.01
+_schlaefrig = bot.UserSession(client=None)
+_schlaefrig.last_activity = _t.monotonic() - 99 * 60
+bot.SESSIONS[bot.faden(UID, 8)] = _schlaefrig
+
+
+async def _wache_kurz():
+    _t_ = asyncio.ensure_future(bot.stall_watchdog(type("A", (), {"bot": None})()))
+    await asyncio.sleep(0.1)
+    _t_.cancel()
+    try:
+        await _t_
+    except asyncio.CancelledError:
+        pass
+
+
+lauf(_wache_kurz())
+zeile("A5-1: der Wächter legt ein stilles Zimmer wirklich schlafen",
+      (UID, 8) in _geschlossen, gemessen=str(_geschlossen))
+bot.close_session = _echt_close
+bot.STALL_CHECK_INTERVAL_S = _alt_intervall
+for fd in list(bot.SESSIONS):
+    bot.SESSIONS.pop(fd)
+for fd in list(bot.MAILBOXES):
+    bot.MAILBOXES.pop(fd)
+
 zeile("die Obergrenze ist eine Einstellgröße, kein Wert im Code",
       bot.ZIMMER_GLEICHZEITIG == int(os.environ.get("ZIMMER_GLEICHZEITIG", "3")))
 zeile("das Einschlafen ebenso, mit 30 Minuten als Startwert",
@@ -668,11 +754,7 @@ for fd in list(bot.MAILBOXES):
 bot._RESUMED_KEYS.clear()
 
 
-class _AppAttrappe:
-    """Nur der Rand: die Telegram-Anwendung."""
-    bot = _MeldeBot() if "_MeldeBot" in dir() else None
-
-
+# Der Reconcile braucht nur `app.bot` — hier nichts, es wird nichts gesendet.
 _meldung = bot._reconcile_pending(type("A", (), {"bot": None})())
 _wieder = bot._get_mailbox(UID, 47).queue
 zeile("3c-1: der ECHTE Reconcile holt den Auftrag ins richtige Zimmer",

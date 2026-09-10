@@ -363,14 +363,25 @@ for _kn in _ast.walk(_ast.parse(_quelle)):
         continue
     if len(_kn.args) + len(_kn.keywords) > 1:
         continue
-    _umfeld = chr(10).join(_zeilen[max(0, _kn.lineno - 4):_kn.lineno])
-    if "# Hauptfaden:" not in _umfeld:
-        _ohne_grund.append(f"{_kn.func.id}:{_kn.lineno}")
+    _ohne_grund.append(f"{_kn.func.id}:{_kn.lineno}")
 
-zeile("jede Ein-Argument-Tür ist als Hauptfaden BEGRÜNDET",
+# **[VERSCHÄRFT 10.09.2026, Ultracode-Befund E1b] Der Kommentar ist kein
+# Freibrief mehr.**
+#
+# Vorher genügte eine Zeile `# Hauptfaden: …` im Umfeld — gemessen wurde, dass
+# jemand etwas **behauptet**, nicht dass es stimmt. Der Probelauf hat es
+# gezeigt: `ensure_session(user_id)` plus Kommentar, und **beide** Prüfzeilen
+# blieben grün, während die Kernzusage von Block 1 unbewacht war.
+#
+# Jetzt gilt: **kein Ein-Argument-Aufruf, Punkt.** Wer den Hauptfaden meint,
+# schreibt `thread_id=None` hin — das ist dieselbe Aussage, nur im Code statt
+# im Kommentar, und sie lässt sich nicht behaupten, sondern nur setzen. Es
+# kostete vier Zeilen; die Kommentare bleiben als **Begründung** stehen, wofür
+# sie gut sind.
+zeile("keine Tür wird ohne Faden gerufen — auch nicht mit Kommentar",
       not _ohne_grund,
       gemessen=(", ".join(_ohne_grund) if _ohne_grund
-                else "alle begruendet"))
+                else "alle mit Faden"))
 
 # Und die Gegenrichtung: Der Zaehler findet ueberhaupt etwas. Eine Pruefzeile,
 # die ueber einer leeren Menge laeuft, ist immer gruen und misst nichts.

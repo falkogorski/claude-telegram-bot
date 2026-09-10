@@ -2326,7 +2326,7 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
                 log.exception("Nachsteuern: Uebersprungen-Vermerk fehlgeschlagen (nicht-fatal)")
             if job.pending_key:
                 pending.resolve(job.pending_key)
-            _ZETTEL.pop(int(_zschl or 0), None)
+            _ZETTEL.pop(_zschl, None)
             continue
         mb.current_job = job
         mb.current_started = time.monotonic()
@@ -4797,8 +4797,32 @@ def _auftrag_kennung(job) -> str:
             f"{int(getattr(job, 'received_at', 0) or 0)}")
 
 
+def _zettel_dateiname(schluessel) -> str:
+    """Der Schluessel als dateisystem-taugliche Zeichenkette — und zurueck.
+
+    **[NEU 10.09.2026, F-22 Teil 1]** `(chat_id, nummer)` wird zu
+    `[chat]_[nummer]`; Minuszeichen sind in Dateinamen erlaubt. Eine eigene
+    Funktion, damit Schreiben und Lesen **dieselbe** Form benutzen — zwei
+    Stellen mit derselben Umrechnung laufen auseinander, und dann findet das
+    Einsammeln seinen eigenen Zettel nicht mehr.
+    """
+    if isinstance(schluessel, tuple):
+        chat, nummer = schluessel
+        return f"{chat if chat is not None else 'ohne'}_{nummer}"
+    return str(schluessel)
+
+
+def _zettel_schluessel_aus_dateiname(stueck: str):
+    """Die Gegenrichtung — `None`, wenn der Name nicht passt."""
+    try:
+        chat, nummer = stueck.rsplit("_", 1)
+        return (None if chat == "ohne" else int(chat), int(nummer))
+    except ValueError:
+        return None
+
+
 def nachsteuer_schreiben(user_id: int, thread_id: "int | None",
-                         auftrag: str, message_id: "int | None", text: str) -> bool:
+                         auftrag: str, schluessel, text: str) -> bool:
     """Einen Zettel fuer den LAUFENDEN Auftrag ablegen. Wirft nie.
 
     Die Kennung des Auftrags steht im Dateinamen: Ein Zettel, der es nicht mehr
@@ -4816,16 +4840,21 @@ def nachsteuer_schreiben(user_id: int, thread_id: "int | None",
     # denselben Schluessel traegt. Der Fehler lag latent seit Block 1b; er kam
     # nie zum Tragen, weil bis heute jeder Zettel von einer echten Nachricht
     # kam.
-    if not message_id:
+    if not schluessel or (isinstance(schluessel, tuple) and schluessel[1] is None):
         log.warning("Nachsteuern: Zettel ohne Kennung abgelehnt (Zimmer %s)",
                     thread_id if thread_id is not None else "haupt")
         return False
     try:
         ordner = nachsteuer_ordner(user_id, thread_id)
         ordner.mkdir(parents=True, exist_ok=True)
-        mid = int(message_id)
-        (ordner / f"{auftrag}__{mid}.txt").write_text(text.strip(), encoding="utf-8")
-        _ZETTEL[mid] = {"auftrag": auftrag, "gelesen": False, "erledigt": False}
+        # **Auch der Dateiname traegt den Chat.** Der Ordner steht je Person
+        # und Zimmer — aber der Hauptfaden (`thread_id=None`) deckt heute
+        # Privatchat UND Gruppen ab. Genau dort kollidierten zwei Nachrichten
+        # mit derselben Nummer, im Register wie im Ordner.
+        (ordner / f"{auftrag}__{_zettel_dateiname(schluessel)}.txt").write_text(
+            text.strip(), encoding="utf-8")
+        _ZETTEL[schluessel] = {"auftrag": auftrag, "gelesen": False,
+                               "erledigt": False}
         return True
     except Exception:
         log.exception("Nachsteuern: Zettel nicht ablegbar (nicht-fatal)")
@@ -4861,7 +4890,7 @@ def nachsteuer_aufraeumen(user_id: int, thread_id: "int | None",
         log.exception("Nachsteuern: Aufraeumen fehlgeschlagen (nicht-fatal)")
 
 
-def zettel_schluessel(job) -> "int | None":
+def zettel_schluessel(job) -> "tuple | None":
     """Unter welcher Nummer der Zettel DIESES Auftrags im Register steht.
 
     **[NEU 10.09.2026, Block 3]** `message_id` war bis heute der Schluessel,
@@ -4872,11 +4901,26 @@ def zettel_schluessel(job) -> "int | None":
     **Eine Tuer statt zwei Vergleichen:** Wer den Schluessel aendert, aendert
     ihn hier, nicht an jeder Stelle, die das Register befragt.
     """
-    zid = getattr(job, "zettel_id", None)
-    return zid if zid is not None else getattr(job, "message_id", None)
+    # **[GEAENDERT 10.09.2026, F-22, Teil 1] Der Chat gehoert dazu.**
+    #
+    # Telegram vergibt `message_id` **je Chat**. Nummer 42 im Privatchat und
+    # Nummer 42 in einer Gruppe waren im Register bisher **derselbe Eintrag**
+    # — und ein Auftrag aus dem einen Chat konnte den Zwilling aus dem anderen
+    # als [schon beantwortet] uebersprungen lassen. **Adams Nachricht waere
+    # spurlos verschwunden**, ohne Fehler, ohne Meldung.
+    #
+    # Das ist der Teil von F-22, der **heute schon** schadet; der volle
+    # Schluesselwechsel (`chat_id` auch in Sitzung und Warteschlange) ist ein
+    # eigener Bau.
+    kennung = getattr(job, "zettel_id", None)
+    if kennung is None:
+        kennung = getattr(job, "message_id", None)
+    if kennung is None:
+        return None
+    return (getattr(job, "chat_id", None), int(kennung))
 
 
-def zettel_gelesen(message_id: "int | None") -> bool:
+def zettel_gelesen(schluessel) -> bool:
     """Wurde diese Nachricht bereits als Zettel in den laufenden Auftrag
     gereicht? -- Der Zustand **waehrend** der Auftrag noch laeuft.
 
@@ -4886,14 +4930,14 @@ def zettel_gelesen(message_id: "int | None") -> bool:
     gelesen und der Zwilling wartet noch -- genau der Moment, in dem die alte
     Zeile eine zweite Antwort versprach, die dann nie kam.
     """
-    eintrag = _ZETTEL.get(int(message_id or 0))
+    eintrag = _ZETTEL.get(schluessel) if schluessel else None
     return bool(eintrag and eintrag.get("gelesen"))
 
 
-def zettel_erledigt(message_id: "int | None") -> bool:
+def zettel_erledigt(schluessel) -> bool:
     """Wurde diese Nachricht schon als Zettel in einen beantworteten Auftrag
     gereicht? Dann braucht ihr eingereihter Zwilling keinen eigenen Lauf."""
-    eintrag = _ZETTEL.get(int(message_id or 0))
+    eintrag = _ZETTEL.get(schluessel) if schluessel else None
     return bool(eintrag and eintrag.get("erledigt"))
 
 
@@ -4929,10 +4973,11 @@ def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None,
             except OSError:
                 continue
             try:
-                mid = int(datei.stem.rsplit("__", 1)[-1])
+                _schl = _zettel_schluessel_aus_dateiname(
+                    datei.stem.rsplit("__", 1)[-1])
             except ValueError:
                 continue
-            eintrag = _ZETTEL.get(mid)
+            eintrag = _ZETTEL.get(_schl) if _schl else None
             if eintrag is not None:
                 eintrag["gelesen"] = True
         return "\n".join(s for s in stuecke if s)
@@ -11675,7 +11720,7 @@ async def process_user_text(
             # UND ist er beantwortet, wird der Zwilling uebersprungen.
             gereicht = nachsteuer_schreiben(
                 user_id, _fd_thread, _auftrag_kennung(mb.current_job),
-                update.message.message_id, text)
+                (chat_id, update.message.message_id), text)
             # **[NEU 10.09.2026, Block 3] Regel 2 — eine Stimme statt einer
             # Quittung.** Die Nachricht steht bereits in der Reihe; was hier
             # dazukommt, ist eine Antwort in Sekunden, waehrend das Zimmer

@@ -46,6 +46,9 @@ def zeile(name: str, bedingung, *, gemessen: str = "") -> None:
 
 
 UID = 4711
+# Der Chat des Pruefstands — seit F-22 Teil 1 gehoert er in jeden
+# Registerschluessel: `message_id` ist nur JE CHAT eindeutig.
+CHAT = 999
 print("== Block 1: Sitzung je Zimmer ==")
 
 # ---- Der Schluessel selbst -------------------------------------------------
@@ -179,7 +182,7 @@ zeile("ohne Zettel reicht der Hook nichts hinein",
       gemessen=str(_a.run(_hook({}, None, None)))[:80])
 
 zeile("der Schreiber legt einen Zettel für den laufenden Auftrag ab",
-      bot.nachsteuer_schreiben(UID, 7, _k7_kennung, 501, "stopp, andere Farbe"),
+      bot.nachsteuer_schreiben(UID, 7, _k7_kennung, (CHAT, 501), "stopp, andere Farbe"),
       gemessen=str(sorted(x.name for x in bot.nachsteuer_ordner(UID, 7).glob("*.txt"))))
 
 _erg = _a.run(_hook({}, None, None))
@@ -198,7 +201,7 @@ zeile("derselbe Zettel kommt kein zweites Mal",
 _mb8 = bot._get_mailbox(UID, 8)
 _j8 = _job(108)
 _mb8.current_job = _j8
-bot.nachsteuer_schreiben(UID, 8, bot._auftrag_kennung(_j8), 508, "fuer Zimmer acht")
+bot.nachsteuer_schreiben(UID, 8, bot._auftrag_kennung(_j8), (CHAT, 508), "fuer Zimmer acht")
 _hook7 = bot._nachsteuer_hook(UID, 7)
 zeile("ein Zettel für Zimmer 8 erreicht Zimmer 7 nicht (Gegenrichtung)",
       _a.run(_hook7({}, None, None)) == {})
@@ -213,7 +216,7 @@ zeile("Zimmer 8 bekommt seinen eigenen",
 
 # (a) NICHTS ALTES: ein Zettel, der es nicht mehr in seinen Auftrag geschafft
 #     hat, darf den naechsten nicht erreichen -- der bearbeitet etwas anderes.
-bot.nachsteuer_schreiben(UID, 7, _k7_kennung, 502, "gehoert zum alten Auftrag")
+bot.nachsteuer_schreiben(UID, 7, _k7_kennung, (CHAT, 502), "gehoert zum alten Auftrag")
 _mb7.current_job = _job(102, 2000)                       # neuer Auftrag im selben Zimmer
 _neu = _a.run(bot._nachsteuer_hook(UID, 7)({}, None, None))
 zeile("ein Zettel aus einem fremden Auftrag kommt NICHT an",
@@ -231,11 +234,11 @@ _mbz = bot._get_mailbox(UID, 11)
 _jz = _job(111)
 _mbz.current_job = _jz
 _kz = bot._auftrag_kennung(_jz)
-bot.nachsteuer_schreiben(UID, 11, _kz, 511, "Nachtrag zum laufenden")
+bot.nachsteuer_schreiben(UID, 11, _kz, (CHAT, 511), "Nachtrag zum laufenden")
 _a.run(bot._nachsteuer_hook(UID, 11)({}, None, None))     # der Hook reicht ihn hinein
 bot.nachsteuer_aufraeumen(UID, 11, _kz, beantwortet=True)
 zeile("angekommen und beantwortet -> der Zwilling wird übersprungen",
-      bot.zettel_erledigt(511), gemessen=str(bot._ZETTEL.get(511)))
+      bot.zettel_erledigt((CHAT, 511)), gemessen=str(bot._ZETTEL.get((CHAT, 511))))
 
 # (d) NICHTS VERLOREN: derselbe Weg, aber der Auftrag scheitert -> der
 #     Zwilling laeuft ganz normal. Im Zweifel lieber einmal zu viel arbeiten.
@@ -243,7 +246,7 @@ _mbf = bot._get_mailbox(UID, 12)
 _jf = _job(112)
 _mbf.current_job = _jf
 _kf = bot._auftrag_kennung(_jf)
-bot.nachsteuer_schreiben(UID, 12, _kf, 512, "Nachtrag zum gescheiterten")
+bot.nachsteuer_schreiben(UID, 12, _kf, (CHAT, 512), "Nachtrag zum gescheiterten")
 _a.run(bot._nachsteuer_hook(UID, 12)({}, None, None))
 bot.nachsteuer_aufraeumen(UID, 12, _kf, beantwortet=False)
 zeile("angekommen, aber Auftrag gescheitert -> der Zwilling läuft normal",
@@ -254,7 +257,7 @@ zeile("angekommen, aber Auftrag gescheitert -> der Zwilling läuft normal",
 _mbu = bot._get_mailbox(UID, 13)
 _ju = _job(113)
 _mbu.current_job = _ju
-bot.nachsteuer_schreiben(UID, 13, bot._auftrag_kennung(_ju), 513, "nie gelesen")
+bot.nachsteuer_schreiben(UID, 13, bot._auftrag_kennung(_ju), (CHAT, 513), "nie gelesen")
 bot.nachsteuer_aufraeumen(UID, 13, bot._auftrag_kennung(_ju), beantwortet=True)
 zeile("nie gelesen -> der Zwilling läuft normal",
       not bot.zettel_erledigt(513), gemessen=str(bot._ZETTEL.get(513)))
@@ -424,6 +427,58 @@ zeile("keine Tür wird ohne Faden gerufen — auch nicht mit Kommentar",
 _alle_tueren = sum(1 for _kn in _ast.walk(_ast.parse(_quelle))
                    if isinstance(_kn, _ast.Call) and isinstance(_kn.func, _ast.Name)
                    and _kn.func.id in _TUEREN)
+# ── F-22 Teil 1: derselbe Nummernwert aus ZWEI Chats ────────────────────────
+#
+# **Der Teil von F-22, der heute schon schadet.** Telegram vergibt
+# `message_id` je Chat: Nummer 42 im Privatchat und Nummer 42 in einer Gruppe
+# waren im Register **derselbe Eintrag**. Ein Auftrag aus dem einen Chat
+# konnte damit den Zwilling aus dem anderen als „schon beantwortet"
+# überspringen lassen — **Adams Nachricht wäre spurlos verschwunden.**
+bot._ZETTEL.clear()
+_jobA = bot.QueuedJob(update=None, text="aus Chat A", user_id=UID,
+                      chat_id=111, message_id=42)
+_jobB = bot.QueuedJob(update=None, text="aus Chat B", user_id=UID,
+                      chat_id=222, message_id=42)
+zeile("zwei Chats mit derselben Nummer sind ZWEI Schlüssel",
+      bot.zettel_schluessel(_jobA) != bot.zettel_schluessel(_jobB),
+      gemessen=f"{bot.zettel_schluessel(_jobA)} vs {bot.zettel_schluessel(_jobB)}")
+
+bot.nachsteuer_schreiben(UID, None, "auftrag-A",
+                         bot.zettel_schluessel(_jobA), "Nachtrag aus Chat A")
+bot.nachsteuer_aufraeumen(UID, None, "auftrag-A", beantwortet=False)
+_ZA = bot._ZETTEL.get(bot.zettel_schluessel(_jobA))
+bot._ZETTEL[bot.zettel_schluessel(_jobA)] = {"auftrag": "auftrag-A",
+                                             "gelesen": True, "erledigt": True}
+zeile("ein erledigter Zettel aus Chat A lässt Chat B UNBERÜHRT",
+      bot.zettel_erledigt(bot.zettel_schluessel(_jobB)) is False,
+      gemessen=str(dict(bot._ZETTEL)))
+zeile("und für Chat A gilt er sehr wohl (Gegenrichtung)",
+      bot.zettel_erledigt(bot.zettel_schluessel(_jobA)) is True)
+
+# Auch der Dateiname trennt die Chats — sonst überschriebe der zweite Zettel
+# den ersten im selben Ordner.
+bot._ZETTEL.clear()
+bot.nachsteuer_schreiben(UID, None, "auftrag-X",
+                         bot.zettel_schluessel(_jobA), "aus A")
+bot.nachsteuer_schreiben(UID, None, "auftrag-X",
+                         bot.zettel_schluessel(_jobB), "aus B")
+_dateien = sorted(x.name for x in bot.nachsteuer_ordner(UID, None).glob("auftrag-X__*.txt"))
+zeile("zwei Chats erzeugen ZWEI Zettel-Dateien, nicht eine",
+      len(_dateien) == 2, gemessen=str(_dateien))
+
+# Und die Rückrichtung des Dateinamens: Was geschrieben wurde, wird auch
+# wiedererkannt — sonst fände das Einsammeln seinen eigenen Zettel nicht.
+zeile("der Dateiname lässt sich zum Schlüssel zurücklesen",
+      bot._zettel_schluessel_aus_dateiname(
+          bot._zettel_dateiname((111, 42))) == (111, 42),
+      gemessen=bot._zettel_dateiname((111, 42)))
+_text_ein = bot.nachsteuer_lesen(UID, None, "auftrag-X")
+zeile("und das Einsammeln setzt beide auf gelesen",
+      all(e.get("gelesen") for e in bot._ZETTEL.values())
+      and "aus A" in _text_ein and "aus B" in _text_ein,
+      gemessen=str(dict(bot._ZETTEL)))
+bot._ZETTEL.clear()
+
 zeile("der Zähler sieht die Türen überhaupt",
       _alle_tueren >= 40, gemessen=f"{_alle_tueren} Aufrufe")
 

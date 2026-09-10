@@ -195,10 +195,13 @@ zeile("der Zwilling trägt seine Kennung in zettel_id, nicht in message_id",
       zwilling.zettel_id is not None and zwilling.zettel_id < 0
       and zwilling.message_id is None,
       gemessen=f"zettel_id={zwilling.zettel_id}, message_id={zwilling.message_id}")
+# **[GEAENDERT 10.09.2026, F-22 Teil 1]** Der Schlüssel ist ein PAAR aus Chat
+# und Kennung — `message_id` ist nur je Chat eindeutig.
 zeile("der Registerschlüssel folgt zettel_id, wo es eine gibt",
-      bot.zettel_schluessel(zwilling) == zwilling.zettel_id
-      and bot.zettel_schluessel(bot.QueuedJob(update=None, text="x",
-                                              message_id=42)) == 42)
+      bot.zettel_schluessel(zwilling) == (zwilling.chat_id, zwilling.zettel_id)
+      and bot.zettel_schluessel(bot.QueuedJob(update=None, text="x", chat_id=7,
+                                              message_id=42)) == (7, 42),
+      gemessen=str(bot.zettel_schluessel(zwilling)))
 mb_haupt.current_job = None
 
 # **Die Null-Falle**, latent seit Block 1b: Ein Zettel ohne Kennung stünde
@@ -207,7 +210,10 @@ mb_haupt.current_job = None
 bot._ZETTEL.clear()
 geschrieben = bot.nachsteuer_schreiben(UID, None, "auftrag-x", None, "text")
 zeile("ein Zettel ohne Kennung wird abgelehnt und registriert nichts",
-      geschrieben is False and 0 not in bot._ZETTEL)
+      geschrieben is False and not bot._ZETTEL,
+      gemessen=str(dict(bot._ZETTEL)))
+zeile("auch ein Schlüssel mit leerer Kennung wird abgelehnt",
+      bot.nachsteuer_schreiben(UID, None, "auftrag-x", (7, None), "text") is False)
 
 # ── 4. Signatur (Auflage 5) ─────────────────────────────────────────────────
 zeile("jede Antwort des Empfangs trägt sein Zeichen",
@@ -602,10 +608,11 @@ _lauf_job = bot.QueuedJob(update=None, text="laeuft", user_id=UID,
 _mbz = bot._get_mailbox(UID, None)
 _mbz.queue.clear()
 _mbz.current_job = _lauf_job
-_zw = bot.QueuedJob(update=None, text="zwilling", user_id=UID,
+_zw = bot.QueuedJob(update=None, text="zwilling", user_id=UID, chat_id=UID,
                     zettel_id=-77, received_at=900.0)
 _mbz.queue.append(_zw)
-bot._ZETTEL[-77] = {"auftrag": "x", "gelesen": True, "erledigt": False}
+bot._ZETTEL[bot.zettel_schluessel(_zw)] = {"auftrag": "x", "gelesen": True,
+                                           "erledigt": False}
 _offen, _eingearbeitet = bot._neuere_wartende(UID, _lauf_job)
 zeile("A-2: ein eingearbeiteter Zwilling aus dem Empfang zählt als erledigt",
       (_offen, _eingearbeitet) == (0, 1),
@@ -786,7 +793,8 @@ zeile("3c-1: der ECHTE Reconcile holt den Auftrag ins richtige Zimmer",
       len(_wieder) == 1 and _wieder[0].text == "MIGRATION.md lesen",
       gemessen=f"{_meldung} · {[j.text for j in _wieder]}")
 zeile("3c-1: und er stellt die Kennung wieder her",
-      _wieder and bot.zettel_schluessel(_wieder[0]) == _job.zettel_id,
+      _wieder and bot.zettel_schluessel(_wieder[0])
+      == (_job.chat_id, _job.zettel_id),
       gemessen=str(bot.zettel_schluessel(_wieder[0]) if _wieder else "nichts"))
 zeile("3c-1: samt Rückadresse ins Zimmer",
       _wieder and _wieder[0].output_thread_id == 47,

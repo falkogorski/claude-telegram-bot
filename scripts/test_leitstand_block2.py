@@ -256,7 +256,8 @@ mb11 = bot._get_mailbox(UID, 11)
 job11 = bot.QueuedJob(update=None, text="der laufende Auftrag", user_id=UID,
                       chat_id=999, message_id=11, thread_id=11)
 mb11.current_job = job11
-bot.nachsteuer_schreiben(UID, 11, bot._auftrag_kennung(job11), 511,
+# **[GEAENDERT 10.09.2026, F-22 Teil 1]** Der Schluessel traegt den Chat.
+bot.nachsteuer_schreiben(UID, 11, bot._auftrag_kennung(job11), (999, 511),
                          "und nenne bitte auch das Datum")
 asyncio.run(bot._nachsteuer_hook(UID, 11)({}, None, None))
 prot11 = bot.LOG_DIR / f"{tag}_zimmer-11.md"

@@ -223,3 +223,56 @@ def house_overview(prefs: dict) -> list[dict]:
             "zimmer_done": sum(1 for z in spec["zimmer"] if z in have),
         })
     return out
+
+
+def zimmer_aufloesen(prefs: dict, name: str) -> "tuple[int, int, str] | None":
+    """Klarname → `(chat_id, thread_id, voller Name)` — oder `None`.
+
+    **[NEU 10.09.2026, Block 3]** Das Gegenstück zu `zimmer_name_fuer`. Die
+    Sekretärin nennt ein Zimmer beim Namen; der Code muss daraus eine Adresse
+    machen, **bevor** irgendetwas eingereiht wird.
+
+    Drei Eigenschaften, jede aus einer eigenen Bruchstelle:
+
+    * **Schreibweise ist egal, Bedeutung nicht.** Verglichen wird über
+      `folder_name` — „Migration & Technik", „migration-technik" und
+      „Migration und Technik" sind dasselbe Zimmer. Ein Modell tippt Namen
+      selten zeichengenau ab; daran darf ein Auftrag nicht scheitern.
+    * **Mehrdeutig heißt `None`.** Trägt derselbe Name in zwei Häusern ein
+      Zimmer, wird **nicht** geraten. Ein Auftrag im falschen Haus ist
+      schlimmer als ein Auftrag, der zurückkommt.
+    * **Der volle Name wird zurückgegeben**, nicht der getippte. Was der
+      Aufrufer meldet, ist damit die Adresse, die wirklich getroffen wurde.
+
+    Der Haus-Name allein löst **nicht** auf: „Werkstatt" ist kein Zimmer.
+    """
+    gesucht = folder_name(name or "")
+    if not gesucht:
+        return None
+    treffer: list[tuple[int, int, str]] = []
+    for key, entry in (_channels_root(prefs)["houses"]).items():
+        chat_id = entry.get("chat_id")
+        if chat_id is None:
+            continue
+        titel = entry.get("title") or (HOUSES.get(key) or {}).get("title") or key
+        for zimmer, tid in (entry.get("topics") or {}).items():
+            if folder_name(zimmer) != gesucht:
+                continue
+            treffer.append((int(chat_id), int(tid), f"{titel} · {zimmer}"))
+    if len(treffer) != 1:
+        return None
+    return treffer[0]
+
+
+def zimmer_namen(prefs: dict) -> list[str]:
+    """Alle angelegten Zimmer als Klarnamen — für Auskunft und Fehlermeldung.
+
+    Wer ein unbekanntes Zimmer nennt, bekommt die Liste der bekannten zurück.
+    Eine Fehlermeldung ohne Alternativen zwingt zum Raten.
+    """
+    namen: list[str] = []
+    for key, entry in (_channels_root(prefs)["houses"]).items():
+        titel = entry.get("title") or (HOUSES.get(key) or {}).get("title") or key
+        for zimmer in (entry.get("topics") or {}):
+            namen.append(f"{titel} · {zimmer}")
+    return sorted(namen)

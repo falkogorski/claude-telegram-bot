@@ -1017,6 +1017,6 @@ Zimmer — `/zimmer` zeigt ihn.
 messen war: ob die Oberfläche der Sekretärin ihr Werkzeug anbietet. Dann bitte
 melden, nicht selbst nachbessern.
 
-**Wieder ausschalten:** `/empfang aus`
+**Wieder ausschalten:** `/empfang aus` — oder schlicht `/empfang`, das schaltet um (so kommt der Befehl auch aus dem Telegram-Menü).
 
 **Rückweg:** `reset --hard` auf den Hash aus Schritt 0, dann Neustart.

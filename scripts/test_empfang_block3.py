@@ -250,6 +250,49 @@ zeile("eingeschaltet gilt er — und liegt in den Vorlieben, nicht im Speicher",
 bot.empfang_setzen(UID, False)
 zeile("er schaltet auch wieder aus", bot.empfang_an(UID) is False)
 
+# **[NEU 10.09.2026, Adams Befund nach dem ersten Deploy] Ohne Argument
+# schaltet er UM.** Aus dem Telegram-Menü kommt der Befehl immer ohne
+# Argument — ein Knopf, der nur den Stand zeigt, ist kein Knopf.
+class _Ctx:
+    def __init__(self, *args):
+        self.args = list(args)
+
+
+_ANTWORTEN: list = []
+
+
+class _Nachricht2:
+    async def reply_text(self, text, **kw):
+        _ANTWORTEN.append(text)
+
+
+class _Upd2:
+    def __init__(self):
+        self.message = _Nachricht2()
+        self.effective_user = type("U", (), {"id": UID})()
+        self.effective_chat = type("C", (), {"id": UID, "type": "private"})()
+        self.effective_message = None
+
+
+_echt_autorisiert = bot.authorized
+bot.authorized = lambda u: True
+try:
+    lauf(bot.cmd_empfang(_Upd2(), _Ctx()))
+    _nach_erstem = bot.empfang_an(UID)
+    lauf(bot.cmd_empfang(_Upd2(), _Ctx()))
+    _nach_zweitem = bot.empfang_an(UID)
+    lauf(bot.cmd_empfang(_Upd2(), _Ctx("an")))
+    _mit_argument = bot.empfang_an(UID)
+finally:
+    bot.authorized = _echt_autorisiert
+zeile("ohne Argument schaltet /empfang EIN, wenn er aus war",
+      _nach_erstem is True, gemessen=str(_ANTWORTEN[:1])[:70])
+zeile("und beim zweiten Mal wieder aus (es ist ein Umschalter)",
+      _nach_zweitem is False)
+zeile("mit Argument wird gesetzt, nicht umgeschaltet",
+      _mit_argument is True)
+bot.empfang_setzen(UID, False)
+
 # ── 7. Die Weiche (Regel 1) — ausgeführt, nicht gelesen ─────────────────────
 bot.empfang_setzen(UID, True)
 zeile("bei eingeschaltetem Empfang beantwortet die Sekretärin den Hauptchat",

@@ -5394,8 +5394,22 @@ async def cmd_empfang(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await sekretaerin_schliessen(user_id)
     elif arg:
         await update.message.reply_text(
-            "Ich kenne „an“ und „aus“. Ohne Angabe zeige ich den Stand.")
+            "Ich kenne „an“ und „aus“. Ohne Angabe schalte ich um.")
         return
+    else:
+        # **[GEAENDERT 10.09.2026, Adams Befund nach dem ersten Deploy]** Ohne
+        # Argument wird UMGESCHALTET, nicht nur berichtet.
+        #
+        # Der Grund ist der Weg, auf dem der Befehl ankommt: **Aus dem
+        # Telegram-Menü kommt er immer ohne Argument.** Ein Knopf, der nur den
+        # Stand zeigt, ist kein Knopf — Adam drückte ihn und nichts geschah.
+        # `/tts` schaltet aus demselben Grund seit jeher um.
+        #
+        # Den Stand allein nennt weiterhin `/status`.
+        neu_an = not empfang_an(user_id)
+        empfang_setzen(user_id, neu_an)
+        if not neu_an:
+            await sekretaerin_schliessen(user_id)
 
     an = empfang_an(user_id)
     if an:

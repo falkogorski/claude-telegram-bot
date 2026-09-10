@@ -906,3 +906,55 @@ statt des Julis.
 
 **Warum du das ausführst und nicht ich:** Server-Eingriffe löst du aus — auch
 die kleinen, auch außerhalb des Repos.
+
+
+---
+
+# Deploy A-4 — der Haushalt, der ohne den Knopf läuft
+
+**Stand:** 10.09.2026, 13:56 · **Zielstand:** `606ce26` · **Server läuft auf
+`9801c64`** · **Dringlichkeit: heute** — vier Punkte aus A-4 wirken seit dem
+letzten Deploy im Betrieb, der auffälligste lässt Adams Gesprächsfaden nach
+dreißig Minuten Stille verschwinden.
+
+## Schritt 0 — **erst sehen, was mitkommt** `[NEU 10.09., Engywuck]`
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git fetch -q origin && git log --oneline HEAD..606ce26'
+```
+
+**Prüfzeile: Es dürfen NUR die Commits dieses Blocks dastehen.** Steht etwas
+darunter, das nicht dazugehört, wird **nicht gezogen** — ein `--ff-only`-Merge
+bringt die ganze Kette mit, nicht nur den genannten Stand. Genau so ist Block 3
+am 10.09. mit einem Hotfix live gegangen.
+
+Erwartet hier: `62f153d` (Meldung) und `606ce26` (A-4) — beides gehört dazu.
+
+Und den jetzigen Stand ablesen, das ist der Rückweg:
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git rev-parse --short HEAD'
+```
+
+## Schritt 1 — holen und prüfen
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git merge --ff-only 606ce26 && bash scripts/regressionstest.sh > /tmp/reg.log 2>&1; echo "rc=$?"; tail -6 /tmp/reg.log'
+```
+
+**Prüfzeile:** `rc=0` oder `rc=77`.
+
+## Schritt 2 — Neustart
+
+```bash
+ssh claudevps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
+```
+
+## Schritt 3 — die Prüfzeile, und sie braucht Geduld
+
+Schreib etwas im **Hauptchat**, lass den Chat **über eine halbe Stunde** ruhen,
+schreib dann wieder. **Der Faden muss noch da sein** — keine Antwort, die bei
+null beginnt. Ein **Zimmer** darf in derselben Zeit einschlafen; dort kommt
+dann eine 💤-Zeile, die es ankündigt.
+
+**Rückweg:** `reset --hard` auf den Hash aus Schritt 0, dann Neustart.

@@ -1194,6 +1194,31 @@ und zu messen, ob das Geschützte überhaupt noch läuft. Eine Schranke um eine
 tote Fähigkeit ist reine Innenarbeit; das ist die Kurs-Regel, an einer Stelle
 angewandt, an der sie besonders leicht durchrutscht.
 
+## 📦 EIN DEPLOY-BLOCK ZEIGT, WAS ER MITBRINGT (Engywuck 2026-09-10)
+
+> **Schritt 0 jedes Deploy-Blocks enthält `git log --oneline HEAD..<ziel>`.**
+> **Prüfzeile: nur die Commits des Blocks, sonst nicht ziehen.**
+
+**Der Vorfall, gemessen:** Am 10.09. wurde ein Hotfix mit
+`git merge --ff-only 9801c64` deployt. Der Zweig trug davor `79d8ae4` und
+`d87dc64` — **Block 3, den derselbe Prüfbericht ausdrücklich nicht deployt
+sehen wollte.** Ein `--ff-only`-Merge bringt immer die ganze Kette mit; der
+Zielhash sagt nichts darüber, was zwischen ihm und dem Serverstand liegt.
+
+**Warum es niemand sah:** Der Knopf `/empfang` galt als Sicherheitsleine — und
+er trug den Empfang, **nicht den Haushalt**. Drossel und Einschlafen laufen im
+Arbeiter und im Wächter, ohne jede Abfrage auf den Schalter. Vier Stunden lang
+konnte damit Adams Hauptfaden nach dreißig Minuten Stille verschwinden.
+
+**Die Lehre über den Fall hinaus:** *Ein Schalter schützt genau das, was ihn
+abfragt.* Wer „steht auf aus, es ändert sich nichts" schreibt, muss sagen, für
+**welche** Teile das gilt — sonst ist es eine Behauptung über den ganzen
+Commit.
+
+**Der Prüfer ist die Zeile selbst.** Sie steht im Block, Adam führt sie aus und
+sieht die Liste, bevor gezogen wird — kein neuer Wächter (Kurs-Regel), nur ein
+Handgriff an der Stelle, an der die Entscheidung fällt.
+
 ## 🧹 SOFORT AUFRÄUMEN (Adam 2026-08-28, 18:43)
 
 **Was erledigt ist, wird im selben Zug aus den Listen genommen** — Status,

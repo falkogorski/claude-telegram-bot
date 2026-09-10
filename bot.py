@@ -744,6 +744,13 @@ ZIMMER_GLEICHZEITIG = int(os.environ.get("ZIMMER_GLEICHZEITIG", "3"))
 # `ensure_session` legt sie neu an. **Der Empfang ist davon nicht betroffen:**
 # Er steht nicht in `SESSIONS`, ein schlafender Empfang hoebe seinen Zweck auf.
 ZIMMER_SCHLAF_NACH_S = int(os.environ.get("ZIMMER_SCHLAF_NACH_S", str(30 * 60)))
+
+# Wieviel ein Empfangs-Lauf hoechstens tun darf `[NEU 10.09.2026, A-3]` --
+# Zuege insgesamt und Zettel darin. Beides Einstellgroessen, beides klein:
+# Der Empfang antwortet und reicht hoechstens EINE Sache weiter. Wer mehr
+# will, schreibt eine zweite Nachricht.
+EMPFANG_ZUEGE_JE_LAUF = int(os.environ.get("EMPFANG_ZUEGE_JE_LAUF", "6"))
+EMPFANG_ZETTEL_JE_LAUF = int(os.environ.get("EMPFANG_ZETTEL_JE_LAUF", "2"))
 MEDIA_BUDGET = media.transport_budget(SDK_MAX_BUFFER)
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")
 # Kurznamen → vollständige Modell-IDs, die das SDK versteht
@@ -5962,6 +5969,20 @@ def _empfang_mcp(user_id: int):
                                          "erneut auf."}],
                     "is_error": True}
         eintrag = _EMPFANG.get(int(user_id)) or {}
+        # **Der zweite Deckel (A-3):** Ein Lauf legt hoechstens so viele Zettel
+        # ab. Ohne ihn koennte ein einziger Text eine Reihe von Auftraegen in
+        # verschiedene Zimmer erzeugen -- und jeder davon laeuft dort mit
+        # vollem Werkzeugsatz.
+        _abgelegt = int(eintrag.get("zettel_im_lauf") or 0)
+        if _abgelegt >= EMPFANG_ZETTEL_JE_LAUF:
+            log.warning("Empfang: Obergrenze fuer Zettel je Lauf erreicht (%d)",
+                        _abgelegt)
+            return {"content": [{"type": "text",
+                                 "text": "Fuer diesen Zug ist die Obergrenze "
+                                         "an Weitergaben erreicht. Sag Adam, "
+                                         "was noch offen ist; er schickt es "
+                                         "als eigene Nachricht."}],
+                    "is_error": True}
         if eintrag.get("nur_antworten"):
             log.info("Empfang: Weitergabe abgelehnt -- Auftrag liegt bereits "
                      "im Zimmer (Zwischenantwort)")
@@ -5974,6 +5995,7 @@ def _empfang_mcp(user_id: int):
         erg = auftrag_einreihen(
             user_id, ziel["thread_id"], text,
             chat_id=ziel["chat_id"], bot=eintrag.get("bot"))
+        eintrag["zettel_im_lauf"] = _abgelegt + 1
         log.info("Empfang: Auftrag an %s abgelegt (Position %d, lief=%s, "
                  "Zettel gereicht=%s)", ziel["name"], erg["position"],
                  erg["lief"], erg["gereicht"])
@@ -6013,6 +6035,15 @@ def sekretaerin_optionen(user_id: int, modell: "str | None" = None):
         modell=_MODEL_ALIASES.get(kurz, kurz),
         erlaubt=[empfang.WERKZEUG_NAME],
         mcp_servers={empfang.WERKZEUG_SERVER: _empfang_mcp(user_id)},
+        # **[NEU 10.09.2026, Ultracode-Befund A-3] Ein Deckel je Lauf.**
+        #
+        # Ohne ihn kann ein Lauf beliebig oft weitermachen — und jeder Zug
+        # kann einen Zettel ablegen. Der Empfang soll antworten und
+        # höchstens etwas weiterreichen, nicht eine Reihe von Aufträgen
+        # erzeugen. Der zweite Deckel sitzt im Werkzeug selbst
+        # (`EMPFANG_ZETTEL_JE_LAUF`): Auch innerhalb dieser Züge wird nicht
+        # beliebig oft abgelegt.
+        max_turns=EMPFANG_ZUEGE_JE_LAUF,
     )
 
 
@@ -6130,6 +6161,7 @@ async def sekretaerin_fragen(user_id: int, text: str, *, bot=None,
     # zurueck, was der andere braucht.
     async with eintrag["schloss"]:
         eintrag["nur_antworten"] = bool(nur_antworten)
+        eintrag["zettel_im_lauf"] = 0
         stand = empfang.kontext_text(leitstand(user_id))
         anfrage = f"{stand}\n\n---\n\nAdam schreibt dir:\n{text}"
 
@@ -6181,7 +6213,7 @@ _ANHANG_ZEICHEN = ("📷", "📎", "🎬")
 
 
 def geht_an_empfang(user_id: int, thread_id: "int | None",
-                    log_note: "str | None") -> bool:
+                    log_note: "str | None", text: str = "") -> bool:
     """Beantwortet DIESE Nachricht die Sekretaerin? — Regel 1 an einer Stelle.
 
     **Als eigene Funktion, damit ein Pruefer sie ausfuehren kann.** Stuende die
@@ -6197,9 +6229,40 @@ def geht_an_empfang(user_id: int, thread_id: "int | None",
       arbeitet das Zimmer; dort gibt der Empfang hoechstens eine
       Zwischenantwort, waehrend gerechnet wird.
     * **Kein Anhang.** Sie hat kein Lesewerkzeug.
+    * **Kein Stopp-Wort.** `[NEU 10.09.2026, Ultracode-Befund A-3]` Der
+      Empfangs-Zweig stand **vor** der Unterbrechungs-Prüfung: Bei
+      eingeschaltetem Knopf hätte „Stopp, das ist falsch" im Hauptchat keinen
+      laufenden Auftrag mehr gestoppt, sondern nur die Sekretärin
+      beplaudert. **Ein Stopp muss stoppen** — das ist der einzige Weg, einen
+      falsch laufenden Vorgang abzubrechen, und Adam hat ihn seit dem 05.09.
+      im Gebrauch.
     """
     return (thread_id is None and empfang_an(user_id)
-            and not _hat_anhang(log_note))
+            and not _hat_anhang(log_note)
+            and not _is_interrupt(text))
+
+
+def empfang_darf_weitergeben(update, text: str) -> bool:
+    """Darf der Empfang aus DIESER Nachricht einen Auftrag machen?
+
+    **[NEU 10.09.2026, Ultracode-Befund A-3]** Nur aus Adams eigenem Wort.
+    Weitergeleiteter Text ist ein Auftrag zum **Lesen**, nie einer zum Handeln
+    nach dem Gelesenen — Adams Kopfsatz seit dem 21.08.
+
+    **Als eigene Funktion, damit ein Prüfer sie ausführen kann.** Stünde die
+    Bedingung im Verteiler, ließe sie sich nur lesen; hier hängt daran, ob
+    fremder Text einen Lauf mit vollem Werkzeugsatz auslösen kann.
+
+    `_adam_anteil` beantwortet die Frage bereits (Befund A vom 23.08.) und
+    wurde vom Empfang bis heute nicht gefragt. Fail-closed: Im Zweifel `False`
+    — der Preis ist eine Antwort ohne Weitergabe, der Gegenwert ein Auftrag,
+    den niemand erteilt hat.
+    """
+    try:
+        return _adam_anteil(update, text) is not None
+    except Exception:
+        log.exception("Empfang: Herkunft nicht bestimmbar -- keine Weitergabe")
+        return False
 
 
 def _hat_anhang(log_note: "str | None") -> bool:
@@ -11310,9 +11373,24 @@ async def process_user_text(
     # **Antwortet sie nicht** (Zeitgrenze, Fehler), faellt die Nachricht in den
     # normalen Weg. Das ist die richtige Richtung: lieber langsam beantwortet
     # als still verschluckt.
-    if geht_an_empfang(user_id, _fd_thread, log_note):
+    if geht_an_empfang(user_id, _fd_thread, log_note, text):
+        # **[NEU 10.09.2026, Ultracode-Befund A-3] Fremdtext reicht nichts
+        # weiter — und das entscheidet der CODE.**
+        #
+        # Bis hierher wurde jeder Text als „Adam schreibt dir" vorgelegt, auch
+        # weitergeleiteter. Enthielte er eine Anweisung, riefe das Modell
+        # `zettel_ablegen`, und daraus entstünde ein Auftrag **mit vollem
+        # Werkzeugsatz** im Zimmer. Die Regel *von außen kommen nie
+        # Anweisungen* hing damit an einem Satz im Systemprompt — also an
+        # einer Bitte.
+        #
+        # `_adam_anteil` beantwortet die Frage bereits (Befund A vom 23.08.)
+        # und wurde hier nicht gefragt. Ist der Text nicht Adams eigener,
+        # läuft der Empfang mit demselben Riegel wie bei einer
+        # Zwischenantwort: antworten ja, weiterreichen nein.
         _antwort = await sekretaerin_fragen(
-            user_id, text, bot=update.get_bot(), chat_id=chat_id)
+            user_id, text, bot=update.get_bot(), chat_id=chat_id,
+            nur_antworten=not empfang_darf_weitergeben(update, text))
         if _antwort:
             await update.message.reply_text(
                 _antwort, reply_parameters=_reply_params(message_id))

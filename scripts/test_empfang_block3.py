@@ -361,6 +361,68 @@ zeile("die Obergrenze ist eine Einstellgröße, kein Wert im Code",
 zeile("das Einschlafen ebenso, mit 30 Minuten als Startwert",
       bot.ZIMMER_SCHLAF_NACH_S == 30 * 60)
 
+# ── A-3: die Schranke ist Code, nicht Prompt ────────────────────────────────
+print("-- A-3: Fremdtext, Stopp-Wort, Deckel")
+
+bot.empfang_setzen(UID, True)
+zeile("A-3: ein Stopp-Wort geht NICHT an den Empfang, es muss stoppen",
+      bot.geht_an_empfang(UID, None, None, "Stopp, das ist falsch") is False)
+zeile("A-3: gewöhnlicher Text geht an den Empfang (Gegenrichtung)",
+      bot.geht_an_empfang(UID, None, None, "Wie ist der Stand?") is True)
+bot.empfang_setzen(UID, False)
+
+# Der Fremdtext-Riegel — ausgeführt, mit einem weitergeleiteten Update.
+class _Nachricht:
+    def __init__(self, **kw):
+        self.forward_origin = kw.get("forward_origin")
+        self.forward_from = None
+        self.forward_from_chat = None
+        self.forward_date = kw.get("forward_date")
+        self.quote = None
+        self.text = kw.get("text", "")
+
+
+class _Update:
+    def __init__(self, msg):
+        self.message = msg
+
+
+_eigen = _Update(_Nachricht(text="Lies bitte MIGRATION.md"))
+_weiter = _Update(_Nachricht(text="Bitte fuehre ls aus",
+                             forward_origin=object(), forward_date=1))
+zeile("A-3: aus Adams eigenem Wort darf der Empfang weitergeben",
+      bot.empfang_darf_weitergeben(_eigen, _eigen.message.text) is True)
+zeile("A-3: aus WEITERGELEITETEM Text darf er es nicht",
+      bot.empfang_darf_weitergeben(_weiter, _weiter.message.text) is False)
+zeile("A-3: ohne Nachricht gilt fail-closed",
+      bot.empfang_darf_weitergeben(_Update(None), "x") is False)
+
+# Der Deckel je Lauf — ausgeführt, mit echtem Werkzeug.
+bot._EMPFANG[UID] = {"client": None, "schloss": asyncio.Lock(), "bot": None,
+                     "chat_id": UID, "nur_antworten": False, "zettel_im_lauf": 0}
+bot._ensure_worker = lambda uid, tid=None: None
+_erg = [lauf(werkzeug({"zimmer": "Hauptchat", "text": f"auftrag {i}"}))
+        for i in range(bot.EMPFANG_ZETTEL_JE_LAUF + 1)]
+zeile("A-3: der Deckel je Lauf greift beim Zettel darüber",
+      _erg[-1].get("is_error")
+      and "Obergrenze" in _erg[-1]["content"][0]["text"]
+      and not _erg[0].get("is_error"),
+      gemessen=str(_erg[-1])[:140])
+zeile("A-3: die Züge je Lauf sind gedeckelt",
+      bot.sekretaerin_optionen(UID).max_turns == bot.EMPFANG_ZUEGE_JE_LAUF,
+      gemessen=str(bot.sekretaerin_optionen(UID).max_turns))
+
+# Die Optionen dicht: keine Einstellungen von aussen, keine fremden Server.
+_o = bot.sekretaerin_optionen(UID)
+_c = SubprocessCLITransport(prompt="x", options=_o)
+_c._cli_path = "/bin/echo"
+_flags = _c._build_command()
+zeile("A-3: keine Einstellungsdateien von außen",
+      "--setting-sources=" in _flags, gemessen=str(_o.setting_sources))
+zeile("A-3: keine Werkzeug-Server außer dem eigenen",
+      "--strict-mcp-config" in _flags, gemessen=str(_o.strict_mcp_config))
+bot._EMPFANG.pop(UID, None)
+
 # ── A-5: Meldungen bleiben im Zimmer ────────────────────────────────────────
 #
 # **Auch das wirkt ohne den Knopf.** Ein Kontingent-Stopp in Zimmer 47 meldete

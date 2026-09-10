@@ -2115,14 +2115,8 @@ def arbeitende_zimmer(user_id: int, ausser: "int | None" = None) -> int:
     return treffer
 
 
-# Sentinel fuer „nicht gesagt" — eigener, weil `_UNSET` erst weiter unten
-# steht. **pyflakes hat das gefunden, bevor es committet war**; ohne den
-# Pruefer waere daraus ein `NameError` im Waechter geworden, dieselbe Klasse
-# wie der tote Freigabeweg vom 09.09.
-_KEIN_FADEN = object()
-
-
-def darf_einschlafen(sess, mb, jetzt_mono: float, thread_id=_KEIN_FADEN) -> bool:
+def darf_einschlafen(sess, mb, jetzt_mono: float, *,
+                     thread_id: "int | None") -> bool:
     """Darf diese Zimmer-Sitzung geschlossen werden? — Auftrag 5.
 
     **Eigene Funktion aus demselben Grund wie `darf_starten`:** Stünde die
@@ -2144,8 +2138,19 @@ def darf_einschlafen(sess, mb, jetzt_mono: float, thread_id=_KEIN_FADEN) -> bool
     # Das Einschlafen traf ihn mit: Nach 35 Minuten Mittagspause war Adams
     # Gespraechsfaden weg — still, und im Protokoll stand „closed by /reset",
     # was niemand ausgeloest hatte. Zimmer sind Arbeitsplaetze, der Hauptchat
-    # ist das Gespraech. `_KEIN_FADEN` heisst „nicht gesagt" und laesst die Regel
-    # gelten; wer `None` uebergibt, meint den Hauptfaden ausdruecklich.
+    # **[VERSCHAERFT 10.09.2026, Engywucks Befund zu A-4] `thread_id` ist
+    # PFLICHTIG** -- keyword-only, ohne Vorgabewert, wie beim Stall-Waechter.
+    #
+    # Vorher stand hier ein Sentinel [nicht gesagt], **mit dem geschlafen
+    # werden durfte**. Das ist genau die Bauform, die Block 1b so teuer
+    # gemacht hat: Ein Vorgabewert, der das alte Verhalten weiterlaufen
+    # laesst, macht den Umbau bequem und die Luecke unsichtbar -- jede
+    # Stelle, die den Faden vergisst, arbeitet weiter, nur im falschen
+    # Zimmer.
+    #
+    # **Und meine eigene Pruefzeile hat den Vorgabewert festgeschrieben**
+    # ([ohne Angabe gilt die Regel wie bisher]). Dieselbe Klasse wie H-4
+    # heute Morgen: ein Pruefer, der die Zusage der falschen Richtung misst.
     if thread_id is None:
         return False
     if mb is not None and (mb.current_job is not None or mb.queue):
@@ -9475,7 +9480,8 @@ async def stall_watchdog(app: Application) -> None:
             # Der Empfang ist davon nicht betroffen: Er steht nicht in
             # `SESSIONS`. Ein schlafender Empfang hoebe seinen Zweck auf.
             for fd, sess in list(SESSIONS.items()):
-                if not darf_einschlafen(sess, MAILBOXES.get(fd), now, fd[1]):
+                if not darf_einschlafen(sess, MAILBOXES.get(fd), now,
+                                        thread_id=fd[1]):
                     continue
                 still = now - getattr(sess, "last_activity", 0)
                 name = None

@@ -288,20 +288,21 @@ class _Sitzung:
 
 _leer = bot.Mailbox()
 zeile("eine lange stille Sitzung ohne Arbeit schläft ein",
-      bot.darf_einschlafen(_Sitzung(31 * 60), _leer, _jetzt) is True)
+      bot.darf_einschlafen(_Sitzung(31 * 60), _leer, _jetzt, thread_id=47) is True)
 zeile("eine eben noch tätige Sitzung schläft NICHT ein",
-      bot.darf_einschlafen(_Sitzung(60), _leer, _jetzt) is False)
+      bot.darf_einschlafen(_Sitzung(60), _leer, _jetzt, thread_id=47) is False)
 _voll = bot.Mailbox()
 _voll.current_job = bot.QueuedJob(update=None, text="laeuft", user_id=UID)
 zeile("ein arbeitendes Zimmer schläft nicht ein, egal wie still es ist",
-      bot.darf_einschlafen(_Sitzung(99 * 60), _voll, _jetzt) is False)
+      bot.darf_einschlafen(_Sitzung(99 * 60), _voll, _jetzt, thread_id=47) is False)
 zeile("eine offene Freigabe verhindert das Einschlafen — sie wartet auf Adam",
-      bot.darf_einschlafen(_Sitzung(99 * 60, {"r1": "x"}), _leer, _jetzt) is False)
+      bot.darf_einschlafen(_Sitzung(99 * 60, {"r1": "x"}), _leer, _jetzt,
+                           thread_id=47) is False)
 zeile("eine frisch geöffnete Sitzung ohne jede Regung schläft nicht ein",
-      bot.darf_einschlafen(_Sitzung(0), _leer, _jetzt) is False
+      bot.darf_einschlafen(_Sitzung(0), _leer, _jetzt, thread_id=47) is False
       and bot.darf_einschlafen(type("S", (), {"last_activity": 0,
                                               "pending_permissions": {}})(),
-                               _leer, _jetzt) is False)
+                               _leer, _jetzt, thread_id=47) is False)
 # **Der Empfang schläft nicht** (Claudias Auftrag 5) — und zwar bauartbedingt:
 # Er liegt in einem eigenen Register, nicht in `SESSIONS`. Der Wächter, der
 # einschlafen lässt, läuft über `SESSIONS` und kann ihn deshalb nie erreichen.
@@ -319,11 +320,20 @@ zeile("der Empfang taucht im Leitstand nicht auf — er ist kein Zimmer",
 # **Diese vier Zeilen sind die dringendsten des ganzen Blocks:** Der Haushalt
 # läuft unabhängig vom Empfangs-Knopf, also seit dem Deploy im Betrieb.
 zeile("A-4: der HAUPTFADEN schläft nicht ein (Adams Entscheid)",
-      bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt, None) is False)
+      bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt, thread_id=None) is False)
 zeile("A-4: ein Zimmer schläft weiterhin ein (Gegenrichtung)",
-      bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt, 47) is True)
-zeile("A-4: ohne Angabe gilt die Regel wie bisher",
-      bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt) is True)
+      bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt, thread_id=47) is True)
+# **[UMGESTELLT 10.09.2026, Engywucks Befund] Diese Zeile schrieb den
+# Vorgabewert fest.** Sie verlangte, dass ein Aufruf OHNE Faden schlafen darf
+# — also genau die Lücke, die Block 1b so teuer gemacht hat. Jetzt misst sie
+# das Gegenteil: **Wer den Faden vergisst, kommt gar nicht durch.**
+try:
+    bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt)
+    _ohne_faden_ging = True
+except TypeError:
+    _ohne_faden_ging = False
+zeile("A-4: ohne Faden ist der Aufruf gar nicht möglich (pflichtig)",
+      _ohne_faden_ging is False)
 
 # `0` heißt AUS, nicht „sofort" — bei `ZIMMER_GLEICHZEITIG` heißt es dasselbe.
 # Zwei Schalter mit derselben Null und entgegengesetzter Wirkung sind eine
@@ -331,7 +341,7 @@ zeile("A-4: ohne Angabe gilt die Regel wie bisher",
 _alt = bot.ZIMMER_SCHLAF_NACH_S
 bot.ZIMMER_SCHLAF_NACH_S = 0
 zeile("A-4: die Null schaltet das Einschlafen AUS, nicht scharf",
-      bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt, 47) is False)
+      bot.darf_einschlafen(_Sitzung(99 * 60), _leer, _jetzt, thread_id=47) is False)
 bot.ZIMMER_SCHLAF_NACH_S = _alt
 
 # Ein Zimmer, das auf Adams Freigabe wartet, rechnet nicht — sonst blockierten

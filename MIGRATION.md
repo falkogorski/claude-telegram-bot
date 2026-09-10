@@ -817,9 +817,16 @@ Absturzfall ausdrücklich auf 5.18).
   *„from the built-in set"* — **gelesen, nicht gemessen.** Prüfzeile nach dem
   Deploy: `/empfang an`, dann eine Nachricht, die Arbeit bedeutet — der Auftrag
   muss im Zimmer ankommen.
-- **Offen aus Block 3 (geteilt, nicht gekürzt):** der Haushalt — Obergrenze
-  gleichzeitig wacher Zimmer mit **Parallel-Probe** (Auftrag 5) und das
-  Einschlafen nach Leerlauf. Die Probe braucht den laufenden Server.
+- **Der Haushalt (Auftrag 5) ist gebaut, die ZAHL fehlt.** Die Obergrenze
+  gleichzeitig rechnender Zimmer gilt **je Person** (`darf_starten`), die
+  Drossel **meldet sich** — ein stilles Schlangestehen sähe wie Ruhe aus —,
+  und Zimmer schlafen nach 30 Minuten Leerlauf ein (`darf_einschlafen`, im
+  vorhandenen Wächter statt in einem zweiten Zeitgeber). **Der Startwert drei
+  ist kein Messergebnis:** Claudias Parallel-Probe braucht das laufende Abo
+  und steht noch aus. Beide Werte sind Einstellgrößen, nicht Zahlen im Code.
+- **Offen aus Block 3:** die **Parallel-Probe** — wie viele gleichzeitige
+  Anfragen das Abo trägt, bevor gedrosselt wird. Danach wird
+  `ZIMMER_GLEICHZEITIG` gesetzt und hier eingetragen.
 - **Akzeptanzkriterium:** Mehrere parallele Sessions je User möglich; Wechsel funktioniert; State wird persistiert (überlebt Bot-Neustart).
 - **Test:** Zwei Zimmer antworten gleichzeitig (Stoppuhr); ein absichtlich aufgehängtes Zimmer wird gemeldet, während ein anderes tippt. Dazu der alte Test: Bot killen, wieder hoch → Sessions noch da.
 - **Adam-Bestätigung:** —

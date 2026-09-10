@@ -254,5 +254,70 @@ channels.record_topic(prefs, "nirgendhaus", "Migration & Technik", 3)
 zeile("ein doppelt vergebener Name wird NICHT geraten",
       channels.zimmer_aufloesen(prefs, "Migration & Technik") is None)
 
+# ── 10. Haushalt: Obergrenze und Einschlafen (Auftrag 5) ────────────────────
+for fd in list(bot.MAILBOXES):
+    bot.MAILBOXES.pop(fd)
+zeile("ohne arbeitende Zimmer darf jedes starten",
+      bot.darf_starten(UID, None) is True)
+
+for tid in (1, 2, 3):
+    m = bot._get_mailbox(UID, tid)
+    m.current_job = bot.QueuedJob(update=None, text=f"job {tid}", user_id=UID)
+zeile("die Obergrenze zählt die arbeitenden Zimmer der PERSON",
+      bot.arbeitende_zimmer(UID) == 3, gemessen=str(bot.arbeitende_zimmer(UID)))
+zeile("bei erreichter Grenze darf ein weiteres Zimmer NICHT starten",
+      bot.darf_starten(UID, 9) is False)
+zeile("ein Zimmer zählt sich selbst nicht mit",
+      bot.arbeitende_zimmer(UID, ausser=1) == 2)
+zeile("eine fremde Person ist von der Grenze nicht betroffen",
+      bot.darf_starten(9999, None) is True)
+bot.MAILBOXES[bot.faden(UID, 1)].current_job = None
+zeile("wird ein Zimmer fertig, darf das wartende starten",
+      bot.darf_starten(UID, 9) is True)
+
+# Das Einschlafen — **ausgeführt**, nicht über die Konstante gelesen.
+import time as _t                                                # noqa: E402
+_jetzt = _t.monotonic()
+
+
+class _Sitzung:
+    def __init__(self, still_s, freigaben=None):
+        self.last_activity = _jetzt - still_s
+        self.pending_permissions = freigaben or {}
+
+
+_leer = bot.Mailbox()
+zeile("eine lange stille Sitzung ohne Arbeit schläft ein",
+      bot.darf_einschlafen(_Sitzung(31 * 60), _leer, _jetzt) is True)
+zeile("eine eben noch tätige Sitzung schläft NICHT ein",
+      bot.darf_einschlafen(_Sitzung(60), _leer, _jetzt) is False)
+_voll = bot.Mailbox()
+_voll.current_job = bot.QueuedJob(update=None, text="laeuft", user_id=UID)
+zeile("ein arbeitendes Zimmer schläft nicht ein, egal wie still es ist",
+      bot.darf_einschlafen(_Sitzung(99 * 60), _voll, _jetzt) is False)
+zeile("eine offene Freigabe verhindert das Einschlafen — sie wartet auf Adam",
+      bot.darf_einschlafen(_Sitzung(99 * 60, {"r1": "x"}), _leer, _jetzt) is False)
+zeile("eine frisch geöffnete Sitzung ohne jede Regung schläft nicht ein",
+      bot.darf_einschlafen(_Sitzung(0), _leer, _jetzt) is False
+      and bot.darf_einschlafen(type("S", (), {"last_activity": 0,
+                                              "pending_permissions": {}})(),
+                               _leer, _jetzt) is False)
+# **Der Empfang schläft nicht** (Claudias Auftrag 5) — und zwar bauartbedingt:
+# Er liegt in einem eigenen Register, nicht in `SESSIONS`. Der Wächter, der
+# einschlafen lässt, läuft über `SESSIONS` und kann ihn deshalb nie erreichen.
+bot._EMPFANG[UID] = {"client": None, "bot": None, "chat_id": UID}
+zeile("der Empfang liegt in einem eigenen Register, nicht bei den Zimmern",
+      UID in bot._EMPFANG
+      and not any(fd for fd in bot.SESSIONS if fd == bot.faden(UID, None)),
+      gemessen=f"SESSIONS={list(bot.SESSIONS)}")
+zeile("der Empfang taucht im Leitstand nicht auf — er ist kein Zimmer",
+      all("mpfang" not in (z.get("name") or "") for z in bot.leitstand(UID)),
+      gemessen=str([z.get("name") for z in bot.leitstand(UID)]))
+
+zeile("die Obergrenze ist eine Einstellgröße, kein Wert im Code",
+      bot.ZIMMER_GLEICHZEITIG == int(os.environ.get("ZIMMER_GLEICHZEITIG", "3")))
+zeile("das Einschlafen ebenso, mit 30 Minuten als Startwert",
+      bot.ZIMMER_SCHLAF_NACH_S == 30 * 60)
+
 print(f"\n{zeilen - len(fehler)}/{zeilen} Zeilen grün")
 sys.exit(1 if fehler else 0)

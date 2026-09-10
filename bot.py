@@ -730,6 +730,20 @@ SDK_MAX_BUFFER = media.env_max_buffer()
 # ABHAENGIGKEITEN.md. Vierzig Sekunden sind grosszuegig fuer eine Antwort, die
 # in Sekunden kommen soll, und trotzdem kurz genug, dass Adam nicht wartet.
 SEKRETAERIN_ZEITGRENZE_S = float(os.environ.get("SEKRETAERIN_ZEITGRENZE_S", "40"))
+
+# Wie viele Zimmer EINER PERSON gleichzeitig rechnen duerfen `[NEU 10.09.2026,
+# Block 3, Auftrag 5]`. **Die Drei ist ein Startwert, kein Messergebnis** --
+# Claudias Auftrag verlangt ausdruecklich eine Parallel-Probe am laufenden
+# Abo, und die braucht den Server. Bis dahin steht hier die untere Kante des
+# vorgeschlagenen Bereichs (drei bis vier): Zu niedrig kostet Tempo, zu hoch
+# kostet Kontingent, das den anderen Zimmern fehlt.
+ZIMMER_GLEICHZEITIG = int(os.environ.get("ZIMMER_GLEICHZEITIG", "3"))
+
+# Nach wie viel Stille eine Zimmer-Sitzung geschlossen wird (Auftrag 5,
+# Startwert 30 Minuten). Geweckt wird sie vom naechsten Auftrag von selbst --
+# `ensure_session` legt sie neu an. **Der Empfang ist davon nicht betroffen:**
+# Er steht nicht in `SESSIONS`, ein schlafender Empfang hoebe seinen Zweck auf.
+ZIMMER_SCHLAF_NACH_S = int(os.environ.get("ZIMMER_SCHLAF_NACH_S", str(30 * 60)))
 MEDIA_BUDGET = media.transport_budget(SDK_MAX_BUFFER)
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")
 # Kurznamen → vollständige Modell-IDs, die das SDK versteht
@@ -2067,6 +2081,60 @@ def _is_interrupt(text: str) -> bool:
     return (text or "").lstrip().lower().startswith(INTERRUPT_PREFIXES)
 
 
+def arbeitende_zimmer(user_id: int, ausser: "int | None" = None) -> int:
+    """Wie viele Zimmer dieser Person gerade wirklich rechnen.
+
+    `ausser` nimmt den eigenen Faden heraus — ein Zimmer, das sich selbst
+    mitzählt, drosselt sich bei einer Grenze von eins sofort aus. Diese Falle
+    ist an diesem Projekt schon einmal aufgeschlagen (die Prozess-Zählung, die
+    sich selbst mitzählte).
+    """
+    return sum(1 for fd, mb in list(MAILBOXES.items())
+               if fd[0] == int(user_id) and fd[1] != ausser
+               and mb.current_job is not None)
+
+
+def darf_einschlafen(sess, mb, jetzt_mono: float) -> bool:
+    """Darf diese Zimmer-Sitzung geschlossen werden? — Auftrag 5.
+
+    **Eigene Funktion aus demselben Grund wie `darf_starten`:** Stünde die
+    Bedingung in der Wächterschleife, könnte ein Prüfer sie nur lesen — und
+    hier hängt ein Schließen dran, also Datenverlust im Gesprächsfaden, wenn
+    sie falsch ist.
+
+    Drei Ausschlüsse, jeder mit eigenem Grund:
+
+    * **Es läuft etwas oder wartet etwas** — dann ist es kein Leerlauf.
+    * **Eine Freigabe steht offen** — die wartet auf Adam, nicht auf Arbeit.
+      Wer hier schlösse, nähme ihm die Antwort weg.
+    * **Es gab noch nie eine Regung** (`last_activity` ist 0) — eine frisch
+      geöffnete Sitzung sähe sonst wie eine ewig stille aus.
+    """
+    if mb is not None and (mb.current_job is not None or mb.queue):
+        return False
+    if getattr(sess, "pending_permissions", None):
+        return False
+    letzte = getattr(sess, "last_activity", 0)
+    if not letzte:
+        return False
+    return (jetzt_mono - letzte) > ZIMMER_SCHLAF_NACH_S
+
+
+def darf_starten(user_id: int, thread_id: "int | None" = None) -> bool:
+    """Darf dieses Zimmer jetzt einen Auftrag beginnen? — Auftrag 5.
+
+    **Eigene Funktion, weil die Entscheidung sonst mitten in der
+    Worker-Schleife stünde** und ein Prüfer sie nur lesen könnte. Eine
+    gelesene Prüfzeile ist umgehbar; das ist an acht von acht Fällen gemessen.
+
+    Die Grenze gilt **je Person**, nicht je Zimmer: Es ist ein Konto, aus dem
+    alle Zimmer schöpfen.
+    """
+    if ZIMMER_GLEICHZEITIG <= 0:
+        return True
+    return arbeitende_zimmer(user_id, ausser=thread_id) < ZIMMER_GLEICHZEITIG
+
+
 def _ensure_worker(user_id: int, thread_id: "int | None" = None) -> None:
     """Startet den Drain-Worker DIESES ZIMMERS, falls keiner läuft.
 
@@ -2111,6 +2179,34 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
                               "der Reihe nach nach."))
                 except Exception:
                     log.exception("Nachhol-Ansage nicht zustellbar")
+        # **Die Drossel (Auftrag 5), und sie meldet sich.** Ein stilles
+        # Schlangestehen sieht von aussen wie Ruhe aus — genau die
+        # Fehlerklasse, auf die dieses Projekt zuerst sieht. Deshalb geht
+        # **einmal je Wartezeit** eine Zeile hinaus, nicht bei jedem Umlauf.
+        _gemeldet = False
+        while not darf_starten(user_id, thread_id):
+            if not _gemeldet:
+                _gemeldet = True
+                log.info("Drossel: Zimmer %s wartet -- %d Zimmer arbeiten bereits "
+                         "(Grenze %d)", thread_id if thread_id is not None else "haupt",
+                         arbeitende_zimmer(user_id, ausser=thread_id),
+                         ZIMMER_GLEICHZEITIG)
+                job0 = mb.queue[0] if mb.queue else None
+                bot_obj = (job0.bot or (job0.update.get_bot() if job0 is not None
+                                        and job0.update is not None else None)
+                           ) if job0 is not None else None
+                if bot_obj is not None:
+                    try:
+                        await bot_obj.send_message(
+                            chat_id=(job0.chat_id or user_id),
+                            message_thread_id=thread_id,
+                            text=("🚦 Ich warte kurz — es rechnen schon "
+                                  f"{ZIMMER_GLEICHZEITIG} Zimmer. Sobald eines "
+                                  "fertig ist, geht es hier weiter."))
+                    except Exception:
+                        log.exception("Drossel-Meldung nicht zustellbar (nicht-fatal)")
+            await asyncio.sleep(2.0)
+
         job = mb.queue.popleft()
         # **[NEU 09.09.2026, Block 1b]** Der Nachtrag ist im vorigen Auftrag
         # angekommen UND dieser ist beantwortet -- eine zweite Antwort waere
@@ -9095,6 +9191,26 @@ async def stall_watchdog(app: Application) -> None:
             # und genau dafuer ist er da: Ein mechanischer Ersatz von
             # `SESSIONS.get(` findet die Aufrufe, aber nicht die Stellen, die
             # ueber die Schluessel LAUFEN.
+            # **[NEU 10.09.2026, Block 3, Auftrag 5] Einschlafen nach Leerlauf.**
+            #
+            # **Im vorhandenen Waechter, nicht in einem zweiten Zeitgeber.**
+            # Die Kurs-Regel verbietet Waechter dritter Ordnung; diese Schleife
+            # laeuft ohnehin und kennt bereits alle Faeden. Was fehlte, war ein
+            # Blick auf die Zimmer, die **nichts** tun.
+            #
+            # Der Empfang ist davon nicht betroffen: Er steht nicht in
+            # `SESSIONS`. Ein schlafender Empfang hoebe seinen Zweck auf.
+            for fd, sess in list(SESSIONS.items()):
+                if not darf_einschlafen(sess, MAILBOXES.get(fd), now):
+                    continue
+                still = now - getattr(sess, "last_activity", 0)
+                log.info("Zimmer %s schlaeft ein (%d Minuten still)",
+                         fd[1] if fd[1] is not None else "haupt", int(still // 60))
+                try:
+                    await close_session(fd[0], fd[1])
+                except Exception:
+                    log.exception("Einschlafen fehlgeschlagen (nicht-fatal)")
+
             for fd, mb in list(MAILBOXES.items()):
                 if mb.current_job is None:
                     continue

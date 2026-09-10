@@ -1260,22 +1260,13 @@ def _set_bash_auto(user_id: int, an: bool) -> None:
     der erst nach dem Neustart wirkt -- oder einen, der nach dem Neustart
     stillschweigend zurueckfaellt.
     """
-    prefs = _USER_PREFS.setdefault(str(user_id), {})
-    gespeichert = set(prefs.get("always_allow", []))
-    if an:
-        gespeichert.add("Bash")
-    else:
-        gespeichert.discard("Bash")
-    prefs["always_allow"] = sorted(gespeichert)
-    _save_prefs(_USER_PREFS)
-    # **[GEAENDERT 09.09.2026, Block 1b]** In JEDEM offenen Zimmer -- ein Knopf,
-    # der nur den Hauptfaden umschaltet, laesst die anderen Zimmer im alten
-    # Zustand weiterlaufen, und niemand sieht den Unterschied.
-    for sess in _alle_sess(user_id):
-        if an:
-            sess.always_allowed_tools.add("Bash")
-        else:
-            sess.always_allowed_tools.discard("Bash")
+    # **[GEAENDERT 10.09.2026, Ultracode-Befund A-6]** Ueber die EINE Tuer.
+    #
+    # Hier standen beide Haelften noch einmal — Vorlieben und Sitzungen, in
+    # eigener Schreibweise. Zwei Stellen mit derselben Aufgabe laufen
+    # auseinander, sobald jemand nur eine anfasst; genau das war zwischen
+    # diesem Knopf und „🔓 immer genehmigen" passiert.
+    dauerfreigabe_merken(user_id, "Bash", an)
 
 
 def _main_keyboard(tts_on: bool, model: str, effort: str | None = None,
@@ -1710,6 +1701,51 @@ def fd_von_update(update) -> "int | None":
     """
     msg = getattr(update, "effective_message", None)
     return getattr(msg, "message_thread_id", None) if msg is not None else None
+
+
+def vorlesen_setzen(user_id: int, an: bool) -> None:
+    """Vorlesen an oder aus — **eine Tuer, nicht drei.**
+
+    **[NEU 10.09.2026, Ultracode-Befund A-6]** Der Zustand gehoert der Person
+    und muss in JEDEM offenen Zimmer ankommen. `/tts` zog seit Block 1b alle
+    Sitzungen nach, **der Knopf nicht** — der Schalter lag dann hier um und
+    dort nicht, ohne dass es jemand sieht.
+
+    Die Reparatur ist nicht, die zweite Stelle nachzuziehen: Dann gibt es
+    wieder zwei Stellen, die dasselbe wissen muessen. Eine Funktion, die
+    Vorlieben **und** Sitzungen setzt, kann von keiner Aufrufstelle halb
+    ausgefuehrt werden.
+    """
+    for s in _alle_sess(user_id):
+        s.tts_enabled = an
+    _USER_PREFS.setdefault(str(user_id), {})["tts_enabled"] = an
+    _save_prefs(_USER_PREFS)
+
+
+def dauerfreigabe_merken(user_id: int, werkzeug: str, an: bool = True) -> None:
+    """Ein Werkzeug dauerhaft freigeben oder die Freigabe zuruecknehmen —
+    **in allen Zimmern der Person.**
+
+    **[NEU 10.09.2026, Ultracode-Befund A-6]** Dieselbe Drift wie beim
+    Vorlesen, mit groesserer Wirkung: „🔓 immer genehmigen" trug nur in die
+    **fragende** Sitzung ein, waehrend `_set_bash_auto` und `/freigaben reset`
+    alle Zimmer nachzogen. Adam haette dieselbe Freigabe in jedem Zimmer
+    erneut erteilen muessen — und geglaubt, sie gelte.
+
+    Die Vorlieben sind die dauerhafte Wahrheit; die Sitzungen sind ihre Kopie
+    fuer den laufenden Betrieb. Beide werden hier gesetzt, sonst nirgends.
+    """
+    for s in _alle_sess(user_id):
+        if an:
+            s.always_allowed_tools.add(werkzeug)
+        else:
+            s.always_allowed_tools.discard(werkzeug)
+    prefs = _USER_PREFS.setdefault(str(user_id), {})
+    gespeichert = set(prefs.get("always_allow", []))
+    neu_menge = (gespeichert | {werkzeug}) if an else (gespeichert - {werkzeug})
+    if neu_menge != gespeichert:
+        prefs["always_allow"] = sorted(neu_menge)
+        _save_prefs(_USER_PREFS)
 
 
 def _alle_sess(user_id: int) -> "list[UserSession]":
@@ -4220,14 +4256,9 @@ def make_permission_callback(user_id: int, thread_id: "int | None" = None):
             # dauerfreigebbar — auch nicht über einen manipulierten Callback.
             if not darf_dauerfreigabe(tname):
                 return PermissionResultAllow()  # gilt nur für DIESE eine Anfrage
-            sess.always_allowed_tools.add(tname)
-            # 5.25 (c): dauerhaft merken — überlebt Reset/Neustart.
-            prefs = _USER_PREFS.setdefault(str(user_id), {})
-            stored = set(prefs.get("always_allow", []))
-            if tname not in stored:
-                stored.add(tname)
-                prefs["always_allow"] = sorted(stored)
-                _save_prefs(_USER_PREFS)
+            # 5.25 (c): dauerhaft merken — überlebt Reset/Neustart. **Und
+            # seit A-6 in ALLEN Zimmern**, nicht nur im fragenden.
+            dauerfreigabe_merken(user_id, tname)
             return PermissionResultAllow()
         if decision.startswith("domain:"):
             # 🔓 Domain-Merkliste (23.07.): Vertrauen pro QUELLE statt pauschal
@@ -6908,11 +6939,7 @@ async def cmd_tts(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     # Zustand vor, die uebrigen ziehen mit -- sonst laege der Schalter hier um
     # und dort nicht, ohne dass es jemand sieht.
     sess = await ensure_session(user_id, thread_id=fd_von_update(update))
-    sess.tts_enabled = not sess.tts_enabled
-    for _s in _alle_sess(user_id):
-        _s.tts_enabled = sess.tts_enabled
-    _USER_PREFS.setdefault(str(user_id), {})["tts_enabled"] = sess.tts_enabled
-    _save_prefs(_USER_PREFS)
+    vorlesen_setzen(user_id, not sess.tts_enabled)
     keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
     if sess.tts_enabled:
         await update.message.reply_text(
@@ -12125,9 +12152,9 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
 
     if text in (_BTN_TTS_ON, _BTN_TTS_OFF):
         sess = await ensure_session(user_id, thread_id=_fd)
-        sess.tts_enabled = (text == _BTN_TTS_ON)
-        _USER_PREFS.setdefault(str(user_id), {})["tts_enabled"] = sess.tts_enabled
-        _save_prefs(_USER_PREFS)
+        # **[GEAENDERT 10.09.2026, A-6]** Eine Tuer: Der Knopf wirkt in allen
+        # Zimmern, wie `/tts` seit Block 1b.
+        vorlesen_setzen(user_id, text == _BTN_TTS_ON)
         label = "🔊 Sprachnachricht-Modus an." if sess.tts_enabled else "🔇 Sprachnachricht-Modus aus."
         keyboard = _main_keyboard(sess.tts_enabled, sess.current_model, sess.current_effort, user_id=user_id)
         await update.message.reply_text(label, reply_markup=keyboard)

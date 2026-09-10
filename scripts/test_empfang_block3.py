@@ -51,6 +51,8 @@ def zeile(name: str, bedingung, *, gemessen: str = "") -> None:
         fehler.append(name)
 
 
+import ast as _ast                                                 # noqa: E402
+
 UID = 4711
 print("== Empfang (Block 3) ==")
 
@@ -501,6 +503,86 @@ _mbz.current_job = None
 _mbz.queue.clear()
 bot._ZETTEL.clear()
 
+# ── A-6: eine Tür je Zustand ────────────────────────────────────────────────
+#
+# **Zwei Reichweiten für denselben Schalter.** `/tts` zog seit Block 1b alle
+# Sitzungen nach, der Knopf nicht; „🔓 immer genehmigen" trug nur in die
+# fragende Sitzung ein, `_set_bash_auto` in alle. Der Schalter lag dann hier
+# um und dort nicht — ohne dass es jemand sieht.
+print("-- A-6: eine Tür je Zustand")
+
+for fd in list(bot.SESSIONS):
+    bot.SESSIONS.pop(fd)
+bot._USER_PREFS.pop(str(UID), None)
+_s_haupt = bot.UserSession(client=None)
+_s_zimmer = bot.UserSession(client=None)
+bot.SESSIONS[bot.faden(UID, None)] = _s_haupt
+bot.SESSIONS[bot.faden(UID, 47)] = _s_zimmer
+
+bot.vorlesen_setzen(UID, True)
+zeile("A-6: Vorlesen wirkt in ALLEN Zimmern der Person",
+      _s_haupt.tts_enabled and _s_zimmer.tts_enabled)
+zeile("A-6: und liegt dauerhaft in den Vorlieben",
+      bot._USER_PREFS[str(UID)].get("tts_enabled") is True)
+bot.vorlesen_setzen(UID, False)
+zeile("A-6: das gilt auch beim Ausschalten (Gegenrichtung)",
+      not _s_haupt.tts_enabled and not _s_zimmer.tts_enabled)
+
+bot.dauerfreigabe_merken(UID, "Read")
+zeile("A-6: eine Dauerfreigabe gilt in allen Zimmern, nicht nur im fragenden",
+      "Read" in _s_haupt.always_allowed_tools
+      and "Read" in _s_zimmer.always_allowed_tools)
+zeile("A-6: und überlebt in den Vorlieben",
+      "Read" in bot._USER_PREFS[str(UID)].get("always_allow", []))
+
+# Die Tür kann auch zurücknehmen — sonst wäre `_set_bash_auto` eine zweite.
+bot.dauerfreigabe_merken(UID, "Read", False)
+zeile("A-6: die Tür nimmt eine Freigabe auch in allen Zimmern zurück",
+      "Read" not in _s_haupt.always_allowed_tools
+      and "Read" not in _s_zimmer.always_allowed_tools
+      and "Read" not in bot._USER_PREFS[str(UID)].get("always_allow", []))
+bot._set_bash_auto(UID, True)
+zeile("A-6: der Bash-Auto-Knopf läuft über dieselbe Tür",
+      "Bash" in _s_zimmer.always_allowed_tools
+      and "Bash" in bot._USER_PREFS[str(UID)].get("always_allow", []))
+bot._set_bash_auto(UID, False)
+zeile("A-6: und nimmt sie überall zurück (Gegenrichtung)",
+      "Bash" not in _s_zimmer.always_allowed_tools)
+
+# Ein Zimmer einer ANDEREN Person bleibt unberührt.
+_fremd_sess = bot.UserSession(client=None)
+bot.SESSIONS[bot.faden(9999, None)] = _fremd_sess
+bot.vorlesen_setzen(UID, True)
+zeile("A-6: eine andere Person ist nicht betroffen (Gegenrichtung)",
+      not _fremd_sess.tts_enabled)
+
+# **Und die Menge:** Kein Aufrufer setzt den Zustand an der Tür vorbei.
+_quelle2 = Path(bot.__file__).read_text(encoding="utf-8")
+_b3 = _ast.parse(_quelle2)
+_vorbei: list[str] = []
+for _fn in _ast.walk(_b3):
+    if not isinstance(_fn, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+        continue
+    if _fn.name in ("vorlesen_setzen", "dauerfreigabe_merken",
+                    "ensure_session", "freigaben_bereinigen"):
+        continue
+    for _k in _ast.walk(_fn):
+        if (isinstance(_k, _ast.Assign)
+                and any(getattr(z, "attr", None) == "tts_enabled"
+                        for z in _k.targets)):
+            _vorbei.append(f"{_fn.name}:{_k.lineno} (tts)")
+        if (isinstance(_k, _ast.Call)
+                and getattr(_k.func, "attr", None) == "add"
+                and getattr(getattr(_k.func, "value", None), "attr", None)
+                == "always_allowed_tools"):
+            _vorbei.append(f"{_fn.name}:{_k.lineno} (freigabe)")
+zeile("A-6: niemand setzt den Zustand an der Tür vorbei",
+      not _vorbei, gemessen=", ".join(_vorbei))
+
+for fd in list(bot.SESSIONS):
+    bot.SESSIONS.pop(fd)
+bot._USER_PREFS.pop(str(UID), None)
+
 # ── 3c-2: der Pre-Send-Hook läuft auch über die Antwort des Empfangs ────────
 #
 # **Engywucks Antwort auf meine offene Frage**, und seine Begründung trägt
@@ -644,7 +726,6 @@ zeile("A-5: die Stall-Meldung nennt das Zimmer, das hängt",
 # Und die Menge: Kein Sendeaufruf in diesen drei Funktionen ohne Faden.
 # **Abwesenheit über echte Aufrufknoten gemessen**, nicht über Textsuche —
 # ein Name im Baum sagt nichts, ein fehlendes Schlüsselwort schon.
-import ast as _ast                                                # noqa: E402
 _quelle = (Path(bot.__file__).read_text(encoding="utf-8"))
 _baum = _ast.parse(_quelle)
 _ohne_faden: list[str] = []

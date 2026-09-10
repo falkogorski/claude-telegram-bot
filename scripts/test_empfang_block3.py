@@ -501,6 +501,110 @@ _mbz.current_job = None
 _mbz.queue.clear()
 bot._ZETTEL.clear()
 
+# ── 3c-2: der Pre-Send-Hook läuft auch über die Antwort des Empfangs ────────
+#
+# **Engywucks Antwort auf meine offene Frage**, und seine Begründung trägt
+# weiter als meine Vermutung: Die Sekretärin hat kein Bash — aber sie kann
+# Adam einen Befehlsblock schreiben, den er ins Terminal setzt.
+print("-- 3c-2: presend am Empfangspfad")
+
+import ast as _ast2                                               # noqa: E402
+_b2 = _ast2.parse(Path(bot.__file__).read_text(encoding="utf-8"))
+_hook_im_empfang = []
+for _fn in _ast2.walk(_b2):
+    if not isinstance(_fn, (_ast2.FunctionDef, _ast2.AsyncFunctionDef)):
+        continue
+    if _fn.name != "process_user_text":
+        continue
+    for _k in _ast2.walk(_fn):
+        if (isinstance(_k, _ast2.Call)
+                and getattr(_k.func, "attr", None) == "check_and_fix"):
+            _hook_im_empfang.append({a.arg for a in _k.keywords})
+zeile("3c-2: die Antwort des Empfangs läuft durch den Pre-Send-Hook",
+      any({"pending_newer", "eingearbeitet"} <= kw for kw in _hook_im_empfang),
+      gemessen=str(_hook_im_empfang))
+
+# Und die Wirkung selbst, ausgeführt: Ein scharfer Befehl in der Ausgabe
+# erzeugt einen Befund — dieselbe Funktion, die der Empfang jetzt ruft.
+import presend as _presend                                        # noqa: E402
+_txt, _bef = _presend.check_and_fix(
+    "Führ das aus: `rm -rf /tmp/x`", pending_newer=0, eingearbeitet=0)
+zeile("3c-2: der Hook sieht die Ausgabe überhaupt an",
+      isinstance(_txt, str) and isinstance(_bef, list))
+_txt2, _bef2 = _presend.check_and_fix("Alles ruhig.", pending_newer=0,
+                                      eingearbeitet=0)
+zeile("3c-2: eine harmlose Antwort geht unverändert durch (Gegenrichtung)",
+      _txt2 == "Alles ruhig.", gemessen=_txt2)
+
+# ── 3c-1: der weitergereichte Auftrag überlebt einen Neustart ───────────────
+#
+# **Engywucks einziger offener Punkt aus 3b.** Persistiert war nur Adams
+# Ursprungsnachricht — und die wird beim Antworten aufgelöst. Ein Neustart
+# davor verlor den Auftrag, während Adam „Abgelegt in …, Position N"
+# schriftlich hatte.
+print("-- 3c-1: der Auftrag überlebt den Neustart")
+
+import pending as _pending                                        # noqa: E402
+for _f in Path(_pending._DIR).glob("*.json"):
+    _f.unlink()
+for fd in list(bot.MAILBOXES):
+    bot.MAILBOXES.pop(fd)
+bot._ensure_worker = lambda uid, tid=None: None
+
+_e = bot.auftrag_einreihen(UID, 47, "MIGRATION.md lesen", chat_id=-100)
+_job = bot._get_mailbox(UID, 47).queue[-1]
+# `load_all` liefert eine LISTE, jeder Datensatz mit `_key` — nachgesehen,
+# nicht angenommen; meine erste Fassung hier las ihn als Verzeichnis.
+_saetze = _pending.load_all()
+zeile("3c-1: der abgelegte Auftrag liegt in der Persistenz",
+      len(_saetze) == 1, gemessen=str([s.get("_key") for s in _saetze]))
+zeile("3c-1: der Job kennt seinen Persistenz-Schlüssel",
+      any(s.get("_key") == _job.pending_key for s in _saetze),
+      gemessen=str(_job.pending_key))
+
+_satz = _saetze[0]
+zeile("3c-1: der Datensatz trägt Zimmer, Chat und Kennung",
+      _satz.get("thread_id") == 47 and _satz.get("chat_id") == -100
+      and _satz.get("zettel_id") == _job.zettel_id,
+      gemessen=str(_satz))
+
+# Der Schlüssel kollidiert nicht mit einer Telegram-Nachricht: message_id ist
+# immer positiv, zettel_id immer negativ.
+zeile("3c-1: der Schlüssel kollidiert nicht mit Telegram-Nummern",
+      _job.zettel_id < 0
+      and _pending.make_key(-100, _job.zettel_id)
+      != _pending.make_key(-100, abs(_job.zettel_id)))
+
+# **Und der ECHTE Reconcile baut ihn nach.**
+#
+# Meine erste Fassung dieser Zeile baute den Job **selbst** aus dem Datensatz
+# — und maß damit nichts: Entfernt man `zettel_id=r.get("zettel_id")` aus dem
+# Reconcile, blieb sie grün. Genau die Klasse aus Engywucks Abschnitt P
+# („der Prüfer baut die Logger selbst"). Jetzt läuft der Pfad wirklich.
+for fd in list(bot.MAILBOXES):
+    bot.MAILBOXES.pop(fd)
+bot._RESUMED_KEYS.clear()
+
+
+class _AppAttrappe:
+    """Nur der Rand: die Telegram-Anwendung."""
+    bot = _MeldeBot() if "_MeldeBot" in dir() else None
+
+
+_meldung = bot._reconcile_pending(type("A", (), {"bot": None})())
+_wieder = bot._get_mailbox(UID, 47).queue
+zeile("3c-1: der ECHTE Reconcile holt den Auftrag ins richtige Zimmer",
+      len(_wieder) == 1 and _wieder[0].text == "MIGRATION.md lesen",
+      gemessen=f"{_meldung} · {[j.text for j in _wieder]}")
+zeile("3c-1: und er stellt die Kennung wieder her",
+      _wieder and bot.zettel_schluessel(_wieder[0]) == _job.zettel_id,
+      gemessen=str(bot.zettel_schluessel(_wieder[0]) if _wieder else "nichts"))
+zeile("3c-1: samt Rückadresse ins Zimmer",
+      _wieder and _wieder[0].output_thread_id == 47,
+      gemessen=str(_wieder[0].output_thread_id if _wieder else "nichts"))
+for _f in Path(_pending._DIR).glob("*.json"):
+    _f.unlink()
+
 # ── A-5: Meldungen bleiben im Zimmer ────────────────────────────────────────
 #
 # **Auch das wirkt ohne den Knopf.** Ein Kontingent-Stopp in Zimmer 47 meldete

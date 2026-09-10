@@ -5861,7 +5861,10 @@ def auftrag_einreihen(user_id: int, thread_id: "int | None", text: str, *,
     # weitergereichten Auftrag.
     if output_thread_id is None:
         output_thread_id = thread_id
-    if lief and zettel_id is None and message_id is None:
+    # **[GEAENDERT 10.09.2026]** Die Kennung wird IMMER vergeben, nicht nur
+    # bei besetztem Zimmer: Auch ein Auftrag in ein ruhendes Zimmer muss
+    # einen Neustart ueberleben, und dafuer braucht er einen Schluessel.
+    if zettel_id is None and message_id is None:
         zettel_id = _naechste_zettel_id()
     job = QueuedJob(
         update=None,
@@ -5878,6 +5881,33 @@ def auftrag_einreihen(user_id: int, thread_id: "int | None", text: str, *,
         **jobfelder,
     )
     mb.queue.append(job)
+
+    # **[NEU 10.09.2026, Engywucks Nachpruefung zu 3b] Auch DIESER Auftrag
+    # ueberlebt einen Neustart.**
+    #
+    # Persistiert wurde bisher nur Adams Ursprungsnachricht -- und die wird
+    # beim Antworten aufgeloest. Ein Neustart, bevor das Zimmer den Auftrag
+    # abarbeitet, verlor ihn: **Adam hat [Abgelegt in ..., Position N] als
+    # schriftliche Zusage, und im Zimmer geschieht nie etwas.** Ein
+    # Ausbleiben, das wie Ruhe aussieht.
+    #
+    # Der Schluessel kommt aus `zettel_id` -- negativ, also kollisionsfrei mit
+    # Telegram-Nummern, die immer positiv sind.
+    if message_id is None and chat_id is not None:
+        try:
+            schluessel = pending.make_key(chat_id, zettel_id)
+            job.pending_key = schluessel
+            pending.record(schluessel, {
+                "user_id": user_id, "chat_id": chat_id, "message_id": None,
+                "zettel_id": zettel_id, "thread_id": thread_id,
+                "output_chat_id": chat_id,
+                "output_thread_id": output_thread_id,
+                "text": text, "received_at": job.received_at,
+                "message_date": job.message_date,
+            })
+        except Exception:
+            log.exception("Empfang: Auftrag nicht persistierbar (nicht-fatal)")
+
     gereicht = False
     if lief:
         # Die schnelle Bahn: an der nächsten Werkzeuggrenze des laufenden
@@ -11010,6 +11040,12 @@ def _reconcile_pending(app: Application) -> str:
                 chat_id=r.get("chat_id"),
                 message_id=r.get("message_id"),
                 thread_id=r.get("thread_id"),
+                # **[NEU 10.09.2026]** Die Kennung eines Auftrags aus dem
+                # Empfang. Ohne sie haette der nachgeholte Auftrag keinen
+                # Registerschluessel -- und `_auftrag_kennung` faende wieder
+                # fuer alle dieselbe Null.
+                zettel_id=r.get("zettel_id"),
+                output_thread_id=r.get("output_thread_id"),
                 message_date=r.get("message_date"),
                 bot=app.bot,
                 resumed=True,
@@ -11495,6 +11531,29 @@ async def process_user_text(
             user_id, text, bot=update.get_bot(), chat_id=chat_id,
             nur_antworten=not empfang_darf_weitergeben(update, text))
         if _antwort:
+            # **[NEU 10.09.2026, Engywucks Antwort auf meine offene Frage]
+            # Der Pre-Send-Hook laeuft auch ueber die Antwort des Empfangs —
+            # aber nur die eine Haelfte.**
+            #
+            # `check_and_fix` hat zwei Teile. Der Vollstaendigkeits-Vermerk
+            # ueber wartende Nachrichten ist hier gegenstandslos: Der Empfang
+            # hat keine Warteschlange, deshalb `pending_newer=0`. Der zweite
+            # Teil gilt hier **besonders**: Die Sekretaerin hat kein Bash,
+            # aber sie kann Adam einen Befehlsblock schreiben, den er ins
+            # Terminal setzt. Eine Ausgabe, die niemand prueft, ist genau
+            # dann gefaehrlich, wenn sie harmlos aussieht.
+            #
+            # **Ohne Korrekturrunde:** Der Empfang soll in Sekunden antworten;
+            # ein zweiter Lauf wuerde die Zusage aufheben. Befunde gehen ins
+            # Protokoll, der Text geht so hinaus, wie der Hook ihn zurueckgibt.
+            try:
+                _antwort, _befunde = presend.check_and_fix(
+                    _antwort, pending_newer=0, eingearbeitet=0)
+                for _b in _befunde:
+                    log.info("Empfang/presend: %s — %s", _b.get("code"),
+                             _b.get("detail"))
+            except Exception:
+                log.exception("Empfang: Pre-Send-Hook uebersprungen (nicht-fatal)")
             # **`send_chunked`, nicht `reply_text`** (A-3): Ueber 4096 Zeichen
             # wirft Telegram, und dann faellt die Antwort samt Protokolleintrag
             # aus. Der Empfang antwortet kurz — aber „kurz" ist eine Annahme

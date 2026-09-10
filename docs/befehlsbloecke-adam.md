@@ -928,7 +928,11 @@ darunter, das nicht dazugehört, wird **nicht gezogen** — ein `--ff-only`-Merg
 bringt die ganze Kette mit, nicht nur den genannten Stand. Genau so ist Block 3
 am 10.09. mit einem Hotfix live gegangen.
 
-Erwartet hier: `62f153d` (Meldung) und `606ce26` (A-4) — beides gehört dazu.
+**Erwartet hier: genau EINE Zeile**, `606ce26`. Gemessen mit
+`git log --oneline 9801c64..606ce26`. `[BERICHTIGT 10.09., 14:40]` Hier
+stand, es kämen zwei Commits — falsch: `62f153d` liegt **nach**
+`606ce26`, nicht davor. Die Prüfzeile selbst hat den Fehler gefangen,
+beim ersten Gebrauch.
 
 Und den jetzigen Stand ablesen, das ist der Rückweg:
 

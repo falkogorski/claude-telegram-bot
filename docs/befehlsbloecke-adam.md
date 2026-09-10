@@ -812,3 +812,97 @@ und währenddessen `/zimmer` — die Übersicht muss kommen und den Dateinamen
 nennen.
 
 **Rückweg:** `reset --hard` auf den Hash aus Schritt 0, dann Neustart.
+
+---
+
+# Deploy Block 3 „Empfang" — **erst nach Engywucks Ultracode-Lauf**
+
+**Stand:** 10.09.2026, 11:57 · **Zielstand:** `8436945` · **Server läuft
+heute auf `33d7cdf`** — dazwischen liegen Block 3, der Haushalt, der Bericht
+und die Prüfer-Namen.
+
+**Nicht vorziehen.** Engywuck startet `/code-review ultra` auf `d87dc64`;
+der Deploy kommt danach, so abgesprochen. Der Block steht hier fertig, damit
+er nicht erst geschrieben werden muss, wenn es soweit ist.
+
+## Schritt 0 — den jetzigen Stand ABLESEN (das ist der Rückweg)
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git rev-parse --short HEAD'
+```
+
+## Schritt 1 — holen und prüfen
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git fetch -q origin && git merge --ff-only 8436945 && bash scripts/regressionstest.sh > /tmp/reg.log 2>&1; echo "rc=$?"; tail -6 /tmp/reg.log'
+```
+
+**Prüfzeile:** `rc=0` oder `rc=77`, und in der Ausgabe steht die neue Zeile
+„Empfang / Sekretaerin (Block 3)".
+
+## Schritt 2 — Neustart
+
+```bash
+ssh claudevps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
+```
+
+## Schritt 3 — der Nachtest, und er hat **zwei** Hälften
+
+Der Empfang steht nach dem Deploy auf **aus** — es ändert sich also zunächst
+nichts. Einschalten:
+
+> `/empfang an`
+
+**Erwartet:** eine Liste mit Haken und Kreuzen, was sie kann und was nicht.
+`/status` nennt den Empfang jetzt in der Übersicht.
+
+Dann eine Nachricht im **Hauptchat**, die Arbeit bedeutet:
+
+> Lies bitte MIGRATION.md und sag mir, was bei 5.1 als Nächstes offen ist.
+
+**Hälfte (a):** Binnen Sekunden kommt eine Antwort mit **👩‍💼** davor — nicht
+das Ergebnis, sondern die Sekretärin, die sagt, dass sie es weitergibt.
+
+**Hälfte (b), und die ist die eigentliche Prüfzeile:** Der Auftrag muss danach
+**wirklich im Zimmer stehen**. Gleich danach:
+
+> `/zimmer`
+
+Dort muss der Auftrag auftauchen. **Kommt (a) ohne (b)**, ist die Ursache
+genau die eine Frage, die ich am Mac nicht messen konnte: ob die Oberfläche
+der Sekretärin ihr einziges Werkzeug überhaupt anbietet (die Anmeldung am Mac
+war abgelaufen). Dann bitte melden — der Fix wäre klein, aber er muss gemessen
+werden, nicht geraten.
+
+**Wieder ausschalten**, wenn du normal weiterarbeiten willst:
+
+> `/empfang aus`
+
+**Rückweg:** `reset --hard` auf den Hash aus Schritt 0, dann Neustart.
+
+---
+
+# Die Karteileiche in der Startnachricht (offen seit gestern)
+
+Der Bot begrüßt mit „Letzter Task — Stand 2026-07-23 Nacht". Die Datei liegt
+auf dem VPS unter `~/.claude/memory/last-task.md` und wird bei jedem Start
+gelesen. **Sie zu löschen wäre der schlechtere Weg** — dann käme eine
+generische Meldung. Besser überschreiben:
+
+```bash
+ssh claudebot 'cat > ~/.claude/memory/last-task.md <<EOF
+# Letzter Task
+
+Zimmer-Umbau: eine Sitzung je Thema, Leitstand, und der Empfang mit der
+Sekretaerin. Bloecke 1, 1b und 2 laufen; Block 3 ist gebaut und wartet auf
+die Pruefung. Der Empfang steht auf aus, bis du ihn mit /empfang an
+einschaltest.
+EOF
+echo geschrieben'
+```
+
+**Prüfzeile:** Beim nächsten Neustart nennt die Startnachricht diesen Stand
+statt des Julis.
+
+**Warum du das ausführst und nicht ich:** Server-Eingriffe löst du aus — auch
+die kleinen, auch außerhalb des Repos.

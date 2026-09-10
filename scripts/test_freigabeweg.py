@@ -100,9 +100,9 @@ async def _lauf(antwort: str = "allow"):
 
 erg = asyncio.run(_lauf("allow"))
 
-zeile("ein Dialog wird ueberhaupt gesendet",
+zeile("ein Dialog wird überhaupt gesendet",
       bool(GESENDET), gemessen=str(GESENDET[:1])[:80])
-zeile("Genehmigen heisst ERLAUBT, nicht verweigert",
+zeile("Genehmigen heißt ERLAUBT, nicht verweigert",
       type(erg).__name__ == "PermissionResultAllow",
       gemessen=f"{type(erg).__name__}: {getattr(erg, 'message', '')}")
 # **Die Zeile, an der es hing.** „bot failed to ask user" ist die Meldung aus
@@ -125,7 +125,7 @@ zeile("und er nennt das Werkzeug",
 GESENDET.clear()
 bot.SESSIONS.clear()
 erg2 = asyncio.run(_lauf("deny"))
-zeile("Verweigern heisst verweigert (Gegenrichtung)",
+zeile("Verweigern heißt verweigert (Gegenrichtung)",
       type(erg2).__name__ == "PermissionResultDeny",
       gemessen=type(erg2).__name__)
 

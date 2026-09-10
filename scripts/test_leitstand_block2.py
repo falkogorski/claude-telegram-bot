@@ -76,7 +76,7 @@ zeile("und das andere arbeitet an nichts (Gegenrichtung)",
 zeile("wach ist, wer eine Sitzung hat",
       stand[7]["wach"] and not stand[8]["wach"],
       gemessen=f"7:{stand[7]['wach']} 8:{stand[8]['wach']}")
-zeile("die Warteschlange wird je Zimmer gezaehlt",
+zeile("die Warteschlange wird je Zimmer gezählt",
       stand[7]["warteschlange"] == 0 and stand[8]["warteschlange"] == 1,
       gemessen=f"7:{stand[7]['warteschlange']} 8:{stand[8]['warteschlange']}")
 zeile("zuletzt fertig steht beim richtigen Zimmer",
@@ -142,7 +142,7 @@ class _Update:
 asyncio.run(bot.cmd_zimmer(_Update(), None))
 text = GESENDET[0] if GESENDET else ""
 
-zeile("/zimmer antwortet ueberhaupt", bool(text), gemessen=text[:60])
+zeile("/zimmer antwortet überhaupt", bool(text), gemessen=text[:60])
 zeile("und nennt das arbeitende Zimmer mit seinem Auftrag",
       "test_zimmer_block1" in text and "arbeitet an" in text, gemessen=text[:120])
 
@@ -155,7 +155,7 @@ zeile("der Auftragstext mit Unterstrich steht wirklich in der Meldung",
 zeile("gesendet wird OHNE parse_mode (sonst zerbricht ein Unterstrich alles)",
       ARGUMENTE and ARGUMENTE[0].get("parse_mode") is None,
       gemessen=str(ARGUMENTE[0] if ARGUMENTE else "nichts gesendet"))
-zeile("und ohne Markdown-Auszeichnung, die sonst als Sternchen dastuende",
+zeile("und ohne Markdown-Auszeichnung, die sonst als Sternchen dastünde",
       "**" not in text, gemessen=text[:120])
 zeile("das schlafende Zimmer steht als schlafend da",
       "schläft" in text, gemessen=text[:200])
@@ -183,7 +183,7 @@ bot.ConversationLogger(UID, 7).log_user("aus Zimmer sieben")
 haupt = bot.LOG_DIR / f"{tag}.md"
 zimmer = bot.LOG_DIR / f"{tag}_zimmer-7.md"
 
-zeile("der Hauptfaden behaelt seinen Dateinamen",
+zeile("der Hauptfaden behält seinen Dateinamen",
       haupt.exists(), gemessen=str(sorted(p.name for p in bot.LOG_DIR.glob("*.md"))))
 zeile("das Zimmer bekommt eine eigene Datei",
       zimmer.exists(), gemessen=str(sorted(p.name for p in bot.LOG_DIR.glob("*.md"))))
@@ -194,7 +194,7 @@ def _inhalt(pfad: Path) -> str:
     return pfad.read_text(encoding="utf-8") if pfad.exists() else ""
 
 
-zeile("und die Eintraege landen nicht im falschen Protokoll",
+zeile("und die Einträge landen nicht im falschen Protokoll",
       "Zimmer sieben" in _inhalt(zimmer)
       and "Zimmer sieben" not in _inhalt(haupt),
       gemessen=_inhalt(haupt)[:80].replace("\n", " "))
@@ -247,7 +247,7 @@ job11.received_at = 1000
 mb11.queue.append(zwilling)
 
 offen, eingearbeitet = bot._neuere_wartende(UID, job11)
-zeile("der gelesene Zettel zaehlt als eingearbeitet, nicht als offen",
+zeile("der gelesene Zettel zählt als eingearbeitet, nicht als offen",
       (offen, eingearbeitet) == (0, 1), gemessen=f"offen={offen} eingearbeitet={eingearbeitet}")
 
 _txt, _bef = presend.check_and_fix("Die Antwort.", pending_newer=offen,
@@ -267,7 +267,7 @@ offen2, eingearbeitet2 = bot._neuere_wartende(UID, job11)
 _txt2, _bef2 = presend.check_and_fix("Die Antwort.", pending_newer=offen2,
                                      eingearbeitet=eingearbeitet2)
 _hinweis2 = " ".join(f.get("hinweis", "") for f in _bef2)
-zeile("eine wirklich offene Nachricht wird weiter angekuendigt (Gegenrichtung)",
+zeile("eine wirklich offene Nachricht wird weiter angekündigt (Gegenrichtung)",
       (offen2, eingearbeitet2) == (1, 1) and "separat" in _hinweis2,
       gemessen=f"offen={offen2} eingearbeitet={eingearbeitet2} · {_hinweis2[:80]}")
 

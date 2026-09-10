@@ -48,9 +48,9 @@ UID = 4711
 print("== Block 1: Sitzung je Zimmer ==")
 
 # ---- Der Schluessel selbst -------------------------------------------------
-zeile("derselbe Faden ergibt denselben Schluessel",
+zeile("derselbe Faden ergibt denselben Schlüssel",
       bot.faden(UID, 7) == bot.faden(UID, 7))
-zeile("zwei Zimmer sind zwei Schluessel",
+zeile("zwei Zimmer sind zwei Schlüssel",
       bot.faden(UID, 7) != bot.faden(UID, 8),
       gemessen=f"{bot.faden(UID, 7)} vs {bot.faden(UID, 8)}")
 zeile("der Hauptfaden ist ein eigenes Zimmer, nicht dasselbe wie Thema 0",
@@ -66,7 +66,7 @@ bot.MAILBOXES.clear()
 mb_a = bot._get_mailbox(UID, 7)
 mb_b = bot._get_mailbox(UID, 8)
 zeile("zwei Zimmer bekommen zwei Warteschlangen", mb_a is not mb_b)
-zeile("dasselbe Zimmer bekommt dieselbe zurueck",
+zeile("dasselbe Zimmer bekommt dieselbe zurück",
       bot._get_mailbox(UID, 7) is mb_a)
 mb_a.queue.append("etwas")
 zeile("was in einem Zimmer liegt, liegt nicht im anderen",
@@ -76,7 +76,7 @@ zeile("der Hauptfaden ist von beiden getrennt",
 
 # ---- Nur-Nachsehen legt kein Zimmer an -------------------------------------
 bot.MAILBOXES.clear()
-zeile("Nachsehen legt kein Zimmer an (der Waechter zaehlt sonst sein Werk mit)",
+zeile("Nachsehen legt kein Zimmer an (der Wächter zählt sonst sein Werk mit)",
       bot._mb_opt(UID, 99) is None and not bot.MAILBOXES,
       gemessen=f"{len(bot.MAILBOXES)} Zimmer nach dem Nachsehen")
 
@@ -95,7 +95,7 @@ bot.SESSIONS.clear()
 bot.SESSIONS[bot.faden(UID, 7)] = "A"
 bot.SESSIONS[bot.faden(UID, 8)] = "B"
 bot.SESSIONS.pop(bot.faden(UID, 7), None)
-zeile("ein Zimmer schliessen laesst das andere stehen (Gegenrichtung)",
+zeile("ein Zimmer schließen lässt das andere stehen (Gegenrichtung)",
       bot._sess(UID, 7) is None and bot._sess(UID, 8) == "B")
 
 # ---- Der Job traegt den Faden bis zur Sitzung ------------------------------
@@ -117,7 +117,7 @@ import time as _t                                               # noqa: E402
 bot._LIMIT_PAUSE_BIS.clear()
 _bis = _t.time() + 600
 bot.limit_pause_setzen(UID, _bis)
-zeile("die Pause einer Person gilt fuer JEDES ihrer Zimmer",
+zeile("die Pause einer Person gilt für JEDES ihrer Zimmer",
       bot.limit_pause_bis(UID) > _t.time(),
       gemessen=f"{bot.limit_pause_bis(UID) - _t.time():.0f}s")
 zeile("eine andere Person ist davon nicht betroffen (Gegenrichtung)",
@@ -125,14 +125,14 @@ zeile("eine andere Person ist davon nicht betroffen (Gegenrichtung)",
 # Der spaetere Zeitpunkt gewinnt: Ein zweites Zimmer darf die Pause nicht
 # verkuerzen, nur verlaengern.
 bot.limit_pause_setzen(UID, _bis - 300)
-zeile("ein zweites Zimmer verkuerzt die Pause nicht",
+zeile("ein zweites Zimmer verkürzt die Pause nicht",
       abs(bot.limit_pause_bis(UID) - _bis) < 1.0,
       gemessen=f"{bot.limit_pause_bis(UID) - _bis:+.0f}s")
 bot.limit_pause_setzen(UID, _bis + 300)
-zeile("eine spaetere Freigabe verlaengert sie sehr wohl",
+zeile("eine spätere Freigabe verlängert sie sehr wohl",
       bot.limit_pause_bis(UID) > _bis)
 bot.limit_pause_loeschen(UID)
-zeile("aufgehoben wird sie fuer alle Zimmer zugleich",
+zeile("aufgehoben wird sie für alle Zimmer zugleich",
       bot.limit_pause_bis(UID) == 0.0)
 # **Und die Entscheidung wird AUSGEFUEHRT, nicht gelesen.**
 # Die erste Fassung dieser Zeile suchte einen Namen im Quelltext des Workers —
@@ -146,10 +146,10 @@ bot._LIMIT_PAUSE_BIS.clear()
 zeile("ohne Pause wartet niemand",
       bot.pause_rest_s(_mb0, UID) == 0.0)
 bot.limit_pause_setzen(UID, _t.time() + 120)
-zeile("die Pause der PERSON haelt ein Zimmer an, das selbst keine hat",
+zeile("die Pause der PERSON hält ein Zimmer an, das selbst keine hat",
       bot.pause_rest_s(_mb0, UID) > 60,
       gemessen=f"{bot.pause_rest_s(_mb0, UID):.0f}s")
-zeile("ein Zimmer einer ANDEREN Person laeuft weiter (Gegenrichtung)",
+zeile("ein Zimmer einer ANDEREN Person läuft weiter (Gegenrichtung)",
       bot.pause_rest_s(_mb0, UID + 1) == 0.0)
 bot.limit_pause_loeschen(UID)
 
@@ -177,13 +177,13 @@ zeile("ohne Zettel reicht der Hook nichts hinein",
       _a.run(_hook({}, None, None)) == {},
       gemessen=str(_a.run(_hook({}, None, None)))[:80])
 
-zeile("der Schreiber legt einen Zettel fuer den laufenden Auftrag ab",
+zeile("der Schreiber legt einen Zettel für den laufenden Auftrag ab",
       bot.nachsteuer_schreiben(UID, 7, _k7_kennung, 501, "stopp, andere Farbe"),
       gemessen=str(sorted(x.name for x in bot.nachsteuer_ordner(UID, 7).glob("*.txt"))))
 
 _erg = _a.run(_hook({}, None, None))
 _kontext = (_erg.get("hookSpecificOutput") or {}).get("additionalContext", "")
-zeile("ein Zettel kommt an der naechsten Werkzeuggrenze an",
+zeile("ein Zettel kommt an der nächsten Werkzeuggrenze an",
       "andere Farbe" in _kontext, gemessen=_kontext[:80])
 zeile("und er ist als Adams Nachsteuerung kenntlich",
       "nachgesteuert" in _kontext.lower(), gemessen=_kontext[:60])
@@ -199,7 +199,7 @@ _j8 = _job(108)
 _mb8.current_job = _j8
 bot.nachsteuer_schreiben(UID, 8, bot._auftrag_kennung(_j8), 508, "fuer Zimmer acht")
 _hook7 = bot._nachsteuer_hook(UID, 7)
-zeile("ein Zettel fuer Zimmer 8 erreicht Zimmer 7 nicht (Gegenrichtung)",
+zeile("ein Zettel für Zimmer 8 erreicht Zimmer 7 nicht (Gegenrichtung)",
       _a.run(_hook7({}, None, None)) == {})
 _hook8 = bot._nachsteuer_hook(UID, 8)
 _k8 = (_a.run(_hook8({}, None, None)).get("hookSpecificOutput") or {}).get("additionalContext", "")
@@ -233,7 +233,7 @@ _kz = bot._auftrag_kennung(_jz)
 bot.nachsteuer_schreiben(UID, 11, _kz, 511, "Nachtrag zum laufenden")
 _a.run(bot._nachsteuer_hook(UID, 11)({}, None, None))     # der Hook reicht ihn hinein
 bot.nachsteuer_aufraeumen(UID, 11, _kz, beantwortet=True)
-zeile("angekommen und beantwortet -> der Zwilling wird uebersprungen",
+zeile("angekommen und beantwortet -> der Zwilling wird übersprungen",
       bot.zettel_erledigt(511), gemessen=str(bot._ZETTEL.get(511)))
 
 # (d) NICHTS VERLOREN: derselbe Weg, aber der Auftrag scheitert -> der
@@ -245,7 +245,7 @@ _kf = bot._auftrag_kennung(_jf)
 bot.nachsteuer_schreiben(UID, 12, _kf, 512, "Nachtrag zum gescheiterten")
 _a.run(bot._nachsteuer_hook(UID, 12)({}, None, None))
 bot.nachsteuer_aufraeumen(UID, 12, _kf, beantwortet=False)
-zeile("angekommen, aber Auftrag gescheitert -> der Zwilling laeuft normal",
+zeile("angekommen, aber Auftrag gescheitert -> der Zwilling läuft normal",
       not bot.zettel_erledigt(512), gemessen=str(bot._ZETTEL.get(512)))
 
 # (e) und ein Zettel, den niemand gelesen hat, macht den Zwilling ebenfalls
@@ -255,7 +255,7 @@ _ju = _job(113)
 _mbu.current_job = _ju
 bot.nachsteuer_schreiben(UID, 13, bot._auftrag_kennung(_ju), 513, "nie gelesen")
 bot.nachsteuer_aufraeumen(UID, 13, bot._auftrag_kennung(_ju), beantwortet=True)
-zeile("nie gelesen -> der Zwilling laeuft normal",
+zeile("nie gelesen -> der Zwilling läuft normal",
       not bot.zettel_erledigt(513), gemessen=str(bot._ZETTEL.get(513)))
 
 # **Der Hook haengt wirklich an den Optionen** — sonst waere er eine Funktion,
@@ -263,7 +263,7 @@ zeile("nie gelesen -> der Zwilling laeuft normal",
 _opt = bot.hauptsitzungs_optionen(user_id=UID, model_full="x", effort=None,
                                   add_dirs=[], context="", context_via_file=False,
                                   thread_id=7)
-zeile("die Sitzung eines Zimmers traegt den Nachsteuer-Hook",
+zeile("die Sitzung eines Zimmers trägt den Nachsteuer-Hook",
       bool((getattr(_opt, "hooks", None) or {}).get("PreToolUse")),
       gemessen=str(getattr(_opt, "hooks", None))[:80])
 
@@ -283,7 +283,7 @@ bot.SESSIONS[bot.faden(UID, 22)] = _s22
 
 _cb_haupt = bot.make_permission_callback(UID)
 _erg_haupt = _a.run(_cb_haupt("Read", {}, None))
-zeile("ohne Sitzung verweigert der Rueckruf im Hauptfaden (Gegenrichtung)",
+zeile("ohne Sitzung verweigert der Rückruf im Hauptfaden (Gegenrichtung)",
       "no active session" in str(getattr(_erg_haupt, "message", "")),
       gemessen=str(getattr(_erg_haupt, "message", ""))[:60])
 
@@ -367,7 +367,7 @@ for _kn in _ast.walk(_ast.parse(_quelle)):
     if "# Hauptfaden:" not in _umfeld:
         _ohne_grund.append(f"{_kn.func.id}:{_kn.lineno}")
 
-zeile("jede Ein-Argument-Tuer ist als Hauptfaden BEGRUENDET",
+zeile("jede Ein-Argument-Tür ist als Hauptfaden BEGRÜNDET",
       not _ohne_grund,
       gemessen=(", ".join(_ohne_grund) if _ohne_grund
                 else "alle begruendet"))
@@ -377,7 +377,7 @@ zeile("jede Ein-Argument-Tuer ist als Hauptfaden BEGRUENDET",
 _alle_tueren = sum(1 for _kn in _ast.walk(_ast.parse(_quelle))
                    if isinstance(_kn, _ast.Call) and isinstance(_kn.func, _ast.Name)
                    and _kn.func.id in _TUEREN)
-zeile("der Zaehler sieht die Tueren ueberhaupt",
+zeile("der Zähler sieht die Türen überhaupt",
       _alle_tueren >= 40, gemessen=f"{_alle_tueren} Aufrufe")
 
 import shutil                                                   # noqa: E402

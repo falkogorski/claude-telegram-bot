@@ -91,10 +91,22 @@ def main() -> int:
                     help="Bildunterschrift — nur zusammen mit --datei")
     ap.add_argument("--zimmer", default=None, type=int,
                     help="Forum-Topic (thread_id), falls gewuenscht")
-    ap.add_argument("--herkunft", default="Claudia",
-                    help="Absender des Auftrags. Vorgabe 'Claudia' — dieses "
-                         "Skript ist ihr Weg. Melder wie 'blume' oder 'hora' "
-                         "tragen ihren eigenen Namen ein.")
+    # **[BERICHTIGT 10.09.2026, Ultracode-Befund H-4] Die Vorgabe drehte die
+    # Richtung der Drossel um.**
+    #
+    # `bot.py` legt fest: Eingetragen wird, wer MEHR darf; wer nichts sagt,
+    # bekommt die strenge Vorgabe (5 je Stunde). Mit der Vorgabe „Claudia"
+    # bekam **jeder** Aufrufer ohne Schalter die hoechste Grenze (100 je
+    # Stunde) und hiess im Protokoll Claudia — auch `rechnungen_ablegen.sh`,
+    # das keine Herkunft setzt.
+    #
+    # **Ohne Angabe heisst jetzt: ohne Absender**, also strengste Grenze und
+    # ein ehrlicher Name im Protokoll. Wer mehr darf, nennt sich ausdruecklich.
+    ap.add_argument("--herkunft", default=None,
+                    help="Absender des Auftrags. Ohne Angabe gilt die "
+                         "strengste Drossel und das Protokoll sagt 'ohne "
+                         "Absender'. Wer eine eigene Grenze hat (Claudia, "
+                         "blume, hora), traegt sich ausdruecklich ein.")
     a = ap.parse_args()
 
     # ── `--text -` liest den Text von stdin ────────────────────────────────
@@ -158,11 +170,18 @@ def main() -> int:
     # Geschwister-Regel — ein Bauteil ist erst fertig, wenn geprueft ist,
     # welche vorhandenen Teile es beruehrt.
     #
-    # Die Vorgabe ist `Claudia`, weil dieses Skript ihr Weg ist. Wer es fuer
-    # einen Melder nutzt, setzt `--herkunft blume`; dann greift dessen
-    # strengere Grenze — **eingetragen wird, wer mehr darf** (Mengen-Regel).
+    # **[BERICHTIGT 10.09.2026, H-5 bzw. Ultracode H-4]** Hier stand: *Die
+    # Vorgabe ist Claudia, weil dieses Skript ihr Weg ist.* Das drehte die
+    # Mengen-Regel um: **Eingetragen wird, wer mehr darf** — mit einer
+    # Vorgabe, die 100 je Stunde bedeutet, bekam sie jeder, der nichts sagt.
+    # `rechnungen_ablegen.sh` sagt nichts.
+    #
+    # Ohne Angabe steht jetzt `ohne Absender` im Auftrag: Das schlaegt in
+    # keiner Grenzenliste an, also gilt die strenge Vorgabe, und im Protokoll
+    # steht kein fremder Name.
     auftrag: dict[str, object] = {"target_chat_id": a.chat,
-                                  "herkunft": a.herkunft.strip() or "Claudia"}
+                                  "herkunft": (a.herkunft or "").strip()
+                                              or "ohne Absender"}
     if a.zimmer is not None:
         auftrag["thread_id"] = a.zimmer
     if a.text:

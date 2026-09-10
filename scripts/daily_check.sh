@@ -324,8 +324,18 @@ for frist_datei in "$BOTDIR"/*riegel*.md "$BOTDIR"/CLAUDE.md; do
   # Gemeldet wird weiterhin AM Stichtag und danach (ein Melder, der nur an
   # einem Tag feuert, schweigt fuer immer, wenn der Lauf ausfaellt) — aber mit
   # dem richtigen Wort.
+  # **[BERICHTIGT 10.09.2026, Ultracode-Befund H-3] `add` landet nur im Log.**
+  #
+  # Die Berichtigung vom 09.09. hat den WORTLAUT richtig gestellt und dabei
+  # den MELDEWEG gekappt: Gesendet wird nur, was in `problems` steht, und dort
+  # landet allein `red`. Am Stichtag kam vorher eine Telegram-Meldung, danach
+  # erst am Tag darauf — also genau an dem Tag, an dem noch etwas zu
+  # entscheiden ist, erreichte Adam nichts.
+  #
+  # **Die Lehre, und sie ist aelter als dieser Fall:** Wer einen Text
+  # berichtigt, prueft, ob er dabei den Kanal wechselt.
   if [ "$HEUTE_ISO" = "$bis" ]; then
-    add "⏳ Frist $(basename "$frist_datei"): laeuft HEUTE ab ($bis) — heute noch offen, ab morgen zu. Auswertung faellig"
+    red "Frist $(basename "$frist_datei"): laeuft HEUTE ab ($bis) — heute noch offen, ab morgen zu. Auswertung faellig"
   elif [ "$HEUTE_ISO" \> "$bis" ]; then
     red "Frist abgelaufen: $(basename "$frist_datei") galt bis $bis — Auswertung faellig, danach Riegel bewusst neu setzen oder schliessen"
   else

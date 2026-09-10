@@ -294,7 +294,8 @@ if [ "$_tief" -gt 0 ] && [ -n "${RECHNUNGEN_CHAT:-}" ]; then
   if [ "$_chat_ok" = ja ] && printf '%s' "$_text" \
      | ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_HOST" \
        "python3 /home/claudebot/claude-telegram-bot/scripts/postfach_ablegen.py \
-        --chat $RECHNUNGEN_CHAT --text -" >/dev/null 2>>"$LOG"; then
+        --chat $RECHNUNGEN_CHAT --herkunft mac-rechnungen --text -" \
+       >/dev/null 2>>"$LOG"; then
     sag "Adam benachrichtigt: $_text"
   else
     # Die Nachricht ist Beiwerk; die Ablage ist die Sache. Aber es steht im

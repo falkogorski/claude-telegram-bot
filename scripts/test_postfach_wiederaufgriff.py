@@ -285,22 +285,42 @@ def _das_skript_nennt_seinen_absender():
     fuenf je Stunde statt Claudias hundert. Am Rechnungsmorgen lagen zehn
     Auftraege fest.
 
+    **`[UMGESTELLT 10.09.2026, Ultracode-Befund H-4]` Diese Zeile hat den
+    Fehler festgeschrieben, den sie verhindern sollte.** Sie verlangte, dass
+    ein Aufruf **ohne** `--herkunft` die **grosse** Grenze bekommt — und genau
+    dafuer gab es die Vorgabe „Claudia" im Skript. Damit bekam **jeder**
+    Aufrufer ohne Schalter hundert je Stunde und hiess im Protokoll Claudia,
+    auch `rechnungen_ablegen.sh`. Die Mengen-Regel steht andersherum:
+    **eingetragen wird, wer mehr darf.**
+
+    Der urspruengliche Zweck bleibt: Das Feld muss da sein (vorher fehlte es
+    ganz, das war Befund 1). Neu ist die Richtung — ohne Angabe die strenge
+    Grenze, mit Angabe die eigene.
+
     Gemessen wird am **erzeugten Auftrag**, nicht am Quelltext des Skripts:
     Das Skript laeuft echt, mit umgebogenem Postfach.
     """
     _frisch()
-    ziel = OUT.parent
-    e = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "postfach_ablegen.py"),
-         "--chat", "4711", "--text", "Probe"],
-        env={**os.environ, "POSTFACH_DIR": str(OUT.parent)},
-        capture_output=True, text=True)
-    assert e.returncode == 0, f"das Skript scheiterte: {e.stderr[-200:]}"
-    neu = sorted(OUT.glob("*.json"))
-    assert neu, f"kein Auftrag entstanden (stdout: {e.stdout[-120:]})"
-    d = json.loads(neu[-1].read_text(encoding="utf-8"))
+
+    def _lauf(*args):
+        e = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "postfach_ablegen.py"),
+             "--chat", "4711", "--text", "Probe", *args],
+            env={**os.environ, "POSTFACH_DIR": str(OUT.parent)},
+            capture_output=True, text=True)
+        assert e.returncode == 0, f"das Skript scheiterte: {e.stderr[-200:]}"
+        neu = sorted(OUT.glob("*.json"))
+        assert neu, f"kein Auftrag entstanden (stdout: {e.stdout[-120:]})"
+        return json.loads(neu[-1].read_text(encoding="utf-8"))
+
+    d = _lauf()
     assert d.get("herkunft"), "der Auftrag nennt keinen Absender"
-    # Die Wirkung, nicht nur das Feld: Dieser Absender hat die grosse Grenze.
+    assert bot._postfach_grenze_fuer(d["herkunft"]) == bot.POSTFACH_GRENZE, \
+        (f"Absender {d['herkunft']!r} ohne Angabe bekommt eine erhoehte "
+         f"Grenze — die Mengen-Regel steht andersherum")
+
+    # Die Gegenrichtung: Wer sich nennt, bekommt seine Grenze.
+    d = _lauf("--herkunft", "claudia")
     assert bot._postfach_grenze_fuer(d["herkunft"]) > bot.POSTFACH_GRENZE, \
         (f"Absender {d['herkunft']!r} laeuft unter der strengen Grenze "
          f"({bot._postfach_grenze_fuer(d['herkunft'])}) — genau der Stau vom 07.09.")

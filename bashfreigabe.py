@@ -41,6 +41,7 @@ from __future__ import annotations
 import os
 import re
 import shlex
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -250,12 +251,24 @@ RECHNUNGS_SKRIPTE = frozenset({
     "ablage.py",                # die Zustellung in den Ausgang
 })
 
-# **Die dritte Bedingung [versioniert] traegt hier NICHT** — das
-# Rechnungsprojekt hat keine Versionskontrolle (Engywucks Befund 4, Adams
-# offene Entscheidung zu `git init`). Was sie leistet, leistet hier die
-# **feste Namensmenge**: Ein anderes Skript in diesem Ordner ist nicht
-# freigegeben, auch wenn es dort liegt. Dass diese Bedingung fehlt, steht
-# hier, statt unbemerkt zu fehlen.
+# **`[BERICHTIGT 10.09.2026, Ultracode-Befund H-1]` Hier stand: *Was die
+# Versionierung leistet, leistet hier die feste Namensmenge.* Das war falsch,
+# und der Irrtum war ein offener Weg zu beliebigem Code ohne Dialog.**
+#
+# **Gemessen mit echtem `entscheiden()`:** `printf 'import os' > ~/workspace/
+# boese.py` ist frei · `mv … ~/workspace/rechnungen/scripts/ablage.py` ist
+# frei · `python3 ~/workspace/rechnungen/scripts/ablage.py` ist **frei**.
+# Drei Schritte, kein Dialog, beliebiger Inhalt.
+#
+# **Der Denkfehler:** Die Namensmenge bindet den **Namen**, nicht den
+# **Inhalt**. Im Repo band den Inhalt die Schreibsperre 8.7 — im Workspace
+# band ihn nichts. Eine Positivliste ueber Dateinamen ist wertlos, sobald
+# jemand die Datei ueberschreiben darf.
+#
+# **Die dritte Bedingung ist deshalb wieder da**, nur mit anderem Traeger:
+# im Repo die Schreibsperre, im Rechnungsprojekt **git** — committet und
+# unveraendert. Welche Basis wodurch geschuetzt ist, steht in
+# `_skript_basen`, damit es nicht wieder in einem Kommentar steht.
 
 # Die Deuter, fuer die (1)-(3) ueberhaupt geprueft werden. Ohne benanntes
 # Skript bleibt jeder von ihnen im Dialog.
@@ -489,10 +502,11 @@ def _benanntes_skript(teile: list[str], art: str, bereiche,
                       basis: Path | None) -> Entscheid | None:
     """Darf dieser Deuter-Aufruf durch? `None` heisst ja.
 
-    Drei Bedingungen, alle notwendig (U-3): **direkt** unter `<repo>/scripts/`,
-    Name in `BENANNTE_SKRIPTE`, versioniert. Die dritte ist nicht gebaut,
-    sondern **geerbt** — die Repo-Schreibsperre 8.7 haelt sie; siehe den
-    Kommentar bei `BENANNTE_SKRIPTE`.
+    Drei Bedingungen, alle notwendig (U-3): **direkt** unter einer bekannten
+    Basis, Name in deren Menge, **Inhalt gebunden**. Die dritte hat je Basis
+    einen anderen Traeger — im Repo die Schreibsperre 8.7, im
+    Rechnungsprojekt git (`[NEU 10.09.2026, H-1]`). Welcher, steht als Feld
+    in `_skript_basen`, nicht in einem Kommentar.
 
     **Streng am ersten Argument, und das ist der Kern:** Steht dort ein
     Schalter, ist Schluss. Sonst faenden `python3 -c "…"` und `python3 -m …`
@@ -522,19 +536,73 @@ def _benanntes_skript(teile: list[str], art: str, bereiche,
     # mitkommen. Eine Zusage, die auf einen Baum zeigt, waechst mit ihm.
     # **Seit M-2 gibt es zwei Basen** (Repo und Rechnungsprojekt), jede mit
     # eigener Namensmenge — der Ort entscheidet, nicht der Name.
-    erlaubte = next((namen for ordner, namen in basen if p.parent == ordner), None)
-    if erlaubte is None:
+    treffer = next(((namen, schutz) for ordner, namen, schutz in basen
+                    if p.parent == ordner), None)
+    if treffer is None:
         return Entscheid(DIALOG,
                          f"[{p.name}] liegt nicht direkt unter einem "
                          "freigegebenen scripts/", art, pfade=(str(p),))
+    erlaubte, schutz = treffer
     if p.name not in erlaubte:
         return Entscheid(DIALOG,
                          f"[{p.name}] steht nicht unter den benannten "
                          "Skripten", art, pfade=(str(p),))
+    # **Die dritte Bedingung, H-1.** Ort und Name sind geprueft — beides
+    # bindet den Inhalt nicht. Wo die Schreibsperre ihn nicht haelt, haelt
+    # ihn git.
+    if schutz == "git":
+        frei, grund = _unveraendert_versioniert(p)
+        if not frei:
+            return Entscheid(DIALOG, f"[{p.name}] {grund}", art,
+                             pfade=(str(p),))
     return None
 
 
-def _skript_basen(bereiche) -> list[tuple[Path, frozenset]]:
+def _unveraendert_versioniert(p: Path) -> "tuple[bool, str]":
+    """Ist diese Datei committet **und** seit dem Commit unveraendert?
+
+    **[NEU 10.09.2026, H-1]** Der Inhaltsschutz fuer Basen ausserhalb des
+    Repos. Zwei Fragen an git, beide muessen stimmen:
+
+    * `ls-files --error-unmatch` — die Datei ist ueberhaupt versioniert. Eine
+      hineinkopierte Datei ist es nicht.
+    * `status --porcelain` leer — sie ist seit dem Commit unveraendert. Eine
+      ueberschriebene versionierte Datei faellt hier durch.
+
+    **Fail-closed in jeder Richtung:** kein git, kein Repo, Zeitueberlauf,
+    unerwarteter Fehler — alles heisst *nicht frei*. Eine Freigabe, die bei
+    einem Werkzeugfehler durchlaesst, ist keine.
+
+    **Warum kein Pruefsummen-Register:** Das muesste jemand pflegen, und eine
+    Pflegepflicht ist die Bauform, die dieses Projekt schon zweimal verloren
+    hat. git weiss es ohnehin.
+
+    Rueckgabe: `(frei, Grund)` — der Grund steht im Dialogtext, damit Adam
+    sieht, **warum** gefragt wird.
+    """
+    try:
+        gemeinsam = dict(cwd=str(p.parent), capture_output=True, timeout=5,
+                         text=True)
+        versioniert = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", "--", p.name], **gemeinsam)
+        if versioniert.returncode != 0:
+            return False, "ist nicht versioniert (nicht committet)"
+        geaendert = subprocess.run(
+            ["git", "status", "--porcelain", "--", p.name], **gemeinsam)
+        if geaendert.returncode != 0:
+            return False, "laesst sich nicht gegen die Versionskontrolle pruefen"
+        if geaendert.stdout.strip():
+            return False, "ist seit dem letzten Commit geaendert"
+        return True, ""
+    except FileNotFoundError:
+        return False, "kann nicht geprueft werden (git fehlt)"
+    except subprocess.TimeoutExpired:
+        return False, "kann nicht geprueft werden (git antwortet nicht)"
+    except Exception:
+        return False, "kann nicht geprueft werden"
+
+
+def _skript_basen(bereiche) -> list[tuple[Path, frozenset, str]]:
     """Die Ordner, aus denen ein Deuter ein benanntes Skript starten darf.
 
     **Je Basis eine eigene Namensmenge** (M-2, 09.09.): Ein Skriptname allein
@@ -548,11 +616,17 @@ def _skript_basen(bereiche) -> list[tuple[Path, frozenset]]:
     """
     repo = next((b.pfad for b in bereiche if b.name == "repo"), None)
     ws = next((b.pfad for b in bereiche if b.name == "workspace"), None)
-    basen: list[tuple[Path, frozenset]] = []
+    # **Das dritte Feld ist der INHALTSSCHUTZ** `[NEU 10.09.2026, H-1]` --
+    # wer den Inhalt bindet, nachdem Ort und Name geprueft sind:
+    #   "sperre" -> die Repo-Schreibsperre 8.7 (dreischichtig, gebaut)
+    #   "git"    -> committet und unveraendert
+    # Ohne dieses Feld stand der Unterschied in einem Kommentar, und der
+    # Kommentar war falsch. Ein Feld laesst sich pruefen, ein Kommentar nicht.
+    basen: list[tuple[Path, frozenset, str]] = []
     if repo is not None:
-        basen.append((repo / "scripts", BENANNTE_SKRIPTE))
+        basen.append((repo / "scripts", BENANNTE_SKRIPTE, "sperre"))
     if ws is not None:
-        basen.append((ws / "rechnungen" / "scripts", RECHNUNGS_SKRIPTE))
+        basen.append((ws / "rechnungen" / "scripts", RECHNUNGS_SKRIPTE, "git"))
     return basen
 
 

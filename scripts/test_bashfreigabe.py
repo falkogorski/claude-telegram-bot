@@ -586,6 +586,30 @@ for _n in ("generate_rechnung.py", "generate_aufstellung.py", "ablage.py",
     (_rs / _n).write_text("x")
 (_venv / "python").write_text("x")
 
+# **[NEU 10.09.2026, H-1] Das Rechnungsprojekt ist ein git-Repo — im
+# Pruefstand genauso wie im Betrieb.**
+#
+# Ohne diese Zeilen misst der Pruefer den Zustand *ohne Versionskontrolle*
+# und schriebe fest, dass dort nichts frei laeuft. Die Identity wird
+# **mitgegeben statt vorausgesetzt**: Ein Pruefer, der eine globale
+# git-Konfiguration braucht, misst die Maschine — dieselbe Lehre wie beim
+# Rueckweg-Fehlpfad vom 09.09., wo `git revert` im VPS-Klon an genau dieser
+# fehlenden Identity scheiterte.
+import subprocess as _sp                                     # noqa: E402
+_RPROJ = ws / "rechnungen"
+
+
+def _git(*args, cwd=None):
+    return _sp.run(["git", "-c", "user.email=pruefstand@example.invalid",
+                    "-c", "user.name=Pruefstand",
+                    "-c", "commit.gpgsign=false", *args],
+                   cwd=str(cwd or _RPROJ), capture_output=True, text=True)
+
+
+_git("init", "-q")
+_git("add", "-A")
+_git("commit", "-q", "-m", "pruefstand")
+
 # Argument ABSOLUT: Ein relatives `daten/r.json` ohne `cd` wird gegen das
 # Arbeitsverzeichnis aufgeloest und liegt dann ausserhalb der Bereiche —
 # richtiges Verhalten der Schranke, das dieser Pruefstand erst
@@ -614,6 +638,54 @@ for _cmd, _teil, _was in [
     zeile(f"M-2 haelt: [{_was}] bleibt im Dialog",
           _e.urteil == bf.DIALOG and _teil in _e.grund,
           gemessen=f"{_e.urteil} · {_e.grund}")
+
+# ══════════════════════════════════════════════════════════════════════════
+# H-1 (Ultracode 10.09.): Der NAME bindet den Inhalt nicht — git tut es
+#
+# **Gemessen war der Weg, nicht vermutet:** `printf … > ~/workspace/boese.py`
+# frei, `mv … rechnungen/scripts/ablage.py` frei, `python3 …/ablage.py`
+# **frei**. Drei Schritte, kein Dialog, beliebiger Inhalt. Die Positivliste
+# band den Dateinamen; den Inhalt band im Repo die Schreibsperre 8.7 und im
+# Workspace nichts.
+print("-- H-1: Inhaltsschutz ausserhalb des Repos")
+
+_h1 = e(f"python3 {_rs}/ablage.py")
+zeile("ein committetes, unveraendertes Rechnungsskript laeuft frei",
+      _h1.urteil == bf.FREI, gemessen=f"{_h1.urteil} · {_h1.grund}")
+
+# Der dritte Schritt des gemessenen Angriffswegs -- die Datei ist jetzt eine
+# andere, der Name derselbe.
+(_rs / "ablage.py").write_text("import os  # ueberschrieben")
+_h2 = e(f"python3 {_rs}/ablage.py")
+zeile("dieselbe Datei ueberschrieben: der Dreischritt endet im DIALOG",
+      _h2.urteil == bf.DIALOG and "geaendert" in _h2.grund,
+      gemessen=f"{_h2.urteil} · {_h2.grund}")
+
+# Die Gegenrichtung, ohne die die Zeile darueber nur "alles zu" hiesse.
+_git("add", "-A")
+_git("commit", "-q", "-m", "aenderung committet")
+_h3 = e(f"python3 {_rs}/ablage.py")
+zeile("nach dem Commit laeuft sie wieder frei (Gegenrichtung)",
+      _h3.urteil == bf.FREI, gemessen=f"{_h3.urteil} · {_h3.grund}")
+
+# Der zweite Schritt: eine hineingelegte Datei mit erlaubtem Namen. Sie war
+# nie committet -- der Name allein macht sie nicht frei.
+(_rs2 := ws / "rechnungen" / "scripts")
+(_rs2 / "generate_aufstellung.py").unlink()
+(_rs2 / "generate_aufstellung.py").write_text("import os  # hineingelegt")
+_git("rm", "-q", "--cached", "scripts/generate_aufstellung.py")
+_h4 = e(f"python3 {_rs}/generate_aufstellung.py")
+zeile("eine nicht versionierte Datei bleibt im Dialog, trotz erlaubtem Namen",
+      _h4.urteil == bf.DIALOG and "versioniert" in _h4.grund,
+      gemessen=f"{_h4.urteil} · {_h4.grund}")
+
+# **Und die Trennung selbst:** Das Repo haelt seinen Inhalt ueber die
+# Schreibsperre 8.7, nicht ueber git. Der Pruefstand-Repo-Ordner ist KEIN
+# git-Repo — waere die neue Bedingung dort faelschlich aktiv, faellt diese
+# Zeile.
+_h5 = e(f"python3 {_skripte}/postfach_ablegen.py")
+zeile("das Repo-Skript ist von der git-Bedingung nicht betroffen",
+      _h5.urteil == bf.FREI, gemessen=f"{_h5.urteil} · {_h5.grund}")
 
 # Die Geheimnis-Schranke greift ueber den GANZEN Befehl, vor der Zerlegung —
 # ein benanntes Skript hebelt sie nicht aus.

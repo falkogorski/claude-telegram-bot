@@ -37,6 +37,19 @@ python3 /home/claudebot/claude-telegram-bot/scripts/postfach_ablegen.py --chat 3
 python3 /home/claudebot/claude-telegram-bot/scripts/postfach_ablegen.py --chat 304455165 --datei /home/claudebot/workspace/bericht.pdf --beschriftung "Der Bericht"
 ```
 
+**Wer eine eigene Drossel-Grenze hat, nennt sich** `[NEU 10.09.2026,
+Ultracode-Befund H-4]`: Ohne `--herkunft` steht `ohne Absender` im Auftrag,
+und damit gilt die **strengste** Grenze (fünf je Stunde). Vorher war die
+Vorgabe „Claudia" — das drehte die Mengen-Regel um, denn eingetragen wird,
+wer **mehr** darf: Jeder Aufrufer ohne Schalter bekam die höchste Grenze
+(hundert je Stunde) und hieß im Protokoll Claudia, auch
+`scripts/mac/rechnungen_ablegen.sh`.
+
+```bash
+python3 /home/claudebot/claude-telegram-bot/scripts/postfach_ablegen.py --chat 304455165 --herkunft claudia --text "Hallo"
+python3 /home/claudebot/claude-telegram-bot/scripts/postfach_ablegen.py --chat 304455165 --herkunft mac-rechnungen --text "Rechnung abgelegt"
+```
+
 **Der Pfad ist absolut, und das ist keine Umständlichkeit** `[BERICHTIGT
 02.09.2026, Engywucks Gegenprüfung]`: **Das Arbeitsverzeichnis der Sitzung ist
 nicht das Repo.** Der Bot startet Bash mit `cwd=WORKDIR`, auf dem VPS also

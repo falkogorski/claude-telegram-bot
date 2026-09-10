@@ -46,6 +46,24 @@ PROTOKOLL = _TMP / "pandoc-aufrufe.log"
 (BIN / "typst").write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
 (BIN / "typst").chmod((BIN / "typst").stat().st_mode | stat.S_IEXEC)
 
+# **[NEU 10.09.2026, H-2] Attrappe fuer `unshare` — am Rand, nicht in der Mitte.**
+#
+# Der Netz-Namensraum ist eine Linux-Eigenschaft; am Mac gibt es `unshare`
+# nicht. Ohne diese Attrappe verweigerte das Skript hier **richtigerweise**,
+# und vier Zeilen waeren am Mac rot geworden, ohne dass etwas kaputt ist —
+# ein Pruefer, der auf einer der beiden Maschinen immer rot ist, wird binnen
+# einer Woche abgeschaltet.
+#
+# Sie verhaelt sich wie das echte Werkzeug: `-r` und `-n` schlucken, den Rest
+# ausfuehren. Gemessen wird damit, **dass der Vorspann gesetzt wird** — dass
+# er im Betrieb wirklich das Netz nimmt, misst der VPS (Prueflauf im
+# Bericht), nicht dieser Pruefstand.
+(BIN / "unshare").write_text(
+    "#!/bin/bash\n"
+    'while [ "${1:0:1}" = "-" ]; do shift; done\n'
+    'exec "$@"\n', encoding="utf-8")
+(BIN / "unshare").chmod((BIN / "unshare").stat().st_mode | stat.S_IEXEC)
+
 fehler: list[str] = []
 zeilen = 0
 
@@ -60,10 +78,13 @@ def zeile(name: str, bedingung, *, gemessen: str = "") -> None:
         fehler.append(name)
 
 
-def lauf(quelle: Path, ziel: Path | None = None):
+def lauf(quelle: Path, ziel: Path | None = None, *, ohne_unshare: bool = False):
     umgebung = dict(os.environ)
+    # `ohne_unshare` baut den Zustand nach, in dem **kein** Netz-Namensraum zu
+    # haben ist: leerer PATH ausser den Attrappen, `unshare` daraus entfernt.
+    pfad = str(BIN) if ohne_unshare else f"{BIN}:{os.environ.get('PATH', '')}"
     umgebung.update({
-        "PATH": f"{BIN}:{os.environ.get('PATH', '')}",
+        "PATH": pfad,
         "KONZEPT_PDF_BEREICHE": str(ARBEIT),
         "TYPST_BIN": str(BIN / "typst"),
     })
@@ -134,6 +155,41 @@ zeile("Ausgabe ausserhalb der Arbeitsbereiche wird abgewiesen",
       gemessen=f"rc={e.returncode}")
 zeile("und pandoc wurde dafuer nicht gerufen",
       not PROTOKOLL.exists())
+
+# ---- H-2: der Riegel ist der Netz-Namensraum, nicht das Muster ------------
+#
+# **Der Ultracode-Befund vom 10.09.:** Acht Schreibweisen gehen an der
+# Vorpruefung vorbei, und pandoc holt Netzbilder auch mit `--sandbox`. Ein
+# besserer Ausdruck haette den neunten Fall offen gelassen.
+PROTOKOLL.unlink(missing_ok=True)
+_h2 = lauf(gut, ARBEIT / "h2.pdf")
+_aufrufe = PROTOKOLL.read_text() if PROTOKOLL.exists() else ""
+zeile("H-2: pandoc laeuft im Netz-Namensraum, nicht frei",
+      _h2.returncode == 0 and _aufrufe.strip() != "",
+      gemessen=f"rc={_h2.returncode}")
+
+# Dass der Vorspann WIRKLICH davorsteht, misst die Attrappe: Sie wird nur
+# gerufen, wenn `unshare` im Befehl steht — sonst liefe pandoc direkt.
+_direkt = lauf(gut, ARBEIT / "h2b.pdf", ohne_unshare=True)
+zeile("ohne Netz-Namensraum wird VERWEIGERT, nicht ohne Riegel gesetzt",
+      _direkt.returncode == 6 and not (ARBEIT / "h2b.pdf").exists(),
+      gemessen=f"rc={_direkt.returncode} · {(_direkt.stderr or '')[:120]}")
+
+# Eine Referenz-Schreibweise, die die alte Vorpruefung NICHT faengt. Sie darf
+# durchgehen — der Riegel liegt jetzt woanders. Waere die Vorpruefung noch der
+# Riegel, muesste diese Zeile scheitern, und genau das war der Befund.
+_ref = papier("referenz.md",
+              "# Titel\n\nText.\n\n![Bild][l]\n\n[l]: https://example.invalid/x.png\n")
+PROTOKOLL.unlink(missing_ok=True)
+_e = lauf(_ref, ARBEIT / "ref.pdf")
+zeile("die Referenz-Schreibweise geht an der Vorpruefung vorbei (gemessen)",
+      _e.returncode == 0, gemessen=f"rc={_e.returncode}")
+# Die Attrappe schreibt nur ihre EIGENEN Argumente mit; dass sie ueberhaupt
+# lief, beweist den Vorspann. Ohne ihn haette der PATH-Eintrag `pandoc`
+# direkt getroffen -- und dann stuende hier kein Protokoll aus DIESEM Lauf.
+zeile("und genau deshalb traegt der Namensraum den Riegel, nicht das Muster",
+      PROTOKOLL.exists() and "referenz.md" in PROTOKOLL.read_text(),
+      gemessen=(PROTOKOLL.read_text()[:160] if PROTOKOLL.exists() else "kein Aufruf"))
 
 shutil.rmtree(_TMP, ignore_errors=True)
 print()

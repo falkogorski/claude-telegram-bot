@@ -48,7 +48,23 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Was nach draussen zeigt — beides faengt die Vorpruefung, keines faengt pandoc.
+# **`[BERICHTIGT 10.09.2026, Ultracode-Befund H-2]` Diese Regexe pruefen eine
+# SCHREIBWEISE, nicht die Klasse — und sie waren bis heute der einzige
+# Riegel.**
+#
+# Gemessen sind acht Formen, die daran vorbeigehen: Referenzbild
+# `![a][l]` mit `[l]: https://…` · `![a](<https://…>)` · mehrzeiliges
+# `![a](\nhttps://…)` · `<img\n src=…>` · `<object data=…>` · Roh-Typst
+# `#image("https://…")` · `#import"@preview/…"` ohne Leerzeichen · `#include`.
+# Pandoc holt Netzbilder auch mit `--sandbox`. Das Skript steht in der
+# Positivliste, laeuft also ohne Dialog: Ein Papier mit Text aus einer Mail
+# oder Webseite waere damit ein Abrufkanal nach draussen gewesen.
+#
+# **Der Riegel ist jetzt der Netz-Namensraum** (`netzfreier_vorspann`), nicht
+# diese Muster. Sie bleiben, weil sie eine **gute Fehlermeldung** geben: Wer
+# ein Netzbild einbaut, erfaehrt es benannt, statt ein Papier ohne Bild zu
+# bekommen. **Hoeflichkeit, nicht Sicherheit** — und der Unterschied steht
+# hier, damit ihn niemand wieder verwechselt.
 _NETZ_BILD = re.compile(r"!\[[^\]]*\]\(\s*(?:https?:|//)", re.IGNORECASE)
 _NETZ_TAG = re.compile(r"<img[^>]+src\s*=\s*[\"']?\s*(?:https?:|//)", re.IGNORECASE)
 _TYPST_PAKET = re.compile(r"#import\s+\"@preview/", re.IGNORECASE)
@@ -102,6 +118,38 @@ def pruefe_quelle(text: str) -> str | None:
     return None
 
 
+def netzfreier_vorspann() -> "list[str] | None":
+    """Der Aufruf-Vorspann, der pandoc und typst **ohne Netz** startet.
+
+    **[NEU 10.09.2026, H-2]** `unshare -rn` legt einen eigenen
+    Netz-Namensraum an — darin gibt es keine Schnittstelle ausser `lo`, und
+    zwar unabhaengig davon, welche Schreibweise im Dokument steht. Das ist
+    der Unterschied zwischen *einen Ausdruck verbessern* und *die Klasse
+    schliessen*.
+
+    `-r` bildet den eigenen Benutzer im Namensraum auf root ab. Das ist
+    **kein** Systemrecht: Ausserhalb bleibt der Prozess derselbe
+    unprivilegierte Benutzer; ohne `-r` verlangte `unshare -n` echte
+    Rechte, und die hat dieser Bot nicht und soll sie nicht haben.
+
+    **Geprueft statt vermutet:** Manche Umgebungen haben `unshare`, erlauben
+    aber keine Benutzer-Namensraeume. Deshalb ein echter Probelauf, kein
+    `which`-Treffer allein.
+
+    `None` heisst: kein Netz-Riegel moeglich. Der Aufrufer **verweigert**
+    dann — ein Papier nicht zu setzen ist folgenlos, ein offener Abrufkanal
+    nicht.
+    """
+    if shutil.which("unshare") is None:
+        return None
+    try:
+        probe = subprocess.run(["unshare", "-rn", "true"],
+                               capture_output=True, timeout=10)
+    except Exception:
+        return None
+    return ["unshare", "-rn"] if probe.returncode == 0 else None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Ein Markdown-Papier als PDF setzen (pandoc + typst)")
@@ -139,7 +187,16 @@ def main() -> int:
               file=sys.stderr)
         return 4
 
-    befehl = [
+    # **Der Riegel, H-2.** Vor pandoc, nicht in pandoc: Der Prozess bekommt
+    # gar kein Netz, statt dass wir ihm das Fragen abgewoehnen wollen.
+    vorspann = netzfreier_vorspann()
+    if vorspann is None:
+        print("FEHLER: kein Netz-Namensraum verfuegbar (unshare -rn). "
+              "Dieses Skript setzt Papiere nur ohne Netz; ohne diese Zusage "
+              "wird nichts gesetzt.", file=sys.stderr)
+        return 6
+
+    befehl = vorspann + [
         "pandoc", str(quelle), "-o", str(ziel),
         "--pdf-engine", typst,
         # Der Wurzelpfad ist der Ordner der Quelle: Bilder daneben ja, alles

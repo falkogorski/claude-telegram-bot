@@ -8909,18 +8909,28 @@ async def _postfach_drossel_sofort_melden(app: Application, chat_id: int,
     zuletzt = _postfach_drossel_gemeldet.get(herkunft, 0.0)
     if now - zuletzt < POSTFACH_FENSTER_S:
         return
-    _postfach_drossel_gemeldet[herkunft] = now
     rest_min = max(1, int(_postfach_fenster_rest(herkunft) / 60))
     try:
+        # **[BERICHTIGT 10.09.2026, Ultracode-Befund H-5] Ohne `parse_mode`.**
+        #
+        # Der Absendername steht ungeprueft im Text und kommt von aussen. Ein
+        # einzelner `_` darin ist fuer Telegram eine unpaarige Entitaet: Der
+        # Aufruf wird abgelehnt, **die Meldung kommt nie** — und der Daempfer
+        # haette eine Stunde lang jeden weiteren Versuch verschluckt. Genau
+        # der stille Stau, gegen den diese Meldung gebaut wurde. Dritter Fall
+        # dieser Klasse in zwei Tagen (`/zimmer` war der zweite).
         await app.bot.send_message(
             chat_id=chat_id,
             text=(f"🔇 Ich halte gerade Nachrichten von {herkunft} zurück — "
                   f"mehr als {_postfach_grenze_fuer(herkunft)} in einer Stunde.\n\n"
-                  f"Sie sind **nicht verloren**: Sie liegen in der Warteschlange "
+                  f"Sie sind nicht verloren: Sie liegen in der Warteschlange "
                   f"und kommen von selbst, sobald wieder Platz ist "
                   f"(in etwa {rest_min} Minuten).\n\n"
-                  f"Wenn du gerade auf etwas wartest, ist das der Grund."),
-            parse_mode=ParseMode.MARKDOWN)
+                  f"Wenn du gerade auf etwas wartest, ist das der Grund."))
+        # **Der Daempfer erst NACH dem Senden.** Vorher gesetzt, sperrte ein
+        # gescheiterter Versuch die naechste Stunde — die Sicherung gegen
+        # Laerm wurde zur Sicherung gegen die Meldung.
+        _postfach_drossel_gemeldet[herkunft] = now
     except Exception:
         # Die Meldung ist Beiwerk, die Zustellung ist die Sache — aber
         # stilles Scheitern ist der Fehler, gegen den dieser ganze Weg steht.

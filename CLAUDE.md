@@ -1541,6 +1541,20 @@ weniger heikle Begriffe okay, für das Heikelste den Button-Weg nutzen.
   und es ist dieselbe Lehre wie beim Regressionslauf vor jedem Commit: **Wer
   die Ausnahme begründen muss, begründet sie irgendwann falsch.**
 
+  **`[ACHTER FALL 2026-09-10]` Und er kam heute in einer Form, die die Regel
+  noch nicht benannte:** Nicht das Anführungszeichen brach den Aufruf, sondern
+  **das Zeichen dahinter** — `SyntaxError: invalid character '⚠'`. Der String
+  endete am geraden `"`, und was folgte, stand im Nichts. Die Ursache ist
+  dieselbe, das Symptom ein anderes; wer nur auf die Fehlermeldung sieht, sucht
+  am falschen Ort.
+
+  **Der gefährliche Teil ist wieder eingetreten, und diesmal ohne `&&`:** Das
+  Skript starb, der `git commit` in der **nächsten Zeile** lief trotzdem. Ein
+  Zeilenumbruch trennt nicht — nur `set -e` oder getrennte Aufrufe tun das. Die
+  Commit-Nachricht behauptete einen Register-Eintrag, den es nicht gab. **Die
+  Auflage lautet deshalb schärfer: Kein `git commit` im selben Aufruf wie eine
+  Dateiänderung** — nicht nur nicht verkettet, sondern nicht daneben.
+
   **Der Prüfer dazu** (`scripts/test_blinde_flecken_b6.py`, Zeile
   „kein gemischtes Anfuehrungspaar") meldet genau das Ungleichgewicht — ein
   breiterer schlüge dreimal täglich grundlos an und wäre binnen einer Woche

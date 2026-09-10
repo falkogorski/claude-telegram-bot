@@ -423,6 +423,30 @@ zeile("A-3: keine Werkzeug-Server außer dem eigenen",
       "--strict-mcp-config" in _flags, gemessen=str(_o.strict_mcp_config))
 bot._EMPFANG.pop(UID, None)
 
+# Die Kontingent-Pause gilt auch dem Empfang — er läuft aus demselben Topf.
+bot._EMPFANG.pop(UID, None)
+bot.limit_pause_setzen(UID, _t.time() + 600)
+zeile("A-3: bei laufender Kontingent-Pause fragt der Empfang gar nicht erst",
+      lauf(bot.sekretaerin_fragen(UID, "Wie ist der Stand?")) is None
+      and UID not in bot._EMPFANG,
+      gemessen=str(list(bot._EMPFANG)))
+bot.limit_pause_loeschen(UID)
+
+# Der Selbstcheck fängt einen Eintrag, der am Schloss vorbei entsteht.
+# **`client` ist absichtlich da:** So misst die Zeile das SCHLOSS allein.
+# Mit einem leeren Eintrag hätte die zweite Bedingung mitgefangen, und die
+# Gegenprobe hätte grün gezeigt, obwohl der Schloss-Schutz entfernt war —
+# genau die falsche Gegenprobe, vor der die eigenen Regeln warnen.
+bot._EMPFANG[UID] = {"client": None}
+_ok, _zeilen = bot.run_self_check()
+zeile("A-1: ein Eintrag ohne Schloss fällt im Selbstcheck auf",
+      any("Empfang wohlgeformt" in z and z.startswith("✗") for z in _zeilen),
+      gemessen=str([z for z in _zeilen if "Empfang" in z]))
+bot._EMPFANG.pop(UID, None)
+_ok2, _zeilen2 = bot.run_self_check()
+zeile("A-1: ohne solchen Eintrag ist die Zeile grün (Gegenrichtung)",
+      any("Empfang wohlgeformt" in z and z.startswith("✓") for z in _zeilen2))
+
 # ── A-2: die Wege eines weitergereichten Auftrags ───────────────────────────
 print("-- A-2: Rückadresse, Kennung, Zwilling")
 

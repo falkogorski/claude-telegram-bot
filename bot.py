@@ -6165,6 +6165,21 @@ async def sekretaerin_fragen(user_id: int, text: str, *, bot=None,
 
     Wirft nie — der Empfang ist eine Bequemlichkeit, kein tragender Pfad.
     """
+    # **[NEU 10.09.2026, Ultracode-Befund A-3] Der Empfang haengt am selben
+    # Kontingent wie die Zimmer.**
+    #
+    # Er laeuft auf Sonnet, aber aus demselben Topf. Steht die Pause, kann er
+    # nicht antworten — und ein verschluckter Limit-Fehler heisst: **Adam
+    # bekommt gar nichts.** Er schweigt dann genau in dem Moment, in dem alles
+    # arbeitet, und das darf nicht wie Ruhe aussehen. Also gar nicht erst
+    # fragen: Die Nachricht laeuft den normalen Weg, und dort entsteht die
+    # ⏳-Meldung mit der Zeitangabe.
+    _rest = limit_pause_bis(user_id) - time.time()
+    if _rest > 0:
+        log.info("Empfang: Kontingent-Pause laeuft noch %d s -- kein Lauf",
+                 int(_rest))
+        return None
+
     eintrag = empfangs_eintrag(user_id)
     if bot is not None:
         eintrag["bot"] = bot
@@ -6214,9 +6229,18 @@ async def sekretaerin_fragen(user_id: int, text: str, *, bot=None,
             log.warning("Empfang: keine Antwort binnen %.0f s -- uebersprungen",
                         zeitgrenze)
             return None
-        except Exception:
+        except Exception as e:
             await empfang_verwerfen(user_id, "Fehler im Lauf")
-            log.exception("Empfang: Lauf fehlgeschlagen (nicht-fatal)")
+            # **Ein Limit-Fehler wird nicht verschluckt** (A-3): Er gilt der
+            # PERSON, also allen ihren Faeden. Wer ihn hier still frisst,
+            # laesst die Zimmer gleich darauf einzeln hineinlaufen — jedes mit
+            # eigener Meldung und eigenem Wecker.
+            if is_session_limit(e):
+                limit_pause_setzen(user_id, time.time() + 900)
+                log.warning("Empfang: Kontingent-Limit erkannt -- Pause fuer "
+                            "alle Faeden dieser Person gesetzt")
+            else:
+                log.exception("Empfang: Lauf fehlgeschlagen (nicht-fatal)")
             return None
         finally:
             eintrag["nur_antworten"] = False
@@ -10288,6 +10312,30 @@ def run_self_check() -> tuple[bool, list[str]]:
                      if l.strip() and not l.strip().endswith("logs/")]
             assert not dirty, f"VPS-Klon hat lokale Veränderungen: {dirty[:3]}"
     check("Repo NUR-LESEN (8.7)", _c_repo_readonly)
+
+    def _c_empfang_wohlgeformt() -> None:
+        """Jeder Empfangs-Eintrag traegt sein Schloss. `[NEU 10.09.2026, A-1]`
+
+        **Die Zeile faengt genau einen gemessenen Fehler:** `_empfang_protokoll`
+        legte per `setdefault` einen Eintrag **ohne** `schloss` und ohne
+        `client` an. Der naechste Lauf griff auf `eintrag["schloss"]` zu,
+        bekam einen `KeyError`, und der wurde verschluckt — **der Empfang war
+        tot, waehrend `/status` weiter „an" sagte.** Ein Ausbleiben, das wie
+        Ruhe aussieht.
+
+        Geprueft wird der **Zustand**, nicht der Quelltext: Wer einen Eintrag
+        auf einem anderen Weg anlegt, faellt hier auf.
+        """
+        for uid, eintrag in list(_EMPFANG.items()):
+            assert isinstance(eintrag, dict), \
+                f"Empfangs-Eintrag {uid} ist kein Verzeichnis"
+            assert "schloss" in eintrag, (
+                f"Empfangs-Eintrag {uid} hat kein Schloss — er wurde an "
+                "`empfangs_eintrag` vorbei angelegt; der naechste Lauf stirbt "
+                "am KeyError, und der Empfang ist still tot")
+            assert "client" in eintrag, \
+                f"Empfangs-Eintrag {uid} kennt sein Client-Feld nicht"
+    check("Empfang wohlgeformt (A-1)", _c_empfang_wohlgeformt)
 
     # 18. Boten-Postfach (B): Ziel-Allowlist greift + Geheimnis-Dateien werden
     # nicht versendet (Verdrahtung im Sende-Pfad).

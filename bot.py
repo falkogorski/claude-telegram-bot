@@ -2380,7 +2380,11 @@ def _neuere_wartende(user_id: int, job: QueuedJob) -> "tuple[int, int]":
         if not mb or not mb.queue:
             return 0, 0
         neuer = [j for j in mb.queue if j.received_at > job.received_at]
-        eingearbeitet = sum(1 for j in neuer if zettel_gelesen(j.message_id))
+        # **[GEAENDERT 10.09.2026, Ultracode-Befund A-2]** `zettel_schluessel`
+        # statt `message_id` -- sonst gilt ein Zwilling aus dem Empfang nie als
+        # eingearbeitet, und B2-3 kaeme fuer ihn zurueck: eine Schlusszeile,
+        # die eine zweite Antwort verspricht, die es nie gibt.
+        eingearbeitet = sum(1 for j in neuer if zettel_gelesen(zettel_schluessel(j)))
         return len(neuer) - eingearbeitet, eingearbeitet
     except Exception:
         log.exception("Vollständigkeits-Zählung fehlgeschlagen (nicht-fatal)")
@@ -4748,7 +4752,13 @@ def _auftrag_kennung(job) -> str:
     """
     if job is None:
         return "kein"
-    return f"{getattr(job, 'message_id', None) or 0}-{int(getattr(job, 'received_at', 0) or 0)}"
+    # **[GEAENDERT 10.09.2026, Ultracode-Befund A-2]** `zettel_schluessel`
+    # statt `message_id`: Auftraege aus dem Empfang tragen keine
+    # Telegram-Nummer und hiessen deshalb alle `0-<Sekunde>`. Zwei davon in
+    # derselben Sekunde waren **derselbe Auftrag** -- und `nachsteuer_aufraeumen`
+    # raeumt kennungsweit, also ueber alle Zimmer hinweg.
+    return (f"{zettel_schluessel(job) or 0}-"
+            f"{int(getattr(job, 'received_at', 0) or 0)}")
 
 
 def nachsteuer_schreiben(user_id: int, thread_id: "int | None",
@@ -5836,6 +5846,16 @@ def auftrag_einreihen(user_id: int, thread_id: "int | None", text: str, *,
     """
     mb = _get_mailbox(user_id, thread_id)
     lief = mb.current_job is not None
+    # **[NEU 10.09.2026, Ultracode-Befund A-2] Die Rueckadresse.**
+    #
+    # `_run_job` bestimmt sie ueber `same_chat = bool(job.message_id and …)` --
+    # und ein Auftrag aus dem Empfang hat **keine** Telegram-Nummer. Damit war
+    # `same_chat` immer falsch und die Ausgabe fiel auf `output_thread_id`
+    # zurueck, das niemand setzte: **Antwort, Werkzeugspur, Freigabe-Dialog und
+    # Erinnerung landeten im General statt im Zimmer.** Das traf jeden
+    # weitergereichten Auftrag.
+    if output_thread_id is None:
+        output_thread_id = thread_id
     if lief and zettel_id is None and message_id is None:
         zettel_id = _naechste_zettel_id()
     job = QueuedJob(
@@ -11373,7 +11393,11 @@ async def process_user_text(
     # **Antwortet sie nicht** (Zeitgrenze, Fehler), faellt die Nachricht in den
     # normalen Weg. Das ist die richtige Richtung: lieber langsam beantwortet
     # als still verschluckt.
-    if geht_an_empfang(user_id, _fd_thread, log_note, text):
+    # **[NEU 10.09.2026, Ultracode-Befund A-2]** `msg is not None` steht
+    # zuerst: `on_link_callback` reicht ein Callback-Update herein, und dort
+    # ist `update.message` leer. Der Empfangs-Zweig griff darauf zu — ein
+    # `AttributeError`, und der Link blieb bei „⏳ Ich arbeite daran" stehen.
+    if msg is not None and geht_an_empfang(user_id, _fd_thread, log_note, text):
         # **[NEU 10.09.2026, Ultracode-Befund A-3] Fremdtext reicht nichts
         # weiter — und das entscheidet der CODE.**
         #
@@ -11388,14 +11412,47 @@ async def process_user_text(
         # und wurde hier nicht gefragt. Ist der Text nicht Adams eigener,
         # läuft der Empfang mit demselben Riegel wie bei einer
         # Zwischenantwort: antworten ja, weiterreichen nein.
+        # **[NEU 10.09.2026, Ultracode-Befund A-2] Auch der Empfang
+        # persistiert.**
+        #
+        # Der Zweig kehrte VOR `pending.record` zurueck: Ein Neustart oder ein
+        # Deploy waehrend der Antwort liess die Nachricht spurlos verschwinden.
+        # Und bei einer Sprachnachricht blieb der Datensatz aus dem Voice-Pfad
+        # (Stufe `VOICE_STAGE`) liegen — der naechste Start meldete dann
+        # „nie verstanden, bitte nochmal schicken" fuer etwas, das laengst
+        # beantwortet war.
+        if dedup_key is not None:
+            try:
+                pending.record(dedup_key, {
+                    "user_id": user_id, "chat_id": chat_id,
+                    "message_id": message_id, "thread_id": _fd_thread,
+                    "text": text, "force_tts": force_tts,
+                    "output_chat_id": output_chat_id or chat_id,
+                    "reply_to_override": reply_to_override,
+                    "thorough": thorough, "adam_anteil": adam_anteil,
+                    "received_at": time.time(),
+                    "message_date": (msg.date.timestamp()
+                                     if msg.date else None),
+                })
+            except Exception:
+                log.exception("Empfang: Persistenz uebersprungen (nicht-fatal)")
+
         _antwort = await sekretaerin_fragen(
             user_id, text, bot=update.get_bot(), chat_id=chat_id,
             nur_antworten=not empfang_darf_weitergeben(update, text))
         if _antwort:
-            await update.message.reply_text(
-                _antwort, reply_parameters=_reply_params(message_id))
+            # **`send_chunked`, nicht `reply_text`** (A-3): Ueber 4096 Zeichen
+            # wirft Telegram, und dann faellt die Antwort samt Protokolleintrag
+            # aus. Der Empfang antwortet kurz — aber „kurz" ist eine Annahme
+            # ueber ein Modell, keine Zusage.
+            await send_chunked(update.get_bot(), chat_id, _antwort,
+                               reply_to=message_id, thread_id=_fd_thread)
             _empfang_protokoll(user_id, text, _antwort)
+            if dedup_key is not None:
+                pending.resolve(dedup_key)
             return
+        # Keine Antwort: Der Datensatz bleibt liegen und die Nachricht laeuft
+        # den normalen Weg — dort wird er gleich darauf neu geschrieben.
         log.info("Empfang: keine Antwort -- Nachricht laeuft den normalen Weg")
 
     mb = _get_mailbox(user_id, _fd_thread)

@@ -423,6 +423,50 @@ zeile("A-3: keine Werkzeug-Server außer dem eigenen",
       "--strict-mcp-config" in _flags, gemessen=str(_o.strict_mcp_config))
 bot._EMPFANG.pop(UID, None)
 
+# ── A-2: die Wege eines weitergereichten Auftrags ───────────────────────────
+print("-- A-2: Rückadresse, Kennung, Zwilling")
+
+for fd in list(bot.MAILBOXES):
+    bot.MAILBOXES.pop(fd)
+bot._ensure_worker = lambda uid, tid=None: None
+bot.auftrag_einreihen(UID, 47, "etwas tun", chat_id=-100)
+_j = bot._get_mailbox(UID, 47).queue[-1]
+zeile("A-2: der Auftrag trägt seine Rückadresse ins ZIMMER, nicht ins General",
+      _j.output_thread_id == 47,
+      gemessen=f"output_thread_id={_j.output_thread_id}")
+zeile("A-2: eine ausdrücklich genannte Rückadresse gewinnt (Gegenrichtung)",
+      bot.auftrag_einreihen(UID, 47, "x", chat_id=-100,
+                            output_thread_id=9) is not None
+      and bot._get_mailbox(UID, 47).queue[-1].output_thread_id == 9)
+
+# Zwei Aufträge aus dem Empfang in derselben Sekunde: verschiedene Kennungen.
+_a = bot.QueuedJob(update=None, text="a", user_id=UID, zettel_id=-1,
+                   received_at=1000.0)
+_b = bot.QueuedJob(update=None, text="b", user_id=UID, zettel_id=-2,
+                   received_at=1000.0)
+zeile("A-2: zwei Aufträge aus dem Empfang haben verschiedene Kennungen",
+      bot._auftrag_kennung(_a) != bot._auftrag_kennung(_b),
+      gemessen=f"{bot._auftrag_kennung(_a)} vs {bot._auftrag_kennung(_b)}")
+
+# Der Zwilling eines Empfangs-Auftrags gilt als eingearbeitet.
+bot._ZETTEL.clear()
+_lauf_job = bot.QueuedJob(update=None, text="laeuft", user_id=UID,
+                          received_at=500.0, message_id=3)
+_mbz = bot._get_mailbox(UID, None)
+_mbz.queue.clear()
+_mbz.current_job = _lauf_job
+_zw = bot.QueuedJob(update=None, text="zwilling", user_id=UID,
+                    zettel_id=-77, received_at=900.0)
+_mbz.queue.append(_zw)
+bot._ZETTEL[-77] = {"auftrag": "x", "gelesen": True, "erledigt": False}
+_offen, _eingearbeitet = bot._neuere_wartende(UID, _lauf_job)
+zeile("A-2: ein eingearbeiteter Zwilling aus dem Empfang zählt als erledigt",
+      (_offen, _eingearbeitet) == (0, 1),
+      gemessen=f"offen={_offen}, eingearbeitet={_eingearbeitet}")
+_mbz.current_job = None
+_mbz.queue.clear()
+bot._ZETTEL.clear()
+
 # ── A-5: Meldungen bleiben im Zimmer ────────────────────────────────────────
 #
 # **Auch das wirkt ohne den Knopf.** Ein Kontingent-Stopp in Zimmer 47 meldete

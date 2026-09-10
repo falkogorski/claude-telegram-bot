@@ -1696,6 +1696,19 @@ die je einen eigenen Fehltyp abfangen:
   Gegenprobe entlarvt: Beim Entkernen der Pfad-Auflösung wurden zwanzig
   Zeilen rot — aber **nicht die**, die es messen sollte.
 
+- **Nach dem Eingriff die Datei ÜBERSETZEN** (`py_compile`), bevor der Lauf
+  startet. `[NEU 2026-09-10, Engywucks eigener Befund]` Ein Eingriff mit
+  falscher Einrückung bricht den Import — der Prüfer läuft gar nicht erst, und
+  wer nur nach roten Zeilen sucht, liest **kein Rot als grün** und meldet eine
+  blinde Prüfzeile, die gar nicht blind ist.
+
+  **Dieselbe Klasse in der anderen Richtung:** Ein Bruch im geprüften Pfad
+  lässt den Prüfer **abstürzen** statt rot zu werden — und ein abstürzender
+  Prüfer verdeckt alle Zeilen darunter. Beides am 10.09. je zweimal
+  aufgetreten, bei zwei verschiedenen Instanzen. Der gemeinsame Kern:
+  **Ein Lauf, der nicht bis zum Ende kommt, hat nichts gemessen** — weder
+  seine roten noch seine grünen Zeilen zählen.
+
 **Alle drei Fehler sehen wie ein Ergebnis aus.** Das ist der Grund, warum sie
 hier als Auflage stehen und nicht als Empfehlung.
 

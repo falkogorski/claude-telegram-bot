@@ -962,3 +962,61 @@ null beginnt. Ein **Zimmer** darf in derselben Zeit einschlafen; dort kommt
 dann eine 💤-Zeile, die es ankündigt.
 
 **Rückweg:** `reset --hard` auf den Hash aus Schritt 0, dann Neustart.
+
+
+---
+
+# Deploy Block 3 gesamt — nach Engywucks Nachprüfung von 3c
+
+**Stand:** 10.09.2026, 23:2x · **Zielstand:** `495ca45` · **Server läuft auf
+`606ce26`** · **Erst fahren, wenn Engywuck 3c abgenommen hat.**
+
+## Schritt 0 — was kommt mit
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git fetch -q origin && git log --oneline HEAD..495ca45 && echo "--- jetziger Stand:" && git rev-parse --short HEAD'
+```
+
+**Prüfzeile:** Es dürfen nur die Commits von Block 3b und 3c dastehen — A-5,
+A-3, A-2, die Reste, A-6, die zehn Prüfzeilen, F-22 Teil 1, das
+Fremdflächen-Inventar und die Berichte. Steht etwas Fremdes darunter: nicht
+ziehen, melden.
+
+## Schritt 1 — holen und prüfen
+
+```bash
+ssh claudebot 'cd ~/claude-telegram-bot && git merge --ff-only 495ca45 && bash scripts/regressionstest.sh > /tmp/reg.log 2>&1; echo "rc=$?"; tail -6 /tmp/reg.log'
+```
+
+**Prüfzeile:** `rc=0` oder `rc=77`.
+
+## Schritt 2 — Neustart
+
+```bash
+ssh claudevps 'systemctl restart claude-telegram-bot && sleep 5 && systemctl is-active claude-telegram-bot'
+```
+
+## Schritt 3 — der Empfang, und er ist noch aus
+
+Nach dem Neustart ändert sich zunächst **nichts**: Der Knopf steht auf aus.
+Einschalten:
+
+> `/empfang an`
+
+**Erwartet:** eine Liste mit Haken und Kreuzen. `/status` nennt den Empfang.
+
+Dann eine Nachricht im **Hauptchat**, die Arbeit bedeutet:
+
+> Lies bitte MIGRATION.md und sag mir, was bei 5.1 als Nächstes offen ist.
+
+**Hälfte (a):** binnen Sekunden eine Antwort mit **👩‍💼**.
+**Hälfte (b), die eigentliche Prüfzeile:** Der Auftrag steht danach wirklich im
+Zimmer — `/zimmer` zeigt ihn.
+
+**Kommt (a) ohne (b)**, ist die Ursache die eine Frage, die am Mac nicht zu
+messen war: ob die Oberfläche der Sekretärin ihr Werkzeug anbietet. Dann bitte
+melden, nicht selbst nachbessern.
+
+**Wieder ausschalten:** `/empfang aus`
+
+**Rückweg:** `reset --hard` auf den Hash aus Schritt 0, dann Neustart.

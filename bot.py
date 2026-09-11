@@ -2998,6 +2998,20 @@ _AUSGEHENDE_BEFEHLE = re.compile(
 # **Wer diese Zeile rueckgaengig macht, nimmt auch den Knopf zurueck.**
 # Ein Knopf, der einen Zustand anzeigt, den es nicht mehr gibt, ist
 # schlimmer als kein Knopf.
+# **`[ENTSCHEID Adam, 11.09.2026, 04:57 — noch NICHT gebaut]`** `Write` und
+# `Edit` **unter `~/workspace`** dürfen künftig in die drei **Reichweiten** der
+# Sammelnachricht (Vorgang · Sitzung · Neustart). Das hebt diese Liste nicht
+# auf: Sie verbietet die **pauschale, unsichtbar fortgeltende** Dauerfreigabe,
+# und genau das war ihr Aufnahmekriterium — eine sichtbare, endliche Reichweite
+# erfüllt es nicht.
+#
+# Hart bleiben, ohne Ausnahme: die **Repo-Schreibsperre** (8.7), die
+# **Geheimnis-Pfade** und jede **Kostenquelle** (`_COST_TOOLS`).
+#
+# Warum das hier steht und nicht nur im Auftragspapier: Wer die Reichweiten
+# baut, liest diese Zeile — und wer sie nicht baut, liest sie auch, statt die
+# Liste für einen Widerspruch zu halten. Der Bau ist ein eigener Block nach
+# Adams Rückkehr (`docs/auftraege/20260911_entscheide_adam.md`).
 _NO_ALWAYS_TOOLS = ({"WebFetch", "Write", "Edit", "MultiEdit",
                      "NotebookEdit"} | set(_COST_TOOLS))
 

@@ -1,10 +1,28 @@
 <!-- ROLLE: auftragsbuch-riegel -->
 # Riegel der Grün-Automatik
 
-**Stichtag:** 2026-08-18 · **überholt durch:** — · **maßgeblich ist diese Datei**
+**Stichtag:** 2026-09-11 · **überholt durch:** — · **maßgeblich ist diese Datei**
 
-SCHARF: ja
+SCHARF: nein
 GILT-BIS: 2026-09-09
+
+## `[ENTSCHEID Adam, 11.09.2026, 04:57]` Der Riegel wird geschlossen
+
+**Zweite Probezeit, zweites Mal null Übergaben.** Die erste Woche
+(18.–25.08.) sprang nie an, deshalb wurde auf zwei Wochen verlängert; bis zum
+Ablauf am 09.09. hat sich daran nichts geändert. **Eine Automatik, die in
+zwei Probezeiten kein einziges Mal ausgelöst hat, wird nicht scharf gehalten,
+weil sie eines Tages könnte.**
+
+Dazu Engywucks Einwand, und er wiegt schwerer als die Zahl: **Jede Übergabe an
+Hora wäre ein Modelllauf ohne Adams Hand** — genau die Grauzone, die die
+AGB-Regel in `CLAUDE.md` benennt. Der Riegel war also nicht nur ungenutzt,
+sondern zeigte in eine Richtung, die wir ohnehin nicht gehen wollen.
+
+**Wieder geöffnet wird er, wenn ein echter grüner Fall existiert** — nicht
+nach Ablauf einer Frist, sondern nach einem Vorkommnis, das die Übergabe
+gebraucht hätte. Bis dahin lehnt das Auftragsbuch grüne Aufträge ab, **mit
+Meldung, nie stillschweigend.**
 
 ## Was dieser Zettel bewirkt
 

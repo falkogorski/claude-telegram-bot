@@ -1,7 +1,7 @@
 <!-- ROLLE: f-befunde-reihenfolge -->
 # F-Befunde der Gegenprüfung — Reihenfolge und Stand
 
-**Stichtag:** 2026-09-04 · **Stand: nur noch F-15, F-19 und F-21 offen.**
+**Stichtag:** 2026-09-11 · **Stand: F-15, F-19, F-21, F-22 und F-23 offen.**
 
 | | Stand | seit |
 |---|---|---|
@@ -16,6 +16,8 @@
 | **F-19** | **offen** | 23.08. |
 | **F-20** | behoben am Tag des Fundes | 02.09. |
 | **F-21** | **offen, bewusst zurückgestellt** bis zur Nachmessung nach dem Deploy | 02.09. |
+| **F-22** | **gebaut im Klon `probe-f22`**, abgenommen, **nicht gemergt** | 09.09. |
+| **F-23** | **offen**, Adams Entscheid liegt vor | 11.09. |
 
 ⚠️ **Diese Kopfzeile war bis zum 04.09. falsch.** Sie sagte *„F-12 bis F-17
 offen"*, während im Text darunter vier dieser sechs Punkte seit dem 31.08. als
@@ -324,6 +326,29 @@ scharf war.
 Aufräumen gehört ans Abschluss-Audit (Phase 10), und eine Streichung im
 Sicherheitspfad am selben Tag wie eine Behebung ist genau die Art Arbeit, die
 etwas mitreißt. **Vermerkt statt getan.**
+
+---
+
+### F-23 · Der Hygiene-Neustart um 04:00 wartet nicht auf arbeitende Zimmer `[offen, Adam 11.09.2026]`
+
+**Gemessen in der Nacht zum 11.09., mit eingetretenem Schaden:** Claudias Lauf
+von 03:54 starb um 04:00:16 — der planmäßige Hygiene-Neustart kam mitten
+hinein. Die Nachricht lief um 04:05 ein zweites Mal ein, weil der Dedupe den
+Fall *„Neustart dazwischen"* absichtlich durchlässt.
+
+**Adams Entscheid (11.09., 04:57):** Der Neustart **wartet, wenn ein Zimmer
+arbeitet** — Aufschub bis **dreißig Minuten**. Danach wird trotzdem neu
+gestartet; ein Aufschub ohne Obergrenze wäre eine Abschaltung mit anderem
+Namen.
+
+**Warum es nicht einfach „später neu starten" heißt:** Das 04-Uhr-Fenster
+trägt den Tagescheck und die Rotation mit. Wer den Neustart verschiebt,
+verschiebt beide — die Obergrenze hält das Fenster zusammen.
+
+**Was beim Bauen zu bedenken ist:** Die Antwort auf *„arbeitet gerade ein
+Zimmer?"* liegt bereits vor — `arbeitende_zimmer()` aus Block 3. Der Aufschub
+gehört in den Neustart-Weg, nicht in den Zeitgeber: Ein Zeitgeber, der nicht
+feuert, hinterlässt keine Spur; ein Neustart, der wartet, kann es melden.
 
 ---
 

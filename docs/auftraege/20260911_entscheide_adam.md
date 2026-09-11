@@ -57,3 +57,28 @@ den Fall *„Neustart dazwischen"* durchlässt.
 
 Alles, was in dieser Nacht entsteht, bleibt im Hauptbaum liegen. Das betrifft
 `0f4087e`, `168113d`, `64bd65b`, `048ed6e`, `537809c` und was noch folgt.
+
+## ⑤ Ein Knopf statt zwei — Entscheid für nach der Reise (11.09., nach dem vierten Deploy)
+
+**Adam am Gerät gesehen und entschieden, kein Bau jetzt:**
+
+> **Ein** Umschalter statt „Auto" und „Schreiben frei". **Auto deckt beides ab**
+> — Bash **und** Schreiben im Arbeitsordner. Der Schreib-Knopf entfällt mit der
+> Sammelnachricht.
+
+**Was das für den Bau heißt, wenn er drankommt:**
+
+- Der heutige Schreib-Knopf ist damit **doppelt terminiert**: Er geht in der
+  Sammelnachricht auf (Engywucks Vermerk im Register vom 11.09.) **und** seine
+  Wirkung wandert in den Auto-Knopf. Wer eines von beidem baut, entfernt ihn.
+- **Die Reichweiten bleiben verschieden, und das ist der Haken an der
+  Zusammenlegung:** Der Auto-Zustand für Bash liegt in den **Vorlieben** und
+  überlebt den Neustart; „Schreiben frei" liegt **nur im Speicher** und endet
+  mit ihm. Ein gemeinsamer Knopf muss sich für **eine** Reichweite entscheiden
+  — oder der Knopf sagt die längere und der Code hält die kürzere, und dann
+  lügt er.
+- **Hart bleiben in jedem Fall:** Repo-Schreibsperre, Gedächtnis-Ordner,
+  Geheimnis-Pfade, Kosten-Werkzeuge, ausgehende Befehle. Der zusammengelegte
+  Knopf darf keine dieser Schranken erben-und-verlieren.
+
+**Nicht gebaut.** Adams ausdrückliche Ansage: kein Bau jetzt.

@@ -28,6 +28,32 @@ set -uo pipefail
 # zuordnet — und sie sichert alle folgenden $HOME-Stellen auf einmal.
 : "${HOME:?HOME ist nicht gesetzt — als Dienst ohne User= gestartet?}"
 
+# **[NEU 11.09.] Ein Lauf zur Zeit — gemessen, nicht vorsorglich.**
+#
+# Adam hat am 11.09. gegen 05:00 einen **Wettlauf zweier Läufe** auf der
+# Quittungs-Tempdatei gemessen. Ursache ist der neue Takt: Ein Lauf dauert rund
+# 32 Sekunden (`real 31,9 s`), und seit dem 11.09. stoßen Minutentakt **und**
+# Pfad-Einheit an. Zwei Läufe, die dieselbe Datei schreiben und umbenennen,
+# erzeugen eine Quittung aus zwei Hälften — **und beide enden erfolgreich**,
+# also sieht es niemand.
+#
+# `-n` heißt: **nicht warten.** Ein zurückgetretener Lauf ist kein Fehler, der
+# nächste Anstoß holt ihn in Sekunden nach. Er sagt es aber, statt still zu
+# verschwinden — ein stiller Übersprung sähe aus wie ein Lauf ohne Änderungen.
+SCHLOSS="${LOG_SYNC_LOCK:-${TMPDIR:-/tmp}/claude-log-sync.lock}"
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$SCHLOSS" || { echo "Schloss nicht anlegbar: $SCHLOSS" >&2; exit 1; }
+  if ! flock -n 9; then
+    echo "Ein Abgleich laeuft bereits — dieser Lauf tritt zurueck."
+    exit 0
+  fi
+else
+  # Der Mac hat kein `flock` (BSD kennt nur `lockf`). Dort laeuft dieses
+  # Skript ohnehin nicht zeitgesteuert, also ist der Wettlauf kein Thema --
+  # aber er wird BENANNT statt stillschweigend hingenommen.
+  echo "flock fehlt — ohne Schloss; bei Parallellaeufen kann die Quittung brechen." >&2
+fi
+
 SRC="${LOG_SYNC_SRC:-$HOME/claude-telegram-bot/logs/conversations}"
 REPO="${LOG_SYNC_REPO:-$HOME/logsync/claude-bot-logs}"
 
@@ -106,6 +132,25 @@ fi
 WORK="${LOG_SYNC_WORK:-$HOME/workspace}"
 if [ -d "$WORK" ]; then
   mkdir -p ausarbeitungen
+
+  # **[NEU 11.09.] Die Quittungs-Tempdatei liegt in einem VERSTECKTEN
+  # Unterordner des Arbeitsordners** — und beide Hälften dieses Satzes sind
+  # Absicht:
+  #
+  # * **Nicht mehr direkt in `$WORK`.** Dort weckte sie die Pfad-Einheit
+  #   (`claude-log-sync.path`) bei **jedem** Lauf, auch wenn sich nichts
+  #   geändert hatte — Lauf, Tempdatei, Feuer, Lauf. `PathModified` ist nicht
+  #   rekursiv, ein Unterordner löst also nichts aus.
+  # * **Nicht nach `/tmp`.** Von dort wäre das abschließende `mv` ein
+  #   Kopieren über Dateisystemgrenzen statt eines atomaren Umbenennens; ein
+  #   Leser sähe die Quittung dann halb geschrieben.
+  # * **Versteckt**, weil der Bericht `.*`-Pfade ohnehin überspringt und
+  #   `rsync` sie ausschließt — die Datei kann so nie im Log-Repo landen.
+  #
+  # Die Quittung selbst bleibt, wo Claudia sie sucht: `$WORK/letzter-abgleich.txt`.
+  mkdir -p "$WORK/.quittung"
+  QUITTUNG_NEU="$(mktemp "$WORK/.quittung/neu.XXXXXX")"
+  trap 'rm -f "$QUITTUNG_NEU"' EXIT
   # ⚠️ REIHENFOLGE IST DIE FUNKTION: rsync nimmt die ERSTE zutreffende Regel.
   # Ausschlüsse müssen daher VOR den Einschlüssen stehen — stünden sie danach,
   # gewinnt `--include='*.md'` und zieht Ausgeschlossenes doch mit. Genau so
@@ -128,7 +173,20 @@ if [ -d "$WORK" ]; then
   # Backup-Ausschluss vom 03.09., wo `.venv` nicht griff, weil der Ordner
   # anders hieß. Wird das Projekt umbenannt oder verschoben, greift diese
   # Zeile nicht mehr. Wer es umbenennt, zieht sie mit.
+  # **[NEU 11.09.] Die Geschwister des Punkt-Ordners.** Gemessen an diesem
+  # Pruefstand: `.venv/lib/README.md` blieb draussen (`--exclude='.*'`),
+  # **`venv/lib/README.md` und `node_modules/paket/README.md` kamen mit.** Der
+  # Ausschluss hing am Punkt, nicht an der Sache -- dieselbe Luecke wie beim
+  # Backup am 03.09., wo `.venv` nicht griff, weil der Ordner anders hiess.
+  # Geschwister-Regel, auf einen Filter angewandt.
+  #
+  # ⚠️ **Kein Kommentar zwischen die Fortsetzungszeilen unten.** Genau das ist
+  # mir beim Einbau passiert: Der Backslash verbindet die Zeilen, der
+  # Kommentartext wurde zum rsync-Argument, und der Transport lieferte NICHTS
+  # mehr. `bash -n` sagt dazu nichts -- es ist gueltige Syntax. Gefunden hat es
+  # die Zeile "Papier und Gespraechslog sind trotzdem angekommen".
   rsync -a --prune-empty-dirs \
+    --exclude='node_modules/' --exclude='venv/' --exclude='.venv/' \
     --exclude='rechnungen/' \
     --exclude='.*' --exclude='*.tmp' \
     --exclude='CLAUDE.md' --exclude='MEMORY.md' \
@@ -189,8 +247,28 @@ if [ -d "$WORK" ]; then
     #
     # Punkt-Dateien und `.tmp` gehoeren nicht dazu: Dass ein Arbeits-
     # Zwischenstand nicht mitkommt, ist kein Befund, sondern die Absicht.
-    find "$WORK" -type f 2>/dev/null | while read -r f; do
-      name="$(basename "$f")"
+    # **[NEU 11.09.] `-prune` statt alles durchlaufen, und `${f##*/}` statt
+    # `basename`.** Adam hat am 11.09. gemessen: `real 31,9 s` bei `user 18,7 s`
+    # und `sys 12,5 s` — ein Abgleich, der nur bei Änderung committet, lief
+    # länger als eine halbe Minute. Beides zeigt auf diese Schleife:
+    #
+    # * **`sys`-Zeit** heißt Dateisystem: Der Lauf ging durch die
+    #   Rechnungs-venv mit Tausenden Paketdateien. `--exclude` gilt nur für
+    #   rsync, nicht für `find` — dieselbe Verwechslung wie am 03.09. beim
+    #   Backup, nur andersherum.
+    # * **`user`-Zeit** heißt Prozesse: `basename` startete ein eigenes
+    #   Programm **je Datei**. Die Parameter-Expansion `${f##*/}` tut dasselbe
+    #   in der Shell, ohne Prozessstart.
+    #
+    # Ausgeschlossen wird nach **Merkmal statt Name**, soweit es geht:
+    # `.venv`/`venv` decken Python-Umgebungen, `node_modules` und `.git` den
+    # Rest. Ein Ordner, der anders heißt, fällt weiterhin durch — das ist die
+    # bekannte Grenze der Namens-Anker, und sie steht hier, statt vergessen zu
+    # werden.
+    find "$WORK" \( -name '.venv' -o -name 'venv' -o -name 'node_modules' \
+                    -o -name '.git' -o -name '.quittung' \) -prune -o \
+                 -type f -print 2>/dev/null | while read -r f; do
+      name="${f##*/}"
       rel="${f#$WORK/}"
       [ -f "ausarbeitungen/$rel" ] && continue
       # **Der Bericht muss denselben Filter spiegeln wie der Transport.**
@@ -217,7 +295,7 @@ if [ -d "$WORK" ]; then
     echo
     echo "Fehlt hier etwas, das mitkommen sollte? Dann sag Bescheid —"
     echo "der Filter ist bewusst hart, aber er soll nichts Richtiges schlucken."
-  } > "$WORK/.letzter-abgleich.neu" 2>/dev/null || true
+  } > "$QUITTUNG_NEU" 2>/dev/null || true
 
   # **Nur schreiben, wenn sich mehr geaendert hat als die Uhrzeit.**
   # Gemessen am 20.08.: 155 Commits an einem halben Tag, jeder einzelne allein
@@ -226,10 +304,10 @@ if [ -d "$WORK" ]; then
   # (Engywucks Befund; sein Abnahmefehler, hier der Ein-Zeilen-Fix.)
   if [ -f "$WORK/letzter-abgleich.txt" ] \
      && diff -q <(tail -n +2 "$WORK/letzter-abgleich.txt") \
-                <(tail -n +2 "$WORK/.letzter-abgleich.neu") >/dev/null 2>&1; then
-    rm -f "$WORK/.letzter-abgleich.neu"      # inhaltsgleich — Quittung bleibt
+                <(tail -n +2 "$QUITTUNG_NEU") >/dev/null 2>&1; then
+    rm -f "$QUITTUNG_NEU"                    # inhaltsgleich — Quittung bleibt
   else
-    mv "$WORK/.letzter-abgleich.neu" "$WORK/letzter-abgleich.txt"
+    mv "$QUITTUNG_NEU" "$WORK/letzter-abgleich.txt"
   fi
 fi
 

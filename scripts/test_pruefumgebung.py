@@ -95,22 +95,44 @@ _UEBERLEBT = {
 
 
 def _kein_test_startet_einen_ueberlebenden_prozess():
-    """Wer etwas startet, das weiterläuft, muss es ersetzen — nachweislich."""
+    """Wer etwas startet, das weiterläuft, muss es ersetzen — nachweislich.
+
+    **`[KORRIGIERT 11.09.2026]` Gemessen wird der AUFRUF, nicht das Wort.**
+    Bis heute genügte das Vorkommen der Zeichenkette im Text — und damit schlug
+    die Zeile bei `test_log_sync_takt.py` an, das den Namen **nur in einem
+    Kommentar** trägt (in dem erklärt wird, warum dort gerade kein solcher
+    Prozess gestartet wird). Das ist der Fehlertyp, den `CLAUDE.md` für Prüfer
+    ausdrücklich benennt: *Ein Prüfer, der über seinen eigenen Erklärkommentar
+    stolpert, wird binnen einer Woche abgeschaltet.*
+
+    Die Gegenrichtung ist wichtiger und wird dadurch **strenger**: Kommentare
+    stehen nicht im Syntaxbaum, ein echter Aufruf schon. Wer den Aufruf durch
+    eine Kommentarzeile ersetzte, kam vorher durch — jetzt nicht mehr.
+    """
     suender = []
     for p in _testdateien():
         text = p.read_text(encoding="utf-8")
-        for name, warum in _UEBERLEBT.items():
-            if name not in text:
-                continue
-            # Eine Ersetzung sieht so aus: `modul.name = …` oder `name = lambda`.
+        baum = ast.parse(text)
+        # Welche der überlebenden Starter werden wirklich AUFGERUFEN?
+        benutzt: set[str] = set()
+        for k in ast.walk(baum):
+            if isinstance(k, ast.Call):
+                name = getattr(k.func, "attr", None) or getattr(k.func, "id", None)
+                if name in _UEBERLEBT:
+                    benutzt.add(name)
+                # `start_new_session=True` ist ein Schlüsselwort, kein Aufruf.
+                for kw in k.keywords:
+                    if kw.arg in _UEBERLEBT:
+                        benutzt.add(kw.arg)
+        for name in sorted(benutzt):
             ersetzt = any(
                 isinstance(k, ast.Assign) and any(
                     (isinstance(z, ast.Attribute) and z.attr == name)
                     or (isinstance(z, ast.Name) and z.id == name)
                     for z in k.targets)
-                for k in ast.walk(ast.parse(text)))
+                for k in ast.walk(baum))
             if not ersetzt:
-                suender.append(f"{p.name} benutzt {name} ({warum}) ohne Ersatz")
+                suender.append(f"{p.name} benutzt {name} ({_UEBERLEBT[name]}) ohne Ersatz")
     assert not suender, (
         "Diese Prüfungen können Prozesse hinterlassen, die das Testende "
         "überleben und danach in ECHTE Ordner schreiben:\n  "

@@ -8,11 +8,12 @@ GILT-BIS: 2026-09-09
 
 ## `[ENTSCHEID Adam, 11.09.2026, 04:57]` Der Riegel wird geschlossen
 
-**Zweite Probezeit, zweites Mal null Übergaben.** Die erste Woche
-(18.–25.08.) sprang nie an, deshalb wurde auf zwei Wochen verlängert; bis zum
-Ablauf am 09.09. hat sich daran nichts geändert. **Eine Automatik, die in
-zwei Probezeiten kein einziges Mal ausgelöst hat, wird nicht scharf gehalten,
-weil sie eines Tages könnte.**
+**Zweite Probezeit, zweites Mal null Übergaben.** Gezählt am 11.09. über den
+Zeitraum 25.08.–09.09.: **7 Einträge in der zweiten Probezeit, 14 seit Beginn,
+alle gelb, null grün, null Übergaben.** Die erste Woche (18.–25.08.) sprang nie
+an, deshalb wurde auf zwei Wochen verlängert; die Zahlen der zweiten sind
+dieselben. **Eine Automatik, die in zwei Probezeiten kein einziges Mal
+ausgelöst hat, wird nicht scharf gehalten, weil sie eines Tages könnte.**
 
 Dazu Engywucks Einwand, und er wiegt schwerer als die Zahl: **Jede Übergabe an
 Hora wäre ein Modelllauf ohne Adams Hand** — genau die Grauzone, die die

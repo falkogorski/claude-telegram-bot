@@ -3014,14 +3014,24 @@ _AUSGEHENDE_BEFEHLE = re.compile(
 # **Wer diese Zeile rueckgaengig macht, nimmt auch den Knopf zurueck.**
 # Ein Knopf, der einen Zustand anzeigt, den es nicht mehr gibt, ist
 # schlimmer als kein Knopf.
-# **`[ENTSCHEID Adam, 11.09.2026, 04:57 — noch NICHT gebaut]`** `Write` und
-# `Edit` **unter `~/workspace`** dürfen künftig in die drei **Reichweiten** der
-# Sammelnachricht (Vorgang · Sitzung · Neustart). Das hebt diese Liste nicht
-# auf: Sie verbietet die **pauschale, unsichtbar fortgeltende** Dauerfreigabe,
-# und genau das war ihr Aufnahmekriterium — eine sichtbare, endliche Reichweite
-# erfüllt es nicht.
+# **`[ENTSCHEID Adam, 11.09.2026 — präzisiert 09:5x, noch NICHT gebaut]`**
+# `Write` und `Edit` **unter `~/workspace`** dürfen künftig in **alle drei**
+# Reichweiten der Sammelnachricht: Vorgang · Sitzung · bis Neustart.
 #
-# Hart bleiben, ohne Ausnahme: die **Repo-Schreibsperre** (8.7), die
+# **Warum auch „bis Neustart" tragbar ist:** Der Hygiene-Neustart kommt täglich
+# um 04:00. Die längste dieser Reichweiten dauert also höchstens einen Tag und
+# endet von selbst — sie ist sichtbar und endlich, und genau das war das
+# Aufnahmekriterium dieser Liste: Sie verbietet die **pauschale, unsichtbar
+# fortgeltende** Dauerfreigabe, nicht jede Reichweite.
+#
+# **Der Gedächtnis-Ordner `~/.claude/memory` bleibt hart** — Adams Entscheid
+# gegen die weitere Fassung, und die Begründung trägt über den Einzelfall
+# hinaus: Ein Schreibrecht dort wirkt in **jede künftige Sitzung** hinein und
+# endet nicht mit dem Vorgang. Es wäre genau die unsichtbar fortgeltende
+# Freigabe, gegen die diese Liste steht. (Claudias engere Fassung ist damit in
+# einem Punkt übernommen, im anderen nicht.)
+#
+# Ebenfalls hart, ohne Ausnahme: die **Repo-Schreibsperre** (8.7), die
 # **Geheimnis-Pfade** und jede **Kostenquelle** (`_COST_TOOLS`).
 #
 # Warum das hier steht und nicht nur im Auftragspapier: Wer die Reichweiten

@@ -18,8 +18,21 @@ Fall**, nicht nach Ablauf einer Frist.
 
 ## ② Write und Edit unter `~/workspace` dürfen in die drei Reichweiten
 
-Gemeint sind die Reichweiten der geplanten Sammelnachricht: **Vorgang ·
-Sitzung · Neustart**. Hart bleiben: **Repo-Sperre, Geheimnis-Pfade, Kosten.**
+**`[PRÄZISIERT 11.09., 09:5x — die Fassung, die gilt]`** Nach Claudias
+Gegenvorschlag und Engywucks Empfehlung hat Adam entschieden:
+
+- **Alle drei Reichweiten** — Vorgang, Sitzung, **und bis Neustart**. Seine
+  Begründung: Der Hygiene-Neustart kommt täglich um 04:00; die längste
+  Reichweite dauert also höchstens einen Tag und endet von selbst.
+- **Der Gedächtnis-Ordner `~/.claude/memory` bleibt hart.** Ein Schreibrecht
+  dort wirkt in **jede künftige Sitzung** hinein und endet nicht mit dem
+  Vorgang — es wäre genau die unsichtbar fortgeltende Freigabe, gegen die die
+  Liste steht.
+- Ebenfalls hart: Repo-Sperre, Geheimnis-Pfade, Kosten.
+
+**Claudias engere Fassung ist damit in einem Punkt übernommen** (Gedächtnis),
+**im anderen nicht** (Neustart). Das gehört so notiert, damit niemand später
+liest, ihr Vorschlag sei abgelehnt worden.
 
 **Nicht gebaut** — die Sammelnachricht ist ein eigener Block nach Adams
 Rückkehr. Der Entscheid steht als Vermerk direkt an `_NO_ALWAYS_TOOLS`
@@ -27,7 +40,9 @@ Rückkehr. Der Entscheid steht als Vermerk direkt an `_NO_ALWAYS_TOOLS`
 
 **Der Punkt, der ihn trägt:** Das Aufnahmekriterium jener Liste war
 *„unsichtbar fortgeltend"*. Eine sichtbare, endliche Reichweite erfüllt es
-nicht — die Liste wird also nicht aufgeweicht, sondern beim Wort genommen.
+nicht — die Liste wird also nicht aufgeweicht, sondern beim Wort genommen. Der
+Gedächtnis-Ordner ist die Stelle, an der dieselbe Prüfung zum gegenteiligen
+Ergebnis führt.
 
 ## ③ Neu auf die F-Liste: der Hygiene-Neustart wartet
 

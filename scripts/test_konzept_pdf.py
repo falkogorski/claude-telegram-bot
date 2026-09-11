@@ -34,7 +34,7 @@ PROTOKOLL = _TMP / "pandoc-aufrufe.log"
 # Die Attrappe schreibt ihren Aufruf mit und legt eine PDF-Attrappe ab.
 (BIN / "pandoc").write_text(
     "#!/bin/bash\n"
-    f'printf "%s\\n" "$*" >> "{PROTOKOLL}"\n'
+    f'printf "PWD=%s ARGS=%s\\n" "$(pwd)" "$*" >> "{PROTOKOLL}"\n'
     'ziel=""; n=1\n'
     'for a in "$@"; do\n'
     '  if [ "$a" = "-o" ]; then ziel_next=1; elif [ -n "${ziel_next:-}" ]; then\n'
@@ -190,6 +190,84 @@ zeile("die Referenz-Schreibweise geht an der Vorpruefung vorbei (gemessen)",
 zeile("und genau deshalb traegt der Namensraum den Riegel, nicht das Muster",
       PROTOKOLL.exists() and "referenz.md" in PROTOKOLL.read_text(),
       gemessen=(PROTOKOLL.read_text()[:160] if PROTOKOLL.exists() else "kein Aufruf"))
+
+
+# ── H-6: die zwei Stolpersteine, die Claudia am 11.09. auf dem VPS traf ──────
+# Beide endeten dort mit `rc 5` („pandoc/typst endete mit 43"), und beide sind
+# Bauartfehler. Am Mac laeuft kein echtes typst, gemessen wird deshalb der
+# **Aufruf, den es bekaeme** — ueber die Attrappe, die ihr Arbeitsverzeichnis
+# und ihre Argumente mitschreibt.
+
+# (1) Der Aufruf laeuft im Ordner der Quelle, nicht im aktuellen.
+# Ohne das liegt pandocs Zwischendatei ausserhalb von `--root`, und typst
+# lehnt ab: „source file must be contained in project root".
+PROTOKOLL.unlink(missing_ok=True)
+_fremd = papier("fremdstart.md", "# Titel\n\nText.\n")
+_umg = dict(os.environ)
+_umg.update({"PATH": f"{BIN}:{os.environ.get('PATH', '')}",
+             "KONZEPT_PDF_BEREICHE": str(ARBEIT),
+             "TYPST_BIN": str(BIN / "typst")})
+_von_woanders = subprocess.run(
+    [sys.executable, str(SKRIPT), str(_fremd), "-o", str(ARBEIT / "fremd.pdf")],
+    env=_umg, capture_output=True, text=True, cwd="/")
+_prot = PROTOKOLL.read_text() if PROTOKOLL.exists() else ""
+_pwd_zeile = next((z for z in _prot.splitlines() if "fremdstart.md" in z), "")
+zeile("pandoc laeuft im Ordner der Quelle, auch wenn das Skript von woanders kommt",
+      _von_woanders.returncode == 0
+      and _pwd_zeile.startswith(f"PWD={ARBEIT}"),
+      gemessen=f"rc={_von_woanders.returncode} · {_pwd_zeile[:110]}")
+
+# (2) Schriften: Ohne `KONZEPT_PDF_SCHRIFTEN` darf es NIE rc 5 geben --
+# entweder ein Ordner wird gefunden (rc 0) oder es gibt einen benannten
+# Abbruch (rc 7). `rc 5` waere die typst-Meldung „font fallback list must not
+# be empty", also ein Fehler, der wie ein Werkzeugfehler aussieht und keiner ist.
+_ohne_schriften = dict(_umg)
+_ohne_schriften.pop("KONZEPT_PDF_SCHRIFTEN", None)
+_s = papier("schriften.md", "# Titel\n\nText.\n")
+_e_s = subprocess.run(
+    [sys.executable, str(SKRIPT), str(_s), "-o", str(ARBEIT / "schrift.pdf")],
+    env=_ohne_schriften, capture_output=True, text=True)
+zeile("ohne gesetzte Schriften: entweder Erfolg oder benannter Abbruch, nie rc 5",
+      _e_s.returncode in (0, 7),
+      gemessen=f"rc={_e_s.returncode} · {(_e_s.stderr or '')[:120]}")
+
+# (3) Und der Aufruf traegt immer einen Schriftpfad -- sonst nimmt
+# `--ignore-system-fonts` typst jede Schrift weg.
+_letzte = [z for z in _prot.splitlines() if "schriften.md" in z]
+_prot2 = PROTOKOLL.read_text() if PROTOKOLL.exists() else ""
+_zeile_s = next((z for z in _prot2.splitlines() if "schriften.md" in z), "")
+zeile("der Aufruf traegt einen --font-path neben --ignore-system-fonts",
+      (_e_s.returncode == 7) or ("--font-path=" in _zeile_s),
+      gemessen=_zeile_s[:150] or "kein Aufruf protokolliert")
+
+# (4) Ein vorhandener, aber LEERER Schriftordner gilt nicht als Treffer --
+# er fuehrt zu genau derselben typst-Meldung wie gar keiner und waere die
+# unangenehmere Variante, weil er wie eine Loesung aussieht.
+#
+# **Der Fall wird KONSTRUIERT, nicht abgewartet.** Meine erste Fassung prueft
+# nur, ob der zufaellig gefundene Ordner Schriften enthaelt -- am Mac ist der
+# erste vorhandene Kandidat zufaellig ein voller, und die Gegenprobe blieb
+# gruen. Jetzt steht ein leerer Ordner ganz vorn in der Kandidatenliste
+# (ueber XDG_DATA_HOME), und gemessen wird, dass er NICHT genommen wird.
+sys.path.insert(0, str(SKRIPT.parent))
+import konzept_pdf as _kp                                        # noqa: E402
+_leerheim = _TMP / "leerheim"
+(_leerheim / "fonts").mkdir(parents=True, exist_ok=True)
+_alt_xdg = os.environ.get("XDG_DATA_HOME")
+os.environ["XDG_DATA_HOME"] = str(_leerheim)
+try:
+    _gefunden = _kp._schriftordner()
+finally:
+    if _alt_xdg is None:
+        os.environ.pop("XDG_DATA_HOME", None)
+    else:
+        os.environ["XDG_DATA_HOME"] = _alt_xdg
+zeile("ein leerer Ordner gilt nicht als Schriftordner",
+      _gefunden != str(_leerheim / "fonts")
+      and (_gefunden is None or any(
+          d.lower().endswith((".ttf", ".ttc", ".otf"))
+          for _w, _u, ds in os.walk(_gefunden) for d in ds)),
+      gemessen=f"gefunden: {_gefunden} (leer war: {_leerheim / 'fonts'})")
 
 shutil.rmtree(_TMP, ignore_errors=True)
 print()

@@ -118,6 +118,42 @@ def pruefe_quelle(text: str) -> str | None:
     return None
 
 
+def _schriftordner() -> "str | None":
+    """Ein Ordner, der WIRKLICH Schriften enthält — oder nichts.
+
+    Die Kandidaten sind je Plattform verschieden und am 11.09. gemessen: Auf
+    diesem Mac fehlen `/usr/share/fonts` und DejaVu vollständig, auf dem VPS
+    fehlen die Apple-Pfade. Eine Liste, die beide Seiten abdeckt, ist deshalb
+    keine Bequemlichkeit, sondern die Bedingung dafür, dass das Skript auf
+    beiden Maschinen überhaupt läuft.
+
+    **Geprüft wird der Inhalt, nicht die Existenz.** Ein vorhandener, leerer
+    Schriftordner führt zu genau derselben typst-Meldung wie gar keiner — und
+    wäre als Treffer die unangenehmere Variante, weil er wie eine Lösung
+    aussieht.
+    """
+    kandidaten = [
+        os.environ.get("XDG_DATA_HOME", "") and
+        os.path.join(os.environ["XDG_DATA_HOME"], "fonts"),
+        "/usr/share/fonts", "/usr/local/share/fonts",
+        os.path.expanduser("~/.local/share/fonts"),
+        "/System/Library/Fonts", "/Library/Fonts",
+        os.path.expanduser("~/Library/Fonts"),
+    ]
+    for ordner in kandidaten:
+        if not ordner or not os.path.isdir(ordner):
+            continue
+        for wurzel, _unter, dateien in os.walk(ordner):
+            if any(d.lower().endswith((".ttf", ".ttc", ".otf"))
+                   for d in dateien):
+                return ordner
+            # Zwei Ebenen genügen; ein voller Baumlauf über
+            # /System/Library kostet mehr, als die Antwort wert ist.
+            if wurzel.count(os.sep) - ordner.count(os.sep) >= 2:
+                break
+    return None
+
+
 def netzfreier_vorspann() -> "list[str] | None":
     """Der Aufruf-Vorspann, der pandoc und typst **ohne Netz** startet.
 
@@ -196,21 +232,58 @@ def main() -> int:
               "wird nichts gesetzt.", file=sys.stderr)
         return 6
 
+    # **[NEU 11.09.2026, H-6 — beide Stolpersteine sind am Betrieb gemessen.]**
+    #
+    # Claudia hat am 11.09. auf dem VPS zweimal `rc 5` bekommen
+    # („pandoc/typst endete mit 43"). Beide Ursachen stehen hier, und beide
+    # sind Bauartfehler, keine Umgebungsprobleme:
+    #
+    # **(1) Der Wurzelpfad und das Arbeitsverzeichnis.** `--root` zeigt auf den
+    # Ordner der Quelle, pandoc legt seine Zwischendatei aber im **aktuellen**
+    # Arbeitsverzeichnis an. Wird das Skript von woanders gerufen, liegt diese
+    # Datei außerhalb der Wurzel, und typst lehnt ab: *„source file must be
+    # contained in project root"*. Der Aufruf läuft deshalb **im Ordner der
+    # Quelle**, und alle Pfade gehen absolut hinein.
+    quelle_abs = quelle.resolve()
+    ziel_abs = ziel.resolve()
+
+    # **(2) Schriften.** `--ignore-system-fonts` sorgt für dasselbe Bild auf
+    # beiden Maschinen — nimmt typst aber **jede** Schrift weg, wenn kein
+    # `--font-path` danebensteht: *„font fallback list must not be empty"*.
+    #
+    # Ohne gesetzte Umgebungsvariable wird deshalb ein Ordner gesucht, der
+    # wirklich Schriften enthält. **Gemessen am 11.09., nicht angenommen:** Auf
+    # diesem Mac gibt es weder `/usr/share/fonts` noch DejaVu; `/System/Library/
+    # Fonts` trägt 370 Schriften. Auf dem VPS ist es umgekehrt. Deshalb eine
+    # Kandidatenliste und **die Prüfung, ob wirklich etwas darin liegt** — ein
+    # vorhandener, leerer Ordner ist derselbe Fehler in grün.
+    #
+    # **Ehrlich zur Reichweite:** Der gefundene Ordner ist je Maschine ein
+    # anderer, das Schriftbild also nicht mehr garantiert gleich.
+    # `KONZEPT_PDF_SCHRIFTEN` bleibt der Weg zum gleichen Bild; der Vorgabepfad
+    # ist der Weg zu *einem* Ergebnis statt zu keinem.
+    schriften = os.environ.get("KONZEPT_PDF_SCHRIFTEN") or _schriftordner()
+    if not schriften:
+        print("FEHLER: keine Schriften gefunden. typst laeuft hier ohne "
+              "Systemschriften und braucht einen Ordner mit Schriftdateien. "
+              "Setze KONZEPT_PDF_SCHRIFTEN auf einen solchen Ordner.",
+              file=sys.stderr)
+        return 7
+
     befehl = vorspann + [
-        "pandoc", str(quelle), "-o", str(ziel),
+        "pandoc", str(quelle_abs), "-o", str(ziel_abs),
         "--pdf-engine", typst,
         # Der Wurzelpfad ist der Ordner der Quelle: Bilder daneben ja, alles
         # darueber nein.
-        "--pdf-engine-opt", f"--root={quelle.parent}",
+        "--pdf-engine-opt", f"--root={quelle_abs.parent}",
         # Gleiches Bild auf beiden Maschinen — siehe Kopf.
         "--pdf-engine-opt", "--ignore-system-fonts",
+        "--pdf-engine-opt", f"--font-path={schriften}",
     ]
-    schriften = os.environ.get("KONZEPT_PDF_SCHRIFTEN")
-    if schriften:
-        befehl += ["--pdf-engine-opt", f"--font-path={schriften}"]
 
-    e = subprocess.run(befehl, capture_output=True, text=True)
-    if e.returncode != 0 or not ziel.exists():
+    e = subprocess.run(befehl, capture_output=True, text=True,
+                       cwd=str(quelle_abs.parent))
+    if e.returncode != 0 or not ziel_abs.exists():
         print(f"FEHLER: pandoc/typst endete mit {e.returncode}\n"
               f"{(e.stderr or e.stdout or '').strip()[-400:]}", file=sys.stderr)
         return 5

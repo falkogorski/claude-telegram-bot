@@ -905,5 +905,52 @@ for _fn in _ast.walk(_baum):
 zeile("A-5: kein Sendeaufruf in Auftrag, Fehlermeldung und Wächter ohne Faden",
       not _ohne_faden, gemessen=", ".join(_ohne_faden))
 
+
+# ── 11. Die zwei Setz-Befehle (Adams Lösung vom 11.09.) ─────────────────────
+# **Ausgeführt, nicht gelesen.** Gemessen wird, was der Zustandsgeber danach
+# sagt — nicht, ob die Handler existieren. Der Anlass war ja gerade, dass ein
+# vorhandener Weg (`/empfang an`) in der Oberfläche nicht ankam.
+class _Nachricht:
+    def __init__(self):
+        self.texte = []
+
+    async def reply_text(self, text, **_kw):
+        self.texte.append(text)
+
+
+class _Upd:
+    def __init__(self, uid):
+        self.effective_user = type("U", (), {"id": uid})()
+        self.message = _Nachricht()
+        self.effective_message = self.message
+        self.effective_chat = type("C", (), {"id": uid, "type": "private"})()
+
+
+class _Ctx0:
+    args: list = []
+
+
+async def _schalt_proben():
+    bot.empfang_setzen(UID, False)
+    await bot.cmd_empfang_an(_Upd(UID), _Ctx0())
+    nach_an = bot.empfang_an(UID)
+    # Zweimal einschalten darf nicht ausschalten -- das ist der Unterschied
+    # zwischen einem Setzer und einem Umschalter, und genau er war Adams Fund.
+    await bot.cmd_empfang_an(_Upd(UID), _Ctx0())
+    nach_an2 = bot.empfang_an(UID)
+    await bot.cmd_empfang_aus(_Upd(UID), _Ctx0())
+    nach_aus = bot.empfang_an(UID)
+    await bot.cmd_empfang(_Upd(UID), _Ctx0())
+    nach_um = bot.empfang_an(UID)
+    bot.empfang_setzen(UID, False)
+    return nach_an, nach_an2, nach_aus, nach_um
+
+
+_an, _an2, _aus, _um = asyncio.run(_schalt_proben())
+zeile("/empfang_an setzt ein, zweimal bleibt ein, /empfang_aus setzt aus, "
+      "/empfang schaltet um",
+      _an is True and _an2 is True and _aus is False and _um is True,
+      gemessen=f"an={_an} nochmal_an={_an2} aus={_aus} um={_um}")
+
 print(f"\n{zeilen - len(fehler)}/{zeilen} Zeilen grün")
 sys.exit(1 if fehler else 0)

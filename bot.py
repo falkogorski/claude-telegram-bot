@@ -5386,7 +5386,8 @@ def _blumen_zeile() -> str:
     return f"🪷 Belegkette: lückenlos, {glieder} Glieder — {stand}"
 
 
-async def cmd_empfang(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_empfang(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+                      *, wort: "str | None" = None) -> None:
     """Der Multisession-Knopf — Auftrag 4 aus dem Zimmer-Bauauftrag.
 
     **Beide Richtungen, und der Stand ist immer ablesbar.** Ein Schalter, der
@@ -5400,7 +5401,12 @@ async def cmd_empfang(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
         return
     user_id = update.effective_user.id
-    arg = " ".join(ctx.args or []).strip().lower() if ctx is not None else ""
+    # `wort` kommt von `/empfang_an` und `/empfang_aus` und hat Vorrang vor den
+    # getippten Argumenten — es IST die Angabe, nicht eine Vorgabe dafür.
+    if wort is not None:
+        arg = wort
+    else:
+        arg = " ".join(ctx.args or []).strip().lower() if ctx is not None else ""
     if arg in ("an", "ein", "on", "1"):
         empfang_setzen(user_id, True)
     elif arg in ("aus", "off", "0"):
@@ -5446,6 +5452,32 @@ async def cmd_empfang(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         ]
     await update.message.reply_text("\n".join(zeilen))
 
+
+
+
+# **[NEU 11.09.2026, Adams eigene Lösung]** Zwei Befehle statt eines Arguments.
+#
+# Der Anlass ist die Telegram-Oberfläche, nicht der Code: **Im „/"-Menü ist nur
+# das Befehlswort anklickbar.** Ein Tipp auf `/empfang an/aus` setzt `/empfang`
+# ins Eingabefeld — das Argument bleibt zurück, und seit dem 10.09. schaltet
+# `/empfang` ohne Angabe um. Wer gezielt einschalten wollte, schaltete also
+# womöglich aus.
+#
+# Adams Lösung, und sie ist die richtige: zwei eigene Befehle, beide ein Tipp.
+# `/empfang` bleibt der Umschalter.
+#
+# **Bewusst NICHT in `_SCHALTER`:** Diese beiden sind **Setzer**, keine
+# Schalter. Stünden sie dort, trüge das Menü den Stand dreimal — bei
+# `/empfang`, `/empfang_an` und `/empfang_aus`. Ein Stand, der dreimal
+# dasteht, ist keine Auskunft mehr, sondern Lärm. Ihre Beschreibungen tragen
+# deshalb ihre **Wirkung**, und weil dort kein „an/aus" und kein „umschalten"
+# steht, ist auch keine Ausnahme im Prüfer nötig.
+async def cmd_empfang_an(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await cmd_empfang(update, ctx, wort="an")
+
+
+async def cmd_empfang_aus(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await cmd_empfang(update, ctx, wort="aus")
 
 async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
@@ -6902,7 +6934,13 @@ _BEFEHLE: tuple[tuple[str, str | None, str], ...] = (
     ("empfang", "Empfang an/aus (Sekretärin am Hauptchat)",
      "schaltet den Empfang: an = der Hauptchat gehört der Sekretärin, sie "
      "antwortet sofort und gibt Arbeit an die Zimmer weiter; aus = alles läuft "
-     "wie bisher in einem Faden. Ohne Angabe zeigt er den Stand"),
+     "wie bisher in einem Faden. Ohne Angabe schaltet er um"),
+    # Zwei Setzer, weil im Telegram-Menü nur das Befehlswort anklickbar ist —
+    # `/empfang an` tippt sich als `/empfang` und schaltet dann um.
+    ("empfang_an", "Empfang einschalten",
+     "schaltet den Empfang ein (ein Tipp, ohne Zusatz zu tippen)"),
+    ("empfang_aus", "Empfang ausschalten",
+     "schaltet den Empfang aus und schließt die Sekretärin"),
     ("hilfe", "Alle Befehle anzeigen", "Diese Befehlsübersicht"),
     # Die Beschreibung wandert mit dem Bau — hier zweimal an einem Abend, weil
     # sich der Weg geändert hat: erst kostete die Messung Kontingent, dann
@@ -15331,6 +15369,8 @@ def main() -> None:
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("zimmer", cmd_zimmer))
     app.add_handler(CommandHandler("empfang", cmd_empfang))
+    app.add_handler(CommandHandler("empfang_an", cmd_empfang_an))
+    app.add_handler(CommandHandler("empfang_aus", cmd_empfang_aus))
     app.add_handler(CommandHandler("ampel", cmd_ampel))
     app.add_handler(CommandHandler("presend", cmd_presend))
     app.add_handler(CommandHandler("usage", cmd_usage))

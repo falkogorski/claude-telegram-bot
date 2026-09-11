@@ -255,5 +255,32 @@ _ohne_stand = sorted(b for b, h in _paare.items()
 zeile("kein Befehl legt einen Zustand um, ohne in _SCHALTER zu stehen",
       not _ohne_stand, gemessen=", ".join(_ohne_stand))
 
+
+# ── 8. Ruft der Bot den Ausloeser ueberhaupt? ────────────────────────────────
+# **Engywucks Gegenprobe vom 11.09., und sie hat gesessen:** Entfernt man die
+# Registrierung `app.add_handler(TypeHandler(Update, _menue_nachziehen),
+# group=99)`, bleiben die sieben Zeilen darueber **gruen**. Sie rufen
+# `_menue_nachziehen` naemlich selbst — niemand misst, ob der Bot ihn ruft.
+# Fabrik ja, Aufrufer nein; genau der Fall vom 22.08.
+#
+# Gemessen wird deshalb die **Abwesenheit** ueber echte Aufrufknoten, nicht
+# ueber Zeilen mit dem Namen: Ein Kommentar steht nicht im Syntaxbaum.
+_registriert = []
+for _k in _ast.walk(_baum):
+    if not isinstance(_k, _ast.Call) or getattr(_k.func, "attr", None) != "add_handler":
+        continue
+    _grp = next((kw.value for kw in _k.keywords if kw.arg == "group"), None)
+    if not (isinstance(_grp, _ast.Constant) and _grp.value == 99):
+        continue
+    for _arg in _k.args:
+        if not (isinstance(_arg, _ast.Call)
+                and getattr(_arg.func, "id", None) == "TypeHandler"):
+            continue
+        if any(getattr(_a, "id", None) == "_menue_nachziehen" for _a in _arg.args):
+            _registriert.append(_k.lineno)
+zeile("der Ausloeser ist als TypeHandler in group=99 registriert",
+      len(_registriert) == 1,
+      gemessen=f"{len(_registriert)} Registrierungen: {_registriert}")
+
 print(f"\n{zeilen - len(fehler)}/{zeilen} Zeilen grün")
 sys.exit(1 if fehler else 0)

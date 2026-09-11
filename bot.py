@@ -1326,20 +1326,20 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None,
         rows.append([stt_toggle, _gruendlich_btn, _BTN_KONTINGENT])
     else:
         rows.append([_gruendlich_btn, _BTN_KONTINGENT])
-    # Eigene Zeile statt Anhaengen an Zeile 3: Der Genehmigungs-Zustand ist
-    # eine Sicherheitsaussage und soll nicht zwischen Tempo-Knoepfen
-    # untergehen. Er wird IMMER gezeichnet -- ein Umschalter, der je nach
-    # Lage verschwindet, laesst den Zustand im Ungewissen.
+    # **[GEAENDERT 11.09.2026, Adams R1 am Geraet]** Auto und Empfang teilen
+    # sich eine Zeile.
+    #
+    # Ich hatte beide auf eigene Zeilen gelegt, mit der Begründung, der
+    # Genehmigungs-Zustand sei eine Sicherheitsaussage und solle nicht zwischen
+    # anderen Knöpfen untergehen. **Adam hat es am fertigen Gerät gesehen und
+    # anders entschieden** — das ist seine Wahl, und sie sticht meine
+    # Begründung. Am Bildschirm ist Höhe knapp; zwei Umschalter nebeneinander
+    # sind schneller zu treffen als zwei Zeilen untereinander.
     rows.append([_BTN_AUTO_TO_GENEHM if _bash_auto_on(user_id)
-                 else _BTN_GENEHM_TO_AUTO])
-    # **Eigene Zeile, und immer gezeichnet** (11.09.) — aus demselben Grund wie
-    # beim Genehmigungs-Knopf darüber: Ein Umschalter, der je nach Lage
-    # verschwindet, lässt den Zustand im Ungewissen. Der Empfang ändert, WER
-    # auf eine Nachricht antwortet; das ist die eingreifendste Einstellung
-    # dieses Bots und gehört sichtbar, nicht zwischen Tempo-Knöpfe geschoben.
-    rows.append([_BTN_EMPFANG_TO_AUS if empfang_an(user_id)
+                 else _BTN_GENEHM_TO_AUTO,
+                 _BTN_EMPFANG_TO_AUS if empfang_an(user_id)
                  else _BTN_EMPFANG_TO_AN])
-    # Eigene Zeile, immer gezeichnet — wie die zwei darüber. Diese hier trägt
+    # Eigene Zeile, immer gezeichnet — wie die Umschalter darüber. Diese trägt
     # zusätzlich die **Reichweite** in der Beschriftung: Der Knopf ist der
     # einzige Ort, an dem Adam sieht, dass die Freigabe mit dem Neustart endet.
     rows.append([_BTN_SCHREIBEN_TO_FRAGEN if schreiben_frei(user_id)
@@ -5586,9 +5586,20 @@ async def cmd_empfang(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
             await sekretaerin_schliessen(user_id)
 
     an = empfang_an(user_id)
+    # **[GEAENDERT 11.09.2026, Adams R1 am Geraet]** Keine Sternchen in diesem
+    # Text. Er geht **ohne `parse_mode`** hinaus — aus gutem Grund: Hier stehen
+    # Zimmernamen und Auftragstexte, und ein einzelner Unterstrich darin lässt
+    # Telegram den ganzen Aufruf ablehnen; die Antwort käme nie an. Dann aber
+    # kommen auch die `**`-Zeichen roh beim Leser an, und genau so hat Adam es
+    # nach dem Deploy gesehen.
+    #
+    # **Die Lehre über den Einzelfall hinaus:** Auszeichnung und `parse_mode`
+    # gehören zusammen. Wer eine der beiden Hälften ändert, ändert die andere
+    # mit — sonst steht entweder Formatierung ohne Wirkung da, oder eine
+    # Wirkung ohne Absicht.
     if an:
         zeilen = [
-            f"{empfang.SIGNATUR} Empfang ist **an**.", "",
+            f"{empfang.SIGNATUR} Empfang ist an.", "",
             "✅ Der Hauptchat gehört der Sekretärin — sie antwortet in Sekunden.",
             "✅ Arbeit gibt sie an ein Zimmer weiter und sagt dir, wohin.",
             "✅ Schreibst du in ein Zimmer, das rechnet, antwortet sie sofort; "
@@ -5599,7 +5610,7 @@ async def cmd_empfang(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
         ]
     else:
         zeilen = [
-            "🛎️ Empfang ist **aus**.", "",
+            "🛎️ Empfang ist aus.", "",
             "❌ Kein Empfang — der Hauptchat arbeitet selbst, wie bisher.",
             "✅ Alles läuft in einem Faden, mit vollem Werkzeugsatz.",
             "", "An: /empfang an",
@@ -5671,12 +5682,17 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     lines.append(f"{_model_btn_label(kurz)} · Kennung `{voll}`")
     lines.append(f"⚙️ Tempo: {tempo_namen.get(eff, str(eff))}")
     if _thorough_on(user_id):
-        lines.append("🎯 Gründlich ist **an** (höchste Tiefe · Quellencheck)")
+        lines.append("🎯 Gründlich ist an (höchste Tiefe · Quellencheck)")
+    # **[GEAENDERT 11.09.] Keine Sternchen hier** -- `cmd_status` sendet ohne
+    # `parse_mode` (Zimmernamen koennen Unterstriche tragen, die Telegram den
+    # ganzen Aufruf ablehnen liessen). Auszeichnung ohne `parse_mode` kommt
+    # roh beim Leser an. Geschwister-Fund zu Adams R1 an `cmd_empfang`:
+    # gemessen ueber alle Sendewege, war dies der EINZIGE weitere Fall.
     # **[NEU 10.09.2026, Block 3]** Der Empfang gehoert in die Statuszeile.
     # Ein Schalter, der aendert, WER antwortet, und den man nicht sieht, ist
     # die schlimmere Art von Zustand.
     if empfang_an(user_id):
-        lines.append(f"{empfang.SIGNATUR} Empfang ist **an** "
+        lines.append(f"{empfang.SIGNATUR} Empfang ist an "
                      f"(Hauptchat: Sekretärin · Arbeit in den Zimmern)")
     lines.append(_blumen_zeile())
     lines.append("")
@@ -7335,7 +7351,7 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "Positivliste nach; bei „Auto“ läuft Bash ohne Rückfrage. Was sich "
         "dadurch NICHT ändert: Schreibversuche ins Repo werden weiter "
         "abgelehnt, Geheimnis-Pfade bleiben zu, Kosten-Werkzeuge fragen "
-        "weiter — und **Befehle, die nach draußen sprechen** (curl, wget, "
+        "weiter — und Befehle, die nach draußen sprechen (curl, wget, "
         "nc, ssh, scp, telnet) fragen auch im Auto-Zustand nach. Der Knopf "
         "erspart die Rückfrage, nicht die Ablehnung\n"
         "👩‍💼 Empfang ✓ → aus (bzw. 👩‍💼 Empfang → an) — Umschalter für den "

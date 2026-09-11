@@ -53,6 +53,8 @@ def zeile(name: str, bedingung, *, gemessen: str = "") -> None:
 
 import ast as _ast                                                 # noqa: E402
 
+_QUELLE_BOT = (Path(__file__).resolve().parent.parent / "bot.py").read_text(encoding="utf-8")
+
 UID = 4711
 print("== Empfang (Block 3) ==")
 
@@ -1081,6 +1083,74 @@ zeile("und die Von-aussen-Schranke steht unveraendert daneben",
 zeile("sie verspricht kein Gedaechtnis, das sie nicht hat",
       "ich merke mir das" in _p and "/zimmer" in _p,
       gemessen="Adams Wunsch 03:47: Erinnerungen gehoeren als Zettel ins Zimmer")
+
+
+# ── 15. Auszeichnung ohne `parse_mode` kommt roh an (Adams R1, 11.09.) ──────
+# Adam hat nach dem Deploy von `a6cabbf` gesehen, was `/empfang` schickt:
+# `Empfang ist **an**` — mit Sternchen, weil der Text **ohne** `parse_mode`
+# hinausgeht. Das ist dort Absicht: Zimmernamen und Auftragstexte koennen
+# Unterstriche tragen, und ein einzelner davon laesst Telegram den ganzen
+# Aufruf ablehnen; die Antwort kaeme nie an.
+#
+# **Erste Zeile: ausgefuehrt.** Der Text wird erzeugt und gemessen, nicht
+# gelesen.
+async def _empfangstexte():
+    bot.empfang_setzen(UID, True)
+    u1 = _Upd(UID)
+    await bot.cmd_empfang(u1, _Ctx0())
+    u2 = _Upd(UID)
+    await bot.cmd_empfang(u2, _Ctx0())      # schaltet aus
+    bot.empfang_setzen(UID, False)
+    return u1.message.texte + u2.message.texte
+
+
+_texte = asyncio.run(_empfangstexte())
+zeile("die Empfangs-Antwort traegt keine rohen Sternchen",
+      all("**" not in t for t in _texte),
+      gemessen=" | ".join(t[:60] for t in _texte if "**" in t))
+
+# **Zweite Zeile: die Menge — aber nur, wo die Zuordnung eindeutig ist.**
+#
+# **Meine erste Fassung nahm jede Funktion, die nie `parse_mode` setzt, und
+# meldete vier Fehlalarme** — Docstrings verschachtelter Funktionen und lange
+# verkettete Texte, in denen irgendwo `**` steht. Eine Pruefzeile mit vier
+# Fehlalarmen wird binnen einer Woche abgeschaltet.
+#
+# Die tragfaehige Einengung: **genau EIN Sendeaufruf in der Funktion, und
+# dieser ohne `parse_mode`.** Dann gehoert der Text dieser Funktion zu diesem
+# Aufruf, ohne dass man es raten muss. Gemessen: Das faengt `cmd_status`, den
+# einzigen echten weiteren Fall -- und meldet sonst nichts.
+_SENDER = {"reply_text", "send_message", "send_chunked"}
+_roh = []
+for _fn in _ast.walk(_ast.parse(_QUELLE_BOT)):
+    if not isinstance(_fn, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+        continue
+    # Verschachtelte Funktionen gehoeren sich selbst, nicht der aeusseren.
+    _eigene = [k for k in _ast.walk(_fn)
+               if isinstance(k, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+               and k is not _fn]
+    _fremd = {id(x) for f in _eigene for x in _ast.walk(f)}
+    _aufrufe = [c for c in _ast.walk(_fn)
+                if isinstance(c, _ast.Call) and id(c) not in _fremd
+                and (getattr(c.func, "attr", None) in _SENDER
+                     or getattr(c.func, "id", None) in _SENDER)]
+    # `send_chunked(...)` ist ein FUNKTIONSaufruf, kein Attribut --
+    # meine erste Fassung sah nur `.attr` und meldete `_run_job` als
+    # Befund, obwohl der Aufruf dort sein `parse_mode` hat.
+    if len(_aufrufe) != 1 or "parse_mode" in {a.arg for a in _aufrufe[0].keywords}:
+        continue
+    _docknoten = None
+    if (_fn.body and isinstance(_fn.body[0], _ast.Expr)
+            and isinstance(_fn.body[0].value, _ast.Constant)
+            and isinstance(_fn.body[0].value.value, str)):
+        _docknoten = _fn.body[0].value
+    for _s in _ast.walk(_fn):
+        if (isinstance(_s, _ast.Constant) and isinstance(_s.value, str)
+                and id(_s) not in _fremd and _s is not _docknoten
+                and _s.value.count("**") >= 2):
+            _roh.append(f"{_fn.name}:{_s.lineno}")
+zeile("kein eindeutiger Sendeweg ohne parse_mode traegt Markdown-Auszeichnung",
+      not _roh, gemessen=", ".join(_roh))
 
 print(f"\n{zeilen - len(fehler)}/{zeilen} Zeilen grün")
 sys.exit(1 if fehler else 0)

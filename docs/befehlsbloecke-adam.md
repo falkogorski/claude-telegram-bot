@@ -1020,3 +1020,128 @@ melden, nicht selbst nachbessern.
 **Wieder ausschalten:** `/empfang aus` — oder schlicht `/empfang`, das schaltet um (so kommt der Befehl auch aus dem Telegram-Menü).
 
 **Rückweg:** `reset --hard` auf den Hash aus Schritt 0, dann Neustart.
+
+---
+
+# Teil C · 11.09.2026 — Log-Abgleich: die Änderung selbst löst aus
+
+> **Stand vor diesem Teil:** Adam hat in der Nacht auf Engywucks Anleitung hin
+> den Takt bereits umgestellt und einen Wächter einrichten lassen. **Was davon
+> genau steht, weiß dieser Block nicht** — deshalb beginnt er mit einer
+> Bestandsaufnahme und nicht mit einer Änderung.
+>
+> Alle Blöcke laufen **am Mac**, über `ssh claudevps` (root auf dem VPS).
+>
+> 💰 **Keine Kosten:** privates Repo, Pushes gebührenfrei. Der Abgleich ruft
+> kein Modell — die AGB-Grenze für zeitgesteuerte Routinen ist nicht berührt.
+
+## Schritt C0 — was steht gerade? (ändert nichts)
+
+```bash
+ssh claudevps 'echo "== Timer =="; systemctl cat claude-log-sync.timer 2>/dev/null | grep -E "OnCalendar|AccuracySec" || echo "kein Timer"; echo "== Pfad-Einheit =="; systemctl cat claude-log-sync.path 2>/dev/null || echo "keine Pfad-Einheit"; echo "== aktiv =="; systemctl is-active claude-log-sync.timer claude-log-sync.path 2>&1'
+```
+
+**Danach entscheidet sich, was noch fehlt:**
+
+- Steht bei `OnCalendar` schon `*:0/1` **und** darunter `AccuracySec=1s` →
+  **C1 überspringen.**
+- Steht `*:0/1` **ohne** `AccuracySec` → **nur den zweiten Befehl aus C1**
+  ausführen. Ohne ihn rundet systemd auf eine Minute, und der Takt wäre
+  gesetzt, während die Wirkung ausbleibt.
+- Sagt die Ausgabe „keine Pfad-Einheit" → **C2 und C3** sind neu.
+- Zeigt sie eine Pfad-Einheit mit **anderen Pfaden** als in C2 → **halt, und
+  Bescheid sagen.** Zwei Einheiten für dieselbe Sache wären eine Quelle zu
+  viel.
+
+## Schritt C1 — Minutentakt (nur, falls C0 ihn nicht schon zeigt)
+
+```bash
+ssh claudevps 'sed -i "s|^OnCalendar=.*|OnCalendar=*:0/1|" /etc/systemd/system/claude-log-sync.timer'
+```
+
+```bash
+ssh claudevps 'grep -q "^AccuracySec=" /etc/systemd/system/claude-log-sync.timer || sed -i "/^OnCalendar=/a AccuracySec=1s" /etc/systemd/system/claude-log-sync.timer'
+```
+
+```bash
+ssh claudevps 'systemctl daemon-reload && systemctl restart claude-log-sync.timer && systemctl cat claude-log-sync.timer | grep -E "OnCalendar|AccuracySec"'
+```
+
+**Prüfzeile:** Die Ausgabe zeigt **genau zwei** Zeilen — `OnCalendar=*:0/1`
+und `AccuracySec=1s`, jede einmal.
+
+**Rückweg:** dasselbe `sed` mit `*:0/5` statt `*:0/1`. Die `AccuracySec`-Zeile
+darf stehen bleiben, sie schadet keinem Takt.
+
+## Schritt C2 — die Pfad-Einheit anlegen
+
+```bash
+ssh claudevps 'cat > /etc/systemd/system/claude-log-sync.path' <<'EOF'
+[Unit]
+Description=Log-Abgleich anstossen, sobald sich etwas aendert
+
+[Path]
+PathModified=/home/claudebot/claude-telegram-bot/logs/conversations
+PathModified=/home/claudebot/workspace
+PathModified=/home/claudebot/workspace/ablage
+PathModified=/home/claudebot/workspace/an-mick
+Unit=claude-log-sync.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+```bash
+ssh claudevps 'systemctl daemon-reload && systemctl enable --now claude-log-sync.path && systemctl is-active claude-log-sync.path'
+```
+
+**Prüfzeile:** Die letzte Ausgabe lautet `active`.
+
+## Schritt C3 — die Wirkung messen, nicht die Konfiguration
+
+Erst die Uhrzeit des jüngsten Log-Commits merken, dann eine Datei anlegen,
+dann dieselbe Zeile noch einmal lesen.
+
+```bash
+ssh claudebot 'cd ~/logsync/claude-bot-logs && git log -1 --format="vorher: %ad" --date=format:"%H:%M:%S"'
+```
+
+```bash
+ssh claudebot 'date "+%H:%M:%S abgelegt" && touch ~/workspace/takt-probe.md && echo Taktprobe > ~/workspace/takt-probe.md'
+```
+
+```bash
+ssh claudebot 'sleep 25; cd ~/logsync/claude-bot-logs && git log -1 --format="nachher: %ad %s" --date=format:"%H:%M:%S"'
+```
+
+**Prüfzeile:** Die Zeit in der dritten Ausgabe liegt **binnen weniger
+Sekunden** nach der Ablage-Zeit aus der zweiten — nicht erst zur nächsten
+vollen Minute. Bleibt sie gleich der ersten, hat die Pfad-Einheit nicht
+ausgelöst: **Bescheid sagen, nichts nachbessern.**
+
+Aufräumen danach:
+
+```bash
+ssh claudebot 'rm -f ~/workspace/takt-probe.md'
+```
+
+## Wenn etwas klemmt — Rückweg für C2
+
+```bash
+ssh claudevps 'systemctl disable --now claude-log-sync.path && rm -f /etc/systemd/system/claude-log-sync.path && systemctl daemon-reload && systemctl is-active claude-log-sync.timer'
+```
+
+Danach läuft alles wieder über den Zeitgeber allein.
+
+## Was dieser Teil bewusst NICHT tut
+
+**Der Zeitgeber bleibt neben der Pfad-Einheit stehen** — als Rückfall, nicht
+als Vorgänger. Denn `PathModified` beobachtet einen Ordner **nicht rekursiv**:
+Entsteht im Arbeitsordner ein neuer Unterordner, löst er nichts aus und fällt
+stillschweigend auf den Takt zurück. Die drei Pfade oben decken den heutigen
+Bestand (gemessen: 140 von 180 Ausarbeitungen liegen direkt in der Wurzel, 39
+unter `ablage/`, eine unter `an-mick/`).
+
+**Und kein Deploy.** Der Menü-Umbau (`168113d`) liegt im Hauptbaum und wartet
+auf Engywucks Nachprüfung; er geht später zusammen mit `0f4087e` hinaus.

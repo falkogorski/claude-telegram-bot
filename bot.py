@@ -1326,24 +1326,21 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None,
         rows.append([stt_toggle, _gruendlich_btn, _BTN_KONTINGENT])
     else:
         rows.append([_gruendlich_btn, _BTN_KONTINGENT])
-    # **[GEAENDERT 11.09.2026, Adams R1 am Geraet]** Auto und Empfang teilen
-    # sich eine Zeile.
+    # **[GEAENDERT 11.09.2026, Engywucks Kleinstauftrag]** Alle drei Umschalter
+    # in EINE unterste Zeile: Auto links, Schreiben frei in der Mitte, Empfang
+    # rechts.
     #
-    # Ich hatte beide auf eigene Zeilen gelegt, mit der Begründung, der
-    # Genehmigungs-Zustand sei eine Sicherheitsaussage und solle nicht zwischen
-    # anderen Knöpfen untergehen. **Adam hat es am fertigen Gerät gesehen und
-    # anders entschieden** — das ist seine Wahl, und sie sticht meine
-    # Begründung. Am Bildschirm ist Höhe knapp; zwei Umschalter nebeneinander
-    # sind schneller zu treffen als zwei Zeilen untereinander.
-    rows.append([_BTN_AUTO_TO_GENEHM if _bash_auto_on(user_id)
-                 else _BTN_GENEHM_TO_AUTO,
-                 _BTN_EMPFANG_TO_AUS if empfang_an(user_id)
-                 else _BTN_EMPFANG_TO_AN])
-    # Eigene Zeile, immer gezeichnet — wie die Umschalter darüber. Diese trägt
-    # zusätzlich die **Reichweite** in der Beschriftung: Der Knopf ist der
-    # einzige Ort, an dem Adam sieht, dass die Freigabe mit dem Neustart endet.
-    rows.append([_BTN_SCHREIBEN_TO_FRAGEN if schreiben_frei(user_id)
-                 else _BTN_SCHREIBEN_TO_FREI])
+    # Der Weg dahin in einem Tag: erst drei eigene Zeilen (meine Fassung, mit
+    # der Begründung, jeder Zustand sei für sich sichtbar), dann zwei nach
+    # Adams Blick aufs Gerät, jetzt eine. **Die Begründung war nie falsch, sie
+    # war nur nicht die einzige** — am Bildschirm ist Höhe knapp, und drei
+    # Zeilen Umschalter schieben die Eingabe nach unten. Wer es sieht,
+    # entscheidet besser als wer es begründet.
+    rows.append([
+        _BTN_AUTO_TO_GENEHM if _bash_auto_on(user_id) else _BTN_GENEHM_TO_AUTO,
+        _BTN_SCHREIBEN_TO_FRAGEN if schreiben_frei(user_id) else _BTN_SCHREIBEN_TO_FREI,
+        _BTN_EMPFANG_TO_AUS if empfang_an(user_id) else _BTN_EMPFANG_TO_AN,
+    ])
     return ReplyKeyboardMarkup(
         rows,
         resize_keyboard=True,

@@ -28,6 +28,9 @@ set -uo pipefail
 # zuordnet — und sie sichert alle folgenden $HOME-Stellen auf einmal.
 : "${HOME:?HOME ist nicht gesetzt — als Dienst ohne User= gestartet?}"
 
+SRC="${LOG_SYNC_SRC:-$HOME/claude-telegram-bot/logs/conversations}"
+REPO="${LOG_SYNC_REPO:-$HOME/logsync/claude-bot-logs}"
+
 # **[NEU 11.09.] Ein Lauf zur Zeit — gemessen, nicht vorsorglich.**
 #
 # Adam hat am 11.09. gegen 05:00 einen **Wettlauf zweier Läufe** auf der
@@ -40,7 +43,15 @@ set -uo pipefail
 # `-n` heißt: **nicht warten.** Ein zurückgetretener Lauf ist kein Fehler, der
 # nächste Anstoß holt ihn in Sekunden nach. Er sagt es aber, statt still zu
 # verschwinden — ein stiller Übersprung sähe aus wie ein Lauf ohne Änderungen.
-SCHLOSS="${LOG_SYNC_LOCK:-${TMPDIR:-/tmp}/claude-log-sync.lock}"
+# **`[BERICHTIGT 11.09., Engywucks Nachtlese]` Das Schloss liegt NICHT
+# unter `/tmp`.** Läuft der Dienst mit `PrivateTmp` — für den Bot-Dienst
+# gemessen, für diesen nicht dokumentiert —, sehen Dienst und Handlauf
+# zwei **verschiedene** `/tmp`. Dann liegen zwei Schlösser statt eines,
+# und ausgerechnet der Fall, den Adam um 05:00 gemessen hat, bliebe
+# ungeschützt: Zeitgeber-Lauf gegen Pfad-Einheit-Lauf.
+#
+# Der Ort hängt deshalb am Log-Repo, das beide Seiten ohnehin teilen.
+SCHLOSS="${LOG_SYNC_LOCK:-$(dirname "$REPO")/.claude-log-sync.lock}"
 if command -v flock >/dev/null 2>&1; then
   exec 9>"$SCHLOSS" || { echo "Schloss nicht anlegbar: $SCHLOSS" >&2; exit 1; }
   if ! flock -n 9; then
@@ -53,9 +64,6 @@ else
   # aber er wird BENANNT statt stillschweigend hingenommen.
   echo "flock fehlt — ohne Schloss; bei Parallellaeufen kann die Quittung brechen." >&2
 fi
-
-SRC="${LOG_SYNC_SRC:-$HOME/claude-telegram-bot/logs/conversations}"
-REPO="${LOG_SYNC_REPO:-$HOME/logsync/claude-bot-logs}"
 
 [ -d "$SRC" ] || { echo "Quelle fehlt: $SRC"; exit 1; }
 cd "$REPO" || { echo "Log-Repo-Klon fehlt: $REPO"; exit 1; }

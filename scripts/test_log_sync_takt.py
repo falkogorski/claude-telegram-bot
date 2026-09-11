@@ -194,6 +194,46 @@ zeile("kein Fremd-Markdown aus venv oder node_modules im Log-Repo",
       gemessen=f"fremd: {_fremd}; angekommen: {_alles}")
 
 
+
+# ── 6. Das `-prune` — OHNE Uhr gemessen (Engywucks Nachtlese, 05:35) ─────────
+# **Ich hatte hier geschrieben, das lasse sich nicht flackerfrei messen, und
+# das war falsch.** Engywuck: Die Wegwerf-Umgebung traegt bereits
+# `venv/lib/README.md`. Ohne `-prune` besucht der Bericht sie, findet sie nicht
+# im Ziel (rsync schliesst `venv/` aus) und meldet sie als *„unklar — bitte
+# melden"*. Mit `-prune` wird sie gar nicht erst besucht.
+#
+# Damit haengt die Zeile an einer **Anwesenheit im Text**, nicht an einer
+# Laufzeit — deterministisch, ohne Zeitmessung. Die Laufzeit bleibt der Grund
+# fuer `-prune`; gemessen wird der Weg dorthin.
+zeile("der Bericht besucht den venv-Baum nicht (-prune wirkt)",
+      "venv/lib/README.md" not in _quittung,
+      gemessen=[z for z in _quittung.splitlines() if "venv" in z][:2] or "kein venv in der Quittung")
+
+# ── 7. Das Schloss liegt nicht unter /tmp ───────────────────────────────────
+# **Engywucks zweiter Befund:** Laeuft der Dienst mit `PrivateTmp`, sehen
+# Dienst und Handlauf zwei verschiedene `/tmp` — dann liegen zwei Schloesser
+# statt eines, und ausgerechnet der von Adam gemessene Fall (Zeitgeber gegen
+# Pfad-Einheit) bliebe ungeschuetzt.
+#
+# **Diese Zeile kann nur messen, wo `flock(1)` existiert** — das Skript legt
+# die Schlossdatei sonst gar nicht erst an. Meine erste Fassung war deshalb am
+# Mac gruen, ohne etwas gemessen zu haben, und ihre Gegenprobe (Schloss zurueck
+# nach /tmp) blieb es auch. Dritter Fall dieser Klasse in einer Nacht; deshalb
+# hier ausdruecklich uebersprungen statt beruhigend gruen.
+if shutil.which("flock"):
+    _umg_ohne_lock = dict(UMG)
+    _umg_ohne_lock.pop("LOG_SYNC_LOCK", None)
+    fahre(_umg_ohne_lock)
+    _erwartet = Path(UMG["LOG_SYNC_REPO"]).parent / ".claude-log-sync.lock"
+    _in_tmp = list(Path(os.environ.get("TMPDIR", "/tmp")).glob("claude-log-sync.lock"))
+    zeile("die Schloss-Vorgabe liegt neben dem Log-Repo, nicht unter /tmp",
+          _erwartet.exists() and not _in_tmp,
+          gemessen=f"erwartet: {_erwartet} da={_erwartet.exists()}; in /tmp: {_in_tmp}")
+else:
+    nicht_gemessen("die Schloss-Vorgabe liegt neben dem Log-Repo, nicht unter /tmp",
+                   "ohne flock legt das Skript gar kein Schloss an "
+                   "(auf dem VPS vorhanden)")
+
 shutil.rmtree(TMP, ignore_errors=True)
 _gemessen = zeilen - len(uebersprungen)
 print(f"\n{_gemessen - len(fehler)}/{_gemessen} gemessene Zeilen grün"

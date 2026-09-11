@@ -134,7 +134,11 @@ marker = {"🟣 Haiku", "🟡 Sonnet", "🔵 Opus", "🟠 Fable",
           # Beschriftungen („Empfang ✓ → aus" und „Empfang → an").
           # Kern-Marker ist das Wort, das in beiden steht — dieselbe
           # Begruendung wie bei „Genehmigen" eine Zeile darueber.
-          "Empfang"}
+          "Empfang",
+          # 11.09.: dritter Umschalter mit zwei Beschriftungen
+          # („Schreiben frei ✓ → fragen" / „Schreiben frei → bis
+          # Neustart"). Kern-Marker ist wieder der gemeinsame Teil.
+          "Schreiben frei"}
 fehlende_marker = [mk for mk in marker if mk not in hilfe_src]
 if fehlende_marker:
     fail(f"Tastatur-Marker fehlen in /hilfe: {fehlende_marker}")

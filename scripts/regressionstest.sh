@@ -39,6 +39,11 @@ export WEBSUCHE_VERLAUF="$PRUEFHEIM/websuche-verlauf.json"
 export FREIGABE_DIR="$PRUEFHEIM/freigaben"
 export HORA_DIR="$PRUEFHEIM/hora"
 export BLUMEN_DIR="$PRUEFHEIM/blumen"
+# **[NEU 11.09.]** Der Arbeitsordner, unter dem "Schreiben frei" gilt.
+# Ohne Riegel zeigte er auf den ECHTEN ~/workspace -- und ein Pruefer,
+# der dort als erlaubt misst, misst den Betrieb statt sich selbst.
+# Der Hermetik-Waechter hat es beim ersten Lauf gemeldet.
+export CLAUDE_ARBEITSORDNER="$PRUEFHEIM/workspace"
 export BASHFREI_HEIM="$PRUEFHEIM"
 export BASHFREI_PROTOKOLL="$PRUEFHEIM/bash-freigaben.jsonl"
 export GEGENLESER_DIR="$PRUEFHEIM/gegenleser"
@@ -364,6 +369,7 @@ run "Empfang / Sekretaerin (Block 3)" "$PY" scripts/test_empfang_block3.py
 run "Schalterstand im Menue" "$PY" scripts/test_menue_schalterstand.py
 run "Log-Abgleich unter dem neuen Takt" "$PY" scripts/test_log_sync_takt.py
 run "Wegwerf-Zeilen Notizen/Nutzung (A2)" "$PY" scripts/test_wegwerf_zeilen_a2.py
+run "Schreiben frei im Arbeitsordner" "$PY" scripts/test_schreiben_frei.py
 run "Hotfix H-3 bis H-5 (Ultracode)"  "$PY" scripts/test_hotfix_h3_h5.py
 run "Tagescheck: kein Werkzeug, kein Urteil" "$PY" scripts/test_tagescheck_werkzeuge.py
 

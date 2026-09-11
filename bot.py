@@ -830,6 +830,12 @@ _BTN_AUTO_TO_GENEHM_ALT = "⚡ Auto ✓ → Genehmigen"
 # beides, ohne dass man raten muss, was ein Druck bewirkt.
 _BTN_EMPFANG_TO_AUS = "👩‍💼 Empfang ✓ → aus"    # Empfang an; Tipp → aus
 _BTN_EMPFANG_TO_AN = "👩‍💼 Empfang → an"        # Empfang aus; Tipp → an
+# **[NEU 11.09.2026]** Schreiben frei im Arbeitsordner, bis zum Neustart.
+# Muster wie Auto und Empfang: Der Haken sagt den Stand, der Pfeil den
+# Tipp-Effekt. Die Beschriftung nennt ausdrücklich die **Reichweite** — eine
+# Freigabe, deren Ende man nicht sieht, ist die aus dem August.
+_BTN_SCHREIBEN_TO_FRAGEN = "✍️ Schreiben frei ✓ → fragen"
+_BTN_SCHREIBEN_TO_FREI = "✍️ Schreiben frei → bis Neustart"
 # Alt-Beschriftungen (bis 23.07.): bleiben gemappt, weil Telegram-Tastaturen
 # client-seitig weiterleben, bis der Client eine neue bekommt.
 _BTN_STT_TO_FAST = "🎙️ Genau → Flott"
@@ -930,6 +936,7 @@ _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_FABLE,
                       _BTN_GENEHM_TO_AUTO, _BTN_AUTO_TO_GENEHM,
                       _BTN_AUTO_TO_GENEHM_ALT,
                       _BTN_EMPFANG_TO_AN, _BTN_EMPFANG_TO_AUS,
+                      _BTN_SCHREIBEN_TO_FREI, _BTN_SCHREIBEN_TO_FRAGEN,
                       _BTN_KONTINGENT}
 
 # ---------------------------------------------------------------- N-3 (03.09.)
@@ -1332,6 +1339,11 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None,
     # dieses Bots und gehört sichtbar, nicht zwischen Tempo-Knöpfe geschoben.
     rows.append([_BTN_EMPFANG_TO_AUS if empfang_an(user_id)
                  else _BTN_EMPFANG_TO_AN])
+    # Eigene Zeile, immer gezeichnet — wie die zwei darüber. Diese hier trägt
+    # zusätzlich die **Reichweite** in der Beschriftung: Der Knopf ist der
+    # einzige Ort, an dem Adam sieht, dass die Freigabe mit dem Neustart endet.
+    rows.append([_BTN_SCHREIBEN_TO_FRAGEN if schreiben_frei(user_id)
+                 else _BTN_SCHREIBEN_TO_FREI])
     return ReplyKeyboardMarkup(
         rows,
         resize_keyboard=True,
@@ -3042,6 +3054,101 @@ _NO_ALWAYS_TOOLS = ({"WebFetch", "Write", "Edit", "MultiEdit",
                      "NotebookEdit"} | set(_COST_TOOLS))
 
 
+# **[NEU 11.09.2026, Engywucks Mini-Auftrag vor Adams Abreise]** Schreiben frei
+# im Arbeitsordner — bis zum Neustart.
+#
+# Adam am 11.09.: *„ich will die eigentlich gar nicht mehr drücken müssen …
+# das bindet meinen Fokus."* Claudias Messung derselben Nacht nennt den Grund:
+# Nicht Bash erzeugt die Kette, sondern **`Write` und `Edit`** — jede einzelne
+# Dateiänderung fragt, in einer Nacht Dutzende allein für vier Papiere.
+#
+# **Das Flag lebt NUR IM SPEICHER, nie in den Vorlieben.** Das ist der ganze
+# Unterschied zur Dauerfreigabe, an der die alte Fassung im August gefallen
+# ist: Jene überlebte den Neustart, weil sie auf der Platte lag. Diese endet
+# mit dem Prozess — und der Hygiene-Neustart kommt täglich um vier. Eine
+# Reichweite, die von selbst endet, ist etwas anderes als eine, die man
+# zurücknehmen muss.
+_SCHREIBEN_FREI: "dict[int, bool]" = {}
+
+# Die Werkzeuge, die der Knopf überhaupt betrifft. Bewusst eine kleine Menge:
+# `NotebookEdit` steht NICHT darin — es kommt im Alltag nicht vor, und was
+# nicht drückt, braucht keine Freigabe.
+_SCHREIBWERKZEUGE = {"Write", "Edit", "MultiEdit"}
+
+_ARBEITSORDNER = Path(
+    os.environ.get("CLAUDE_ARBEITSORDNER") or str(Path.home() / "workspace")
+).expanduser()
+
+
+def schreiben_frei(user_id: "int | None") -> bool:
+    return bool(_SCHREIBEN_FREI.get(int(user_id))) if user_id is not None else False
+
+
+def schreiben_frei_setzen(user_id: int, an: bool) -> None:
+    """Eine Tür, wie bei `/tts` und dem Empfang (A-6).
+
+    Der Zustand gehört der **Person** und gilt in jedem Zimmer — deshalb ein
+    Eintrag je Person und keine Sitzungsgröße. Er wird ausdrücklich **nicht**
+    in die Vorlieben geschrieben; wer das nachrüstet, macht aus der Reichweite
+    wieder die Dauerfreigabe von damals.
+    """
+    _SCHREIBEN_FREI[int(user_id)] = bool(an)
+
+
+def _im_arbeitsordner(ref: str) -> bool:
+    """Liegt **jeder** Pfad in diesem Verweis unter dem Arbeitsordner?
+
+    **Die Frage ist mit Absicht so gestellt** — nicht „liegt einer darunter".
+    Ein Aufruf mit zwei Pfaden, von denen einer hinausführt, ist kein Fall für
+    diese Freigabe.
+    
+    **Fail-closed in jede Richtung:** kein Pfad erkennbar → nein; ein Pfad
+    nicht auflösbar → nein. Die teurere Antwort ist hier die richtige, weil die
+    billige eine Dateiänderung ohne Rückfrage bedeutet.
+    
+    `resolve()` löst `..` und Verknüpfungen auf — ohne das wäre
+    `~/workspace/../.claude/memory` ein Treffer.
+    """
+    kandidaten = [t for t in re.findall(r"[~/][^\s\"'`,;]*", ref or "") if len(t) > 1]
+    if not kandidaten:
+        return False
+    try:
+        wurzel = str(_ARBEITSORDNER.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
+    for roh in kandidaten:
+        try:
+            p = str(Path(roh).expanduser().resolve())
+        except (OSError, RuntimeError, ValueError):
+            return False
+        if p != wurzel and not p.startswith(wurzel + os.sep):
+            return False
+    return True
+
+
+def schreiben_ohne_frage(user_id: "int | None", tool_name: str, ref: str) -> bool:
+    """Darf diese Dateiänderung ohne Einzelfrage laufen? **Vier Bedingungen.**
+
+    Alle vier müssen zutreffen, und jede einzelne ist ein eigener Riegel:
+
+    1. Der Knopf steht auf frei (Flag im Speicher).
+    2. Es ist eines der drei Schreibwerkzeuge.
+    3. **Jeder** Pfad liegt unter dem Arbeitsordner.
+    4. Nichts Heikles ist berührt — `_is_sensitive_ref` deckt Repo-Klon,
+       `~/.claude` und die Geheimnispfade ab. Diese Prüfung stand schon vorher
+       im Rückruf; sie wird hier **nicht ersetzt, sondern vorgezogen**, damit
+       der Riegel auch dann greift, wenn jemand später die Reihenfolge im
+       Rückruf ändert.
+    """
+    if not schreiben_frei(user_id):
+        return False
+    if tool_name not in _SCHREIBWERKZEUGE:
+        return False
+    if _is_sensitive_ref(ref, schreibend=True):
+        return False
+    return _im_arbeitsordner(ref)
+
+
 def darf_dauerfreigabe(tool_name: str) -> bool:
     """Darf dieses Werkzeug pauschal dauerfreigegeben werden?
 
@@ -4065,6 +4172,26 @@ def make_permission_callback(user_id: int, thread_id: "int | None" = None):
         # Alltag aendert sich nicht: Eine normale Frage traegt keinen der
         # Geheimnis-Marker.
         if tool_name == _SEARCH_TOOL_NAME and not sensitive:
+            return PermissionResultAllow()
+
+        # **[NEU 11.09.2026] „Schreiben frei" — VOR der Always-Liste.**
+        #
+        # `Write`, `Edit` und `MultiEdit` stehen in `_NO_ALWAYS_TOOLS` und sind
+        # damit nie **pauschal** dauerfreigebbar. Das bleibt so: Das
+        # Aufnahmekriterium jener Liste ist *„ein Klick gilt danach unsichtbar
+        # fort"*, und für eine pauschale Dauerfreigabe trifft es weiter zu.
+        #
+        # Diese Zeile ist etwas anderes, und der Unterschied ist der ganze
+        # Grund, warum sie zulässig ist: Sie gilt **nur im Speicher**, **nur
+        # unter dem Arbeitsordner**, und der Knopf, der sie setzt, **zeigt sie
+        # an, solange sie gilt**. Sie ist sichtbar und endlich; das Kriterium
+        # trifft nicht zu.
+        #
+        # `schreiben_ohne_frage` prüft alle vier Bedingungen selbst, auch die
+        # Geheimnis-Prüfung. Das ist bewusst doppelt: Sie steht schon in
+        # `sensitive` zwei Zeilen darüber — aber wer später die Reihenfolge im
+        # Rückruf ändert, soll den Riegel nicht dabei verlieren.
+        if schreiben_ohne_frage(user_id, tool_name, _ref):
             return PermissionResultAllow()
 
         # Kosten-Tools + WebFetch NIE über die Always-Allow-Liste durchwinken
@@ -7191,7 +7318,7 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "anschauen, ✍ 👨‍💻 🏆 = merk dir das, 😴 = später, ❤️ 🎉 👏 💯 🍓 🍌 = "
         "Wertschätzung). Auf offene Fragen ist die Reaktion die Antwort. "
         "Nummerierte Optionslisten bekommen 1️⃣–9️⃣-Knöpfe.\n\n"
-        "📌 Buttons in der Tastatur (12):\n"
+        "📌 Buttons in der Tastatur (13):\n"
         "🟣 Haiku / 🟡 Sonnet / 🔵 Opus / 🟠 Fable — Modell wechseln\n"
         "⚡ Schnell / ⚖️ Normal / 🚀 Max — Denk-Tiefe\n"
         "🎙️ Genau ✓ → Flott (bzw. umgekehrt) — Transkriptions-Tempo: ✓ markiert "
@@ -7215,7 +7342,13 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "Empfang: an bedeutet, dass die Sekretärin den Hauptchat übernimmt, "
         "in Sekunden antwortet und Arbeit an ein Zimmer weitergibt. Aus "
         "bedeutet, dass alles wie bisher in einem Faden läuft. Dieselbe "
-        "Wirkung wie /empfang; gezielt mit /empfang_an und /empfang_aus\n\n"
+        "Wirkung wie /empfang; gezielt mit /empfang_an und /empfang_aus\n"
+        "✍️ Schreiben frei → bis Neustart (bzw. ✍️ Schreiben frei ✓ → fragen) — "
+        "Umschalter für Dateiänderungen: frei bedeutet, dass Schreibvorgänge "
+        "im Arbeitsordner ohne Rückfrage laufen. Gesperrt bleiben der "
+        "Repo-Klon, der Gedächtnis-Ordner, Geheimnis-Pfade und alles außerhalb "
+        "des Arbeitsordners. Die Freigabe steht nur im Speicher und endet mit "
+        "dem nächsten Neustart des Bots\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
     )
     await update.message.reply_text(text)
@@ -12440,6 +12573,35 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
     # Beide Beschriftungen müssen hier stehen, nicht nur in der Menge bekannter
     # Knöpfe: Sonst kennt der Bot den Knopf zwar, tut nichts damit, und der
     # Text ginge als Frage an den Agenten (der Knopf-Bug vom 23.07.).
+    if text in (_BTN_SCHREIBEN_TO_FREI, _BTN_SCHREIBEN_TO_FRAGEN):
+        neu_frei = not schreiben_frei(user_id)
+        schreiben_frei_setzen(user_id, neu_frei)
+        _p = _USER_PREFS.get(str(user_id), {})
+        sess = _sess(user_id, _fd)
+        if neu_frei:
+            antwort = (
+                "✍️ **Schreiben frei — bis zum Neustart.**\n\n"
+                "✅ Dateiänderungen im Arbeitsordner laufen ohne Rückfrage.\n"
+                "❌ Der Repo-Klon bleibt gesperrt (Vier-Augen-Prinzip).\n"
+                "❌ Der Gedächtnis-Ordner bleibt gesperrt — was dort steht, "
+                "wirkt in jede künftige Sitzung.\n"
+                "❌ Geheimnis-Pfade bleiben gesperrt.\n"
+                "❌ Alles außerhalb des Arbeitsordners fragt weiter.\n\n"
+                "Die Freigabe steht **nur im Speicher** und endet mit dem "
+                "nächsten Neustart des Bots — spätestens beim Hygiene-Lauf um "
+                "vier. Zurücknehmen geht jederzeit mit demselben Knopf.")
+        else:
+            antwort = (
+                "✍️ **Schreiben fragt wieder.**\n\n"
+                "✅ Jede Dateiänderung legt dir wieder eine Anfrage vor.")
+        await update.message.reply_text(
+            antwort, parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_main_keyboard(
+                sess.tts_enabled if sess else _p.get("tts_enabled", False),
+                sess.current_model if sess else _p.get("model", DEFAULT_MODEL),
+                _p.get("effort"), user_id=user_id))
+        return
+
     if text in (_BTN_EMPFANG_TO_AN, _BTN_EMPFANG_TO_AUS):
         await cmd_empfang(update, None, mit_tastatur=True)
         return

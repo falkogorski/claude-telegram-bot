@@ -1006,5 +1006,49 @@ zeile("ein Druck schaltet und die Antwort traegt die neue Tastatur",
       _ein is True and _aus is False and _hat_tastatur,
       gemessen=f"nach an={_ein} nach aus={_aus} tastatur={_hat_tastatur}")
 
+
+# ── 13. Die Kontext-Zeile nennt den URHEBER, nicht „deine" ──────────────────
+# **Beide Richtungen gemessen** (Engywucks Auflage), weil ein Satz, der immer
+# dasselbe sagt, eine einseitige Pruefung besteht:
+#
+# * Zitat MIT der Signatur der Sekretaerin -> sie wird als Urheberin benannt.
+# * Zitat OHNE Signatur -> "aus diesem Chat", und ausdruecklich NICHT "deine".
+#
+# Der Anlass ist gemessen, nicht ausgedacht: Am 11.09. um 03:42 bekam die
+# Sekretaerin eine Nachricht des Hauptfadens als "deine" vorgestellt, kannte
+# sie nicht und bremste zweimal.
+class _Reply:
+    def __init__(self, text, ist_bot=True):
+        self.text = text
+        self.caption = None
+        self.message_id = 99
+        self.photo = None
+        self.document = None
+        self.video = None
+        self.video_note = None
+        self.from_user = type("U", (), {"is_bot": ist_bot})()
+
+
+class _UpdMitZitat:
+    def __init__(self, zitat, ist_bot=True):
+        self.message = type("M", (), {"reply_to_message": _Reply(zitat, ist_bot)})()
+        self.effective_chat = type("C", (), {"id": UID})()
+
+
+_mit_sig = bot._extract_reply_context(
+    _UpdMitZitat(f"{empfang.SIGNATUR} Ich habe deinen Auftrag abgelegt."))
+_ohne_sig = bot._extract_reply_context(
+    _UpdMitZitat("Hier ist das Ergebnis der Zaehlung: 104."))
+_von_adam = bot._extract_reply_context(
+    _UpdMitZitat("Meine eigene frueher gesagte Sache", ist_bot=False))
+
+zeile("die Kontext-Zeile nennt den Urheber statt „deine“",
+      "Sekretärin am Empfang" in _mit_sig
+      and "aus diesem Chat" in _ohne_sig
+      and "deine vorherige Nachricht" not in _mit_sig
+      and "deine vorherige Nachricht" not in _ohne_sig
+      and "seine eigene frühere Nachricht" in _von_adam,
+      gemessen=f"mit Signatur: {_mit_sig[:90]!r} | ohne: {_ohne_sig[:90]!r}")
+
 print(f"\n{zeilen - len(fehler)}/{zeilen} Zeilen grün")
 sys.exit(1 if fehler else 0)

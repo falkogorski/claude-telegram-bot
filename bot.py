@@ -12066,11 +12066,32 @@ def _extract_reply_context(update: Update) -> str:
     if not preview:
         return ""
 
-    # Reply auf eine meiner eigenen (Bot-)Nachrichten → expliziter Bezug.
+    # Reply auf eine Bot-Nachricht → expliziter Bezug, **mit Urheber**.
+    #
+    # **[GEAENDERT 11.09.2026, an Adams Chat gemessen]** Hier stand „deine
+    # vorherige Nachricht" — für jeden Leser dasselbe. Seit es den Empfang
+    # gibt, schreiben **mehrere** in denselben Chat, und der Satz wurde falsch:
+    # Um 03:42 bekam die Sekretärin eine Nachricht des Hauptfadens als „deine"
+    # vorgestellt. Sie kannte sie nicht, fragte zurück und bremste zweimal —
+    # zu Recht, denn sie sollte sich auf etwas beziehen, das sie nie gesagt
+    # hatte.
+    #
+    # Die Lösung ist nicht, den Leser zu kennen, sondern **den Urheber zu
+    # nennen**. Ein Satz, der den Urheber benennt, ist für jeden Leser wahr:
+    # Die Sekretärin erkennt, dass es nicht von ihr war; der Hauptfaden
+    # erkennt, dass die Sekretärin geantwortet hat. „Deine" war nur solange
+    # richtig, wie genau eine Stimme im Chat sprach.
     if is_bot:
-        return (f"[Kontext: Adam bezieht sich mit der folgenden Nachricht ausdrücklich auf deine "
-                f"vorherige Nachricht: \"{preview}\". Beziehe deine Antwort genau darauf — "
-                f"seine eigentliche Nachricht folgt jetzt:]\n\n")
+        if preview.lstrip().startswith(empfang.SIGNATUR):
+            _urheber = ("eine frühere Antwort der Sekretärin am Empfang "
+                        f"(erkennbar an {empfang.SIGNATUR})")
+        else:
+            _urheber = "eine frühere Antwort aus diesem Chat"
+        return (f"[Kontext: Adam bezieht sich mit der folgenden Nachricht "
+                f"ausdrücklich auf {_urheber}: \"{preview}\". Beziehe deine "
+                f"Antwort genau darauf — wenn die zitierte Nachricht nicht von "
+                f"dir stammt, ist das kein Widerspruch, sondern der Verlauf "
+                f"dieses Chats. Seine eigentliche Nachricht folgt jetzt:]\n\n")
     # Reply auf eine frühere eigene Nachricht des Users — kann Ergänzung ODER Widerruf sein.
     return (f"[Kontext: Adam zitiert seine eigene frühere Nachricht: \"{preview}\". "
             f"Lies diese zitierte Nachricht vollständig und berücksichtige sie UNBEDINGT, bevor du "

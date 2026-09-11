@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from dotenv import load_dotenv
-from telegram import BotCommand, CopyTextButton, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, MessageEntity, ReactionTypeEmoji, ReplyKeyboardMarkup, ReplyParameters, Update
+from telegram import BotCommand, BotCommandScopeChat, CopyTextButton, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, MessageEntity, ReactionTypeEmoji, ReplyKeyboardMarkup, ReplyParameters, Update
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application,
@@ -6950,6 +6950,141 @@ def _befehle_sortiert() -> list[tuple[str, str | None, str]]:
                   key=lambda b: b[0])
     return vorn + rest
 
+# ── Der Schalterstand steht im Menü ─────────────────────────────────────────
+# Adam am 11.09.2026, 03:11: „Bei jedem Schalter soll direkt sichtbar sein, ob
+# er aktuell an oder aus ist, nicht nur durch Drücken erfahrbar."
+#
+# **Getrennte Tabelle statt fünftem Feld in `_BEFEHLE`:** Jene ist die Quelle
+# für Menü **und** Hilfetext. Der Hilfetext beschreibt, was ein Befehl TUT —
+# ein Momentwert hätte darin nichts zu suchen.
+#
+# **ACHTUNG bei neuen Einträgen:** `BotCommandScopeChat` gilt dem ganzen Forum,
+# nicht dem einzelnen Thema — einen Bereich je Thema kennt Telegram nicht. Im
+# Zimmer zeigt das Menü also den Stand der **Person**. Für die Schalter hier
+# ist das richtig; sie gehören seit A-6 der Person. Ein zimmereigener Schalter
+# gehört NICHT in diese Tabelle — sein Stand gehört in die Antwort. (Solange
+# es kein Haus gibt, ist das gegenstandslos; steht auf der F-Liste.)
+
+# Rückweg ohne Rückbau. **Ohne Eintrag gilt „an"** — die Umgebungsdatei liegt
+# in root-Besitz, und ein Deploy darf sie nicht brauchen.
+MENUE_STAND_AN = (os.environ.get("MENUE_STAND") or "an").strip().lower() != "aus"
+
+
+def _vorlesen_an(user_id: int) -> bool:
+    return bool(_USER_PREFS.get(str(user_id), {}).get("tts_enabled", False))
+
+
+def _spur_an(user_id: int) -> bool:
+    """Spur AN ist die Umkehrung von `trace_off` — dessen Vorgabe ist `True`."""
+    return not _trace_off(user_id)
+
+
+def _rohform_an(user_id: int) -> bool:
+    return bool(_USER_PREFS.get(str(user_id), {}).get("raw_tools", False))
+
+
+def _still_an(user_id: int) -> bool:
+    """Stille ist eine SITZUNGS-Größe, keine Vorliebe — sie überlebt keinen Neustart.
+
+    Gelesen wird genau die Menge, die `cmd_quiet` setzt (`_alle_sess`), und
+    ausdrücklich **ohne** `ensure_session`: Dieser Geber läuft nach jedem
+    eingehenden Update; er darf dabei keine Sitzung anlegen.
+
+    Ohne offene Sitzung gilt die Vorgabe des Feldes (`quiet = False`) — und die
+    ist nach einem Neustart auch der Ist-Zustand.
+    """
+    offene = _alle_sess(user_id)
+    return bool(offene) and all(s.quiet for s in offene)
+
+
+# Befehl → (Zustandsgeber, Wort für an, Wort für aus)
+_SCHALTER: "dict[str, tuple[Any, str, str]]" = {
+    "empfang": (empfang_an,   "an",      "aus"),
+    "tts":     (_vorlesen_an, "an",      "aus"),
+    "spur":    (_spur_an,     "an",      "aus"),
+    "technik": (_rohform_an,  "Rohform", "Klartext"),
+    "quiet":   (_still_an,    "still",   "läuft mit"),
+    "verbose": (_still_an,    "still",   "läuft mit"),
+}
+
+# Telegram lehnt bei Überlänge den GANZEN Aufruf ab — dann bliebe das Menü
+# stumm auf dem alten Stand stehen, während der Bot meint, geschrieben zu
+# haben. Deshalb wird gekürzt, nicht gehofft.
+_MENUE_BESCHREIBUNG_MAX = 256
+
+
+def _menue_beschreibung(name: str, kurz: str, user_id: int) -> str:
+    """Die Menü-Beschreibung für DIESE Person — mit Stand, wenn es einer ist."""
+    eintrag = _SCHALTER.get(name)
+    if eintrag is None:
+        return kurz[:_MENUE_BESCHREIBUNG_MAX]
+    geber, wort_an, wort_aus = eintrag
+    an = bool(geber(user_id))
+    # Gefüllter Kreis heißt an, hohler heißt aus — das Wort steht daneben,
+    # damit es auch ohne Symbolerkennung trägt.
+    return f"{'●' if an else '○'} {wort_an if an else wort_aus} · {kurz}"[:_MENUE_BESCHREIBUNG_MAX]
+
+
+def _schalter_signatur(user_id: int) -> tuple:
+    """Alle Schalterstände dieser Person in einem Wert.
+
+    **Kein Nachziehen an den Schalter-Handlern.** Eine Liste von Aufrufstellen
+    hält genau bis zum nächsten neuen Schalter — diese Bauform ist im Haus
+    binnen zwei Tagen zweimal gerissen (Gründlich-Haken ohne `user_id`, und
+    A-6, wo `/tts` alle Sitzungen nachzog und der Knopf daneben nicht).
+    Wer hier einträgt, zieht von selbst mit.
+    """
+    return tuple(bool(geber(user_id)) for geber, _an, _aus in _SCHALTER.values())
+
+
+# Zuletzt GESCHRIEBENER Stand je Person. Wird bei Fehlschlag verworfen, damit
+# der nächste Durchgang erneut schreibt: Ein Menü, das lügt, ist schlechter
+# als eines ohne Stand.
+_MENUE_STAND: "dict[int, tuple]" = {}
+
+
+async def _menue_schreiben(bot_obj, user_id: int) -> None:
+    """Schreibt das Befehlsmenü MIT Stand — nur für den Chat dieser Person.
+
+    Die globale Liste (ohne Stand) bleibt bestehen und ist der Rückfall:
+    Scheitert der Bereichs-Aufruf, verschwindet nicht das Menü, es zeigt nur
+    keinen Stand. Ein Menü ohne Stand ist der heutige Zustand — ein Menü, das
+    ganz fehlt, wäre ein Rückschritt.
+    """
+    await bot_obj.set_my_commands(
+        [BotCommand(name, _menue_beschreibung(name, kurz, user_id))
+         for name, kurz, _lang in _befehle_sortiert() if kurz],
+        scope=BotCommandScopeChat(chat_id=user_id),
+    )
+
+
+async def _menue_nachziehen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Vergleicht nach jedem Update die Signatur und schreibt nur bei Unterschied.
+
+    Kosten: ein Vergleich von sechs Wahrheitswerten je eingehender Nachricht.
+    Der Schreibaufruf an Telegram läuft nur, wenn wirklich etwas umgelegt
+    wurde — also wenige Male am Tag. Ausdrücklich **keine** Auffrischung im
+    Sendepfad (Drossel).
+    """
+    if not MENUE_STAND_AN:
+        return
+    uid = getattr(update.effective_user, "id", None)
+    if uid not in ALLOWED_USER_IDS:
+        return
+    sig = _schalter_signatur(uid)
+    if _MENUE_STAND.get(uid) == sig:
+        return
+    try:
+        await _menue_schreiben(context.bot, uid)
+    except Exception:
+        # Signatur VERWERFEN, nicht setzen — sonst hielte der Bot einen Stand
+        # für geschrieben, den Telegram nie bekommen hat.
+        _MENUE_STAND.pop(uid, None)
+        log.warning("Menue-Stand nicht geschrieben (Stand im Menue kann veraltet sein)",
+                    exc_info=True)
+        return
+    _MENUE_STAND[uid] = sig
+
 
 async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not authorized(update):
@@ -10044,6 +10179,19 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert isinstance(_load_prefs(), dict), "Prefs nicht ladbar"
     check("Modell-Persistenz", _c_model)
 
+    # 6b. Schalterstand im Menü — die zuletzt GESCHRIEBENE Signatur gegen den
+    # Ist-Zustand. Läuft die auseinander, zeigt das Menü einen Stand, der nicht
+    # mehr gilt, und gibt ihn als aktuell aus.
+    def _c_menue_stand() -> None:
+        assert set(_SCHALTER) <= {b[0] for b in _BEFEHLE}, \
+            "Schalter ohne Befehl in _BEFEHLE"
+        if not MENUE_STAND_AN:
+            return
+        veraltet = [uid for uid, sig in list(_MENUE_STAND.items())
+                    if sig != _schalter_signatur(uid)]
+        assert not veraltet, f"Menue-Stand veraltet fuer {veraltet}"
+    check("Schalterstand im Menue", _c_menue_stand)
+
     # 7. Nachrichten-Erhalt bei Neustart — Updates aus der Ausfallzeit dürfen
     # NICHT verworfen werden (sonst gehen Sprachnachrichten unbemerkt verloren).
     def _c_no_drop() -> None:
@@ -11242,6 +11390,19 @@ async def post_init(app: Application) -> None:
             BotCommand(name, kurz)
             for name, kurz, _lang in _befehle_sortiert() if kurz
         ])
+        # Und darüber je Person die Liste MIT Schalterstand. Die globale oben
+        # bleibt als Rückfall stehen — scheitert der Bereichs-Aufruf, fehlt nur
+        # der Stand, nicht das Menü.
+        if MENUE_STAND_AN:
+            for _uid in sorted(ALLOWED_USER_IDS):
+                try:
+                    await _menue_schreiben(app.bot, _uid)
+                except Exception:
+                    _MENUE_STAND.pop(_uid, None)
+                    log.warning("Menue-Stand beim Start nicht geschrieben (uid %s)", _uid,
+                                exc_info=True)
+                else:
+                    _MENUE_STAND[_uid] = _schalter_signatur(_uid)
         log.info("Telegram-Befehlsmenü registriert (setMyCommands)")
     except Exception:
         log.warning("setMyCommands fehlgeschlagen (Menü evtl. unvollständig)", exc_info=True)
@@ -15141,6 +15302,10 @@ def main() -> None:
     # Ganz vorn (group=-1) und nicht blockierend: hält nur fest, WANN Adam
     # zuletzt etwas getan hat. Grundlage der Freigabe-Auffrischung (9.4).
     app.add_handler(TypeHandler(Update, _regung_merken), group=-1)
+    # Ganz hinten (group=99): zieht den Schalterstand im „/"-Menü nach, wenn
+    # sich seit dem letzten Update etwas geändert hat. Späte Gruppe, damit der
+    # Schalter-Handler desselben Updates schon gelaufen ist.
+    app.add_handler(TypeHandler(Update, _menue_nachziehen), group=99)
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("whoami", cmd_whoami))
     app.add_handler(CommandHandler("whereami", cmd_whereami))

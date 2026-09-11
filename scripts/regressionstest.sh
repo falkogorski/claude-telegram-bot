@@ -354,6 +354,7 @@ run "PDF-Skript (M-4)"                  "$PY" scripts/test_konzept_pdf.py
 run "Sitzung je Zimmer (Block 1)"       "$PY" scripts/test_zimmer_block1.py
 run "Leitstand je Zimmer (Block 2)"    "$PY" scripts/test_leitstand_block2.py
 run "Empfang / Sekretaerin (Block 3)" "$PY" scripts/test_empfang_block3.py
+run "Schalterstand im Menue" "$PY" scripts/test_menue_schalterstand.py
 run "Hotfix H-3 bis H-5 (Ultracode)"  "$PY" scripts/test_hotfix_h3_h5.py
 run "Tagescheck: kein Werkzeug, kein Urteil" "$PY" scripts/test_tagescheck_werkzeuge.py
 

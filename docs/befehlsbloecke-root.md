@@ -656,3 +656,110 @@ ssh claudebot@159.195.195.82 '/home/claudebot/claude-telegram-bot/.venv/bin/pip 
 **Kein Ersatzeintrag im Register.** Das Paket soll dort nicht mehr geführt
 werden — ein Eintrag „bewusst entfernt" wäre eine Karteileiche, und die
 Begründung steht bereits in `requirements.txt`.
+
+---
+
+## Log-Abgleich: vom Fünf-Minuten-Takt zur Änderung selbst (11.09.2026) — OFFEN
+
+**Warum überhaupt schneller:** Der Kurierweg zwischen den Sitzungen läuft über
+das Log-Repo. Fünf Minuten sind nicht viel — aber sie liegen zwischen jeder
+Frage und jeder Antwort, wenn zwei Sitzungen über abgelegte Papiere reden.
+
+**Gemessen, nicht vermutet:** Die Commits „Log-Sync" liegen bei :20, :25, :30,
+:35 — der Zeitgeber steht auf `OnCalendar=*:0/5`, so wie er in diesem Dokument
+am 19.08. gesetzt wurde. Das Skript selbst ist schnell und committet nur bei
+Änderung; es meldet sonst *„Keine Log-Änderungen — nichts zu pushen"*.
+
+**💰 Keine Kosten:** privates Repo, Pushes gebührenfrei. **AGB unberührt:** Der
+Abgleich ist ein Skript ohne Modell-Aufruf.
+
+### Stufe 1 — Minutentakt (sofort, kein Code)
+
+**Zwei Zeilen statt einer, und die zweite ist der Punkt:** systemd rundet
+Zeitgeber standardmäßig auf **eine Minute** Ungenauigkeit (`AccuracySec`). Ein
+Minutentakt ohne diese Zeile käme irgendwann innerhalb der Minute — der Takt
+wäre gesetzt und die Wirkung ausgeblieben.
+
+```bash
+sudo sed -i 's|^OnCalendar=.*|OnCalendar=*:0/1|' /etc/systemd/system/claude-log-sync.timer
+```
+
+```bash
+sudo sed -i '/^OnCalendar=/a AccuracySec=1s' /etc/systemd/system/claude-log-sync.timer
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl restart claude-log-sync.timer && systemctl cat claude-log-sync.timer | grep -E 'OnCalendar|AccuracySec'
+```
+
+**Prüfzeile:** Die letzte Ausgabe zeigt **beide** Zeilen — `OnCalendar=*:0/1`
+und `AccuracySec=1s`. Steht `AccuracySec` doppelt, wurde der Block zweimal
+eingespielt; dann die überzählige Zeile entfernen.
+
+**Rückweg:** dasselbe `sed` mit `*:0/5`; die `AccuracySec`-Zeile darf stehen
+bleiben, sie schadet keinem Takt.
+
+### Stufe 2 — die Änderung selbst löst aus (Unit-Text, Adams Hand)
+
+Eine **Pfad-Einheit** startet den Abgleich, sobald sich etwas ändert, statt zu
+warten, bis die Minute um ist. Verzögerung dann ungefähr die Dauer des Pushes.
+
+```bash
+sudo tee /etc/systemd/system/claude-log-sync.path >/dev/null <<'EOF'
+[Unit]
+Description=Log-Abgleich anstossen, sobald sich etwas aendert
+
+[Path]
+PathModified=/home/claudebot/claude-telegram-bot/logs/conversations
+PathModified=/home/claudebot/workspace
+PathModified=/home/claudebot/workspace/ablage
+PathModified=/home/claudebot/workspace/an-mick
+Unit=claude-log-sync.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now claude-log-sync.path && systemctl status claude-log-sync.path --no-pager | head -5
+```
+
+**Prüfzeile — und sie misst die Wirkung, nicht die Konfiguration:** Eine Datei
+im Ausarbeitungs-Ordner ablegen und danach
+
+```bash
+ssh claudebot@159.195.195.82 'cd ~/logsync/claude-bot-logs && git log -1 --format="%ad %s" --date=format:"%H:%M:%S"'
+```
+
+Die Zeit des jüngsten Commits liegt **binnen Sekunden** nach dem Ablegen, nicht
+erst zur nächsten vollen Minute.
+
+**Der Zeitgeber bleibt bestehen.** Er ist der Rückfall für alles, was die
+Pfad-Einheit bauartbedingt nicht sieht:
+
+- **`PathModified` auf ein Verzeichnis ist NICHT rekursiv** — systemd nutzt
+  inotify ohne Rekursion. Jeder Ordner, der ausgelöst haben soll, muss einzeln
+  dastehen. **Gemessen am Bestand des Log-Repos:** Von 180 Ausarbeitungen
+  liegen **140 direkt** in der Wurzel des Arbeitsordners, 39 unter `ablage/`,
+  eine unter `an-mick/` — deshalb genau diese drei Zeilen fuer den
+  Arbeitsordner. **Entsteht ein
+  neuer Unterordner, fällt er auf den Minutentakt zurück**, ohne dass etwas
+  rot wird; wer einen anlegt und ihn schnell drüben haben will, trägt ihn hier
+  nach.
+- Ein Pfad, den es noch nicht gibt, ist kein Fehler — systemd wartet auf sein
+  Erscheinen.
+- Die weiteren Quellen des Abgleichs (`bot-errors.log`, `daily-check.log`,
+  `wachposten-archiv.log`, `version-monitor.log`) sind **nicht** beobachtet.
+  Sie sind Protokolle, keine Kurierpost — der Minutentakt genügt.
+
+**Rückweg:**
+
+```bash
+sudo systemctl disable --now claude-log-sync.path && sudo rm /etc/systemd/system/claude-log-sync.path && sudo systemctl daemon-reload
+```
+
+**Was NICHT mitzieht, geprüft:** Kein Prüfer hängt am Fünf-Minuten-Wert —
+`grep '0/5'` über `daily_check`, `test_zielumgebung` und `wachposten` ist leer.
+Die NOTBETRIEB-Zeile („älter als zwanzig Minuten = Alarm") bleibt gültig und
+wird durch den schnelleren Takt nur strenger erfüllt.

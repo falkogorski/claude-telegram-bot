@@ -711,9 +711,6 @@ Description=Log-Abgleich anstossen, sobald sich etwas aendert
 
 [Path]
 PathModified=/home/claudebot/claude-telegram-bot/logs/conversations
-PathModified=/home/claudebot/workspace
-PathModified=/home/claudebot/workspace/ablage
-PathModified=/home/claudebot/workspace/an-mick
 Unit=claude-log-sync.service
 
 [Install]
@@ -735,21 +732,26 @@ ssh claudebot@159.195.195.82 'cd ~/logsync/claude-bot-logs && git log -1 --forma
 Die Zeit des jüngsten Commits liegt **binnen Sekunden** nach dem Ablegen, nicht
 erst zur nächsten vollen Minute.
 
-**Der Zeitgeber bleibt bestehen.** Er ist der Rückfall für alles, was die
-Pfad-Einheit bauartbedingt nicht sieht:
+**Warum nur `conversations` und nicht der Arbeitsordner — berichtigt am 11.09.,
+04:50, nach Engywucks Befund und eigener Messung:** `log_sync.sh` schreibt bei
+**jedem** Lauf `.letzter-abgleich.neu` in den Arbeitsordner und benennt sie nach
+`letzter-abgleich.txt` um (Z. 220/232). Eine Pfad-Einheit auf `workspace` würde
+sich damit **endlos selbst wecken**: Lauf → Quittung geschrieben → Einheit feuert
+→ Lauf. Die Quittung ist die Ursache, nicht der Ordner.
+
+**Der Arbeitsordner darf hinein, sobald die Quittung woanders entsteht** (Umbau
+im Skript, danach ein Deploy). Bis dahin kommen Ausarbeitungen über den
+Minutentakt — bis zu sechzig Sekunden statt Sekunden.
+
+**Der Zeitgeber bleibt ohnehin bestehen**, als Rückfall und nicht als Vorgänger:
 
 - **`PathModified` auf ein Verzeichnis ist NICHT rekursiv** — systemd nutzt
-  inotify ohne Rekursion. Jeder Ordner, der ausgelöst haben soll, muss einzeln
-  dastehen. **Gemessen am Bestand des Log-Repos:** Von 180 Ausarbeitungen
-  liegen **140 direkt** in der Wurzel des Arbeitsordners, 39 unter `ablage/`,
-  eine unter `an-mick/` — deshalb genau diese drei Zeilen fuer den
-  Arbeitsordner. **Entsteht ein
-  neuer Unterordner, fällt er auf den Minutentakt zurück**, ohne dass etwas
-  rot wird; wer einen anlegt und ihn schnell drüben haben will, trägt ihn hier
-  nach.
+  inotify ohne Rekursion. Jeder Ordner, der auslösen soll, muss einzeln
+  dastehen; ein neuer Unterordner fällt stillschweigend auf den Takt zurück,
+  ohne dass etwas rot wird.
 - Ein Pfad, den es noch nicht gibt, ist kein Fehler — systemd wartet auf sein
   Erscheinen.
-- Die weiteren Quellen des Abgleichs (`bot-errors.log`, `daily-check.log`,
+- Die weiteren Quellen (`bot-errors.log`, `daily-check.log`,
   `wachposten-archiv.log`, `version-monitor.log`) sind **nicht** beobachtet.
   Sie sind Protokolle, keine Kurierpost — der Minutentakt genügt.
 

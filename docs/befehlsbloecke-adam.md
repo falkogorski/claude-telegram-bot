@@ -1049,7 +1049,10 @@ ssh claudevps 'echo "== Timer =="; systemctl cat claude-log-sync.timer 2>/dev/nu
   ausführen. Ohne ihn rundet systemd auf eine Minute, und der Takt wäre
   gesetzt, während die Wirkung ausbleibt.
 - Sagt die Ausgabe „keine Pfad-Einheit" → **C2 und C3** sind neu.
-- Zeigt sie eine Pfad-Einheit mit **anderen Pfaden** als in C2 → **halt, und
+- Zeigt sie eine Pfad-Einheit, in der **`workspace` vorkommt** → **C2 erneut
+  ausführen**, die Datei wird überschrieben. Der Grund steht unten: Eine
+  Einheit auf dem Arbeitsordner weckt sich selbst.
+- Zeigt sie eine Pfad-Einheit mit **ganz anderen Pfaden** → **halt, und
   Bescheid sagen.** Zwei Einheiten für dieselbe Sache wären eine Quelle zu
   viel.
 
@@ -1082,9 +1085,6 @@ Description=Log-Abgleich anstossen, sobald sich etwas aendert
 
 [Path]
 PathModified=/home/claudebot/claude-telegram-bot/logs/conversations
-PathModified=/home/claudebot/workspace
-PathModified=/home/claudebot/workspace/ablage
-PathModified=/home/claudebot/workspace/an-mick
 Unit=claude-log-sync.service
 
 [Install]
@@ -1100,31 +1100,39 @@ ssh claudevps 'systemctl daemon-reload && systemctl enable --now claude-log-sync
 
 ## Schritt C3 — die Wirkung messen, nicht die Konfiguration
 
-Erst die Uhrzeit des jüngsten Log-Commits merken, dann eine Datei anlegen,
-dann dieselbe Zeile noch einmal lesen.
+Überwacht wird das **Gesprächs-Log**. Der Auslöser ist also eine echte
+Nachricht an den Bot — keine Fremddatei, die sonst im Log-Repo landen würde.
+
+Erst die Uhrzeit des jüngsten Log-Commits merken:
 
 ```bash
 ssh claudebot 'cd ~/logsync/claude-bot-logs && git log -1 --format="vorher: %ad" --date=format:"%H:%M:%S"'
 ```
 
+Dann **im Telegram-Chat irgendetwas an den Bot schicken** — ein „Test" genügt,
+die Antwort ist gleichgültig. Danach:
+
 ```bash
-ssh claudebot 'date "+%H:%M:%S abgelegt" && touch ~/workspace/takt-probe.md && echo Taktprobe > ~/workspace/takt-probe.md'
+ssh claudebot 'sleep 20; cd ~/logsync/claude-bot-logs && git log -1 --format="nachher: %ad %s" --date=format:"%H:%M:%S"'
+```
+
+**Prüfzeile:** Die zweite Zeit liegt **binnen weniger Sekunden** nach deiner
+Nachricht — nicht erst zur nächsten vollen Minute. Ist sie gleich der ersten,
+hat die Pfad-Einheit nicht ausgelöst: **Bescheid sagen, nichts nachbessern.**
+
+Wer sichergehen will, dass wirklich die Pfad-Einheit gefeuert hat und nicht der
+Takt, hält den Zeitgeber für die Dauer der Probe an:
+
+```bash
+ssh claudevps 'systemctl stop claude-log-sync.timer && echo "Timer aus — Probe laeuft nur ueber die Pfad-Einheit"'
 ```
 
 ```bash
-ssh claudebot 'sleep 25; cd ~/logsync/claude-bot-logs && git log -1 --format="nachher: %ad %s" --date=format:"%H:%M:%S"'
+ssh claudevps 'systemctl start claude-log-sync.timer && systemctl is-active claude-log-sync.timer'
 ```
 
-**Prüfzeile:** Die Zeit in der dritten Ausgabe liegt **binnen weniger
-Sekunden** nach der Ablage-Zeit aus der zweiten — nicht erst zur nächsten
-vollen Minute. Bleibt sie gleich der ersten, hat die Pfad-Einheit nicht
-ausgelöst: **Bescheid sagen, nichts nachbessern.**
-
-Aufräumen danach:
-
-```bash
-ssh claudebot 'rm -f ~/workspace/takt-probe.md'
-```
+Den zweiten Befehl **nicht vergessen** — ohne ihn läuft der Abgleich nur noch
+bei Log-Änderungen, und Ausarbeitungen blieben liegen.
 
 ## Wenn etwas klemmt — Rückweg für C2
 
@@ -1136,12 +1144,23 @@ Danach läuft alles wieder über den Zeitgeber allein.
 
 ## Was dieser Teil bewusst NICHT tut
 
+**`[BERICHTIGT 11.09., 04:50]` Die Einheit überwacht NUR `conversations`.** In
+der ersten Fassung standen drei Zeilen für den Arbeitsordner darin — das war
+falsch, und Engywuck hat es gefunden, bevor du den Block ausgeführt hast.
+Eigene Nachmessung: `log_sync.sh` schreibt bei **jedem** Lauf seine Quittung in
+den Arbeitsordner (Z. 220/232). Eine Einheit auf `workspace` hätte sich
+**endlos selbst geweckt** — Lauf, Quittung, Feuer, Lauf.
+
+**Falls du die Einheit heute Nacht schon mit `workspace` gesetzt hast:** C0
+zeigt es. Dann C2 einfach erneut ausführen — die Datei wird überschrieben.
+
+Der Arbeitsordner darf hinein, sobald die Quittung woanders entsteht. Das ist
+ein Umbau am Skript, er steht auf dem Bauplan und braucht danach einen Deploy.
+Bis dahin kommen Ausarbeitungen über den Minutentakt.
+
 **Der Zeitgeber bleibt neben der Pfad-Einheit stehen** — als Rückfall, nicht
-als Vorgänger. Denn `PathModified` beobachtet einen Ordner **nicht rekursiv**:
-Entsteht im Arbeitsordner ein neuer Unterordner, löst er nichts aus und fällt
-stillschweigend auf den Takt zurück. Die drei Pfade oben decken den heutigen
-Bestand (gemessen: 140 von 180 Ausarbeitungen liegen direkt in der Wurzel, 39
-unter `ablage/`, eine unter `an-mick/`).
+als Vorgänger: `PathModified` beobachtet einen Ordner **nicht rekursiv**, ein
+neuer Unterordner löst nichts aus.
 
 **Und kein Deploy.** Der Menü-Umbau (`168113d`) liegt im Hauptbaum und wartet
 auf Engywucks Nachprüfung; er geht später zusammen mit `0f4087e` hinaus.

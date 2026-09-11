@@ -822,6 +822,14 @@ _BTN_AUTO_TO_GENEHM = "✈️ Auto ✓ → Genehmigen"       # Auto aktiv; Tipp 
 # zur Tastatur-Vollstaendigkeitspruefung gefuehrt hat. Dasselbe Muster fuehren
 # die STT-Knoepfe eine Zeile weiter unten.
 _BTN_AUTO_TO_GENEHM_ALT = "⚡ Auto ✓ → Genehmigen"
+# **[NEU 11.09.2026]** Der Empfang als Dauer-Knopf. Adam am 11.09., 04:06:
+# Der Schalter soll **greifbar** sein, nicht nur im „/"-Menü auffindbar.
+#
+# Beschriftung nach demselben Muster wie Auto und Gründlich: Sie sagt den
+# **Stand** (`✓`) und den **Tipp-Effekt** (`→`) in einem. So trägt der Knopf
+# beides, ohne dass man raten muss, was ein Druck bewirkt.
+_BTN_EMPFANG_TO_AUS = "👩‍💼 Empfang ✓ → aus"    # Empfang an; Tipp → aus
+_BTN_EMPFANG_TO_AN = "👩‍💼 Empfang → an"        # Empfang aus; Tipp → an
 # Alt-Beschriftungen (bis 23.07.): bleiben gemappt, weil Telegram-Tastaturen
 # client-seitig weiterleben, bis der Client eine neue bekommt.
 _BTN_STT_TO_FAST = "🎙️ Genau → Flott"
@@ -921,6 +929,7 @@ _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_FABLE,
                       _BTN_THOROUGH, _BTN_THOROUGH_ACTIVE,
                       _BTN_GENEHM_TO_AUTO, _BTN_AUTO_TO_GENEHM,
                       _BTN_AUTO_TO_GENEHM_ALT,
+                      _BTN_EMPFANG_TO_AN, _BTN_EMPFANG_TO_AUS,
                       _BTN_KONTINGENT}
 
 # ---------------------------------------------------------------- N-3 (03.09.)
@@ -1316,6 +1325,13 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None,
     # Lage verschwindet, laesst den Zustand im Ungewissen.
     rows.append([_BTN_AUTO_TO_GENEHM if _bash_auto_on(user_id)
                  else _BTN_GENEHM_TO_AUTO])
+    # **Eigene Zeile, und immer gezeichnet** (11.09.) — aus demselben Grund wie
+    # beim Genehmigungs-Knopf darüber: Ein Umschalter, der je nach Lage
+    # verschwindet, lässt den Zustand im Ungewissen. Der Empfang ändert, WER
+    # auf eine Nachricht antwortet; das ist die eingreifendste Einstellung
+    # dieses Bots und gehört sichtbar, nicht zwischen Tempo-Knöpfe geschoben.
+    rows.append([_BTN_EMPFANG_TO_AUS if empfang_an(user_id)
+                 else _BTN_EMPFANG_TO_AN])
     return ReplyKeyboardMarkup(
         rows,
         resize_keyboard=True,
@@ -5387,7 +5403,8 @@ def _blumen_zeile() -> str:
 
 
 async def cmd_empfang(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
-                      *, wort: "str | None" = None) -> None:
+                      *, wort: "str | None" = None,
+                      mit_tastatur: bool = False) -> None:
     """Der Multisession-Knopf — Auftrag 4 aus dem Zimmer-Bauauftrag.
 
     **Beide Richtungen, und der Stand ist immer ablesbar.** Ein Schalter, der
@@ -5450,7 +5467,20 @@ async def cmd_empfang(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
             "✅ Alles läuft in einem Faden, mit vollem Werkzeugsatz.",
             "", "An: /empfang an",
         ]
-    await update.message.reply_text("\n".join(zeilen))
+    # **Der Knopf bekommt die Tastatur gleich mit** (11.09.). Ohne sie trüge
+    # der Dauer-Knopf nach dem Druck noch den alten Stand, bis irgendeine
+    # spätere Nachricht eine neue Tastatur schickt — und ein Haken, der lügt,
+    # ist schlimmer als keiner. Der Befehlsweg braucht das nicht: Wer `/empfang`
+    # tippt, sieht den Stand im Antworttext.
+    markup = None
+    if mit_tastatur:
+        _p = _USER_PREFS.get(str(user_id), {})
+        _s = _sess(user_id, fd_von_update(update))
+        markup = _main_keyboard(
+            _s.tts_enabled if _s else _p.get("tts_enabled", False),
+            _s.current_model if _s else _p.get("model", DEFAULT_MODEL),
+            _p.get("effort"), user_id=user_id)
+    await update.message.reply_text("\n".join(zeilen), reply_markup=markup)
 
 
 
@@ -7151,7 +7181,7 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "anschauen, ✍ 👨‍💻 🏆 = merk dir das, 😴 = später, ❤️ 🎉 👏 💯 🍓 🍌 = "
         "Wertschätzung). Auf offene Fragen ist die Reaktion die Antwort. "
         "Nummerierte Optionslisten bekommen 1️⃣–9️⃣-Knöpfe.\n\n"
-        "📌 Buttons in der Tastatur (11):\n"
+        "📌 Buttons in der Tastatur (12):\n"
         "🟣 Haiku / 🟡 Sonnet / 🔵 Opus / 🟠 Fable — Modell wechseln\n"
         "⚡ Schnell / ⚖️ Normal / 🚀 Max — Denk-Tiefe\n"
         "🎙️ Genau ✓ → Flott (bzw. umgekehrt) — Transkriptions-Tempo: ✓ markiert "
@@ -7170,7 +7200,12 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "abgelehnt, Geheimnis-Pfade bleiben zu, Kosten-Werkzeuge fragen "
         "weiter — und **Befehle, die nach draußen sprechen** (curl, wget, "
         "nc, ssh, scp, telnet) fragen auch im Auto-Zustand nach. Der Knopf "
-        "erspart die Rückfrage, nicht die Ablehnung\n\n"
+        "erspart die Rückfrage, nicht die Ablehnung\n"
+        "👩‍💼 Empfang ✓ → aus (bzw. 👩‍💼 Empfang → an) — Umschalter für den "
+        "Empfang: an bedeutet, dass die Sekretärin den Hauptchat übernimmt, "
+        "in Sekunden antwortet und Arbeit an ein Zimmer weitergibt. Aus "
+        "bedeutet, dass alles wie bisher in einem Faden läuft. Dieselbe "
+        "Wirkung wie /empfang; gezielt mit /empfang_an und /empfang_aus\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
     )
     await update.message.reply_text(text)
@@ -12365,6 +12400,17 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
             antwort, parse_mode=ParseMode.MARKDOWN,
             reply_markup=_main_keyboard(tts_on, cur_model, _p.get("effort"),
                                         user_id=user_id))
+        return
+
+    # **Der Knopf geht denselben Weg wie sein Befehl** (11.09.) — wie bei
+    # `/kontingent`. Ein Knopf mit eigener Logik wäre die nächste Stelle, an
+    # der zwei Pfade auseinanderlaufen; genau das war A-6 am 10.09.
+    #
+    # Beide Beschriftungen müssen hier stehen, nicht nur in der Menge bekannter
+    # Knöpfe: Sonst kennt der Bot den Knopf zwar, tut nichts damit, und der
+    # Text ginge als Frage an den Agenten (der Knopf-Bug vom 23.07.).
+    if text in (_BTN_EMPFANG_TO_AN, _BTN_EMPFANG_TO_AUS):
+        await cmd_empfang(update, None, mit_tastatur=True)
         return
 
     if text in (_BTN_THOROUGH, _BTN_THOROUGH_ACTIVE):

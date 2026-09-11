@@ -129,7 +129,12 @@ marker = {"🟣 Haiku", "🟡 Sonnet", "🔵 Opus", "🟠 Fable",
           # („Genehmigen ✓ → Auto" und „Auto ✓ → Genehmigen"). Als Kern-Marker
           # genuegt das Wort, das in beiden vorkommt — sonst muesste diese
           # Menge bei jeder Umbenennung des Zustands mitgepflegt werden.
-          "Genehmigen"}
+          "Genehmigen",
+          # 11.09.: Der Empfangs-Knopf traegt ebenfalls zwei
+          # Beschriftungen („Empfang ✓ → aus" und „Empfang → an").
+          # Kern-Marker ist das Wort, das in beiden steht — dieselbe
+          # Begruendung wie bei „Genehmigen" eine Zeile darueber.
+          "Empfang"}
 fehlende_marker = [mk for mk in marker if mk not in hilfe_src]
 if fehlende_marker:
     fail(f"Tastatur-Marker fehlen in /hilfe: {fehlende_marker}")

@@ -913,9 +913,11 @@ zeile("A-5: kein Sendeaufruf in Auftrag, Fehlermeldung und Wächter ohne Faden",
 class _Nachricht:
     def __init__(self):
         self.texte = []
+        self.markups = []
 
-    async def reply_text(self, text, **_kw):
+    async def reply_text(self, text, **kw):
         self.texte.append(text)
+        self.markups.append(kw.get("reply_markup"))
 
 
 class _Upd:
@@ -951,6 +953,58 @@ zeile("/empfang_an setzt ein, zweimal bleibt ein, /empfang_aus setzt aus, "
       "/empfang schaltet um",
       _an is True and _an2 is True and _aus is False and _um is True,
       gemessen=f"an={_an} nochmal_an={_an2} aus={_aus} um={_um}")
+
+
+# ── 12. Der Empfangs-Knopf der Dauer-Tastatur (11.09.) ──────────────────────
+# **Drei Zusagen, alle ausgefuehrt gemessen** — an genau diesen drei Stellen
+# ist im Haus schon einmal etwas gerissen:
+#
+# 1. Der Knopf zeichnet den ECHTEN Stand. Ein Haken, der luegt, ist schlimmer
+#    als keiner (Lehre des Gruendlich-Hakens).
+# 2. Ein Druck SCHALTET. Ein Knopf, der erkannt, aber nicht behandelt wird,
+#    ist stumm -- und einer, der gar nicht erkannt wird, schickt seinen Text
+#    als Frage an den Agenten (der Knopf-Bug vom 23.07.).
+# 3. Die Antwort traegt die neue Tastatur mit, sonst steht dort der alte Stand.
+def _tastatur_knoepfe():
+    return [b.text for row in
+            bot._main_keyboard(False, "sonnet", None, user_id=UID).keyboard
+            for b in row]
+
+
+bot.empfang_setzen(UID, True)
+_mit_an = _tastatur_knoepfe()
+bot.empfang_setzen(UID, False)
+_mit_aus = _tastatur_knoepfe()
+zeile("die Tastatur zeigt den echten Empfangs-Stand",
+      bot._BTN_EMPFANG_TO_AUS in _mit_an and bot._BTN_EMPFANG_TO_AN in _mit_aus
+      and bot._BTN_EMPFANG_TO_AN not in _mit_an
+      and bot._BTN_EMPFANG_TO_AUS not in _mit_aus,
+      gemessen=f"an: {[b for b in _mit_an if 'Empfang' in b]}, "
+               f"aus: {[b for b in _mit_aus if 'Empfang' in b]}")
+
+zeile("beide Beschriftungen gelten als bekannte Knoepfe",
+      bot._BTN_EMPFANG_TO_AN in bot._ALL_KEYBOARD_BTNS
+      and bot._BTN_EMPFANG_TO_AUS in bot._ALL_KEYBOARD_BTNS,
+      gemessen="sonst ginge der Knopftext als Frage an den Agenten")
+
+
+async def _knopfdruck():
+    bot.empfang_setzen(UID, False)
+    upd = _Upd(UID)
+    await bot._handle_keyboard_btn(upd, bot._BTN_EMPFANG_TO_AN)
+    ein = bot.empfang_an(UID)
+    hat_tastatur = any(m is not None for m in upd.message.markups)
+    upd2 = _Upd(UID)
+    await bot._handle_keyboard_btn(upd2, bot._BTN_EMPFANG_TO_AUS)
+    aus = bot.empfang_an(UID)
+    bot.empfang_setzen(UID, False)
+    return ein, aus, hat_tastatur
+
+
+_ein, _aus, _hat_tastatur = asyncio.run(_knopfdruck())
+zeile("ein Druck schaltet und die Antwort traegt die neue Tastatur",
+      _ein is True and _aus is False and _hat_tastatur,
+      gemessen=f"nach an={_ein} nach aus={_aus} tastatur={_hat_tastatur}")
 
 print(f"\n{zeilen - len(fehler)}/{zeilen} Zeilen grün")
 sys.exit(1 if fehler else 0)

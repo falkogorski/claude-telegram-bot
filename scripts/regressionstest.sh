@@ -162,8 +162,15 @@ ECHTUSAGE="${HOME:-/home/claudebot}/.config/claude-telegram-bot/usage.json"
 # `cksum` ist POSIX und liegt auf Mac wie VPS; fehlt es doch, sagt der
 # Nachweis das, statt gruen zu melden.
 _stempel() { for f in "$@"; do cksum "$f" 2>/dev/null; done; }
-# Getrennt genommen, weil sie getrennt ausgewertet werden (siehe unten).
-STEMPEL_VORHER="$(_stempel "$ECHTNOTIZ" "$ECHTUSAGE")"
+# **Getrennt genommen, weil sie getrennt ausgewertet werden** — und seit dem
+# 11.09. wirklich getrennt: Die Notizdatei schreibt nur ein Prueflauf, der
+# etwas falsch macht. `usage.json` dagegen schreibt der lebende Bot **nach
+# jeder Antwort** (`_record_usage`). Gemeinsam gestempelt war die Zeile bei
+# laufendem Dienst ein Zufallsgenerator: Schrieb Adam waehrend des Laufs eine
+# Nachricht, wurde sie rot -- ohne dass eine Pruefung etwas angefasst haette.
+# Dieselbe Klasse wie der Heartbeat am 02.09., nur eine Datei weiter.
+NOTIZ_VORHER="$(_stempel "$ECHTNOTIZ")"
+USAGE_VORHER="$(_stempel "$ECHTUSAGE")"
 HEART_VORHER="$(_stempel "$ECHTHEART")"
 
 FAILS=0
@@ -356,6 +363,7 @@ run "Leitstand je Zimmer (Block 2)"    "$PY" scripts/test_leitstand_block2.py
 run "Empfang / Sekretaerin (Block 3)" "$PY" scripts/test_empfang_block3.py
 run "Schalterstand im Menue" "$PY" scripts/test_menue_schalterstand.py
 run "Log-Abgleich unter dem neuen Takt" "$PY" scripts/test_log_sync_takt.py
+run "Wegwerf-Zeilen Notizen/Nutzung (A2)" "$PY" scripts/test_wegwerf_zeilen_a2.py
 run "Hotfix H-3 bis H-5 (Ultracode)"  "$PY" scripts/test_hotfix_h3_h5.py
 run "Tagescheck: kein Werkzeug, kein Urteil" "$PY" scripts/test_tagescheck_werkzeuge.py
 
@@ -406,7 +414,13 @@ fi
 # **Was NICHT gebaut wird:** den Heartbeat stillschweigend aus der Pruefung
 # nehmen. Er ist der schwerste Fall der drei. Stattdessen wird er, solange der
 # Dienst laeuft, als **ausdruecklich nicht messbar** ausgewiesen — uebersprungen
-# und benannt, nach der A1-Regel. Notizen und Nutzungszahlen bleiben scharf.
+# und benannt, nach der A1-Regel.
+#
+# **`[ERWEITERT 11.09.]` Dasselbe gilt fuer `usage.json`** (Claudias Befund im
+# Tagescheck): Auch sie schreibt der lebende Bot, nach jeder Antwort. Der
+# 02.09.-Fix nahm nur den Heartbeat heraus -- die Nutzungszahlen blieben in
+# einer gemeinsamen Zeile mit der Notizdatei und machten sie unzuverlaessig.
+# Die Notizdatei bleibt scharf: Sie schreibt nur, wer etwas falsch macht.
 #
 # **Die ehrliche Grenze dazu:** Waehrend der Bot laeuft, ist ein Prueflauf, der
 # den Heartbeat schreibt, hier nicht mehr erkennbar. Er war es vorher auch
@@ -419,14 +433,31 @@ fi
 
 GESAMT=$((GESAMT+1))
 if ! command -v cksum >/dev/null 2>&1; then
-  echo "⏭️  Wegwerf-Umgebung (Notizen/Nutzung): NICHT GEMESSEN — cksum fehlt"
+  echo "⏭️  Wegwerf-Umgebung (Notizen): NICHT GEMESSEN — cksum fehlt"
   UEBERSPRUNGEN=$((UEBERSPRUNGEN+1))
-elif [ "$(_stempel "$ECHTNOTIZ" "$ECHTUSAGE")" != "$STEMPEL_VORHER" ]; then
-  echo "❌ Eine Pruefung hat eine ECHTE Ablage veraendert (Notizen oder"
-  echo "   Nutzungszahlen)."
+elif [ "$(_stempel "$ECHTNOTIZ")" != "$NOTIZ_VORHER" ]; then
+  echo "❌ Eine Pruefung hat die ECHTE Notizdatei veraendert."
   FAILS=$((FAILS+1))
 else
-  echo "✅ Wegwerf-Umgebung: Notizen und Nutzungszahlen unberuehrt"
+  echo "✅ Wegwerf-Umgebung: Notizen unberuehrt"
+fi
+
+GESAMT=$((GESAMT+1))
+if ! command -v cksum >/dev/null 2>&1; then
+  echo "⏭️  Wegwerf-Umgebung (Nutzungszahlen): NICHT GEMESSEN — cksum fehlt"
+  UEBERSPRUNGEN=$((UEBERSPRUNGEN+1))
+elif [ "$_heart_lebt" = "1" ]; then
+  echo "⏭️  Wegwerf-Umgebung (Nutzungszahlen): NICHT GEMESSEN — der Bot laeuft"
+  echo "    und schreibt sie nach jeder Antwort. Eine Aenderung ist hier"
+  echo "    erwartbar und damit kein Nachweis. Bei gestopptem Dienst wird"
+  echo "    wieder scharf gemessen."
+  UEBERSPRUNGEN=$((UEBERSPRUNGEN+1))
+elif [ "$(_stempel "$ECHTUSAGE")" != "$USAGE_VORHER" ]; then
+  echo "❌ Eine Pruefung hat die ECHTEN Nutzungszahlen veraendert — und der Bot"
+  echo "   laeuft NICHT. Dann kann es nur ein Prueflauf gewesen sein."
+  FAILS=$((FAILS+1))
+else
+  echo "✅ Wegwerf-Umgebung: Nutzungszahlen unberuehrt (Dienst gestoppt, scharf gemessen)"
 fi
 
 GESAMT=$((GESAMT+1))

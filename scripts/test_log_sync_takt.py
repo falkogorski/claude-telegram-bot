@@ -77,7 +77,7 @@ def baue_umgebung() -> tuple:
     (work / "papier.md").write_text("Inhalt\n", encoding="utf-8")
     # Attrappen-venv mit vielen Dateien: genau der Baum, den `find` bisher
     # vollstaendig durchlief.
-    venv = work / ".venv" / "lib" / "python3.12" / "site-packages" / "irgendwas"
+    venv = work / ".venv" / "lib" / "site-packages" / "irgendwas"
     venv.mkdir(parents=True)
     for i in range(60):
         (venv / f"modul{i}.py").write_text("x\n", encoding="utf-8")

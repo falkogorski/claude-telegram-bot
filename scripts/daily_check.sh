@@ -614,6 +614,34 @@ done < <( { systemctl list-timers --all --no-pager 2>/dev/null \
              fi
            done)
 
+# **[NEU 11.09.] Pfad-Einheiten sind keine Zeitgeber — und fallen doch gleich aus.**
+#
+# Seit dem 11.09. haengt der Log-Abgleich nicht mehr nur am Takt, sondern auch
+# an `claude-log-sync.path`. Faellt die aus, meldet niemand etwas: Der Timer
+# laeuft weiter, der Abgleich kommt nur langsamer — **Stille, die wie Ruhe
+# aussieht**, genau die Fehlerrichtung, gegen die diese Wache gebaut ist.
+#
+# Eigene Schleife statt Aufnahme in die obige, weil die dortigen Messgroessen
+# fuer Pfad-Einheiten nicht existieren: `NextElapseUSecRealtime` ist bei einer
+# `.path` immer leer, sie wuerde also taeglich als *„aktiv, aber kein naechster
+# Lauf geplant"* angeklagt. Ein Fehlalarm taeglich schaltet eine Wache
+# zuverlaessiger ab als ein Defekt.
+#
+# **Gesucht, nicht aufgezaehlt** — dieselbe Regel wie oben: Alles, was systemd
+# als Pfad-Einheit kennt und nicht von systemd selbst stammt.
+while read -r pe; do
+  [ -n "$pe" ] || continue
+  pe_zustand=$(systemctl show "$pe" -p UnitFileState --value 2>/dev/null)
+  pe_aktiv=$(systemctl is-active "$pe" 2>/dev/null)
+  if [ "$pe_aktiv" = "active" ]; then
+    add "✅ Pfad-Einheit $pe: wacht"
+  elif [ "$pe_zustand" = "disabled" ] || [ "$pe_zustand" = "masked" ]; then
+    add "✅ Pfad-Einheit $pe: bewusst abgeschaltet ($pe_zustand)"
+  else
+    zeitgeber_still+=("Pfad-Einheit $pe ist $pe_aktiv (Unit-Zustand: ${pe_zustand:-unbekannt})")
+  fi
+done < <(systemctl list-unit-files --type=path --no-pager --no-legend 2>/dev/null \
+           | awk '{print $1}' | grep -v '^systemd-' || true)
 if [ "${#zeitgeber_still[@]}" -eq 0 ]; then
   add "✅ Zeitgeber: alle aktiv und in ihrem Takt"
 else

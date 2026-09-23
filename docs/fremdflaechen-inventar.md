@@ -96,6 +96,36 @@ Automatik ohne Auftrag repariert, verändert etwas, das ein anderer gebaut hat.
 
 ---
 
+## 2 · Unerklärte Löschung im Arbeitsbaum `[23.09.2026, Ursache OFFEN]`
+
+**Gemessen am 23.09.2026, 14:04**, beim ersten Zug nach Adams Rückkehr: Der
+ganze Ordner `docs/entscheidungsvorlagen/` fehlte im Arbeitsbaum — **21
+Dateien**, gelöscht, aber **nicht committet** und nirgends sonst abgelegt.
+Adam: *„keine Absicht"*. Aus git wiederhergestellt (`git restore`),
+zeichengleich mit dem letzten Stand.
+
+**Warum es trotzdem hier steht:** Hätte jemand in diesem Zustand
+`git commit -a` ausgeführt, wären die Dateien aus dem Repo verschwunden, und 22
+Dateien — `CLAUDE.md` allein fünfmal — hätten ins Leere gezeigt. **Der Schaden
+war einen Befehl entfernt, und nichts hätte gewarnt.**
+
+**Ausgeschlossen, gemessen:**
+- Kein Skript und kein Hook im Repo löscht oder verschiebt diesen Ordner
+  (`grep` über `scripts/` und `.claude/hooks/`).
+- Keine Sitzung hat committet: `origin` und der lokale Stand waren gleich,
+  seit dem 11.09. kein neuer Commit.
+- Der Mac-Job `com.jakuna.sort-downloads` führt in seinen Logs den Ordner
+  nirgends (`~/Documents/Aufräum-Logs/`).
+
+**Nicht ausgeschlossen:** eine andere Claude-Sitzung ohne Commit, ein Werkzeug
+mit Aufräum-Funktion, eine Handbewegung im Finder. Ein Anhaltspunkt: Der
+Nachbarordner `docs/auftraege` wurde am **15.09. um 02:27** verändert, während
+Adam unterwegs war und keine Bau-Sitzung lief.
+
+**Der Griff, der daraus folgt:** Beim ersten Zug nach einer Pause
+`git status` lesen, bevor gebaut wird. Eine Liste gelöschter Dateien, die man
+nicht selbst gelöscht hat, ist kein Aufräumen — sie ist ein Befund.
+
 ## Noch aufzunehmen
 
 - Das **Gedächtnis** (`~/.claude/memory/`): außerhalb beider Repos, ohne

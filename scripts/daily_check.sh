@@ -816,6 +816,28 @@ if [ -d "$_ausgang" ]; then
   fi
 fi
 
+# --- 9k. MODELLWAECHTER (Block 4, 24.09.2026) --------------------------------
+# Claudias Auftrag vom 23.09.: angehaengt an diese Sammelstelle, kein eigener
+# Zeitgeber. Als claudebot, weil `models.json` und das Postfach ihm gehoeren —
+# als root angelegt, koennte der Bot die Datei fuer den Rueckweg nicht mehr
+# schreiben. **Kein Modellaufruf** (AGB-Linie): Das Skript liest einen Feed.
+#
+# Die Umstellung meldet der Waechter selbst, mit Rueckweg-Knopf, ueber die
+# Botenpost. Hier geht sie nur dann an Adam, wenn die Botenpost scheiterte —
+# sonst bekaeme er dieselbe Nachricht zweimal. Ein gescheiterter Abruf geht an
+# die Kontrolle: Schweigen saehe sonst aus wie „nichts Neues".
+if [ -f "$BOTDIR/scripts/modellwaechter.py" ]; then
+  _mw_arg=""; trocken && _mw_arg="--trocken"
+  mw="$(sudo -u claudebot "$VENVPY" "$BOTDIR/scripts/modellwaechter.py" $_mw_arg 2>&1 | tail -1)"
+  case "$mw" in
+    UNVERAENDERT*) add "✅ Modelle: ${mw#UNVERAENDERT }" ;;
+    UMGESTELLT*scheiterte*) add "🔄 Modelle: ${mw#UMGESTELLT }"
+                            adam "Modell umgestellt, die Meldung mit Rueckweg-Knopf kam aber nicht durch: ${mw#UMGESTELLT }" ;;
+    UMGESTELLT*)   add "🔄 Modelle umgestellt (Meldung mit Rueckweg-Knopf ueber den Bot): ${mw#UMGESTELLT }" ;;
+    *)             intern "Modellwaechter: ${mw:-keine Ausgabe}" ;;
+  esac
+fi
+
 # --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
 # Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete
 # hoeflich "Keine Treffer" - vier Stunden lang, in Adams Richtung. Ein Ausfall,

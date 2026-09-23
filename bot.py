@@ -754,14 +754,13 @@ EMPFANG_ZETTEL_JE_LAUF = int(os.environ.get("EMPFANG_ZETTEL_JE_LAUF", "2"))
 MEDIA_BUDGET = media.transport_budget(SDK_MAX_BUFFER)
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")
 # Kurznamen → vollständige Modell-IDs, die das SDK versteht
-_MODEL_ALIASES: dict[str, str] = {
-    # angehoben 24.09. (Block 4, Adams Entscheid 23.09.): Opus 5.5 seit 22.09.
-    # laut Release-Notes-Feed (gemessen). Deploy NUR nach Abo-Probe auf dem VPS.
-    "opus":   "claude-opus-5-5",
-    "sonnet": "claude-sonnet-5",   # angehoben 22.07. nach OAuth-Probe (war 4-6)
-    "haiku":  "claude-haiku-4-5-20251001",
-    "fable":  "claude-fable-5",
-}
+# **[GEAENDERT 24.09.2026, Block 4]** Die Vorgaben stehen in `modellwahl.py`,
+# die GELTENDE Kennung liefert `modellwahl.kennung()` aus `models.json`. Der
+# Name bleibt als Rueckfall-Tabelle, damit bestehende Leser ihn finden —
+# **gelesen wird die geltende Kennung aber nie mehr hier**, sondern ueber die
+# Funktion: Eine hier gemerkte Kennung wuesste nichts vom Waechter.
+import modellwahl
+_MODEL_ALIASES: dict[str, str] = modellwahl.VORGABE
 # Nachrichten, die während einer Ausfallzeit (Mac-Schlaf, Neustart) reinkamen,
 # MÜSSEN den Neustart überleben — sonst geht z.B. eine Sprachnachricht verloren,
 # bevor sie je transkribiert/geloggt wird (für mich dann unsichtbar). Telegram
@@ -1667,6 +1666,10 @@ class UserSession:
     # `max(mb.current_started, sess.last_activity)`, deckt also auch den Fall ab,
     # dass ein Turn losläuft und NIE etwas liefert.
     last_activity: float = field(default_factory=time.monotonic)
+    # `[NEU 24.09.2026, Block 4]` Die volle Kennung, mit der diese Sitzung
+    # gebaut wurde. Die Modellprobe vergleicht gegen SIE, nicht gegen die
+    # Datei — die kann der Waechter inzwischen umgeschrieben haben.
+    modell_voll: str = ""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2615,6 +2618,15 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 sess, effective_output_id, force_tts=job.force_tts,
                 reply_to=reply_to, thread_id=thread_id,
             )
+            # **Block 4, Sicherung (2), zweiter Weg:** Ob die CLI eine
+            # unbekannte Kennung als Ausnahme meldet oder als kurze Antwort
+            # („API Error: …"), ist nicht gemessen. Kommt sie als Antwort,
+            # wird sie hier zur Ausnahme — dann nimmt sie denselben Weg wie
+            # die andere Form, und Adam liest keinen Fehlertext als Antwort.
+            if (answer and len(answer) < 600 and sess.modell_voll
+                    and modellwahl.probe_offen(sess.current_model) == sess.modell_voll
+                    and modellwahl.ist_modellfehler(answer, sess.modell_voll)):
+                raise RuntimeError(answer)
             answer = await _presend_gate(
                 sess, job, answer, chat_id=effective_output_id,
                 reply_to=reply_to, thread_id=thread_id,
@@ -2659,6 +2671,19 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     log.exception("failed to send auth-error message")
                 await close_session(user_id, job.thread_id)
                 return "zurueckgelegt"
+            # **Block 4, Sicherung (2): die erste Nachricht ist die Probe.**
+            # Adams Entscheid vom 23.09.: Der Waechter stellt von selbst um;
+            # scheitert der erste Aufruf an der NEUEN Kennung, faellt der Bot
+            # von selbst auf die vorige zurueck, sagt es und beantwortet die
+            # Nachricht damit. Nach dem Anmelde-Zweig, damit ein
+            # Anmeldefehler nie als Modellfehler gelesen wird.
+            if await _modellprobe_zurueck(sess, str(e)):
+                mb = _get_mailbox(user_id, job.thread_id)
+                mb.queue.appendleft(job)
+                if job.pending_key:
+                    pending.set_status(job.pending_key, pending.STATUS_OPEN)
+                await close_session(user_id, job.thread_id)
+                return "offen"
             # H2 Ebene 1: Kontingent-Limit — die Nachricht ist NICHT gescheitert,
             # sie ist nur noch nicht dran. Sie geht unverändert zurück an den
             # KOPF der Warteschlange (chronologische Reihenfolge bleibt), der
@@ -2785,6 +2810,17 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             )
         except Exception:
             log.exception("Senden der geprüften Antwort fehlgeschlagen")
+        # Block 4: Die neue Kennung hat geantwortet — die Probe ist bestanden,
+        # der automatische Rueckfall wird nicht mehr gebraucht. **Eigene
+        # Klammer:** Buchfuehrung sitzt nie in der, die eine Entscheidung traegt.
+        try:
+            if answer and sess.modell_voll and modellwahl.probe_bestanden(
+                    sess.current_model, sess.modell_voll):
+                log.info("Modellprobe bestanden: %s = %s",
+                         sess.current_model, sess.modell_voll)
+        except Exception:
+            log.warning("Modellprobe: Vermerk nicht geschrieben (nicht-fatal)",
+                        exc_info=True)
         if not delivered:
             # Antwort erzeugt, aber NICHTS kam beim Nutzer an. Der Job ist damit
             # NICHT erledigt — Record bleibt liegen (Status „fehler"), damit er
@@ -5292,7 +5328,7 @@ async def ensure_session(
     context = _session_context(memory)
     user_prefs = _USER_PREFS.get(str(user_id), {})
     model_short = model_override or user_prefs.get("model", DEFAULT_MODEL)
-    model_full = _MODEL_ALIASES.get(model_short, model_short)  # vollständige SDK-ID
+    model_full = modellwahl.kennung(model_short)  # vollständige SDK-ID, frisch gelesen
     effort = user_prefs.get("effort", None) if effort_override is _UNSET else effort_override
     # **B3, Kernpunkt C — die Tiefe wird HIER erzwungen, nicht beim Aufrufer.**
     #
@@ -5326,6 +5362,7 @@ async def ensure_session(
         user_id=user_id,
         tts_enabled=user_prefs.get("tts_enabled", False),
         current_model=model_short,  # Kurzname für Anzeige und Vergleiche
+        modell_voll=model_full,     # Block 4: die Kennung, mit der DIESE Sitzung läuft
         current_effort=effort,
         logger=ConversationLogger(user_id, thread_id),
         always_allowed_tools=_cleaned_allow,
@@ -5349,6 +5386,41 @@ async def close_session(user_id: int, thread_id: "int | None" = None) -> None:
         await sess.client.disconnect()
     except Exception:
         log.exception("error disconnecting session for %s", user_id)
+
+
+async def _modellprobe_zurueck(sess, fehlertext: str) -> bool:
+    """Block 4, Sicherung (2): War das die gescheiterte Probe einer NEUEN
+    Kennung? Dann zurueck auf die vorige, Adam sagen, und `True`.
+
+    Greift nur, wenn DIESE Sitzung mit genau der Kennung laeuft, deren Probe
+    offen ist — eine aeltere Sitzung, die zufaellig scheitert, nimmt nichts
+    zurueck. Jeder Fehler hier wird geschluckt: Ohne Rueckfall bleibt es beim
+    bisherigen Fehlerweg, und der sagt Adam ebenfalls, was los ist.
+    """
+    try:
+        kurz, voll = sess.current_model, getattr(sess, "modell_voll", "")
+        if not voll or modellwahl.probe_offen(kurz) != voll:
+            return False
+        if not modellwahl.ist_modellfehler(fehlertext, voll):
+            return False
+        res = modellwahl.zuruecknehmen(kurz, grund="Probe gescheitert")
+        if res is None:
+            return False
+        von, auf = res
+        log.warning("Modellprobe gescheitert: %s %s -> zurueck auf %s", kurz, von, auf)
+        try:
+            await sess.bot.send_message(
+                chat_id=sess.chat_id, message_thread_id=sess.thread_id,
+                text=(f"↩️ Die neue Kennung {von} läuft hier (noch) nicht — "
+                      f"ich bin von selbst auf {auf} zurückgegangen und "
+                      "beantworte deine Nachricht jetzt damit. Der Wächter "
+                      "trägt diese Kennung nicht noch einmal ein."))
+        except Exception:
+            log.warning("Modellprobe: Meldung nicht zugestellt", exc_info=True)
+        return True
+    except Exception:
+        log.warning("Modellprobe: Rueckfall nicht moeglich", exc_info=True)
+        return False
 
 
 def cancel_pending_permissions(sess: UserSession, reason: str = "session ended") -> int:
@@ -5700,7 +5772,7 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     # dieselbe Regel wie beim Updater.
     prefs = _USER_PREFS.get(str(user_id), {})
     kurz = sess.current_model if sess is not None else prefs.get("model", DEFAULT_MODEL)
-    voll = _MODEL_ALIASES.get(kurz, kurz)
+    voll = modellwahl.kennung(kurz)
     tempo_namen = {"low": "Schnell", None: "Normal", "max": "Max"}
     eff = sess.current_effort if sess is not None else prefs.get("effort", None)
     lines.append(f"{_model_btn_label(kurz)} · Kennung `{voll}`")
@@ -6430,7 +6502,7 @@ def sekretaerin_optionen(user_id: int, modell: "str | None" = None):
                       .get("empfang_modell") or empfang.MODELL_VORGABE)
     return werkzeugfreie_optionen(
         empfang.SYSTEM_PROMPT,
-        modell=_MODEL_ALIASES.get(kurz, kurz),
+        modell=modellwahl.kennung(kurz),
         erlaubt=[empfang.WERKZEUG_NAME],
         mcp_servers={empfang.WERKZEUG_SERVER: _empfang_mcp(user_id)},
         # **[NEU 10.09.2026, Ultracode-Befund A-3] Ein Deckel je Lauf.**
@@ -6827,7 +6899,7 @@ async def _kontingent_frisch_messen_alt() -> bool:
     """
     options = werkzeugfreie_optionen(
         "Antworte ausschließlich mit dem Zeichen: .",
-        modell=_MODEL_ALIASES.get("haiku", "haiku"))
+        modell=modellwahl.kennung("haiku"))
     gesehen = False
     client = ClaudeSDKClient(options=options)
     await client.connect()
@@ -11305,12 +11377,12 @@ def run_self_check() -> tuple[bool, list[str]]:
         import inspect
         src = inspect.getsource(cmd_status)
         assert "_model_btn_label(kurz)" in src, "/status nennt das Hauptmodell nicht"
-        assert "_MODEL_ALIASES.get(kurz" in src or "voll = _MODEL_ALIASES" in src, \
+        assert "modellwahl.kennung(kurz)" in src, \
             "/status nennt die vollständige Modell-Kennung nicht (Konkret vor Label)"
         assert "Tempo" in src, "/status nennt das Tempo nicht"
         assert "_thorough_on" in src, "/status zeigt nicht, ob Gründlich an ist"
         wechsel = inspect.getsource(_handle_keyboard_btn)
-        assert "_MODEL_ALIASES.get(new_sess.current_model" in wechsel, \
+        assert "modellwahl.kennung(new_sess.current_model)" in wechsel, \
             "die Wechsel-Bestätigung nennt die Kennung nicht — ein stiller " \
             "Alias-Wechsel bliebe unsichtbar"
     check("Modellzeile in /status (⑬)", _c_status_modellzeile)
@@ -12375,6 +12447,21 @@ async def on_postfach_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
     if len(teile) != 3:
         return
     _, art, kennung = teile
+    if art == "modell_zurueck":
+        # Block 4, Sicherung (1): der Rueckweg nach einer Umstellung durch den
+        # Waechter. Deterministisch, kein Modellstart.
+        res = await asyncio.to_thread(
+            modellwahl.zuruecknehmen, kennung, "Adams Knopf")
+        meldung = (f"↩️ Zurückgestellt: {kennung} wieder auf {res[1]}. Gilt ab "
+                   "der nächsten Sitzung (/reset beginnt sofort eine neue)."
+                   if res else "ℹ️ Nichts zurückzustellen — die Kennung gilt schon.")
+        try:
+            await query.edit_message_text(
+                ((query.message.text or "") if query.message else "")
+                + "\n\n" + meldung, reply_markup=None)
+        except Exception:
+            log.warning("Postfach-Knopf: Rueckweg-Meldung nicht ergaenzt", exc_info=True)
+        return
     if art != "wachposten_hinterlegen":
         log.warning("Postfach-Knopf: unbekannte Art %r", art)
         return
@@ -12737,7 +12824,7 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
         # automatisierter Modell-Frische kann sich der Alias sonst unter Adam
         # ändern, ohne dass er es je erfährt.
         await update.message.reply_text(
-            f"{model_label} aktiv · `{_MODEL_ALIASES.get(new_sess.current_model, new_sess.current_model)}`"
+            f"{model_label} aktiv · `{modellwahl.kennung(new_sess.current_model)}`"
             "\nSession neu gestartet.",
             reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN,
         )

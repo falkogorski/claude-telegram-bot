@@ -48,7 +48,9 @@ _SCHLUESSEL = re.compile(
 # wird von mehreren Skripten beschrieben; ohne diese Liste könnte jedes davon
 # eine beliebige Schaltfläche in Adams Chat setzen. Was die Arten auslösen,
 # steht in `bot.py` — hier steht nur, welche es überhaupt geben darf.
-KNOPF_ARTEN = ("wachposten_hinterlegen",)
+KNOPF_ARTEN = ("wachposten_hinterlegen",
+               # Block 4 (24.09.): Rueckweg nach einer Modell-Umstellung
+               "modell_zurueck")
 
 
 class Abgewiesen(Exception):

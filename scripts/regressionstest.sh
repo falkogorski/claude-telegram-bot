@@ -322,6 +322,7 @@ run "E-Mail-Kanal 9.5"                  "$PY" scripts/test_email_9_5.py
 run "Freigabe-Postfach 9.4"             "$PY" scripts/test_freigaben_9_4.py
 run "Hora (autonomer Laeufer)"          "$PY" scripts/test_hora.py
 run "Meldungen nur, was Adam betrifft (Block 3)" "$PY" scripts/test_meldungen_adressat.py
+run "Modellwaechter (Block 4)" "$PY" scripts/test_modellwaechter.py
 run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py
 run "Zustell-Waechter (erreicht uns TG?)" "$PY" scripts/test_zustellwaechter.py
 run "Pruefumgebung (Riegel 3)"          "$PY" scripts/test_pruefumgebung.py

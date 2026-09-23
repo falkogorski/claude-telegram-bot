@@ -1,8 +1,8 @@
 **Zweck: WEITERGABE → Mick** · **Zu tun: unverändert an Mick; Adams Entscheide stehen in Teil D. Claudias Zettel ist eine eigene Datei.**
 
-# Übergabe an Mick — Stand 23.09.2026, 13:20, Entscheide 14:0x eingearbeitet
+# Übergabe an Mick — Stand 23.09.2026, 15:0x (Fassung 3: Claudias Stand bis 14:53 eingearbeitet)
 
-**Nenner:** Gelesen Logs 19.–23.09. (23.09. von 12:07 bis 14:16), vier offene Bauaufträge von Claudia (13.09. Zimmerliste, 19.09. Meldungen, 23.09. Darstellung, 23.09. Modellwächter), ein Anregungspapier (11.09. HTML), Sammelblatt seit 11.09. Am Code geprüft: bot.py (`origin/mac-produktivstand` 8ca2783), components.json, log_sync.sh, test_eingangsschranken.py. Server läuft auf d54b272, Empfang aus.
+**Nenner:** Gelesen Logs 19.–23.09. (23.09. von 12:07 bis 14:53), fünf offene Bauaufträge von Claudia (13.09. Zimmerliste, 19.09. Meldungen, 23.09. Darstellung, 23.09. Modellwächter Fassung 2, 23.09. Link-Vorschau), ein Anregungspapier (11.09. HTML), Sammelblatt seit 11.09. Am Code geprüft: bot.py (`origin/mac-produktivstand` 8ca2783), components.json, log_sync.sh, test_eingangsschranken.py. Server läuft auf d54b272, Empfang aus.
 
 **Vorab, weil es den Rest ordnet:** Zwei von Claudias Aussagen vom 23.09. tragen nicht, beide am Code gemessen (Teil B). Die Aufträge selbst tragen.
 
@@ -28,7 +28,11 @@ Befund stimmt: `send_answer_to_user` sendet ohne `parse_mode` (bot.py 15441), `s
 
 **Hausstil, festgeschrieben (Claudias sechs Merkmale vom 23.09. plus Adams drei):** Fettdruck auf der Aussage, nicht auf der Überschrift · Kausalketten als eigener Block, in Wörtern statt Pfeilen · kurze Absätze mit Luft · kursiv für Werktitel · nummerierte Punkte mit fetter Überschrift · Schlüsselbegriff am Zeilenanfang fett · Sprungmarken ins Video unter jedem Punkt · Quellen am Wort verlinkt · Videolink als Text am Schluss. Das ist Claudias Schreibregel, kein Bau; Mick trägt sie ins Drehbuch (Teil C).
 
-**Link-Vorschau, Adams Entscheid: im Antwortweg, feste Hostliste.** Die Voreinstellung `is_disabled=True` (15565) **bleibt**, ebenso die Prüfzeile [Link-Vorschau programmweit aus]. Nur `send_answer_to_user` setzt je Nachricht `LinkPreviewOptions(is_disabled=False, url=<letzter Link>)`, und nur wenn der Host auf einer kleinen Liste steht (Vorgabe: youtube.com, youtu.be; Liste als Einstellgröße, Register-Zeile). Freigabedialoge, Ablage-Meldungen, Fremdinhalte: unverändert aus. Prüfzeile ausführend: Antwort mit YouTube-Link → Aufruf trägt Vorschau an; Antwort mit fremdem Host → nicht; Dialogpfad → nicht. Gegenprobe: Hostprüfung entfernen → zweite Zeile rot.
+**Link-Vorschau — Adams Entscheid, zuletzt 14:44/14:51 in Claudias Chat, ersetzt den Hostlisten-Entscheid von 14:0x:** Vorschau überall im Antwortweg, wo sie hilft; Schalter im Menü, Vorgabe ein; Freigabedialog und Wächter-Meldungen bleiben ohne. Grundlage ist Claudias Auftrag `2026-09-23_bauauftrag-linkvorschau.md` (vier Aufträge, dreistufige Regel). Er trägt. Vier Auflagen von mir:
+- **Die Steuerangabe darf nur eine Adresse nennen, die im Text steht.** Die Steuerzeile ist Modellausgabe; fremdes Material kann sie beeinflussen. Ohne diese Prüfung könnte eine Karte für eine Adresse erscheinen, die Adam im Text nie sieht. Steht die Adresse nicht im Text → Stufe 2/3, nicht die Angabe. Das ist der eine Riegel, der die Öffnung trägt.
+- Die Steuerzeile wird vor dem Senden entfernt **und** vor `_strip_markdown_for_tts` — sonst liest Katja sie vor. Eine Prüfzeile für beides.
+- Der Schalter geht in `_SCHALTER` (Menü zeigt den Stand, Prüfzeile 8 Verdrahtung) und in den Statusblock des Startberichts, wie Claudia schreibt.
+- Voreinstellung `is_disabled=True` (15565) und die Prüfzeile [Link-Vorschau programmweit aus] bleiben unverändert. Neue Prüfzeilen ausführend: (a) Antwort mit Steuerangabe → Vorschau auf genau diese Adresse; (b) Steuerangabe mit fremder Adresse → ignoriert, Stufe 3 greift; (c) Dialogpfad → `is_disabled` bleibt wahr; (d) Schalter aus → keine Vorschau. Gegenprobe zu (b): Textprüfung entfernen → rot.
 
 Auflagen, die im Auftrag fehlen oder nur angedeutet sind:
 - **Reihenfolge Schneiden/Umwandeln:** `_find_safe_cut` schneidet am Rohtext; die Umwandlung verlängert (Maskierung). Umwandeln **je Stück nach dem Schnitt** und das Stück vorher so bemessen, dass es nach Umwandlung unter `TELEGRAM_MSG_LIMIT` bleibt. Sonst zerreißt ein Paar oder Telegram lehnt ab.
@@ -37,7 +41,7 @@ Auflagen, die im Auftrag fehlen oder nur angedeutet sind:
 - **Geltungsbereich** wie im Auftrag: 15441 und die Bildunterschrift 15493. `/zimmer`, `/status`, Link-Ablage bleiben ohne `parse_mode` (B2-2, H-5).
 - **Neues pip-Paket:** Fassung pinnen in `requirements.txt`, Lizenz nennen, Register-Zeile in `ABHAENGIGKEITEN.md` (Prüfbefehl: der Selbsttest). Kostenfrei, läuft lokal.
 - **Prüfzeilen ausführend:** Attrappe für `bot.send_message`, echter Code dazwischen. (1) Text mit Fett, Link, Unterstrich, einzelnem Stern → Aufruf trägt `parse_mode=MarkdownV2`. (2) Attrappe wirft `BadRequest` → zweiter Aufruf ohne `parse_mode`, gleicher Text. Gegenprobe: Rückfall entfernen → Zeile 2 rot.
-- Vorschaukarte: siehe oben, gehört in diesen Block.
+- Vorschaukarte: siehe oben, gehört in diesen Block (Claudias Auftrag Link-Vorschau).
 
 ### Block 3 — Meldungen nur, was Adam betrifft (Claudia 19.09.)
 
@@ -53,8 +57,7 @@ Geprüft am 19.09. (`20260919_nachtlese.md`, Teil 3): trägt, drei Ergänzungen 
 
 **Adams Entscheid zur Automatik: umstellen von selbst, mit drei Sicherungen** (der Schalter (d) aus dem 22.07.-Plan steht damit auf AN): (1) Der Wächter schreibt nur `models.json` und meldet laut [umgestellt auf X], mit Rückweg-Knopf. (2) Adams nächste echte Nachricht ist die Probe; scheitert der erste Aufruf an der neuen Kennung (unbekannt, nicht im Abo), fällt der Bot **von selbst** auf die vorige Kennung zurück und meldet es. (3) Der Wächter ruft aus dem Zeitgeber nie ein Modell auf. Prüfzeilen ausführend für (2): Attrappe lässt den ersten Aufruf mit der neuen Kennung scheitern → zweiter Aufruf trägt die alte, Meldung gesendet; Gegenprobe: Rückfall entfernen → rot.
 
-Auftrag 2 braucht drei Berichtigungen:
-- **Der Register-Platz existiert schon:** `components.json` führt `claude-modelle` als `manual`, 30 Tage, mit Prüfweg „Abo-Probe `claude -p --model <id>`, keine Kosten". Der Versions-Monitor meldete am 21.09. „FAELLIG claude-modelle: 31 Tage". Claudias Satz „in den Zetteln steht nichts dazu" ist falsch. **Kein neuer Wächter** (Kurs-Regel) — der Monitor-Eintrag wird von `manual` auf einen Prüfweg gehoben, die Meldung geht über den vorhandenen Monitor-Meldeweg.
+Auftrag 2 in Claudias Fassung 2 (14:36) trägt den Register-Hinweis bereits; es bleiben zwei Punkte:
 - **Kandidat 1 (Modell-Liste über die Anbieter-Schnittstelle), Adams Entscheid: Mick misst zuerst, ob der Endpunkt den Abo-Token annimmt.** Ja → nutzen. Nur mit API-Schlüssel → **Halt, kein Schlüssel auf dem Server**, Rückfrage an Adam; dann Kandidat 3.
 - **Prüfweg ohne Schlüssel:** Modellseite der Anbieter-Doku abrufen (derselbe Netzzugriff, den der Monitor für PyPI und npm ohnehin macht) und die Kennung gegen die Kandidaten-Liste halten; die Abo-Probe bleibt Adams Hand oder eine Sitzung, nie der 4-Uhr-Lauf (Modell-Aufruf aus Zeit-Trigger, AGB-Regel).
 - **„Opus 5.5 seit 22.09., `claude-opus-5-5`"** ist eine Fremdaussage aus einer Nachrichtenseite, von mir nicht gemessen. Vor dem Umstellen die Abo-Probe; Grundeinstellung bleibt Adams Entscheid (Modell-Autonomie-Regel).
@@ -65,7 +68,7 @@ Auftrag 2 braucht drei Berichtigungen:
 - `scripts/konzept_pdf.py`: `-V mainfont`/`-V monofont` fehlen; zweimal gebissen (11.09., 21.09. „dokumentierter Umweg").
 - Aufstellungs-Generator bricht bei Schrägstrich im Dateinamen ab (Claudias Zettel, 20.09.); Schrägstrich ersetzen statt abbrechen.
 - **`log_sync.sh`, Wirkungs-Regel:** Der Abgleich vom 23.09. hat aus `~/workspace/werkzeuge/yt-transkript/lib/python3.13/site-packages/…` vierzehn `.txt`-Dateien (Lizenzen, entry_points) ins Log-Repo getragen — der Ausschluss kennt `venv/` und `.venv/`, nicht `lib/` oder `site-packages/`. Ausschluss `--exclude='site-packages/'` **vor** den Includes, Dateiliste danach ansehen.
-- Register-Zeilen: `youtube-transcript-api` (eigene venv unter `~/workspace/werkzeuge/yt-transkript`, gemessen 23.09.: gewöhnliches Video 6 Spuren/61 Zeilen, Livestream-Aufzeichnung abgewiesen) und der Fremddienst als Ausweichweg (Adam-Freigabe 23.09. 12:41, „in dieser Phase", nicht für eigenes Material).
+- Register-Zeilen: `youtube-transcript-api` (eigene venv unter `~/workspace/werkzeuge/yt-transkript`, gemessen 23.09.: gewöhnliches Video 6 Spuren/61 Zeilen, Livestream-Aufzeichnung abgewiesen) und der Fremddienst `freetranscriptapi.com` als Ausweichweg (Adam-Freigabe 23.09. 12:41, [in dieser Phase], nicht für eigenes Material). **Kostenfrage, Stand 14:36 (Claudias Auskunft):** kein Konto, kein Schlüssel, 50 Abrufe je Stunde, Grundnutzung kostenfrei; eine Abbuchung ist ohne Konto nicht möglich → für Einzelabrufe geschlossen. Offen: Befristung [bis 19.09.] auf der Anbieterseite (Abruf lief am 23.09. trotzdem) und ungelesene Datenschutzbedingungen → **vor einem festen Ablauf** lesen; Ausweichanbieter derselben Gattung ist Selmas `youtube-transcript.ai`.
 - TTS-Kopiertext (16.09.), F-Punkte: Belegkette seit 18.08. nie gerollt; Gedächtnis-Pfad im Prompt.
 
 ## B. Zwei Berichtigungen zu Claudias Aussagen vom 23.09.
@@ -88,8 +91,8 @@ Dazu eine Lücke, kein Fehler: **Der Fremddienst wurde um 12:47 genutzt, ohne da
 
 ## D. Adams Entscheide vom 23.09. (14:0x, im Chat mit Engywuck)
 
-1. **Link-Vorschau:** im Antwortweg, feste Hostliste; Dialoge und Meldungen bleiben ohne.
-2. **Fremddienst für Transkripte:** Freigabe für öffentliche Videos bleibt; Claudia liefert Konto, Kosten, Grenzen nach (Teil E).
+1. **Link-Vorschau** (geändert 14:44/14:51 in Claudias Chat): überall im Antwortweg, Schalter im Menü, Vorgabe ein; Bezug: Steuerangabe → einziger Link → letzter Link. Freigabedialog und Wächter-Meldungen bleiben ohne.
+2. **Fremddienst für Transkripte:** Freigabe für öffentliche Videos bleibt; Auskunft liegt vor (Block 5), Kostenfrage für Einzelabrufe geschlossen; Bedingungen vor einem Dauerweg lesen.
 3. **Darstellung:** Mick wählt den Transport nach Probe (erst telegramify-markdown, sonst HTML); Hausstil mit neun Merkmalen festgeschrieben; Abnahme per Probenachricht am Handy.
 4. **Ein Knopf:** dauerhaft in den Vorlieben; Gedächtnisordner, Repo, Geheimnispfade bleiben hart.
 5. **Modell-Liste:** Mick prüft mit dem Abo-Token; nur mit API-Schlüssel → Halt und Rückfrage.

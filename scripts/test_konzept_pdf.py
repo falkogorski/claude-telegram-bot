@@ -269,6 +269,82 @@ zeile("ein leerer Ordner gilt nicht als Schriftordner",
           for _w, _u, ds in os.walk(_gefunden) for d in ds)),
       gemessen=f"gefunden: {_gefunden} (leer war: {_leerheim / 'fonts'})")
 
+# ── Die Schriftnamen, ECHT gefahren (23.09.) ────────────────────────────────
+# **Warum diese Zeile anders gebaut ist als die uebrigen:** Am 11.09. wurde der
+# Schriftfehler am Mac mit einer Attrappe geprueft und fuer behoben erklaert.
+# Er war es nicht -- Claudia stiess am 21.09. im Betrieb darauf, und am 23.09.
+# stand er auf dem Server noch genau so da. Die Diagnose war falsch, und die
+# Attrappe konnte das nicht zeigen, weil sie pandoc gar nicht fuhr.
+#
+# Hier laeuft deshalb der **echte** Aufruf aus `pandoc_befehl` -- nur ohne den
+# Netz-Vorspann, den es am Mac nicht gibt. Und die Gegenrichtung steht gleich
+# daneben: derselbe Aufruf **ohne** die Schriftnamen muss an genau diesem
+# Fehler scheitern. Erst beides zusammen zeigt, dass die Zeile die Ursache
+# trifft und nicht bloss ein gruenes Ergebnis.
+import importlib.util as _ilu                                      # noqa: E402
+
+_spec = _ilu.spec_from_file_location("konzept_pdf_mod", SKRIPT)
+_kp = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_kp)
+_typst = shutil.which("typst") or str(Path.home() / ".local/bin/typst")
+_ordner = _kp._schriftordner()
+if not (shutil.which("pandoc") and Path(_typst).exists() and _ordner):
+    print("  ⏭️  Schriftnamen echt gefahren — NICHT GEMESSEN: pandoc, typst "
+          "oder ein Schriftordner fehlen auf dieser Maschine")
+else:
+    _q = papier("schrift.md", "# Probe\n\nText mit **fett** und `code`.\n\n"
+                              "```\nblock\n```\n")
+    def _fahre(befehl):
+        _z = _q.with_suffix(".pdf")
+        _z.unlink(missing_ok=True)
+        _e = subprocess.run(befehl, capture_output=True, text=True,
+                            cwd=str(_q.parent))
+        return _e.returncode, _z.exists() and _z.stat().st_size > 0, _e.stderr
+    _mit = _kp.pandoc_befehl(_q.resolve(), _q.with_suffix(".pdf").resolve(),
+                             _typst, _ordner)
+    _ohne = [a for i, a in enumerate(_mit)
+             if not (a == "-V" and i + 1 < len(_mit)
+                     and _mit[i + 1].startswith(("mainfont=", "monofont=")))
+             and not (i > 0 and _mit[i - 1] == "-V"
+                      and a.startswith(("mainfont=", "monofont=")))]
+    _rc_mit, _pdf_mit, _err_mit = _fahre(_mit)
+    _rc_ohne, _pdf_ohne, _err_ohne = _fahre(_ohne)
+    zeile("mit Schriftnamen entsteht ein PDF (echter pandoc-Lauf)",
+          _rc_mit == 0 and _pdf_mit,
+          gemessen=f"rc={_rc_mit} pdf={_pdf_mit} {_err_mit.strip()[-120:]}")
+    # **Die Gegenrichtung ist nur messbar, wo der Fehler lebt.** Gemessen am
+    # 23.09.: pandoc 3.1.11 (Server) scheitert ohne Schriftnamen, pandoc 3.10
+    # (Mac) nicht -- die Vorlagen unterscheiden sich. Genau deshalb war die
+    # Pruefung vom 11.09. am Mac blind: Sie konnte gar nicht rot werden.
+    #
+    # Entsteht ohne Namen trotzdem ein PDF, kann DIESE Umgebung die
+    # Gegenrichtung nicht zeigen. Das wird uebersprungen und benannt, **nicht
+    # als bestanden gezaehlt** (A1) -- auf dem Server misst die Zeile.
+    _pandoc = subprocess.run(["pandoc", "--version"], capture_output=True,
+                             text=True).stdout.splitlines()[0]
+    if _rc_ohne == 0 and _pdf_ohne:
+        print(f"  ⏭️  ohne Schriftnamen scheitert derselbe Lauf — NICHT GEMESSEN: "
+              f"{_pandoc} zeigt den Fehler nicht (der Server mit pandoc 3.1.x "
+              f"schon); die Gegenrichtung misst der Lauf in der Zielumgebung")
+    else:
+        zeile("ohne Schriftnamen scheitert derselbe Lauf an der leeren Schriftliste",
+              _rc_ohne != 0 and not _pdf_ohne and "font fallback" in _err_ohne,
+              gemessen=f"{_pandoc}: rc={_rc_ohne} pdf={_pdf_ohne} "
+                       f"{_err_ohne.strip()[-120:]}")
+
+# **Die Wache fuer die Maschine, die den Fehler nicht zeigt.** Am Mac bliebe
+# die echte Zeile oben gruen, auch wenn jemand die Schriftnamen wieder
+# entfernte -- pandoc 3.10 kommt ohne sie aus. Diese Zeile misst deshalb das
+# ERGEBNIS von `pandoc_befehl` (ausgefuehrt, nicht gelesen): Es muss einen
+# nicht leeren Hauptschrift-Namen tragen. Auf dem Server misst die echte Zeile
+# zusaetzlich die Wirkung.
+_arg = _kp.pandoc_befehl(Path("/q/x.md"), Path("/q/x.pdf"), "typst", "/f")
+_haupt = [_arg[i + 1] for i, a in enumerate(_arg[:-1])
+          if a == "-V" and _arg[i + 1].startswith("mainfont=")]
+zeile("der pandoc-Aufruf traegt einen Hauptschrift-Namen",
+      len(_haupt) == 1 and _haupt[0] != "mainfont=",
+      gemessen=f"gefunden: {_haupt}")
+
 shutil.rmtree(_TMP, ignore_errors=True)
 print()
 if fehler:

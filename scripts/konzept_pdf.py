@@ -186,6 +186,42 @@ def netzfreier_vorspann() -> "list[str] | None":
     return ["unshare", "-rn"] if probe.returncode == 0 else None
 
 
+# **[NEU 23.09.2026]** Die Schriften, die typst selbst mitbringt.
+#
+# **Gemessen am 23.09. auf dem Server, nicht angenommen:** `typst fonts
+# --ignore-system-fonts` nennt auf beiden Maschinen dieselben vier Schriften
+# (typst 0.15.0 am Mac, 0.15.1 auf dem VPS): DejaVu Sans Mono, Libertinus
+# Serif, New Computer Modern, New Computer Modern Math. Sie hängen an keinem
+# Ordner — und damit ist das Bild auf Mac und Server wirklich dasselbe.
+HAUPTSCHRIFT = os.environ.get("KONZEPT_PDF_HAUPTSCHRIFT") or "Libertinus Serif"
+FESTSCHRIFT = os.environ.get("KONZEPT_PDF_FESTSCHRIFT") or "DejaVu Sans Mono"
+
+
+def pandoc_befehl(quelle_abs: Path, ziel_abs: Path, typst: str,
+                  schriften: str) -> "list[str]":
+    """Der pandoc-Aufruf, ohne Netz-Vorspann — als eigene Funktion, damit ein
+    Prüfer ihn **fahren** kann und nicht nur lesen muss.
+
+    **Warum die Schriftnamen hier stehen müssen (23.09.):** Die typst-Vorlage
+    von pandoc baut ihre Schriftliste aus `mainfont`. Ohne die Angabe ist die
+    Liste **leer**, und typst bricht ab: *„font fallback list must not be
+    empty"*. Gemessen in der Zielumgebung: ohne Namen Rückgabewert 43, mit
+    `Libertinus Serif` ein PDF.
+    """
+    return [
+        "pandoc", str(quelle_abs), "-o", str(ziel_abs),
+        "--pdf-engine", typst,
+        # Der Wurzelpfad ist der Ordner der Quelle: Bilder daneben ja, alles
+        # darueber nein.
+        "--pdf-engine-opt", f"--root={quelle_abs.parent}",
+        # Gleiches Bild auf beiden Maschinen — siehe Kopf.
+        "--pdf-engine-opt", "--ignore-system-fonts",
+        "--pdf-engine-opt", f"--font-path={schriften}",
+        "-V", f"mainfont={HAUPTSCHRIFT}",
+        "-V", f"monofont={FESTSCHRIFT}",
+    ]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Ein Markdown-Papier als PDF setzen (pandoc + typst)")
@@ -248,20 +284,21 @@ def main() -> int:
     ziel_abs = ziel.resolve()
 
     # **(2) Schriften.** `--ignore-system-fonts` sorgt für dasselbe Bild auf
-    # beiden Maschinen — nimmt typst aber **jede** Schrift weg, wenn kein
-    # `--font-path` danebensteht: *„font fallback list must not be empty"*.
+    # beiden Maschinen.
     #
-    # Ohne gesetzte Umgebungsvariable wird deshalb ein Ordner gesucht, der
-    # wirklich Schriften enthält. **Gemessen am 11.09., nicht angenommen:** Auf
-    # diesem Mac gibt es weder `/usr/share/fonts` noch DejaVu; `/System/Library/
-    # Fonts` trägt 370 Schriften. Auf dem VPS ist es umgekehrt. Deshalb eine
-    # Kandidatenliste und **die Prüfung, ob wirklich etwas darin liegt** — ein
-    # vorhandener, leerer Ordner ist derselbe Fehler in grün.
+    # **`[BERICHTIGT 23.09.2026]` Hier stand, die Option nehme typst „jede"
+    # Schrift weg, und der Fehler *„font fallback list must not be empty"*
+    # komme vom fehlenden Ordner. Beides war falsch** — und der Fix vom 11.09.
+    # hat deshalb nichts behoben. Gemessen am 23.09. auf dem Server: Die vier
+    # eingebauten Schriften bleiben bei `--ignore-system-fonts` erhalten; der
+    # Fehler kommt von der **leeren Namensliste**, weil kein `mainfont`
+    # übergeben wurde. Claudia ist am 21.09. darauf gestoßen und hat einen
+    # Umweg genommen. Geprüft hatte ich am 11.09. am Mac, mit einer Attrappe —
+    # nicht dort, wo der Fehler lebt.
     #
-    # **Ehrlich zur Reichweite:** Der gefundene Ordner ist je Maschine ein
-    # anderer, das Schriftbild also nicht mehr garantiert gleich.
-    # `KONZEPT_PDF_SCHRIFTEN` bleibt der Weg zum gleichen Bild; der Vorgabepfad
-    # ist der Weg zu *einem* Ergebnis statt zu keinem.
+    # Der Ordner bleibt für **zusätzliche** Schriften, wer über
+    # `KONZEPT_PDF_HAUPTSCHRIFT` eine andere wählt. Die Vorgabe hängt nicht
+    # mehr an ihm.
     schriften = os.environ.get("KONZEPT_PDF_SCHRIFTEN") or _schriftordner()
     if not schriften:
         print("FEHLER: keine Schriften gefunden. typst laeuft hier ohne "
@@ -270,16 +307,7 @@ def main() -> int:
               file=sys.stderr)
         return 7
 
-    befehl = vorspann + [
-        "pandoc", str(quelle_abs), "-o", str(ziel_abs),
-        "--pdf-engine", typst,
-        # Der Wurzelpfad ist der Ordner der Quelle: Bilder daneben ja, alles
-        # darueber nein.
-        "--pdf-engine-opt", f"--root={quelle_abs.parent}",
-        # Gleiches Bild auf beiden Maschinen — siehe Kopf.
-        "--pdf-engine-opt", "--ignore-system-fonts",
-        "--pdf-engine-opt", f"--font-path={schriften}",
-    ]
+    befehl = vorspann + pandoc_befehl(quelle_abs, ziel_abs, typst, schriften)
 
     e = subprocess.run(befehl, capture_output=True, text=True,
                        cwd=str(quelle_abs.parent))

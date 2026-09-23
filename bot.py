@@ -3083,6 +3083,25 @@ _NO_ALWAYS_TOOLS = ({"WebFetch", "Write", "Edit", "MultiEdit",
 # nicht drückt, braucht keine Freigabe.
 _SCHREIBWERKZEUGE = {"Write", "Edit", "MultiEdit"}
 
+# **[NEU 23.09.2026, Adams Entscheid]** Dateien, die auch unter Auto fragen.
+#
+# Unter Auto schreibt Claudia im Arbeitsordner ohne Rückfrage — auch die
+# Rechnungsdaten (`daten/rechnung_*.json`), und das ist gewollt: Das ist der
+# Rechnungsalltag, und genau dort hat die Rückfrage am meisten gekostet.
+# **Die Tagessätze sind etwas anderes:** Geldwerte, die sich selten ändern.
+# Eine Rückfrage dort kostet fast nichts und fängt einen falschen Betrag, bevor
+# er in eine Rechnung wandert.
+#
+# **Bewusst hier und nicht als Geheimnis-Marker:** Ein Marker in
+# `_is_sensitive_ref` würde auch das **Lesen** in den Dialog schicken — und die
+# Sätze braucht Claudia bei jeder Rechnung. Hier wirkt die Ausnahme allein auf
+# das Schreiben unter Auto.
+#
+# ⚠️ **Der Anker ist ein NAME**, kein Merkmal — dieselbe Grenze wie beim
+# Rechnungs-Ausschluss im Log-Abgleich. Wird die Datei umbenannt, greift die
+# Zeile nicht mehr; der Prüfer `test_schreiben_frei.py` hält den Namen fest.
+_SCHREIBEN_FRAGT_WEITER = {"saetze.json"}
+
 _ARBEITSORDNER = Path(
     os.environ.get("CLAUDE_ARBEITSORDNER") or str(Path.home() / "workspace")
 ).expanduser()
@@ -3139,6 +3158,11 @@ def schreiben_ohne_frage(user_id: "int | None", tool_name: str, ref: str) -> boo
     if tool_name not in _SCHREIBWERKZEUGE:
         return False
     if _is_sensitive_ref(ref, schreibend=True):
+        return False
+    # Ein Name aus `_SCHREIBEN_FRAGT_WEITER` irgendwo im Verweis genügt —
+    # auch bei zwei Pfaden, von denen nur einer die Sätze trifft.
+    if any(Path(t).name in _SCHREIBEN_FRAGT_WEITER
+           for t in re.findall(r"[^\s\"'`,;]+", ref or "")):
         return False
     return _im_arbeitsordner(ref)
 

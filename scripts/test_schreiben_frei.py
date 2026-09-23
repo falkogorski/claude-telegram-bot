@@ -85,6 +85,8 @@ _gesperrt = {
     # Nur der Geheimnis-Riegel haelt sie -- der Arbeitsordner-Riegel liesse
     # sie durch. Deshalb ein eigener Fall.
     "Stammdaten": str(_ARBEIT / "rechnungen/daten/stammdaten.json"),
+    # Neu 23.09., Adams Entscheid: Geldwerte, die sich selten aendern.
+    "Tagessaetze": str(_ARBEIT / "rechnungen/saetze.json"),
     "ausserhalb": str(_TMP / "woanders/datei.md"),
     "einer von zweien draussen": f"{_drin}\n{Path.home()}/.claude/memory/x.md",
     # Der ..-Weg, zweimal: das erste Ziel faengt schon der Geheimnis-Riegel,
@@ -94,8 +96,23 @@ _gesperrt = {
 }
 _durch = [n for n, pfad in _gesperrt.items()
           if bot.schreiben_ohne_frage(UID, "Write", pfad)]
-zeile("trotz Auto bleiben Repo, Gedaechtnis, Geheimnis, Stammdaten und Draussen gesperrt",
+zeile("trotz Auto bleiben Repo, Gedaechtnis, Geheimnis, Stammdaten, Tagessaetze und Draussen gesperrt",
       not _durch, gemessen=f"durchgerutscht: {_durch}")
+
+# ── 3b. Die Gegenrichtung: der Rechnungsalltag bleibt frei ──────────────────
+# **Adams Entscheid 23.09.:** Die Tagessaetze fragen weiter, die
+# Rechnungsdaten nicht. Ohne diese Zeile koennte ein zu breiter Ausschluss —
+# etwa auf den ganzen Ordner `rechnungen/` — den Rechnungsmorgen still wieder
+# in Dialoge schicken, und Zeile 3 bliebe dabei gruen.
+_alltag = {
+    "Rechnungsdaten": str(_ARBEIT / "rechnungen/daten/rechnung_017-26.json"),
+    "Aufstellung": str(_ARBEIT / "rechnungen/daten/auf_juelich-28088.json"),
+    "Rechnungsregeln": str(_ARBEIT / "rechnungen/RECHNUNGSREGELN.md"),
+}
+_gefragt = [n for n, pfad in _alltag.items()
+            if not bot.schreiben_ohne_frage(UID, "Write", pfad)]
+zeile("unter Auto bleiben Rechnungsdaten, Aufstellungen und Regeln frei",
+      not _gefragt, gemessen=f"fragt trotzdem: {_gefragt}")
 
 # ── 4. Nach einem Prozessstart gilt Auto weiter — in einem EIGENEN Prozess ──
 # **Engywucks "Gut genug wenn" fuer Block 1, woertlich:** Eine Sitzung nach
@@ -240,13 +257,15 @@ _faelle = {
     "Repo-Klon": (str(bot._REPO_DIR / "bot.py"), ("PermissionResultDeny", False)),
     "Gedaechtnis": (str(Path.home() / ".claude/memory/MEMORY.md"),
                     ("PermissionResultDeny", True)),
+    "Tagessaetze": (str(_ARBEIT / "rechnungen/saetze.json"),
+                    ("PermissionResultDeny", True)),
 }
 _falsch = []
 for _name, (_pfad, (_soll_typ, _soll_dialog)) in _faelle.items():
     _typ, _dialog, _msg = asyncio.run(_rueckruf(_pfad))
     if (_typ, _dialog) != (_soll_typ, _soll_dialog):
         _falsch.append(f"{_name}: {_typ}, Dialog={_dialog} {_msg}")
-zeile("im echten Rueckruf: Arbeitsordner frei, Repo hart abgelehnt, Gedaechtnis fragt",
+zeile("im echten Rueckruf: Arbeitsordner frei, Repo hart abgelehnt, Gedaechtnis und Tagessaetze fragen",
       not _falsch, gemessen=" | ".join(_falsch))
 
 print(f"\n{zeilen - len(fehler)}/{zeilen} Zeilen grün")

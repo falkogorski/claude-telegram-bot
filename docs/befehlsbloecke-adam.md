@@ -1164,3 +1164,37 @@ neuer Unterordner löst nichts aus.
 
 **Und kein Deploy.** Der Menü-Umbau (`168113d`) liegt im Hauptbaum und wartet
 auf Engywucks Nachprüfung; er geht später zusammen mit `0f4087e` hinaus.
+
+---
+
+# Teil D · 23.09.2026 — Paketdateien aus dem Log-Repo entfernen
+
+> **Zweck: ENTSCHEID + Adams Hand** · Der Abgleich hat vierzehn Lizenz- und
+> Metadateien einer Python-Umgebung ins Log-Repo getragen (Ursache behoben in
+> `log_sync.sh`, `site-packages` ist jetzt ausgeschlossen). **Der Abgleich
+> löscht nicht** — was schon drüben liegt, bleibt, bis es jemand entfernt.
+>
+> ⚠️ **Nur den `lib`-Baum, nicht den Ordner.** Unter
+> `ausarbeitungen/werkzeuge/yt-transkript/` liegt auch ein echtes Transkript
+> (`medical-medium-ekzem.txt`). Ein Befehl auf den ganzen Ordner nähme es mit.
+
+## Schritt D1 — ansehen (ändert nichts)
+
+```bash
+ssh claudebot 'cd ~/logsync/claude-bot-logs && git pull --quiet && git ls-files ausarbeitungen/werkzeuge/yt-transkript/lib | wc -l && git ls-files ausarbeitungen/werkzeuge | grep -v "/lib/"'
+```
+
+**Prüfzeile:** Die erste Zahl ist **14**. Darunter steht genau eine Zeile —
+das Transkript. Steht dort mehr, halt, und Bescheid sagen.
+
+## Schritt D2 — entfernen und hochschieben
+
+```bash
+ssh claudebot 'cd ~/logsync/claude-bot-logs && git rm -r --quiet ausarbeitungen/werkzeuge/yt-transkript/lib && git commit --quiet -m "Paketdateien einer Python-Umgebung entfernt" && git push --quiet && git ls-files ausarbeitungen/werkzeuge'
+```
+
+**Prüfzeile:** Die Ausgabe nennt nur noch das Transkript.
+
+**Rückweg:** Nicht nötig im Sinn von Wiederherstellen — die Dateien sind
+Lizenztexte aus einem öffentlichen Paket. Sie stehen im Verlauf des Log-Repos
+weiter, falls je jemand sie braucht.

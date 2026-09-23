@@ -84,6 +84,16 @@ def baue_umgebung() -> tuple:
     # Und die GESCHWISTER des Punkt-Ordners, je mit einer Dokument-Endung:
     # genau die Form, die bis zum 11.09. ins Log-Repo wanderte.
     (work / "echt.md").write_text("echt\n", encoding="utf-8")
+    # 23.09.: eine Python-Umgebung, die NICHT venv heisst -- genau der Fall,
+    # der im Betrieb vierzehn Lizenzdateien ins Log-Repo trug.
+    # Die Fassung aus dem laufenden Python, nicht fest: Der Zielumgebungs-
+    # Waechter meldet feste Python-Fassungen in Pfaden, weil sie beim naechsten
+    # Sprung ins Leere zeigen -- er hat meine erste Fassung genau daran gefangen.
+    _py = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    _sp = work / "werkzeuge/yt-tool/lib" / _py / "site-packages/pkg-1.0.dist-info"
+    _sp.mkdir(parents=True)
+    (_sp / "top_level.txt").write_text("pkg\n", encoding="utf-8")
+    (_sp / "LICENSE.md").write_text("fremd\n", encoding="utf-8")
     for ordner in ("node_modules/paket", "venv/lib", ".venv/lib"):
         d = work / ordner
         d.mkdir(parents=True, exist_ok=True)
@@ -233,6 +243,25 @@ else:
     nicht_gemessen("die Schloss-Vorgabe liegt neben dem Log-Repo, nicht unter /tmp",
                    "ohne flock legt das Skript gar kein Schloss an "
                    "(auf dem VPS vorhanden)")
+
+# ── 8. Eine Python-Umgebung, die NICHT venv heisst (23.09.) ─────────────────
+# **Gemessen am 23.09., im Betrieb:** Vierzehn Lizenz- und Metadateien aus
+# `~/workspace/werkzeuge/yt-transkript/lib/python3.x/site-packages/` lagen im
+# Log-Repo. Der Ausschluss kannte `venv/` und `.venv/` -- Namen. Diese Umgebung
+# hiess anders. Der Kommentar im Skript hatte genau das vorhergesagt: *„Ein
+# Ordner, der anders heisst, faellt weiterhin durch."*
+#
+# `site-packages` dagegen hat JEDE Python-Umgebung, egal wie sie heisst -- ein
+# Merkmal statt eines Namens (Blaupause vom 03.09., Backup-Ausschluss).
+# Gemessen in beide Richtungen, die ein Filter hat: Transport UND Bericht.
+_sp = [x for x in _alles if "site-packages" in x]
+zeile("eine anders benannte Python-Umgebung kommt nicht ins Log-Repo",
+      not _sp, gemessen=f"im Log-Repo: {_sp[:3]}")
+zeile("und sie steht nicht als 'bitte melden' in der Quittung",
+      "site-packages" not in _quittung and "top_level.txt" not in _quittung,
+      gemessen=[z for z in _quittung.splitlines() if "site-packages" in z][:2]
+               or "sauber")
+
 
 shutil.rmtree(TMP, ignore_errors=True)
 _gemessen = zeilen - len(uebersprungen)

@@ -188,6 +188,16 @@ if [ -d "$WORK" ]; then
   # Backup am 03.09., wo `.venv` nicht griff, weil der Ordner anders hiess.
   # Geschwister-Regel, auf einen Filter angewandt.
   #
+  # **[NEU 23.09.] `site-packages` — ein Merkmal statt eines Namens.** Im
+  # Betrieb gemessen: vierzehn Lizenz- und Metadateien aus
+  # `~/workspace/werkzeuge/yt-transkript/lib/python3.x/site-packages/` lagen
+  # im Log-Repo. Die Umgebung hieß weder `venv` noch `.venv` — genau der Fall,
+  # den der Kommentar oben vorhersagt. `site-packages` hat JEDE
+  # Python-Umgebung, gleich wie sie heißt; derselbe Wechsel hat am 03.09. den
+  # Backup-Ausschluss um Faktor 36 verkleinert. Der Bericht unten spiegelt ihn
+  # (`-prune`), sonst stünden die Dateien künftig als „bitte melden" in der
+  # Quittung.
+  #
   # ⚠️ **Kein Kommentar zwischen die Fortsetzungszeilen unten.** Genau das ist
   # mir beim Einbau passiert: Der Backslash verbindet die Zeilen, der
   # Kommentartext wurde zum rsync-Argument, und der Transport lieferte NICHTS
@@ -195,6 +205,7 @@ if [ -d "$WORK" ]; then
   # die Zeile "Papier und Gespraechslog sind trotzdem angekommen".
   rsync -a --prune-empty-dirs \
     --exclude='node_modules/' --exclude='venv/' --exclude='.venv/' \
+    --exclude='site-packages/' \
     --exclude='rechnungen/' \
     --exclude='.*' --exclude='*.tmp' \
     --exclude='CLAUDE.md' --exclude='MEMORY.md' \
@@ -274,7 +285,8 @@ if [ -d "$WORK" ]; then
     # bekannte Grenze der Namens-Anker, und sie steht hier, statt vergessen zu
     # werden.
     find "$WORK" \( -name '.venv' -o -name 'venv' -o -name 'node_modules' \
-                    -o -name '.git' -o -name '.quittung' \) -prune -o \
+                    -o -name '.git' -o -name '.quittung' \
+                    -o -name 'site-packages' \) -prune -o \
                  -type f -print 2>/dev/null | while read -r f; do
       name="${f##*/}"
       rel="${f#$WORK/}"

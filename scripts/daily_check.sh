@@ -102,7 +102,30 @@ mkdir -p "$LOGDIR" 2>/dev/null || true
 
 merken() { trocken && return 0; printf '%s\n' "$1" >> "$LAUFDATEI" 2>/dev/null || true; }
 add() { lines+=("$1"); merken "$1"; }
-red() { problems+=("$1"); lines+=("❌ $1"); merken "❌ $1"; }
+
+# >>> ADRESSAT
+# --- Je Befund ein Adressat  [NEU 24.09.2026, Claudias Auftrag 2 vom 19.09.] --
+#
+# Adam: *„Frist abgelaufen, Auftragsbuch — keine Ahnung, was das ist."* Was ihn
+# erreicht, muss ihn betreffen oder eine Entscheidung von ihm brauchen. Drei
+# Tueren, und JEDER Befund geht durch genau eine — die Einstufung steht an der
+# Stelle, an der er entsteht, nicht in einer zentralen Liste, die nicht mitwaechst:
+#
+#   red    — an Adam, mit ❌-Zeile im Protokoll
+#   adam   — an Adam; die Protokollzeile hat die Stelle selbst geschrieben
+#   intern — ⚙️-Zeile ins Protokoll, NICHT an Adam. Der Log-Abgleich traegt das
+#            Protokoll ins Log-Repo, dort liest die Kontrolle (Engywucks
+#            Ergaenzung: ⚙️-Marker im Protokoll statt eines neuen Kanals).
+#
+# **Nichts wird geloescht, nur umgeleitet** (Claudias Gegenmittel 1). Ein neuer
+# Pruefer ohne eine dieser Tueren ist unfertig; `test_meldungen_adressat.py`
+# haelt fest, dass `problems` nur hier beschrieben wird.
+n_adam=0
+n_intern=0
+red()    { problems+=("$1"); lines+=("❌ $1"); merken "❌ $1"; n_adam=$((n_adam + 1)); }
+adam()   { problems+=("$1"); n_adam=$((n_adam + 1)); }
+intern() { lines+=("⚙️ $1"); merken "⚙️ $1"; n_intern=$((n_intern + 1)); }
+# <<< ADRESSAT
 
 # **[NEU 30.08.] Kein Werkzeug → kein Urteil.** (F-Listen-Fund [65], von
 # Engywuck ausdruecklich vorgezogen.)
@@ -180,6 +203,9 @@ elif [ "$_regrc" -eq 0 ]; then
   add "✅ Regressionstest: $last${ueber:+ · $ueber}"
 else
   fail="$(echo "$reg" | grep '❌' | head -3 | tr '\n' ' ')"
+  # Bleibt bei Adam, obwohl technisch: Ein rotes Regressionsergebnis auf dem
+  # Server heisst, dass laufender Code bricht — das wird NICHT „ohnehin
+  # bearbeitet", sondern erst, wenn jemand davon weiss.
   red "Regressionstest FEHLGESCHLAGEN: ${fail:-siehe daily-check.log}"
   # **[NEU 30.08.] Das Versprechen [siehe daily-check.log] einloesen — es war
   # bisher FALSCH.**
@@ -262,8 +288,8 @@ if [ -d "${TELEGRAM_API_DIR:-/var/lib/telegram-bot-api}" ]; then
   if bash "$(dirname "$0")/api_cache_pflege.sh" > /tmp/api_cache_check.log 2>&1; then
     add "✅ API-Zwischenlager: $(tail -1 /tmp/api_cache_check.log)"
   else
-    add "❌ API-Zwischenlager: $(tail -2 /tmp/api_cache_check.log | tr '\n' ' ')"
-    problems+=("Das Zwischenlager des Bot-API-Servers reisst den Deckel — auch nach dem Aufraeumen zu gross.")
+    # Wartung, keine Entscheidung Adams → an die Kontrolle (Auftrag 2).
+    intern "API-Zwischenlager reisst den Deckel, auch nach dem Aufraeumen: $(tail -2 /tmp/api_cache_check.log | tr '\n' ' ')"
   fi
 else
   add "~ API-Zwischenlager: kein eigener Bot-API-Server aktiv (5.34 nicht eingeschaltet)"
@@ -274,13 +300,21 @@ fi
 # --- 9. Stundenblumen-Kette (lebt das System durchgehend?) ------------------
 # Die Zeitpunkt-Pruefungen sagen nur etwas ueber diesen Augenblick. Die Kette
 # belegt die Zeit DAZWISCHEN — und ihr Stillstand ist selbst der Befund.
+#
+# **[GEAENDERT 24.09.2026, Claudias Auftrag 1] Drei Zustaende, nicht zwei.**
+# `--pruefen` gibt 0 (lebt), 2 (noch keine Kette — kein Befund, kein Kreuz)
+# oder 1 (steht still / gebrochen / unlesbar — der Satz sagt WELCHES und was
+# daran haengt). Vorher hiess es fuer alles „steht still oder ist gebrochen";
+# Adam: *„Das ist eine Info, mit der ich gar nichts anfangen kann."*
 if [ -f "$(dirname "$0")/stundenblume.py" ]; then
-  if "${BOTENV[@]}" "$VENVPY" "$(dirname "$0")/stundenblume.py" --pruefen > /tmp/blumen_check.log 2>&1; then
-    add "✅ Stundenblumen: $(tail -1 /tmp/blumen_check.log)"
-  else
-    add "❌ Stundenblumen: $(tail -1 /tmp/blumen_check.log)"
-    problems+=("Die Stundenblumen-Kette steht still oder ist gebrochen: $(tail -1 /tmp/blumen_check.log)")
-  fi
+  "${BOTENV[@]}" "$VENVPY" "$(dirname "$0")/stundenblume.py" --pruefen > /tmp/blumen_check.log 2>&1
+  _blumen_rc=$?
+  _blumen="$(tail -1 /tmp/blumen_check.log)"
+  case "$_blumen_rc" in
+    0) add "✅ Stundenblumen: $_blumen" ;;
+    2) add "Stundenblumen: $_blumen" ;;
+    *) red "$_blumen" ;;
+  esac
 fi
 
 
@@ -306,6 +340,7 @@ fi
 # Gemeldet wird am Stichtag UND danach: Ein Melder, der nur am Tag X feuert,
 # schweigt fuer immer, wenn der Lauf an Tag X ausfaellt. Genau das ist am
 # 29.07. passiert.
+# >>> FRIST
 HEUTE_ISO="$(date +%F)"
 for frist_datei in "$BOTDIR"/*riegel*.md "$BOTDIR"/CLAUDE.md; do
   [ -f "$frist_datei" ] || continue
@@ -334,14 +369,18 @@ for frist_datei in "$BOTDIR"/*riegel*.md "$BOTDIR"/CLAUDE.md; do
   #
   # **Die Lehre, und sie ist aelter als dieser Fall:** Wer einen Text
   # berichtigt, prueft, ob er dabei den Kanal wechselt.
+  # **[GEAENDERT 24.09.2026, Claudias Auftrag 2] An die Kontrolle, nicht an
+  # Adam.** Eine Frist-Auswertung fuehrt die Kontrolle aus; Adam kann es nicht
+  # und soll es nicht. Genau diese Zeile erreichte ihn seit dem 09.09. taeglich.
   if [ "$HEUTE_ISO" = "$bis" ]; then
-    red "Frist $(basename "$frist_datei"): laeuft HEUTE ab ($bis) — heute noch offen, ab morgen zu. Auswertung faellig"
+    intern "Frist $(basename "$frist_datei"): laeuft HEUTE ab ($bis) — heute noch offen, ab morgen zu. Auswertung faellig"
   elif [ "$HEUTE_ISO" \> "$bis" ]; then
-    red "Frist abgelaufen: $(basename "$frist_datei") galt bis $bis — Auswertung faellig, danach Riegel bewusst neu setzen oder schliessen"
+    intern "Frist abgelaufen: $(basename "$frist_datei") galt bis $bis — Auswertung faellig, danach Riegel bewusst neu setzen oder schliessen"
   else
     add "✅ Frist $(basename "$frist_datei"): laeuft bis $bis"
   fi
 done
+# <<< FRIST
 
 # --- 9g. UNVERSIONIERTES IM VPS-KLON (Engywucks Befund 2, 20.08.) ----------
 #
@@ -368,7 +407,8 @@ unversioniert="$(cd "$BOTDIR" && git status --porcelain 2>/dev/null | head -10)"
 if [ -n "$unversioniert" ]; then
   anzahl="$(cd "$BOTDIR" && git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
   erste="$(printf '%s' "$unversioniert" | head -3 | tr '\n' ' ')"
-  red "Im VPS-Klon liegen $anzahl unversionierte/geaenderte Datei(en): $erste — der naechste git pull kann daran scheitern (Governance 8.7)"
+  # An die Kontrolle: Wartung am Klon; der naechste Deploy zeigt es ohnehin laut.
+  intern "Im VPS-Klon liegen $anzahl unversionierte/geaenderte Datei(en): $erste — der naechste git pull kann daran scheitern (Governance 8.7)"
 else
   add "✅ VPS-Klon sauber (nichts Unversioniertes)"
 fi
@@ -449,7 +489,7 @@ PYEND
     TROCKEN) add "🧪 Sichtungs-Vermerk: im Trockenlauf uebersprungen" ;;
     GELEGT)   add "🔎 Sichtungs-Vermerk fuer die Kontrolle ins Auftragsbuch gelegt" ;;
     SCHON-DA) add "✅ eine offene Sichtung liegt bereits" ;;
-    *)        red "Sichtungs-Vermerk NICHT gelegt: $sicht" ;;
+    *)        intern "Sichtungs-Vermerk NICHT gelegt: $sicht" ;;   # fuer die Kontrolle
   esac
 fi
 
@@ -477,7 +517,7 @@ if [ -f "$BOTDIR/scripts/ausarbeitungen_pruefen.py" ]; then
       "")        : ;;   # nichts Neues — und das ist der haeufige Fall
       GELEGT)    add "📋 Zustand der Ausarbeitungen: Befund fuer die Kontrolle gelegt" ;;
       SCHON-DA)  add "✅ ein offener Zustands-Befund liegt bereits" ;;
-      FEHLER*)   red "Zustandspruefer der Ausarbeitungen: $zust" ;;
+      FEHLER*)   intern "Zustandspruefer der Ausarbeitungen: $zust" ;;   # fuer die Kontrolle
       *)         add "📋 $zust" ;;
     esac
   fi
@@ -646,7 +686,7 @@ if [ "${#zeitgeber_still[@]}" -eq 0 ]; then
   add "✅ Zeitgeber: alle aktiv und in ihrem Takt"
 else
   add "❌ Zeitgeber: ${zeitgeber_still[*]}"
-  problems+=("Ein Zeitgeber steht still - was dahinter haengt, laeuft nicht mehr, und das sieht von aussen aus wie Ruhe: ${zeitgeber_still[*]}")
+  adam "Ein Zeitgeber steht still - was dahinter haengt, laeuft nicht mehr, und das sieht von aussen aus wie Ruhe: ${zeitgeber_still[*]}"
 fi
 
 # --- 9b. Haertung: verfaellt sie still? (9.11 Punkt 1) ---------------------
@@ -667,7 +707,7 @@ if [ "${#haertung_fehlt[@]}" -eq 0 ]; then
   add "✅ Haertung unveraendert (NoNewPrivileges, PrivateTmp, ProtectSystem, fail2ban)"
 else
   add "❌ Haertung: ${haertung_fehlt[*]}"
-  problems+=("Eine Haertung wurde zurueckgenommen: ${haertung_fehlt[*]}")
+  adam "Eine Haertung wurde zurueckgenommen: ${haertung_fehlt[*]}"
 fi
 
 # Offene Anschluesse: alles, was NICHT nur lokal lauscht, wird benannt. SSH und
@@ -680,7 +720,7 @@ if werkzeug_da ss "Nach aussen lauschende Anschluesse"; then
     | grep -vE ':(22|8443)$' | sort -u | tr '\n' ' ')
   if [ -n "${unerwartet// /}" ]; then
     add "❌ Unerwartet offene Anschluesse: $unerwartet"
-    problems+=("Es lauschen Anschluesse nach aussen, die dort nicht hingehoeren: $unerwartet")
+    adam "Es lauschen Anschluesse nach aussen, die dort nicht hingehoeren: $unerwartet"
   else
     add "✅ Nach aussen lauschen nur SSH und der Webhook-Port"
   fi
@@ -705,7 +745,7 @@ ZUSTELLMARKE="$BOTHOME/.claude/zustellung-gestoert"
 if [ -f "$ZUSTELLMARKE" ]; then
   grund=$("$VENVPY" -c "import json,sys;print(json.load(open(sys.argv[1])).get('grund','ohne Angabe'))" "$ZUSTELLMARKE" 2>/dev/null)
   add "❌ Zustellung gestoert: $grund"
-  problems+=("Telegram erreicht uns nicht mehr zuverlaessig: $grund — der Bot laeuft, aber es kommt womoeglich nichts mehr an.")
+  adam "Telegram erreicht uns nicht mehr zuverlaessig: $grund — der Bot laeuft, aber es kommt womoeglich nichts mehr an."
 else
   add "✅ Zustellung: keine Stoerung vermerkt"
 fi
@@ -720,7 +760,7 @@ if [ -f "$(dirname "$0")/stundenblume.py" ]; then
   if [ -n "$lage" ]; then
     while IFS= read -r zeile; do
       add "$zeile"
-      problems+=("$zeile")
+      adam "$zeile"
     done <<< "$lage"
   fi
 fi
@@ -772,7 +812,7 @@ if [ -d "$_ausgang" ]; then
     done
     _z="$_wartend fertige Rechnung(en) warten seit mindestens $_tage Tag(en) auf die Ablage - Mac-Sitzung starten oder [ablegen] sagen"
     add "$_z"
-    problems+=("$_z")
+    adam "$_z"
   fi
 fi
 
@@ -787,7 +827,7 @@ if [ -f "$(dirname "$0")/websuche_check.py" ]; then
     add "$wsz"
   else
     add "$wsz"
-    problems+=("$wsz")
+    adam "$wsz"
   fi
 fi
 
@@ -806,12 +846,20 @@ if [ -r /proc/meminfo ]; then
   platte_frei=$(df -BG --output=avail / 2>/dev/null | tail -1 | tr -dc '0-9')
   add "📊 Vorraete: ${mem_verf} von ${mem_ges} MiB Speicher verfuegbar · ${platte_frei:-?} GiB Platte frei · Auslagerung ${swap_benutzt} von ${swap_ges} MiB benutzt"
   if [ "${mem_verf:-9999}" -lt 400 ]; then
-    problems+=("Nur noch ${mem_verf} MiB Arbeitsspeicher verfuegbar — in diesem Bereich beendet der Kernel Prozesse ohne Vorwarnung.")
+    adam "Nur noch ${mem_verf} MiB Arbeitsspeicher verfuegbar — in diesem Bereich beendet der Kernel Prozesse ohne Vorwarnung."
   fi
   if [ "${swap_ges:-0}" -eq 0 ]; then
     add "~ Kein Auslagerungsbereich eingerichtet — bei Speichermangel gibt es kein Abfedern, nur den OOM-Killer (Befehlsblock Schritt 4a)."
   fi
 fi
+
+# Je Lauf die Zahl je Adressat ins Protokoll (Claudias Gegenmittel 3) — damit
+# die Kontrolle sieht, wie viel umgeleitet wurde. **Bewusst ohne Summen-Alarm:**
+# Jeder Befund zaehlt in genau der Tuer, durch die er geht, die Summe stimmt
+# also per Bauart. Ein Alarm darauf waere ein Pruefer, der nie anschlagen kann.
+# Was diese Zahl NICHT faengt, ist ein Befund, der gar keine Tuer nimmt — das
+# haelt `test_meldungen_adressat.py` am Quelltext fest.
+add "📨 Befunde dieses Laufs: ${n_adam} an Adam · ${n_intern} an die Kontrolle (⚙️)"
 
 {
   echo "===== 4-Uhr-Check $STAMP ====="

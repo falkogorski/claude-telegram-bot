@@ -903,11 +903,16 @@ def kette_pruefen(jetzt: float | None = None) -> dict:
     sie unversehrt?** (passen die Fingerabdrücke aneinander).
     """
     jetzt = jetzt or time.time()
+    # `zustand` ist seit dem 24.09. Teil der Antwort (Claudias Auftrag 1 vom
+    # 19.09.): Der Tagescheck meldete „steht still ODER ist gebrochen" — Adam:
+    # *„Das ist ja ein wichtiger Unterschied."* Und „noch keine Kette" ist kein
+    # Fehler, sondern ein Normalzustand; ein rotes Kreuz dafür entwertet jedes
+    # echte.
     if not KETTE.exists():
-        return {"ok": False, "grund": "Es gibt noch keine Kette."}
+        return {"ok": False, "zustand": "keine", "grund": "Es gibt noch keine Kette."}
     letzte = _letzte()
     if letzte is None:
-        return {"ok": False, "grund": "Die Kette ist leer."}
+        return {"ok": False, "zustand": "keine", "grund": "Die Kette ist leer."}
     alter = jetzt - float(letzte.get("zeit", 0))
     frisch = alter <= TOLERANZ_S or bool(_in_ruhe(jetzt))
 
@@ -931,18 +936,56 @@ def kette_pruefen(jetzt: float | None = None) -> dict:
                     brueche += 1                      # (a) Glied ausgetauscht
                 vorher = e.get("abdruck")
     except Exception as e:
-        return {"ok": False, "grund": f"Kette nicht lesbar: {e}"}
+        return {"ok": False, "zustand": "unlesbar", "grund": f"Kette nicht lesbar: {e}"}
 
     ok = frisch and brueche == 0
     grund = ""
+    zustand = "ok" if ok else ("still" if not frisch else "gebrochen")
     if not frisch:
         grund = (f"Die jüngste Blume ist {alter / 60:.0f} Minuten alt — "
                  "die Kette steht still.")
     elif brueche:
         grund = (f"{brueche} Bruchstelle(n) in der Kette — ein Glied zeigt nicht "
                  "auf das vorige. Das ist sichtbar gemacht, nicht verhindert.")
-    return {"ok": ok, "grund": grund, "alter_s": round(alter),
+    return {"ok": ok, "zustand": zustand, "grund": grund, "alter_s": round(alter),
             "brueche": brueche}
+
+
+def _dauer_menschlich(sekunden: float) -> str:
+    """„seit 40 Minuten", „seit etwa 5 Stunden", „seit 3 Tagen" — keine Sekunden."""
+    m = sekunden / 60
+    if m < 90:
+        return f"seit {max(1, round(m))} Minuten"
+    h = m / 60
+    if h < 48:
+        return f"seit etwa {round(h)} Stunden"
+    return f"seit {round(h / 24)} Tagen"
+
+
+def befund_fuer_adam(e: dict) -> "tuple[int, str]":
+    """Aus der Bewertung den Satz für den Tagescheck — und den Rückgabewert.
+
+    0 = lebt · 2 = noch keine Kette (kein Befund, nur Protokoll) · 1 = Befund.
+    **Der Befund nennt, was daran hängt** (Claudias Auflage): Ohne diese Hälfte
+    stimmt die Meldung und ist trotzdem wertlos.
+    """
+    z = e.get("zustand")
+    if z == "ok":
+        return 0, (f"✅ Kette lebt (jüngste Blume vor {e.get('alter_s', '?')} s, "
+                   f"{e.get('brueche', 0)} Bruchstelle(n))")
+    if z == "keine":
+        return 2, f"ℹ️ {e['grund']} Das ist kein Fehler, nur noch nicht begonnen."
+    if z == "still":
+        return 1, (f"Die Stundenblumen stehen {_dauer_menschlich(e.get('alter_s', 0))} "
+                   "still. Solange meldet niemand zwischen zwei Tageschecks, wenn "
+                   "der Bot oder ein Dienst ausfällt.")
+    if z == "gebrochen":
+        return 1, (f"Die Belegkette der Stundenblumen hat {e.get('brueche', 0)} "
+                   "Bruchstelle(n): Ein Eintrag wurde nachträglich verändert oder "
+                   "ersetzt. Der Nachweis, dass das System in dieser Zeit lief, "
+                   "trägt damit nicht mehr.")
+    return 1, (f"Die Belegkette der Stundenblumen ist nicht lesbar ({e.get('grund')}). "
+               "Solange weiß niemand, ob das System zwischen zwei Tageschecks lief.")
 
 
 # ------------------------------------------------- G3: der Weg ohne den Bot --
@@ -1054,11 +1097,9 @@ def main() -> int:
             print(name)
         return 0
     if a.pruefen:
-        e = kette_pruefen()
-        print(("✅ Kette lebt" if e["ok"] else f"❌ {e['grund']}")
-              + f" (jüngste Blume vor {e.get('alter_s', '?')} s, "
-                f"{e.get('brueche', 0)} Bruchstelle(n))")
-        return 0 if e["ok"] else 1
+        rc, satz = befund_fuer_adam(kette_pruefen())
+        print(satz)
+        return rc
     e = bluehen()
     print(f"🪷 {e['menschlich']} · {e['abdruck']} · "
           + (", ".join(e["befunde"]) if e["befunde"] else "nichts Auffälliges")

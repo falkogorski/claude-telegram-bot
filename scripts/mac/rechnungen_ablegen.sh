@@ -267,7 +267,10 @@ if [ "$_tief" -gt 0 ] && [ -n "${RECHNUNGEN_CHAT:-}" ]; then
   # „1 Rechnung(en) gelegt" sagt, waehrend ein Regelblatt ankam, ist eine
   # kleine Falschaussage — und kleine Falschaussagen sind die, die man
   # spaeter glaubt.
-  _text="📁 $_tief Datei(en) nach iCloud gelegt: ${_wohin:-(ohne Unterordner)}"
+  # **[24.09.2026, Engywucks Uebergabe Block 3]** Die Meldung nennt jetzt
+  # ihren Ausloeser. Adam hat gefragt, was sie ist — sie betrifft ihn und
+  # bleibt laut, sie muss nur sagen, woher sie kommt.
+  _text="📁 $_tief Datei(en) nach iCloud gelegt (nach dem Mac-Lauf): ${_wohin:-(ohne Unterordner)}"
   # ── **[GEAENDERT 04.09.] Der Text geht ueber stdin, nie in die Befehlszeile**
   #
   # **Engywucks Befund 3**, gemessen mit einem Ordner `L'Osteria/Bar`: Der

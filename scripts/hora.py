@@ -601,14 +601,20 @@ def _lauf(trocken: bool = False) -> int:
 
     offen = auftraege()
     if not offen:
-        # Bedingung 2 + 5: Auch Leerlauf wird berichtet — aber gedämpft, sonst
-        # sind es bei Zweistunden-Takt zwölf gleichlautende Nachrichten am Tag.
+        # Bedingung 2 + 5: Leerlauf wird festgehalten — gedämpft, sonst stünden
+        # bei Zweistunden-Takt zwölf gleichlautende Einträge am Tag.
+        #
+        # **[GEÄNDERT 24.09.2026, Claudias Auftrag 4 vom 19.09.] Nur noch ins
+        # Protokoll, nicht mehr an Adam.** Sein Wortlaut: *„ist ja eh eine
+        # Regel. So brauchst du das nicht immer wieder auszugeben."* Eine
+        # Meldung mit immer demselben Wortlaut trägt keine Information.
+        #
+        # Der Dämpfer bleibt als Mechanik — er wird gebraucht, sobald Horas
+        # Leerlauf wieder einen Adressaten hat. Was Hora Adam meldet, sind
+        # abgeschlossene Arbeit, geparkte Entscheidungen und Fehlläufe.
         if _leerlauf_melden():
-            melden(f"🕰️ Hora ({beginn}): Die Auftragsliste ist leer — ich habe "
-                   "nichts angefasst. Wenn etwas laufen soll, trag es in die "
-                   "Liste ein; ohne Eintrag entscheide ich nichts von selbst. "
-                   "(Solange sie leer bleibt, melde ich das höchstens einmal "
-                   "am Tag.)")
+            _protokollieren({"beginn": beginn, "ereignis": "leerlauf",
+                             "text": "Auftragsliste leer — nichts angefasst"})
         return 0
     _leerlauf_entwarnen()          # es gibt wieder Arbeit
 

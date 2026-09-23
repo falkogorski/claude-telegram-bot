@@ -126,6 +126,47 @@ Adam unterwegs war und keine Bau-Sitzung lief.
 `git status` lesen, bevor gebaut wird. Eine Liste gelöschter Dateien, die man
 nicht selbst gelöscht hat, ist kein Aufräumen — sie ist ein Befund.
 
+### Engywucks Hypothese gemessen — iCloud-Auslagerung: **widerlegt** `[23.09., 14:3x]`
+
+Engywuck vermutete, iCloud habe den Ordner ausgelagert statt gelöscht. Vier
+Messungen, keine trifft:
+
+| Messung | Ergebnis |
+|---|---|
+| Liegt das Repo im iCloud-Bereich? | **Nein.** `~/Projects/claude-telegram-bot`, echtes Verzeichnis, kein Symlink |
+| „Mac-Speicher optimieren" | **aus** (`optimize-storage = 0`) — iCloud lagert nichts aus |
+| `.icloud`-Platzhalter im Baum | **keiner** |
+| `git stash` · `git reflog` | leer · **kein Eintrag** zwischen 11.09., 11:29 und 23.09., 14:22 |
+
+Der Reflog schließt dabei nur Git-Befehle aus, die einen Verweis bewegen
+(`checkout`, `reset`, `commit`). Ein schlichtes Löschen ohne Git sieht er
+nicht — und die Löschungen waren **nicht vorgemerkt** (` D`, nicht `D `), also
+auch kein `git rm`. Es war ein Löschen am Dateisystem vorbei an Git.
+
+### Was der Messgang stattdessen fand — zeitlich passend, **nicht bewiesen**
+
+- **macOS-Großupdate 26 → 27, installiert am 15.09. um 08:41**
+  (`softwareupdate --history`). Das Neustart-Protokoll beginnt erst mit diesem
+  Update (`wtmp begins Tue Sep 15 08:45`) — was davor lag, ist nicht mehr
+  sichtbar.
+- **Das iCloud-Protokoll beginnt am 15.09. um 02:26** mit einem Neustart des
+  Dateiversions-Dienstes (`revisiond … starting`) und einer Reihe von Fehlern
+  *„failed to resolve docID … No such file or directory"*.
+- **`docs/auftraege` wurde am 15.09. um 02:27 verändert** — eine Minute danach.
+  Keine Datei darin trägt dieses Datum, also wurde dort etwas entfernt oder
+  umbenannt, nicht angelegt.
+
+**Die Grenze dieser Messung:** Die Pfade im Systemprotokoll sind als
+`<private>` geschwärzt. Ob die Fehlermeldungen den verschwundenen Ordner
+betreffen, lässt sich daraus nicht lesen — ebenso wenig, ob sie **Ursache**
+oder **Folge** waren. Ein Betriebssystem-Update löscht gewöhnlich keine
+Nutzerdateien; das Zusammentreffen ist ein Anhaltspunkt, kein Befund.
+
+**Konsequenz:** Engywucks Gegenmaßnahme (Repo aus dem iCloud-Bereich nehmen,
+Speicher-Optimierung abschalten) entfällt — beides ist bereits so. Es bleibt
+der Griff von oben: **`git status` beim ersten Zug nach einer Pause, und beim
+nächsten großen macOS-Update gezielt davor und danach.**
+
 ## Noch aufzunehmen
 
 - Das **Gedächtnis** (`~/.claude/memory/`): außerhalb beider Repos, ohne

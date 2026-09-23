@@ -134,11 +134,10 @@ marker = {"🟣 Haiku", "🟡 Sonnet", "🔵 Opus", "🟠 Fable",
           # Beschriftungen („Empfang ✓ → aus" und „Empfang → an").
           # Kern-Marker ist das Wort, das in beiden steht — dieselbe
           # Begruendung wie bei „Genehmigen" eine Zeile darueber.
-          "Empfang",
-          # 11.09.: dritter Umschalter mit zwei Beschriftungen
-          # („Schreiben frei ✓ → fragen" / „Schreiben frei → bis
-          # Neustart"). Kern-Marker ist wieder der gemeinsame Teil.
-          "Schreiben frei"}
+          "Empfang"}
+# 23.09.: Der Schreib-Knopf ist im Auto-Knopf aufgegangen. Seine alten
+# Beschriftungen werden nicht mehr gezeichnet und brauchen deshalb keinen
+# Marker -- sie sind in _ALL_KEYBOARD_BTNS nur noch zum Umleiten bekannt.
 fehlende_marker = [mk for mk in marker if mk not in hilfe_src]
 if fehlende_marker:
     fail(f"Tastatur-Marker fehlen in /hilfe: {fehlende_marker}")

@@ -830,10 +830,12 @@ _BTN_AUTO_TO_GENEHM_ALT = "⚡ Auto ✓ → Genehmigen"
 # beides, ohne dass man raten muss, was ein Druck bewirkt.
 _BTN_EMPFANG_TO_AUS = "👩‍💼 Empfang ✓ → aus"    # Empfang an; Tipp → aus
 _BTN_EMPFANG_TO_AN = "👩‍💼 Empfang → an"        # Empfang aus; Tipp → an
-# **[NEU 11.09.2026]** Schreiben frei im Arbeitsordner, bis zum Neustart.
-# Muster wie Auto und Empfang: Der Haken sagt den Stand, der Pfeil den
-# Tipp-Effekt. Die Beschriftung nennt ausdrücklich die **Reichweite** — eine
-# Freigabe, deren Ende man nicht sieht, ist die aus dem August.
+# **[ALT seit 23.09.2026]** Der Schreib-Knopf ist im Auto-Knopf aufgegangen
+# (Adams Entscheid: EIN Umschalter für Bash und Schreiben im Arbeitsordner).
+# Die Beschriftungen bleiben bekannt, weil Telegram-Tastaturen client-seitig
+# weiterleben — ohne sie ginge ein Druck auf den alten Knopf als Frage an
+# Claudia. Der Zweig in `_handle_keyboard_btn` antwortet stattdessen mit der
+# neuen Tastatur und einem Satz, wohin der Knopf gewandert ist.
 _BTN_SCHREIBEN_TO_FRAGEN = "✍️ Schreiben frei ✓ → fragen"
 _BTN_SCHREIBEN_TO_FREI = "✍️ Schreiben frei → bis Neustart"
 # Alt-Beschriftungen (bis 23.07.): bleiben gemappt, weil Telegram-Tastaturen
@@ -955,14 +957,18 @@ _ALL_KEYBOARD_BTNS = {_BTN_OPUS, _BTN_SONNET, _BTN_HAIKU, _BTN_FABLE,
 _AUTO_AN_TEXT = (
     "✈️ **Auto ist an.**\n\n"
     "✅ Bash läuft ohne Rückfrage\n"
+    "✅ Dateiänderungen im Arbeitsordner laufen ohne Rückfrage\n"
     "❌ Schreiben ins Repo\n"
+    "❌ Gedächtnis-Ordner\n"
     "❌ Geheimnis-Pfade\n"
+    "❌ Dateiänderungen außerhalb des Arbeitsordners\n"
     "❌ Befehle nach draußen (curl, wget, nc, ssh, scp, telnet)\n"
-    "❌ Kosten-Werkzeuge — fragen weiter"
+    "❌ Kosten-Werkzeuge — fragen weiter\n\n"
+    "Der Zustand bleibt, auch über den nächtlichen Neustart hinweg."
 )
 _GENEHMIGEN_AN_TEXT = (
     "🔐 **Genehmigen ist an** — jeder Bash-Aufruf außerhalb der Positivliste "
-    "fragt wieder nach."
+    "und jede Dateiänderung fragt wieder nach."
 )
 # Aliase statt fester Versionen → Bot nutzt automatisch das jeweils
 # höchstwertige aktuelle Modell, Label muss bei neuen Versionen nicht angepasst werden.
@@ -1338,7 +1344,6 @@ def _main_keyboard(tts_on: bool, model: str, effort: str | None = None,
     # entscheidet besser als wer es begründet.
     rows.append([
         _BTN_AUTO_TO_GENEHM if _bash_auto_on(user_id) else _BTN_GENEHM_TO_AUTO,
-        _BTN_SCHREIBEN_TO_FRAGEN if schreiben_frei(user_id) else _BTN_SCHREIBEN_TO_FREI,
         _BTN_EMPFANG_TO_AUS if empfang_an(user_id) else _BTN_EMPFANG_TO_AN,
     ])
     return ReplyKeyboardMarkup(
@@ -3052,20 +3057,26 @@ _NO_ALWAYS_TOOLS = ({"WebFetch", "Write", "Edit", "MultiEdit",
 
 
 # **[NEU 11.09.2026, Engywucks Mini-Auftrag vor Adams Abreise]** Schreiben frei
-# im Arbeitsordner — bis zum Neustart.
+# im Arbeitsordner — **seit 23.09.2026 Teil des Auto-Knopfs.**
 #
 # Adam am 11.09.: *„ich will die eigentlich gar nicht mehr drücken müssen …
 # das bindet meinen Fokus."* Claudias Messung derselben Nacht nennt den Grund:
 # Nicht Bash erzeugt die Kette, sondern **`Write` und `Edit`** — jede einzelne
 # Dateiänderung fragt, in einer Nacht Dutzende allein für vier Papiere.
 #
-# **Das Flag lebt NUR IM SPEICHER, nie in den Vorlieben.** Das ist der ganze
-# Unterschied zur Dauerfreigabe, an der die alte Fassung im August gefallen
-# ist: Jene überlebte den Neustart, weil sie auf der Platte lag. Diese endet
-# mit dem Prozess — und der Hygiene-Neustart kommt täglich um vier. Eine
-# Reichweite, die von selbst endet, ist etwas anderes als eine, die man
-# zurücknehmen muss.
-_SCHREIBEN_FREI: "dict[int, bool]" = {}
+# **Die erste Fassung (11.09.) hielt das Flag nur im Speicher**, damit es mit
+# dem Hygiene-Neustart um vier endet. **Gemessen am 21.09. war genau das der
+# Fehler:** Die Sitzung begann um 04:30 ohne Flag, zwei Schreib-Dialoge
+# warteten je eine Stunde ins Leere, das Schlusswort kam erst um 06:45. Die
+# Reichweite endete zuverlässig — und zwar genau dann, wenn gearbeitet wird.
+#
+# **Adams Entscheid vom 23.09., gegen Engywucks Empfehlung:** Der Auto-Zustand
+# trägt beides und liegt **dauerhaft in den Vorlieben**. Das ist die Form, an
+# der die Dauerfreigabe im August fiel. **Der Ausgleich sind die harten
+# Grenzen**, die davor stehen und nicht ersetzt werden: Repo-Klon,
+# Gedächtnis-Ordner, Geheimnis-Pfade, alles außerhalb des Arbeitsordners — und
+# **der Knopf zeigt den Stand**, solange er gilt. Sichtbar bleibt es; endlich
+# ist es nicht mehr, und das gehört so benannt.
 
 # Die Werkzeuge, die der Knopf überhaupt betrifft. Bewusst eine kleine Menge:
 # `NotebookEdit` steht NICHT darin — es kommt im Alltag nicht vor, und was
@@ -3075,21 +3086,6 @@ _SCHREIBWERKZEUGE = {"Write", "Edit", "MultiEdit"}
 _ARBEITSORDNER = Path(
     os.environ.get("CLAUDE_ARBEITSORDNER") or str(Path.home() / "workspace")
 ).expanduser()
-
-
-def schreiben_frei(user_id: "int | None") -> bool:
-    return bool(_SCHREIBEN_FREI.get(int(user_id))) if user_id is not None else False
-
-
-def schreiben_frei_setzen(user_id: int, an: bool) -> None:
-    """Eine Tür, wie bei `/tts` und dem Empfang (A-6).
-
-    Der Zustand gehört der **Person** und gilt in jedem Zimmer — deshalb ein
-    Eintrag je Person und keine Sitzungsgröße. Er wird ausdrücklich **nicht**
-    in die Vorlieben geschrieben; wer das nachrüstet, macht aus der Reichweite
-    wieder die Dauerfreigabe von damals.
-    """
-    _SCHREIBEN_FREI[int(user_id)] = bool(an)
 
 
 def _im_arbeitsordner(ref: str) -> bool:
@@ -3128,7 +3124,8 @@ def schreiben_ohne_frage(user_id: "int | None", tool_name: str, ref: str) -> boo
 
     Alle vier müssen zutreffen, und jede einzelne ist ein eigener Riegel:
 
-    1. Der Knopf steht auf frei (Flag im Speicher).
+    1. **Auto ist an** (`_bash_auto_on`, in den Vorlieben — seit 23.09. EIN
+       Zustand für Bash und Schreiben, kein zweiter Speicher).
     2. Es ist eines der drei Schreibwerkzeuge.
     3. **Jeder** Pfad liegt unter dem Arbeitsordner.
     4. Nichts Heikles ist berührt — `_is_sensitive_ref` deckt Repo-Klon,
@@ -3137,7 +3134,7 @@ def schreiben_ohne_frage(user_id: "int | None", tool_name: str, ref: str) -> boo
        der Riegel auch dann greift, wenn jemand später die Reihenfolge im
        Rückruf ändert.
     """
-    if not schreiben_frei(user_id):
+    if not _bash_auto_on(user_id):
         return False
     if tool_name not in _SCHREIBWERKZEUGE:
         return False
@@ -4171,23 +4168,27 @@ def make_permission_callback(user_id: int, thread_id: "int | None" = None):
         if tool_name == _SEARCH_TOOL_NAME and not sensitive:
             return PermissionResultAllow()
 
-        # **[NEU 11.09.2026] „Schreiben frei" — VOR der Always-Liste.**
+        # **[GEÄNDERT 23.09.2026] Schreiben im Arbeitsordner — VOR der
+        # Always-Liste, gesteuert vom Auto-Knopf.**
         #
         # `Write`, `Edit` und `MultiEdit` stehen in `_NO_ALWAYS_TOOLS` und sind
-        # damit nie **pauschal** dauerfreigebbar. Das bleibt so: Das
-        # Aufnahmekriterium jener Liste ist *„ein Klick gilt danach unsichtbar
-        # fort"*, und für eine pauschale Dauerfreigabe trifft es weiter zu.
+        # damit nie über den Knopf „immer genehmigen" **pauschal** freigebbar.
+        # Das bleibt so — dieser Zweig ist enger: nur unter dem Arbeitsordner,
+        # nur wenn nichts Heikles berührt ist, nur solange Auto an ist.
         #
-        # Diese Zeile ist etwas anderes, und der Unterschied ist der ganze
-        # Grund, warum sie zulässig ist: Sie gilt **nur im Speicher**, **nur
-        # unter dem Arbeitsordner**, und der Knopf, der sie setzt, **zeigt sie
-        # an, solange sie gilt**. Sie ist sichtbar und endlich; das Kriterium
-        # trifft nicht zu.
+        # **Was sich am 23.09. geändert hat, und es gehört hierher:** Bis dahin
+        # begründete diese Stelle ihre Zulässigkeit damit, dass die Freigabe
+        # **nur im Speicher** lebt und mit dem Neustart endet. Adam hat
+        # entschieden, dass sie im Auto-Zustand **dauerhaft** gilt — weil die
+        # Reichweite genau dann endete, wenn gearbeitet wird (Messung 21.09.).
+        # Die Zulässigkeit hängt damit allein an den **harten Grenzen** in
+        # `schreiben_ohne_frage` und an der **Sichtbarkeit** des Knopfs. Wer
+        # eine davon lockert, hat die August-Fassung zurück.
         #
         # `schreiben_ohne_frage` prüft alle vier Bedingungen selbst, auch die
         # Geheimnis-Prüfung. Das ist bewusst doppelt: Sie steht schon in
-        # `sensitive` zwei Zeilen darüber — aber wer später die Reihenfolge im
-        # Rückruf ändert, soll den Riegel nicht dabei verlieren.
+        # `sensitive` weiter oben — aber wer später die Reihenfolge im Rückruf
+        # ändert, soll den Riegel nicht dabei verlieren.
         if schreiben_ohne_frage(user_id, tool_name, _ref):
             return PermissionResultAllow()
 
@@ -7331,7 +7332,7 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "anschauen, ✍ 👨‍💻 🏆 = merk dir das, 😴 = später, ❤️ 🎉 👏 💯 🍓 🍌 = "
         "Wertschätzung). Auf offene Fragen ist die Reaktion die Antwort. "
         "Nummerierte Optionslisten bekommen 1️⃣–9️⃣-Knöpfe.\n\n"
-        "📌 Buttons in der Tastatur (13):\n"
+        "📌 Buttons in der Tastatur (12):\n"
         "🟣 Haiku / 🟡 Sonnet / 🔵 Opus / 🟠 Fable — Modell wechseln\n"
         "⚡ Schnell / ⚖️ Normal / 🚀 Max — Denk-Tiefe\n"
         "🎙️ Genau ✓ → Flott (bzw. umgekehrt) — Transkriptions-Tempo: ✓ markiert "
@@ -7344,24 +7345,22 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "wann wieder frei ist. Die Abfrage kostet kein Kontingent\n"
         "\U0001f510 Genehmigen ✓ → Auto (bzw. ✈️ Auto ✓ → Genehmigen) — "
         "Umschalter für "
-        "Bash-Rückfragen. Bei „Genehmigen“ fragt jeder Befehl außerhalb der "
-        "Positivliste nach; bei „Auto“ läuft Bash ohne Rückfrage. Was sich "
-        "dadurch NICHT ändert: Schreibversuche ins Repo werden weiter "
-        "abgelehnt, Geheimnis-Pfade bleiben zu, Kosten-Werkzeuge fragen "
-        "weiter — und Befehle, die nach draußen sprechen (curl, wget, "
-        "nc, ssh, scp, telnet) fragen auch im Auto-Zustand nach. Der Knopf "
-        "erspart die Rückfrage, nicht die Ablehnung\n"
+        "Bash-Rückfragen und Dateiänderungen im Arbeitsordner. Bei "
+        "„Genehmigen“ fragt jeder Befehl außerhalb der Positivliste und jede "
+        "Dateiänderung nach; bei „Auto“ laufen Bash und Schreiben im "
+        "Arbeitsordner ohne Rückfrage — auch über den nächtlichen Neustart "
+        "hinweg. Was sich dadurch NICHT ändert: Schreibversuche ins Repo "
+        "werden weiter abgelehnt, Gedächtnis-Ordner und Geheimnis-Pfade "
+        "bleiben zu, Dateiänderungen außerhalb des Arbeitsordners und "
+        "Kosten-Werkzeuge fragen weiter — und Befehle, die nach draußen "
+        "sprechen (curl, wget, nc, ssh, scp, telnet), fragen auch im "
+        "Auto-Zustand nach. Der Knopf erspart die Rückfrage, nicht die "
+        "Ablehnung\n"
         "👩‍💼 Empfang ✓ → aus (bzw. 👩‍💼 Empfang → an) — Umschalter für den "
         "Empfang: an bedeutet, dass die Sekretärin den Hauptchat übernimmt, "
         "in Sekunden antwortet und Arbeit an ein Zimmer weitergibt. Aus "
         "bedeutet, dass alles wie bisher in einem Faden läuft. Dieselbe "
-        "Wirkung wie /empfang; gezielt mit /empfang_an und /empfang_aus\n"
-        "✍️ Schreiben frei → bis Neustart (bzw. ✍️ Schreiben frei ✓ → fragen) — "
-        "Umschalter für Dateiänderungen: frei bedeutet, dass Schreibvorgänge "
-        "im Arbeitsordner ohne Rückfrage laufen. Gesperrt bleiben der "
-        "Repo-Klon, der Gedächtnis-Ordner, Geheimnis-Pfade und alles außerhalb "
-        "des Arbeitsordners. Die Freigabe steht nur im Speicher und endet mit "
-        "dem nächsten Neustart des Bots\n\n"
+        "Wirkung wie /empfang; gezielt mit /empfang_an und /empfang_aus\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
     )
     await update.message.reply_text(text)
@@ -12579,6 +12578,25 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
                                         user_id=user_id))
         return
 
+    # **[ALT seit 23.09.2026]** Der Schreib-Knopf ist im Auto-Knopf
+    # aufgegangen. Ein Druck auf die alte Tastatur landet hier — nicht als
+    # Frage bei Claudia — und bekommt die neue Tastatur samt einem Satz,
+    # wohin der Knopf gewandert ist. Er schaltet NICHTS: Ein Knopf, den es
+    # nicht mehr gibt, soll keinen Zustand mehr ändern.
+    if text in (_BTN_SCHREIBEN_TO_FREI, _BTN_SCHREIBEN_TO_FRAGEN):
+        _p = _USER_PREFS.get(str(user_id), {})
+        sess = _sess(user_id, _fd)
+        stand = "an" if _bash_auto_on(user_id) else "aus"
+        await update.message.reply_text(
+            "✍️ Diesen Knopf gibt es nicht mehr.\n\n"
+            "Schreiben im Arbeitsordner gehört jetzt zum Auto-Knopf — "
+            f"ein Umschalter für beides. Auto ist gerade {stand}.",
+            reply_markup=_main_keyboard(
+                sess.tts_enabled if sess else _p.get("tts_enabled", False),
+                sess.current_model if sess else _p.get("model", DEFAULT_MODEL),
+                _p.get("effort"), user_id=user_id))
+        return
+
     # **Der Knopf geht denselben Weg wie sein Befehl** (11.09.) — wie bei
     # `/kontingent`. Ein Knopf mit eigener Logik wäre die nächste Stelle, an
     # der zwei Pfade auseinanderlaufen; genau das war A-6 am 10.09.
@@ -12586,35 +12604,6 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
     # Beide Beschriftungen müssen hier stehen, nicht nur in der Menge bekannter
     # Knöpfe: Sonst kennt der Bot den Knopf zwar, tut nichts damit, und der
     # Text ginge als Frage an den Agenten (der Knopf-Bug vom 23.07.).
-    if text in (_BTN_SCHREIBEN_TO_FREI, _BTN_SCHREIBEN_TO_FRAGEN):
-        neu_frei = not schreiben_frei(user_id)
-        schreiben_frei_setzen(user_id, neu_frei)
-        _p = _USER_PREFS.get(str(user_id), {})
-        sess = _sess(user_id, _fd)
-        if neu_frei:
-            antwort = (
-                "✍️ **Schreiben frei — bis zum Neustart.**\n\n"
-                "✅ Dateiänderungen im Arbeitsordner laufen ohne Rückfrage.\n"
-                "❌ Der Repo-Klon bleibt gesperrt (Vier-Augen-Prinzip).\n"
-                "❌ Der Gedächtnis-Ordner bleibt gesperrt — was dort steht, "
-                "wirkt in jede künftige Sitzung.\n"
-                "❌ Geheimnis-Pfade bleiben gesperrt.\n"
-                "❌ Alles außerhalb des Arbeitsordners fragt weiter.\n\n"
-                "Die Freigabe steht **nur im Speicher** und endet mit dem "
-                "nächsten Neustart des Bots — spätestens beim Hygiene-Lauf um "
-                "vier. Zurücknehmen geht jederzeit mit demselben Knopf.")
-        else:
-            antwort = (
-                "✍️ **Schreiben fragt wieder.**\n\n"
-                "✅ Jede Dateiänderung legt dir wieder eine Anfrage vor.")
-        await update.message.reply_text(
-            antwort, parse_mode=ParseMode.MARKDOWN,
-            reply_markup=_main_keyboard(
-                sess.tts_enabled if sess else _p.get("tts_enabled", False),
-                sess.current_model if sess else _p.get("model", DEFAULT_MODEL),
-                _p.get("effort"), user_id=user_id))
-        return
-
     if text in (_BTN_EMPFANG_TO_AN, _BTN_EMPFANG_TO_AUS):
         await cmd_empfang(update, None, mit_tastatur=True)
         return

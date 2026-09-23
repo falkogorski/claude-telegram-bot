@@ -1959,11 +1959,21 @@ fremde Postfächer). Nicht danach, nicht parallel.
 davon, welches System später gebaut oder eingekauft wird. Ein Produkt, das
 diese Trennung nicht hat, ist nicht fertig — egal wie gut es sonst ist.
 
-**Stand 21.08.2026: im Bot NICHT gebaut.** Gemessen: Der Agent erhält das
-`claude_code`-Preset plus Gedächtnis-Kontext; es gibt **keine** Zeile, die
-eingehende Fremdinhalte zu Daten erklärt, und **keinen** Filter, der es
-erzwingt. Prüfauftrag an Engywuck läuft (21.08.). **Bis dahin werden keine
-Mail-Konten hinterlegt** — Adams Entscheid.
+**`[BERICHTIGT 2026-09-23]` Hier stand: *„Stand 21.08.2026: im Bot NICHT
+gebaut."*** Das stimmte am 21.08. und ist seit dem **22.08.** überholt.
+Gemessen am Git-Verlauf: Die Eingangs-Absicherung entstand am 22.08. in zehn
+Gliedern (`e931305` bis `3eecb6b`, darunter Glied 7 — der Freigabedialog als
+Weg nach draußen, mit der programmweit abgeschalteten Link-Vorschau), wurde
+am 23.08. ins Drehbuch getragen (`51af4f2`), und Rang 1 wurde am selben Tag
+geschlossen (`eba1b91`: Fremdinhalt erreicht keine Handlung mehr). Der
+ausführende Prüfer ist `scripts/test_eingangsschranken.py`.
+
+**Was diese Berichtigung NICHT sagt:** dass jetzt Mail-Konten hinterlegt
+werden dürfen. Das bleibt Adams Entscheid, und die Ultracode-Prüfstelle
+*„vor dem ersten fremden Postfach"* (Abschnitt „Wann Ultracode") gilt
+unabhängig von dieser Zeile. Die Zeile stand drei Wochen falsch in der Datei,
+die jede Sitzung zuerst liest — dieselbe Klasse wie die Falschaussagen, die
+dieses Projekt schon mehrfach in der eigenen Ablage gefunden hat.
 
 ## 🔒 GOVERNANCE — der Bot editiert sein eigenes Repo NIE (Adam 2026-07-19)
 

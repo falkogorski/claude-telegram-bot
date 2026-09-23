@@ -1651,7 +1651,15 @@ class UserSession:
     # PTB-side callback can resolve it via call_soon_threadsafe across loops.
     pending_permissions: dict[str, tuple[asyncio.AbstractEventLoop, asyncio.Future]] = field(default_factory=dict)
     # maps Telegram message_id → request_id so emoji reactions can resolve permissions
+    # `[NEU 24.09.2026, Block 1b]` Der Wert `_SAMMEL` heisst: in dieser Nachricht
+    # ist mehr als eine Anfrage offen — ein Daumen entscheidet dort nichts.
     message_permissions: dict[int, str] = field(default_factory=dict)
+    # `[NEU 24.09.2026, Block 1b]` Die Sammelnachricht: je Anfrage ein Eintrag
+    # (Kennung, Klartextzeile, Dialogtext, Zusatzknoepfe, Stand, Nachricht) —
+    # und die Nachricht, die gerade alle offenen traegt.
+    freigabe_eintraege: dict[str, dict] = field(default_factory=dict)
+    sammel_msg_id: int | None = None
+    sammel_lock: Any = None
     chat_id: int | None = None
     thread_id: int | None = None  # Forum-Thema (message_thread_id) des aktuellen Jobs
     bot: Any = None  # telegram.Bot, injected per-message
@@ -3978,6 +3986,145 @@ def format_tool_call(tool_name: str, tool_input: dict[str, Any],
 
 # ---------- permission callback ----------
 
+# ═══════════════════════════════════════════════════════════════════════════
+# SAMMELNACHRICHT FUER FREIGABEN  `[NEU 24.09.2026, Block 1b]`
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# **Adams Form, nach drei durchgespielten Beispielen (24.09., 00:0x):** „neu
+# senden, alt kuerzen". Jede neue Anfrage kommt als **neue Nachricht mit Ton**
+# und traegt alle offenen Anfragen dieses Zimmers; die vorige Nachricht
+# schrumpft auf Protokollzeilen. **Verworfen: das stille Ergaenzen** —
+# Telegram benachrichtigt beim Bearbeiten nicht, unterwegs bliebe eine Anfrage
+# bis zur Frist unbemerkt.
+#
+# **Nur sammeln** (Adams Entscheid 23.09.): je Zeile Genehmigen/Verweigern,
+# keine Reichweiten-Knoepfe.
+#
+# **Ein Daumen entscheidet nur, wenn genau eine Anfrage offen ist** — Glied 8
+# der Eingangs-Absicherung: der Daumen soll sehen, was er drueckt. Bei zwei
+# offenen waere er eine Wette auf die Reihenfolge.
+#
+# **Gemessen vor dem Bau, damit die Erwartung stimmt:** 93 Dialoge vom 10. bis
+# 23.09. auf dem VPS, keiner innerhalb von drei Sekunden nach dem vorigen.
+# Gleichzeitig offene Anfragen kamen nicht vor; die Sammlung traegt im Alltag
+# meist eine Zeile. Der sichtbare Gewinn ist das Kuerzen der beantworteten
+# Dialoge — die Sammlung haelt, falls parallele Unterauftraege sie erzeugen.
+#
+# **Je Zimmer, nicht je Person:** Der Dialog steht im Zimmer, das fragt. Eine
+# Sammlung ueber Zimmer hinweg legte Anfragen aus Zimmer 7 in den Faden von
+# Zimmer 3 — genau die Verwechslung, gegen die der Faden gebaut ist.
+_SAMMEL = "*"
+_SAMMEL_BUDGET = 3200
+
+
+def sammel_ansicht(eintraege: "list[dict]") -> "tuple[str, list]":
+    """Text und Knopfzeilen einer Freigabe-Nachricht — rein, ohne Telegram.
+
+    **Ein Eintrag** sieht aus wie der Dialog vor diesem Umbau, Zeichen fuer
+    Zeichen; nach der Entscheidung steht die Quittung darunter. So aendert sich
+    im gemessenen Normalfall nichts ausser dem spaeteren Kuerzen.
+
+    **Mehrere Eintraege:** je offener Anfrage ihr Dialogtext (gekuerzt, damit
+    alle in eine Nachricht passen) und ein Knopfpaar **mit ihrer Nummer**;
+    entschiedene als eine Zeile. Die Zusatzknoepfe („immer genehmigen", Domain)
+    erscheinen nur, wenn genau eine offen ist — sonst waere unklar, wofuer.
+
+    Knopfzeilen als (Beschriftung, callback_data)-Paare; der Aufrufer baut
+    daraus die Tastatur. `callback_data` bleibt `p:<kennung>:<entscheid>`, wie
+    `on_permission_callback` sie seit jeher liest.
+    """
+    offen = [e for e in eintraege if e.get("status") is None]
+    if len(eintraege) == 1:
+        e = eintraege[0]
+        text = f"🔐 Genehmigungs-Anfrage\n\n{e['body']}"
+        if e.get("status") is not None:
+            return (f"{text}\n\n→ {e['status']}")[:4000], []
+        zeilen = [[("✅ Genehmigen", f"p:{e['rid']}:allow"),
+                   ("❌ Verweigern", f"p:{e['rid']}:deny")]]
+        zeilen += [list(z) for z in e.get("extra") or []]
+        return text, zeilen
+
+    if len(offen) > 1:
+        kopf = f"🔐 {len(offen)} Genehmigungs-Anfragen offen"
+    elif offen:
+        kopf = "🔐 Genehmigungs-Anfrage"
+    else:
+        kopf = "🔐 Genehmigungs-Anfragen"
+    budget = _SAMMEL_BUDGET // max(1, len(offen))
+    teile = [kopf]
+    zeilen: list = []
+    for nr, e in enumerate(eintraege, 1):
+        if e.get("status") is None:
+            b = e["body"]
+            if len(b) > budget:
+                b = b[:budget - 1] + "…"
+            teile.append(f"{nr}. {b}")
+            zeilen.append([(f"✅ {nr} genehmigen", f"p:{e['rid']}:allow"),
+                           (f"❌ {nr} verweigern", f"p:{e['rid']}:deny")])
+        else:
+            teile.append(f"{nr}. {e['zeile']} → {e['status']}")
+    if len(offen) == 1:
+        zeilen += [list(z) for z in offen[0].get("extra") or []]
+    if len(offen) > 1:
+        teile.append("👍/👎 entscheiden hier nichts — es ist mehr als eine "
+                     "Anfrage offen. Bitte die Knöpfe mit der Nummer.")
+    return "\n\n".join(teile)[:4000], zeilen
+
+
+def sammel_protokoll(eintraege: "list[dict]") -> str:
+    """Die geschrumpfte Fassung einer abgeloesten Freigabe-Nachricht.
+
+    Eine Zeile je Anfrage. Was noch offen ist, sagt, wo es jetzt steht — sonst
+    liest Adam eine Zeile ohne Knopf und haelt die Anfrage fuer verloren.
+    """
+    return "\n".join(
+        f"🔐 {e['zeile']} → "
+        f"{e.get('status') or 'offen, steht in der neuen Nachricht darunter'}"
+        for e in eintraege)[:4000]
+
+
+def _sammel_tastatur(zeilen: list) -> "InlineKeyboardMarkup | None":
+    if not zeilen:
+        return None
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton(b, callback_data=d) for b, d in z] for z in zeilen])
+
+
+def _sammel_daumenwert(eintraege: "list[dict]") -> str:
+    """Was ein Daumen auf dieser Nachricht entscheiden darf: genau eine offene
+    Kennung — oder `_SAMMEL` (mehrere offen), oder `""` (keine offen)."""
+    offen = [e["rid"] for e in eintraege if e.get("status") is None]
+    if len(offen) == 1:
+        return offen[0]
+    return _SAMMEL if offen else ""
+
+
+async def _sammel_nachziehen(sess, message_id: int) -> None:
+    """Eine Freigabe-Nachricht nach einer Entscheidung neu zeichnen.
+
+    **Bearbeiten, nicht senden** — hier hat Adam gerade selbst gedrueckt, ein
+    Ton waere Laerm. Buchfuehrung: jeder Fehler wird geschluckt, die
+    Entscheidung ist zu diesem Zeitpunkt laengst beim Agenten.
+    """
+    try:
+        eintraege = [e for e in sess.freigabe_eintraege.values()
+                     if e.get("msg") == message_id]
+        if not eintraege:
+            return
+        # `""` heisst: hier ist nichts mehr offen. Ein Daumen darauf wird
+        # geschluckt wie bisher auf einer beantworteten Anfrage.
+        sess.message_permissions[message_id] = _sammel_daumenwert(eintraege)
+        if message_id != sess.sammel_msg_id:
+            text, zeilen = sammel_protokoll(eintraege), []
+        else:
+            text, zeilen = sammel_ansicht(eintraege)
+        await sess.bot.edit_message_text(
+            chat_id=sess.chat_id, message_id=message_id, text=text,
+            reply_markup=_sammel_tastatur(zeilen))
+    except Exception:
+        log.info("Sammelnachricht nicht nachgezogen (ignoriert)", exc_info=True)
+
+
 def make_permission_callback(user_id: int, thread_id: "int | None" = None):
     """Returns a can_use_tool callback bound to this user AND this room.
 
@@ -4328,44 +4475,87 @@ def make_permission_callback(user_id: int, thread_id: "int | None" = None):
                 if _grund:
                     body = (f"ℹ️ Lesen im Repo waere ohne Rueckfrage frei (8.7). "
                             f"Hier greift das nicht: {_grund}\n\n{body}")
-        rows = [
-            [
-                InlineKeyboardButton("✅ Genehmigen", callback_data=f"p:{request_id}:allow"),
-                InlineKeyboardButton("❌ Verweigern", callback_data=f"p:{request_id}:deny"),
-            ],
-        ]
+        extra: list = []
         # „Always allow" NICHT für 💰-Tools und WebFetch anbieten (_NO_ALWAYS_TOOLS).
         # Bei WebFetch stattdessen: Vertrauen PRO DOMAIN (Adam-Entscheid 23.07.).
         if tool_name == "WebFetch":
             _host = _url_host(str(tool_input.get("url") or ""))
             if _host and len(_host) <= 40:
-                rows.append([
-                    InlineKeyboardButton(
-                        f"🔓 {_host} immer erlauben",
-                        callback_data=f"p:{request_id}:domain:{_host}",
-                    ),
-                ])
+                extra.append([(f"🔓 {_host} immer erlauben",
+                               f"p:{request_id}:domain:{_host}")])
         elif darf_dauerfreigabe(tool_name):
-            rows.append([
-                InlineKeyboardButton(
-                    f"🔓 {tool_name} immer genehmigen",
-                    callback_data=f"p:{request_id}:always:{tool_name}",
-                ),
-            ])
-        keyboard = InlineKeyboardMarkup(rows)
-        try:
-            sent = await sess.bot.send_message(
-                chat_id=sess.chat_id,
-                text=f"🔐 Genehmigungs-Anfrage\n\n{body}",
-                reply_markup=keyboard,
-                parse_mode=None,
-                message_thread_id=sess.thread_id,
-            )
-            sess.message_permissions[sent.message_id] = request_id
-        except Exception:
-            log.exception("failed to send permission prompt")
-            sess.pending_permissions.pop(request_id, None)
-            return PermissionResultDeny(message="bot failed to ask user")
+            extra.append([(f"🔓 {tool_name} immer genehmigen",
+                           f"p:{request_id}:always:{tool_name}")])
+        eintrag = {"rid": request_id, "body": body, "extra": extra,
+                   "zeile": _tool_trace_line(user_id, tool_name, tool_input),
+                   "status": None, "msg": None}
+
+        # ---- Block 1b: neu senden, alt kuerzen ------------------------------
+        #
+        # Das Schloss reiht nur die SENDUNGEN dieses Zimmers: Kaemen zwei
+        # Anfragen zugleich, saehe sonst jede die andere nicht und beide
+        # schrieben eine Sammlung mit sich allein. Alle Anfragen eines Zimmers
+        # laufen auf der Schleife seines SDK-Clients — ein asyncio-Schloss
+        # genuegt, und es wird dort angelegt, wo es benutzt wird.
+        if sess.sammel_lock is None:
+            sess.sammel_lock = asyncio.Lock()
+        async with sess.sammel_lock:
+            alt_msg = sess.sammel_msg_id
+            alte = [e for e in sess.freigabe_eintraege.values()
+                    if alt_msg is not None and e.get("msg") == alt_msg]
+            offene = [e for e in sess.freigabe_eintraege.values()
+                      if e.get("status") is None
+                      and e["rid"] in sess.pending_permissions]
+            neu_liste = offene + [eintrag]
+            # Das Protokoll der abgeloesten Nachricht wird VOR dem Umhaengen
+            # gebildet — danach gehoerten ihre offenen Eintraege schon der
+            # neuen, und die Zeile wuesste nicht mehr, dass sie weitergezogen
+            # sind.
+            protokoll = sammel_protokoll(alte) if alte else ""
+            text, zeilen = sammel_ansicht(neu_liste)
+            try:
+                sent = await sess.bot.send_message(
+                    chat_id=sess.chat_id,
+                    text=text,
+                    reply_markup=_sammel_tastatur(zeilen),
+                    parse_mode=None,
+                    message_thread_id=sess.thread_id,
+                )
+                sess.message_permissions[sent.message_id] = (
+                    _sammel_daumenwert(neu_liste))
+            except Exception:
+                log.exception("failed to send permission prompt")
+                sess.pending_permissions.pop(request_id, None)
+                return PermissionResultDeny(message="bot failed to ask user")
+
+            # **Buchfuehrung in eigener Klammer, hinter der Entscheidung**
+            # (Regel vom 10.09.): Scheitert hier etwas, ist die Anfrage
+            # trotzdem gestellt — nur die Anzeige ist dann unvollstaendig.
+            try:
+                for e in neu_liste:
+                    e["msg"] = sent.message_id
+                sess.freigabe_eintraege[request_id] = eintrag
+                sess.sammel_msg_id = sent.message_id
+                if alt_msg is not None and alt_msg != sent.message_id:
+                    # Ein Daumen auf der alten Nachricht entscheidet nichts
+                    # mehr — ihre offenen Anfragen stehen jetzt unten.
+                    sess.message_permissions[alt_msg] = ""
+                # Entschiedenes, das nirgends mehr angezeigt wird, faellt heraus.
+                for rid in [r for r, e in sess.freigabe_eintraege.items()
+                            if e.get("status") is not None
+                            and e.get("msg") != sent.message_id]:
+                    sess.freigabe_eintraege.pop(rid, None)
+            except Exception:
+                log.exception("Sammelnachricht: Buchfuehrung fehlgeschlagen "
+                              "(nicht-fatal)")
+            if protokoll and alt_msg != sent.message_id:
+                try:
+                    await sess.bot.edit_message_text(
+                        chat_id=sess.chat_id, message_id=alt_msg,
+                        text=protokoll, reply_markup=None)
+                except Exception:
+                    log.info("alte Freigabe-Nachricht nicht gekuerzt (ignoriert)",
+                             exc_info=True)
 
         # **Hier, und nur hier, ist ein Dialog wirklich gezeigt worden.**
         # `[NEU 09.09.2026, M-3]` Bis dahin gab es an dieser Stelle keine
@@ -4400,12 +4590,27 @@ def make_permission_callback(user_id: int, thread_id: "int | None" = None):
         async def _erinnern(minuten: int) -> None:
             # Als **Antwort auf die Anfrage selbst**, damit Adam mit einem Tipp
             # beim Knopf ist statt danach zu suchen.
+            #
+            # **[Block 1b]** Bei mehreren offenen erinnert nur die AELTESTE —
+            # sonst kaeme je Anfrage eine eigene Mahnung, und genau dieses
+            # Stakkato soll die Sammlung beenden. Die Antwort zeigt auf die
+            # Nachricht, die jetzt die Knoepfe traegt, nicht auf die gekuerzte.
+            offen = [e for e in sess.freigabe_eintraege.values()
+                     if e.get("status") is None
+                     and e["rid"] in sess.pending_permissions]
+            if offen and offen[0]["rid"] != request_id:
+                return
+            if len(offen) > 1:
+                text = (f"⏳ {len(offen)} Freigaben warten noch — für die "
+                        f"älteste bleiben rund {minuten} Minuten.")
+            else:
+                text = (f"⏳ Die Freigabe von vorhin wartet noch — es bleiben "
+                        f"rund {minuten} Minuten.")
             try:
                 await sess.bot.send_message(
                     chat_id=sess.chat_id,
-                    text=f"⏳ Die Freigabe von vorhin wartet noch — es bleiben "
-                         f"rund {minuten} Minuten.",
-                    reply_to_message_id=sent.message_id,
+                    text=text,
+                    reply_to_message_id=sess.sammel_msg_id or sent.message_id,
                     message_thread_id=sess.thread_id,
                 )
             except Exception:
@@ -4420,6 +4625,11 @@ def make_permission_callback(user_id: int, thread_id: "int | None" = None):
             sess.pending_permissions.pop(request_id, None)
             log.warning("permission timeout: user=%s req=%s tool=%s",
                         user_id, request_id, tool_name)
+            # Block 1b: Die abgelaufene Zeile verliert ihre Knoepfe — ein
+            # Druck darauf liefe ins Leere, und das saehe aus wie Genehmigt.
+            eintrag["status"] = "⌛ abgelaufen"
+            if eintrag.get("msg") is not None:
+                await _sammel_nachziehen(sess, eintrag["msg"])
             _frist_min = max(1, round(FREIGABE_FRIST_S / 60))
             try:
                 await sess.bot.send_message(
@@ -5363,6 +5573,11 @@ def cancel_pending_permissions(sess: UserSession, reason: str = "session ended")
                 log.exception("cancel: call_soon_threadsafe failed for req=%s", req_id)
     sess.pending_permissions.clear()
     sess.message_permissions.clear()
+    # Block 1b: Die Sammlung endet mit der Sitzung — sonst truege die naechste
+    # Anfrage Eintraege mit, deren Warten laengst beendet ist.
+    if hasattr(sess, "freigabe_eintraege"):
+        sess.freigabe_eintraege.clear()
+        sess.sammel_msg_id = None
     if n:
         log.warning("cancelled %d pending permission(s) — %s", n, reason)
     return n
@@ -5394,7 +5609,9 @@ async def cmd_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "/verbose — Tipp-Indikator wieder an (🔧-Spur ist immer sichtbar)\n"
         "/status — Session-Info\n"
         "/whoami — Deine Telegram-User-ID\n\n"
-        "Genehmigungs-Anfragen: Knöpfe *oder* 👍 (genehmigen) / 👎 (verweigern) als Reaktion.",
+        "Genehmigungs-Anfragen: Knöpfe *oder* 👍 (genehmigen) / 👎 (verweigern) als Reaktion. "
+        "Sind mehrere offen, stehen sie gesammelt in der neuesten Nachricht — "
+        "dann gelten nur die Knöpfe mit der Nummer.",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=keyboard,
     )
@@ -8292,6 +8509,7 @@ async def on_permission_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -
     # Hauptfaden auf -- dort lag die Anfrage nie, also blieb Zimmer 7 haengen.
     sess = _sess_mit_anfrage(update.effective_user.id, request_id)
     suffix = None
+    label = None
     if sess is None:
         suffix = "(bereits beantwortet oder Session-Neustart)"
     else:
@@ -8328,7 +8546,21 @@ async def on_permission_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -
                         label = f"🔓 Dauerhaft erlaubt: {decision.split(':', 1)[1]}"
                     suffix = f"→ {label}"
 
-    # 4. Best-effort: append result to the original message. Plain text only —
+    # 4. [Block 1b, 24.09.2026] Die Nachricht, die die Anfrage traegt, wird
+    # neu gezeichnet: bei einem Eintrag wie bisher mit der Quittung darunter,
+    # in einer Sammlung die Zeile mit ihrem Entscheid und die uebrigen Knoepfe.
+    eintrag = (getattr(sess, "freigabe_eintraege", {}) or {}).get(request_id) \
+        if sess is not None else None
+    gedrueckt = getattr(query.message, "message_id", None)
+    if label is not None and eintrag is not None and eintrag.get("msg") is not None:
+        eintrag["status"] = label
+        await _sammel_nachziehen(sess, eintrag["msg"])
+        if eintrag["msg"] == gedrueckt:
+            return
+        # Gedrueckt wurde auf einer aelteren Nachricht, deren Kuerzen
+        # misslang — die Quittung gehoert trotzdem dorthin, wo der Daumen war.
+
+    # Best-effort: append result to the original message. Plain text only —
     # no parse_mode, no markdown roundtrip (filenames with ~ or _ break it).
     try:
         original = query.message.text or ""
@@ -8405,6 +8637,25 @@ async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
                 decision = _REACTION_DECISIONS.get(reaction.emoji)
                 if decision is None:
                     continue
+                # **[Block 1b, 24.09.2026] Ein Daumen entscheidet nur bei
+                # genau EINER offenen Anfrage** (Adams Entscheid; Glied 8:
+                # der Daumen sieht, was er drueckt). Bei mehreren sagt der
+                # Bot, warum nichts geschah — eine stumme Reaktion liesse Adam
+                # glauben, er habe entschieden.
+                if request_id == _SAMMEL:
+                    log.info("reaction permission ignoriert: user=%s msg=%s "
+                             "(mehrere offen)", user_id, rx.message_id)
+                    try:
+                        await sess.bot.send_message(
+                            chat_id=sess.chat_id,
+                            text="Hier ist mehr als eine Anfrage offen — ein "
+                                 "Daumen wäre nicht eindeutig. Bitte die Knöpfe "
+                                 "mit der Nummer.",
+                            reply_to_message_id=rx.message_id,
+                            message_thread_id=getattr(sess, "thread_id", None))
+                    except Exception:
+                        log.info("Daumen-Hinweis nicht zustellbar", exc_info=True)
+                    return
                 sess.message_permissions.pop(rx.message_id, None)
                 entry = sess.pending_permissions.pop(request_id, None)
                 if entry is None:
@@ -8414,6 +8665,14 @@ async def on_reaction(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
                     target_loop.call_soon_threadsafe(fut.set_result, decision)
                 log.info("reaction permission: user=%s req=%s decision=%s",
                          user_id, request_id, decision)
+                # Die Anzeige zieht nach wie beim Knopf — bisher blieben nach
+                # einem Daumen die Knoepfe stehen, als waere nichts entschieden.
+                eintrag = (getattr(sess, "freigabe_eintraege", None)
+                           or {}).get(request_id)
+                if eintrag is not None and eintrag.get("msg") is not None:
+                    eintrag["status"] = ("✅ Genehmigt" if decision == "allow"
+                                         else "❌ Verweigert")
+                    await _sammel_nachziehen(sess, eintrag["msg"])
                 return
             return  # Permission wartet, aber Emoji war keins der beiden → ignorieren
 

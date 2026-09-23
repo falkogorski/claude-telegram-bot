@@ -203,6 +203,25 @@ for f in scripts/daily_check.sh scripts/api_cache_pflege.sh scripts/log_sync.sh;
     melde ok "startet ohne HOME: $(basename "$f")"
   fi
 done
+# --- 3a'. Der Zufluss (Block 6, Engywucks Pruefzeile 5) ----------------------
+# Der Versions-Monitor startet ihn als root-Dienst mit dem SYSTEM-Python — ohne
+# venv, ohne HOME (Lehre vom 29.07.). Gestartet wird genau so nackt, aber mit
+# leerer Quellenliste und Wegwerf-Ordner: Ein echter Lauf ginge 29-mal ins Netz,
+# und ein Pruefer, der das Netz braucht, wird bei der ersten Stoerung rot.
+if [ -f scripts/zufluss.py ] && [ -x /usr/bin/python3 ]; then
+  _zf="${TMPDIR:-/tmp}/zielumgebung-zufluss.$$"
+  mkdir -p "$_zf"
+  printf '{"quellen": []}' > "$_zf/quellen.json"
+  _zaus="$(env -i "ZUFLUSS_DIR=$_zf/ordner" "ZUFLUSS_QUELLEN=$_zf/quellen.json" \
+             /usr/bin/python3 scripts/zufluss.py 2>&1 </dev/null | head -5 || true)"
+  if echo "$_zaus" | grep -q '^Zufluss: 0 neue'; then
+    melde ok "zufluss.py startet nackt mit dem System-Python (ohne HOME, ohne venv)"
+  else
+    melde nein "zufluss.py startet nackt mit dem System-Python" "$(echo "$_zaus" | tail -2 | tr '\n' ' ')"
+  fi
+  rm -rf "$_zf"
+fi
+
 # Nachweis statt Vertrauen: Hat der Start trotz aller Riegel etwas abgelegt?
 if [ -n "$(ls -A "$_wegwerf" 2>/dev/null)" ]; then
   melde nein "Trockenlauf legt nichts ab" "$(ls -A "$_wegwerf" | head -3 | tr '\n' ' ')"

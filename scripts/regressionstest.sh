@@ -47,6 +47,11 @@ export CLAUDE_ARBEITSORDNER="$PRUEFHEIM/workspace"
 export BASHFREI_HEIM="$PRUEFHEIM"
 export BASHFREI_PROTOKOLL="$PRUEFHEIM/bash-freigaben.jsonl"
 export GEGENLESER_DIR="$PRUEFHEIM/gegenleser"
+# Block 6 (24.09.): Zufluss-Eingang und Sichtungs-Merker. Die Quellenliste
+# wird auf eine LEERE umgebogen — ein Pruefer, der sie liest, soll nie ins Netz.
+export ZUFLUSS_DIR="$PRUEFHEIM/zufluss"
+export ZUFLUSS_QUELLEN="$PRUEFHEIM/quellen-leer.json"
+printf '{"quellen": []}' > "$ZUFLUSS_QUELLEN"
 # `[NEU 2026-08-20]` Das Auftragsbuch fehlte hier — und der Riegel hat prompt
 # ein Loch gehabt, das sich am selben Tag zeigte: Der Zielumgebungs-Pruefer
 # startet den ECHTEN Tagescheck, und der legt seit A6.1 einen Sichtungs-Vermerk
@@ -325,6 +330,7 @@ run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py
 run "Zustell-Waechter (erreicht uns TG?)" "$PY" scripts/test_zustellwaechter.py
 run "Pruefumgebung (Riegel 3)"          "$PY" scripts/test_pruefumgebung.py
 run "Versions-Monitor (5.21)"           "$PY" scripts/test_version_monitor.py
+run "Frische-Strang (Block 6)" "$PY" scripts/test_frische.py
 run "Update-Textbefehl (E4)"           "$PY" scripts/test_update_textbefehl.py
 run "Wachposten (Log-Waechter)"        "$PY" scripts/test_wachposten.py
 run "Postfach-Wiederaufgriff (A1)"     "$PY" scripts/test_postfach_wiederaufgriff.py

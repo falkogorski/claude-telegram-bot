@@ -120,6 +120,15 @@ VLOG="${LOG_SYNC_VLOG:-$(dirname "$SRC")/version-monitor.log}"
 if [ -f "$VLOG" ]; then
   cp "$VLOG" version-monitor.log
 fi
+# Block 6 (24.09.2026): der Zufluss-Eingang, damit die Kontrolle ihn im
+# Kurs-Blick liest ([Neu am Markt, fuer uns relevant]). Nur diese eine Datei —
+# der Zustand je Quelle bleibt auf dem Server, er ist Buchfuehrung, kein Befund.
+# Ein Einzel-cp wie bei den Protokollen darueber: kein Filter, den eine spaetere
+# Regel ueberstimmen koennte (Wirkungs-Regel: danach die Dateiliste ansehen).
+ZEINGANG="${LOG_SYNC_ZUFLUSS:-$HOME/.claude/zufluss/eingang.jsonl}"
+if [ -f "$ZEINGANG" ]; then
+  cp "$ZEINGANG" zufluss-eingang.jsonl
+fi
 
 # ---------------------------------------------------------------------------
 # Claudias Ausarbeitungen mitnehmen (Adam & Conni, 25.07.2026)

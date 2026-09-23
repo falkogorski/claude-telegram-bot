@@ -776,6 +776,23 @@ if [ -d "$_ausgang" ]; then
   fi
 fi
 
+# --- 9l. ROUTEN DER ZIMMERLISTE (Block 5, Claudias Auftrag 13.09., Nr. 5) ---
+# Seit Adam Zimmer selbst umbenennen kann, zeigt eine Route auf einen NAMEN,
+# der sich aendern kann. Zeigt sie ins Leere, bleiben Berichte still im
+# Bot-Chat — ein Bruch, der aussieht wie Ruhe. Nur LESEND: Die Datei legt
+# allein der Bot an (als root angelegt, koennte er sie nicht mehr schreiben).
+_routen="$("${BOTENV[@]}" "$VENVPY" -c 'import sys; sys.path.insert(0, sys.argv[1]); import channels
+k = channels.routen_pruefen()
+print("BESCHAEDIGT" if channels.beschaedigt() else ("KAPUTT " + "; ".join(k) if k else "OK"))' "$BOTDIR" 2>&1 | tail -1)"
+case "$_routen" in
+  OK)          add "✅ Zimmerliste: jede Route trifft ein Zimmer" ;;
+  BESCHAEDIGT) red "Die Zimmerliste ist beschaedigt — der Bot nutzt die eingebaute Liste, deine eigenen Zimmer fehlen dort" ;;
+  KAPUTT*)     red "Eine Route der Zimmerliste zeigt ins Leere, Berichte bleiben im Bot-Chat: ${_routen#KAPUTT }" ;;
+  # Ein Absturz der Pruefung ist kein Routenbefund — sonst laese Adam eine
+  # Python-Meldung als „Route zeigt ins Leere".
+  *)           red "Die Routenpruefung der Zimmerliste lief nicht: ${_routen:-keine Ausgabe}" ;;
+esac
+
 # --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
 # Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete
 # hoeflich "Keine Treffer" - vier Stunden lang, in Adams Richtung. Ein Ausfall,

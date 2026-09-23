@@ -755,7 +755,9 @@ MEDIA_BUDGET = media.transport_budget(SDK_MAX_BUFFER)
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")
 # Kurznamen → vollständige Modell-IDs, die das SDK versteht
 _MODEL_ALIASES: dict[str, str] = {
-    "opus":   "claude-opus-5",     # angehoben 25.07. (H4); Probe: diese Modellreihe läuft auf Adams Abo
+    # angehoben 24.09. (Block 4, Adams Entscheid 23.09.): Opus 5.5 seit 22.09.
+    # laut Release-Notes-Feed (gemessen). Deploy NUR nach Abo-Probe auf dem VPS.
+    "opus":   "claude-opus-5-5",
     "sonnet": "claude-sonnet-5",   # angehoben 22.07. nach OAuth-Probe (war 4-6)
     "haiku":  "claude-haiku-4-5-20251001",
     "fable":  "claude-fable-5",

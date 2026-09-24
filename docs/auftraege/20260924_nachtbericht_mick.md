@@ -47,6 +47,10 @@ Einzelheiten je Block stehen in `MIGRATION.md`, Einträge (57) bis (63), je im j
 - ~~Integrationszweig~~ erledigt: **`probe-gesamt` (`202564e`) führt 1b, 2, 3, 4, 5, 6 und die Limit-Reparatur zusammen — 92/92.** Konflikte gab es nur dort, wo zwei Blöcke an derselben Stelle eingetragen haben (Drehbuch, Register, Blaupause, `requirements.txt`) und zweimal im Code, beide additiv (je eine Selbstcheck-Zeile und ein Tagescheck-Abschnitt nebeneinander). **Eine Stelle war inhaltlich:** Der Registereintrag `claude-modelle` trägt jetzt die angehobene Notiz aus Block 4 **und** die Fähigkeitsfelder aus Block 6. **Für dich heißt das:** Du kannst Block für Block deployen, oder `probe-gesamt` in einem Zug — dann aber **zuerst die Abo-Probe für Opus 5.5** (Punkt 1 oben), weil Block 4 darin steckt.
 - ~~Dienst B~~ gelesen, Urteil oben (Punkt 7).
 
+## Gelesen für Vormerkung 6b (WhatsApp, W4) — nichts gebaut
+
+Ursprungs-Repo `WhiskeySockets/Baileys`, `src/Socket/newsletter.ts` (SafeDep-Auflage: nie eine Abspaltung). **Für das Lesen eines Kanals genügen zwei Funktionen:** `newsletterMetadata('invite', code)` (Einladungscode → Kennung) und `newsletterFetchMessages(jid, count, since, after)`. **Alle übrigen schreiben** — auch `newsletterFollow`, das den Kanal mit der Nummer des Kontos abonniert, also ein Schritt nach außen ist; dazu Anlegen, Umbenennen, Reagieren, Löschen, Besitzwechsel. **Für den späteren Bau:** Der Dienst darf nur die zwei lesenden erreichen (Positivliste, kein Verbot einzelner); ob das Abrufen ohne Folgen geht, ist zu messen. Grenzen für Abrufe nennt der Quelltext keine.
+
 ## Weiterarbeiten ohne Adams Hand
 
 Zwei Wecker in dieser Sitzung (05:17 und 10:23, je einmal), falls das Kontingent greift. **Grenze:** Sie leben nur, solange diese Sitzung in der App offen ist.

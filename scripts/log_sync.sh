@@ -207,6 +207,11 @@ if [ -d "$WORK" ]; then
   # (`-prune`), sonst stünden die Dateien künftig als „bitte melden" in der
   # Quittung.
   #
+  # **[NEU 24.09.] `kurse/` — Adams eigenes Material.** Die Transkripte seiner
+  # Kurs-Videos liegen unter `wissen/kurse/`; dieses Repo geht nach GitHub, und
+  # Adams Material geht nie ueber einen Fremddienst (Entscheid 24.09., 06:0x).
+  # Ausgeschlossen wird der ganze Ordner, samt eigenem Index.
+  #
   # ⚠️ **Kein Kommentar zwischen die Fortsetzungszeilen unten.** Genau das ist
   # mir beim Einbau passiert: Der Backslash verbindet die Zeilen, der
   # Kommentartext wurde zum rsync-Argument, und der Transport lieferte NICHTS
@@ -216,6 +221,7 @@ if [ -d "$WORK" ]; then
     --exclude='node_modules/' --exclude='venv/' --exclude='.venv/' \
     --exclude='site-packages/' \
     --exclude='rechnungen/' \
+    --exclude='kurse/' \
     --exclude='.*' --exclude='*.tmp' \
     --exclude='CLAUDE.md' --exclude='MEMORY.md' \
     --exclude='*secret*' --exclude='*token*' --exclude='*credential*' \
@@ -265,6 +271,10 @@ if [ -d "$WORK" ]; then
     if [ -d "$WORK/rechnungen" ]; then
       echo "  rechnungen/ — ganzer Zweig zurueckgehalten: Bank und Steuernummer"
     fi
+    # 24.09.: Kurs-Transkripte, ebenso einzeilig (Adams eigenes Material).
+    if [ -d "$WORK/wissen/kurse" ]; then
+      echo "  wissen/kurse/ — ganzer Zweig zurueckgehalten: Adams eigenes Kursmaterial, nie ueber einen Fremddienst"
+    fi
     # `[GEAENDERT 2026-08-20, Engywuck]` Nur noch TRANSPORTRELEVANTE
     # Kandidaten — Dateien mit Dokument-Endung, die nicht ankamen, plus alles
     # vom Geheimnis-Filter Gestoppte. Vorher lief die Schleife ueber den
@@ -310,6 +320,7 @@ if [ -d "$WORK" ]; then
       case "$rel" in
         .*|*/.*)       continue ;;   # verstecktes Verzeichnis ODER Datei
         rechnungen/*|*/rechnungen/*) continue ;;
+        kurse/*|*/kurse/*) continue ;;
       esac
       case "$name" in
         *.tmp)         continue ;;   # Absicht, kein Befund

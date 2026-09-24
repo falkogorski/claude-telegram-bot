@@ -886,6 +886,24 @@ if [ -f "$BOTDIR/neustarte.py" ]; then
 fi
 # <<< NEUSTARTS
 
+# --- 9n. KURS-VIDEOS: liegt etwas unverarbeitet im Eingang? (24.09.2026) ----
+# Adam kopiert Kurs-Videos per rsync auf den VPS, `scripts/kurse.py`
+# transkribiert sie lokal. Stirbt der Lauf, kommt keine Meldung — ein Ausfall,
+# der wie Ruhe aussieht. Deshalb hier die Frage [wer merkt es]: Liegt ein
+# Video laenger als sechs Stunden unverarbeitet oder ist es gescheitert, geht
+# das an Adam (er hat hochgeladen und wartet). Nur LESEND.
+# >>> KURSE
+if [ -f "$BOTDIR/scripts/kurse.py" ]; then
+  _ku="$("${BOTENV[@]}" "$VENVPY" "$BOTDIR/scripts/kurse.py" --pruefen 2>&1 | tail -1)"
+  case "$_ku" in
+    OK*)     add "✅ Kurs-Videos: ${_ku#OK }" ;;
+    LIEGT*)  red "Kurs-Videos liegen seit ueber sechs Stunden unverarbeitet im Eingang — die Transkription lief nicht an oder brach ab: ${_ku#LIEGT }" ;;
+    FEHLER*) red "Kurs-Videos liessen sich nicht transkribieren (Grund steht in der Stand-Datei der Kurse): ${_ku#FEHLER }" ;;
+    *)       intern "Pruefung der Kurs-Videos lief nicht: ${_ku:-keine Ausgabe}" ;;
+  esac
+fi
+# <<< KURSE
+
 # --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
 # Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete
 # hoeflich "Keine Treffer" - vier Stunden lang, in Adams Richtung. Ein Ausfall,

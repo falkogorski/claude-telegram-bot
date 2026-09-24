@@ -1,0 +1,246 @@
+{
+  "_zweck": "ANSICHT/ABLAGE — Quellenliste des Frische-Strangs (Block 6). Adams Hand: aendern nur per Commit. Die Liste IST der Filter (kein Stichwortsieb). Neue Quellen gegen eine bestehende tauschen, nicht dazulegen.",
+  "_herkunft": "Claudias Messung vom VPS, 24.09.2026 00:10-00:25 (46 Adressen, 40 erreichbar), Auswahl nach Engywucks Block 6 Fassung 2; ki-bubble nach Claudias Nachtrag M6 (01:00-01:20) und der WhatsApp-Vormerkung Fassung 2; Debian-RDF am 24.09. nachgemessen (30 Eintraege). Nicht aufgenommen: heise-Gesamtfeed, hnrss (Rohmenge ohne Redaktion), die YouTube-Kanaele aus M7 (kein Entscheid). 'manual' bleiben im Register: Anthropic News, Telegram Bot-API-Changelog, Telegram Blog, Transkript-Dienste. Fassung 5 (Engywuck, 24.09. 01:3x): KI Bubble ganz oben in Gruppe 3; YouTube nur der Everlast-Hauptkanal (Adams Entscheid 01:19), Robotics und die uebrigen vier Kanaele nicht jetzt (Kennungen im Nachtrag 2026-09-24_whatsapp-messung-nachtrag-m6-m7.md). Kanal-Kennungen stehen fest in der Liste; wer sie je automatisch sucht, braucht einen Zustimmungs-Keks (YouTube liefert sonst nur die Sprachauswahl).",
+  "_schweigen_tage": "Nach Claudias gemessenem Takt: taeglich 7, mehrmals woechentlich/sehr hoch 14, woechentlich 21, hoch 30, mittel 60, gering 180, sehr gering oder ruhend 0 (= kein Schweige-Alarm).",
+  "quellen": [
+    {
+      "name": "claude-agent-sdk",
+      "art": "feed",
+      "adresse": "https://pypi.org/rss/project/claude-agent-sdk/releases.xml",
+      "gruppe": "bauteil",
+      "schweigen_tage": 14,
+      "bauteil": "claude-agent-sdk"
+    },
+    {
+      "name": "claude-code-cli",
+      "art": "feed",
+      "adresse": "https://github.com/anthropics/claude-code/releases.atom",
+      "gruppe": "bauteil",
+      "schweigen_tage": 14,
+      "bauteil": "claude-code-cli-global"
+    },
+    {
+      "name": "python-telegram-bot",
+      "art": "feed",
+      "adresse": "https://pypi.org/rss/project/python-telegram-bot/releases.xml",
+      "gruppe": "bauteil",
+      "schweigen_tage": 180,
+      "bauteil": "python-telegram-bot"
+    },
+    {
+      "name": "litellm",
+      "art": "feed",
+      "adresse": "https://pypi.org/rss/project/litellm/releases.xml",
+      "gruppe": "bauteil",
+      "schweigen_tage": 14,
+      "bauteil": "litellm"
+    },
+    {
+      "name": "nodejs",
+      "art": "feed",
+      "adresse": "https://github.com/nodejs/node/releases.atom",
+      "gruppe": "bauteil",
+      "schweigen_tage": 30,
+      "bauteil": "nodejs"
+    },
+    {
+      "name": "lobe-chat",
+      "art": "feed",
+      "adresse": "https://github.com/lobehub/lobe-chat/releases.atom",
+      "gruppe": "bauteil",
+      "schweigen_tage": 14,
+      "bauteil": "lobe-chat"
+    },
+    {
+      "name": "ffmpeg",
+      "art": "feed",
+      "adresse": "https://github.com/FFmpeg/FFmpeg/releases.atom",
+      "gruppe": "bauteil",
+      "schweigen_tage": 60,
+      "bauteil": "ffmpeg"
+    },
+    {
+      "name": "docker",
+      "art": "feed",
+      "adresse": "https://github.com/moby/moby/releases.atom",
+      "gruppe": "bauteil",
+      "schweigen_tage": 60,
+      "bauteil": "docker.io"
+    },
+    {
+      "name": "whisper.cpp",
+      "art": "feed",
+      "adresse": "https://github.com/ggml-org/whisper.cpp/releases.atom",
+      "gruppe": "bauteil",
+      "schweigen_tage": 60,
+      "bauteil": "whisper.cpp"
+    },
+    {
+      "name": "weasyprint",
+      "art": "feed",
+      "adresse": "https://pypi.org/rss/project/weasyprint/releases.xml",
+      "gruppe": "bauteil",
+      "schweigen_tage": 60,
+      "bauteil": "weasyprint"
+    },
+    {
+      "name": "caldav",
+      "art": "feed",
+      "adresse": "https://pypi.org/rss/project/caldav/releases.xml",
+      "gruppe": "bauteil",
+      "schweigen_tage": 60,
+      "bauteil": "caldav"
+    },
+    {
+      "name": "pymupdf",
+      "art": "feed",
+      "adresse": "https://pypi.org/rss/project/pymupdf/releases.xml",
+      "gruppe": "bauteil",
+      "schweigen_tage": 180,
+      "bauteil": "pymupdf"
+    },
+    {
+      "name": "pandoc",
+      "art": "feed",
+      "adresse": "https://github.com/jgm/pandoc/releases.atom",
+      "gruppe": "bauteil",
+      "schweigen_tage": 180,
+      "bauteil": "pandoc"
+    },
+    {
+      "name": "edge-tts",
+      "art": "feed",
+      "adresse": "https://pypi.org/rss/project/edge-tts/releases.xml",
+      "gruppe": "bauteil",
+      "schweigen_tage": 0,
+      "bauteil": "edge-tts"
+    },
+    {
+      "name": "faster-whisper",
+      "art": "feed",
+      "adresse": "https://pypi.org/rss/project/faster-whisper/releases.xml",
+      "gruppe": "bauteil",
+      "schweigen_tage": 0,
+      "bauteil": "faster-whisper"
+    },
+    {
+      "name": "youtube-transcript-api",
+      "art": "feed",
+      "adresse": "https://pypi.org/rss/project/youtube-transcript-api/releases.xml",
+      "gruppe": "bauteil",
+      "schweigen_tage": 0
+    },
+    {
+      "name": "debian-sicherheit",
+      "art": "feed",
+      "adresse": "https://www.debian.org/security/dsa",
+      "gruppe": "bauteil",
+      "schweigen_tage": 14,
+      "bauteil": "debian"
+    },
+    {
+      "name": "anthropic-release-notes",
+      "art": "feed",
+      "adresse": "https://platform.claude.com/docs/en/release-notes/feed.xml",
+      "gruppe": "anbieter",
+      "schweigen_tage": 30,
+      "bauteil": "claude-modelle"
+    },
+    {
+      "name": "ki-bubble (Everlast)",
+      "art": "feed",
+      "adresse": "https://www.kibubble.news/feed",
+      "gruppe": "landschaft",
+      "schweigen_tage": 21
+    },
+    {
+      "name": "everlast-ai (YouTube, Hauptkanal)",
+      "art": "feed",
+      "adresse": "https://www.youtube.com/feeds/videos.xml?channel_id=UC8T5gQ4U4GbI2h8kYCkEcvg",
+      "gruppe": "landschaft",
+      "schweigen_tage": 14
+    },
+    {
+      "name": "kiberatung",
+      "art": "seite",
+      "adresse": "https://www.kiberatung.de/blog",
+      "gruppe": "landschaft",
+      "schweigen_tage": 0
+    },
+    {
+      "name": "simon-willison",
+      "art": "feed",
+      "adresse": "https://simonwillison.net/atom/everything/",
+      "gruppe": "landschaft",
+      "schweigen_tage": 7
+    },
+    {
+      "name": "import-ai",
+      "art": "feed",
+      "adresse": "https://importai.substack.com/feed",
+      "gruppe": "landschaft",
+      "schweigen_tage": 21
+    },
+    {
+      "name": "ars-technica-ki",
+      "art": "feed",
+      "adresse": "https://arstechnica.com/ai/feed/",
+      "gruppe": "landschaft",
+      "schweigen_tage": 7
+    },
+    {
+      "name": "mit-technology-review",
+      "art": "feed",
+      "adresse": "https://www.technologyreview.com/feed/",
+      "gruppe": "landschaft",
+      "schweigen_tage": 7
+    },
+    {
+      "name": "techcrunch-ki",
+      "art": "feed",
+      "adresse": "https://techcrunch.com/category/artificial-intelligence/feed/",
+      "gruppe": "landschaft",
+      "schweigen_tage": 7
+    },
+    {
+      "name": "the-verge-ki",
+      "art": "feed",
+      "adresse": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
+      "gruppe": "landschaft",
+      "schweigen_tage": 7
+    },
+    {
+      "name": "ieee-spectrum-robotik",
+      "art": "feed",
+      "adresse": "https://spectrum.ieee.org/feeds/topic/robotics.rss",
+      "gruppe": "landschaft",
+      "schweigen_tage": 14
+    },
+    {
+      "name": "netzpolitik",
+      "art": "feed",
+      "adresse": "https://netzpolitik.org/feed/",
+      "gruppe": "landschaft",
+      "schweigen_tage": 7
+    },
+    {
+      "name": "golem",
+      "art": "feed",
+      "adresse": "https://rss.golem.de/rss.php?feed=RSS2.0",
+      "gruppe": "landschaft",
+      "schweigen_tage": 7
+    }
+  ],
+  "dienste": {
+    "freetranscriptapi": {
+      "freigegeben": true,
+      "adresse": "https://api.freetranscriptapi.com/v1/transcript",
+      "grundlage": "Adams Freigabe 23.09.2026 12:41 ([in dieser Phase], nicht fuer eigenes Material). Bedingungen und Datenschutz gelesen 24.09.: Netchase UG Berlin, Hosting netcup/Hetzner, Weiterleitung ueber Cloudflare (USA); ohne Konto 20 Abrufe je Stunde (50 befristet bis 19.09.); keine Kosten ohne Konto."
+    },
+    "youtube-transcript.ai": {
+      "freigegeben": false,
+      "adresse": "https://youtube-transcript.ai/",
+      "grundlage": "Nicht freigegeben: vorher Lesepflicht (Bedingungen, Datenschutz) und Messung vom VPS an drei Videos (Fassung 5, 6.0c Punkt 3)."
+    }
+  }
+}

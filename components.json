@@ -21,7 +21,22 @@
       "name": "edge-tts",
       "kind": "pip",
       "venv": "/home/claudebot/claude-telegram-bot/.venv",
-      "ref": "edge-tts"
+      "ref": "edge-tts",
+      "zweck": "Sprachausgabe (Vorlesen der Antworten)",
+      "alternativen": [
+        {
+          "name": "Piper / Kokoro (lokal, kostenfrei)",
+          "gesichtet": null
+        },
+        {
+          "name": "Azure-Sprachausgabe mit SSML (geplant, Kosten pruefen)",
+          "gesichtet": null
+        },
+        {
+          "name": "ElevenLabs (Premium, kostenpflichtig)",
+          "gesichtet": null
+        }
+      ]
     },
     {
       "name": "pymupdf",
@@ -64,7 +79,14 @@
       "name": "pandoc",
       "kind": "systempaket",
       "note": "PDF-Kette (C, apt). Sicherheits-Updates via unattended-upgrades; Major bewusst.",
-      "ref": "pandoc"
+      "ref": "pandoc",
+      "zweck": "PDF-Weg fuer Papiere (Markdown -> PDF ueber typst)",
+      "alternativen": [
+        {
+          "name": "weasyprint (im Register gefuehrt)",
+          "gesichtet": null
+        }
+      ]
     },
     {
       "name": "weasyprint",
@@ -93,8 +115,10 @@
     {
       "name": "claude-modelle",
       "kind": "manual",
-      "note": "Modell-Aliasse in bot.py (_MODEL_ALIASES: opus/sonnet/haiku/fable). Ob eine neuere Modellreihe verfuegbar ist, laesst sich NICHT offline ermitteln — deshalb bewusst 'manual' und kein erfundener Automatismus: beim Monitorlauf per Abo-Probe (claude -p --model <id>) gegenpruefen und den Alias anheben. Stand 25.07.: opus=claude-opus-5, sonnet=claude-sonnet-5, haiku=claude-haiku-4-5-20251001, fable=claude-fable-5. Abo-Weg, keine Kosten.",
-      "intervall_tage": 30
+      "note": "[ANGEHOBEN 24.09.2026, Block 4] Die NEUE Fassung erkennt jetzt der Modellwaechter (scripts/modellwaechter.py, taeglich im Tagescheck, kein Modellaufruf): Er liest den Anthropic-Release-Notes-Feed und stellt models.json um (Adams Entscheid 23.09.: von selbst, mit Rueckweg-Knopf; die erste Nachricht ist die Probe, bei Scheitern faellt der Bot selbst zurueck). Vorgaben in modellwahl.py. WAS DIESER EINTRAG NOCH TUT: Er legt im Monatsrhythmus vor, was der Feed nicht sagt — ob eine Kennung im ABO laeuft, zeigt nur ein echter Aufruf. Stand 24.09.: opus=claude-opus-5-5 (Vorgabe), sonnet=claude-sonnet-5, haiku=claude-haiku-4-5-20251001, fable=claude-fable-5 (Feed nennt claude-fable-5-1 seit 01.09.). Abo-Weg, keine Kosten.",
+      "intervall_tage": 30,
+      "zweck": "Hauptmodell des Bots (Abo, Agent SDK)",
+      "alternativen": []
     },
     {
       "name": "verfahren-medien",
@@ -107,7 +131,14 @@
       "kind": "pip",
       "venv": "/home/claudebot/claude-telegram-bot/.venv",
       "ref": "faster-whisper",
-      "note": "STT-Vorgabe seit 25.07.2026 (Adam-Entscheid). Loest whisper.cpp ab, das als Rueckweg per STT_BACKEND=whisper_cpp erhalten bleibt. Lokal, kostenfrei, kein Netz zur Laufzeit."
+      "note": "STT-Vorgabe seit 25.07.2026 (Adam-Entscheid). Loest whisper.cpp ab, das als Rueckweg per STT_BACKEND=whisper_cpp erhalten bleibt. Lokal, kostenfrei, kein Netz zur Laufzeit.",
+      "zweck": "Spracherkennung (Sprachnachrichten, Tonspuren)",
+      "alternativen": [
+        {
+          "name": "whisper.cpp (lokal, im Register gefuehrt)",
+          "gesichtet": null
+        }
+      ]
     },
     {
       "name": "caldav",
@@ -121,6 +152,51 @@
       "kind": "manual",
       "note": "AGB-/AUTH-PASSAGE (nicht Version): code.claude.com/docs/en/legal-and-compliance, Abschnitt [Authentication and credential use]. WAS DIESER EINTRAG TUT: Er legt Adam die Seite im Monatsrhythmus ZUR EIGENEN SICHTUNG VOR. Er ueberwacht sie NICHT und ruft sie NICHT ab — ein Abruf waere ein Netzzugriff aus einem zeitgesteuerten Lauf. Wer diese Zeile spaeter als [wird ueberwacht] liest oder umschreibt, stellt die Falschaussage wieder her, die am 31.08. aus CLAUDE.md entfernt wurde — nur mit anderem Mechanismus. WARUM SIE ZAEHLT: Dort steht, dass OAuth-Auth nur die gewoehnliche Einzelnutzung von Claude Code deckt und Drittanbieter-Routing verboten ist (seit 04.04.2026 technisch durchgesetzt, Sperrungen ohne Vorankuendigung). Aendert sich die Passage, aendert sich die Grundlage des Abo-Betriebs. Auslegung: docs/entscheidungsvorlagen/modell-plattform-strategie-bericht.md (A.2/D.1).",
       "intervall_tage": 30
+    },
+    {
+      "name": "fremddienst-transkripte",
+      "kind": "manual",
+      "intervall_tage": 30,
+      "zweck": "Video-Transkripte, wenn der Direktabruf von YouTube gesperrt ist",
+      "note": "Ausweichweg freetranscriptapi.com (Adam-Freigabe 23.09. 12:41, [in dieser Phase], nicht fuer eigenes Material). Offen: Befristung auf der Anbieterseite und ungelesene Datenschutzbedingungen — vor einem festen Ablauf lesen.",
+      "alternativen": [
+        {
+          "name": "youtube-transcript.ai",
+          "gesichtet": null,
+          "adresse": "https://youtube-transcript.ai/"
+        }
+      ]
+    },
+    {
+      "name": "websuche-anbieter",
+      "kind": "manual",
+      "intervall_tage": 60,
+      "zweck": "Websuche ohne Kosten (SearxNG auf dem VPS)",
+      "note": "Kostenfrei und lokal. Die Anthropic-WebSearch ist reine Notfall-Option mit Einzelfreigabe (Kostenregel).",
+      "alternativen": [
+        {
+          "name": "Anthropic-WebSearch (kostenpflichtig, nur mit Einzelfreigabe)",
+          "gesichtet": null
+        }
+      ]
+    },
+    {
+      "name": "anthropic-news",
+      "kind": "manual",
+      "intervall_tage": 30,
+      "note": "https://www.anthropic.com/news — kein Feed im Seitenkopf (Claudias Messung 24.09.). Modelle und Claude Code stehen im Release-Notes-Feed, den der Zufluss liest; hier nur, was dort fehlt."
+    },
+    {
+      "name": "telegram-bot-api-changelog",
+      "kind": "manual",
+      "intervall_tage": 30,
+      "note": "https://core.telegram.org/bots/api-changelog — kein Feed (Claudias Messung 24.09.)."
+    },
+    {
+      "name": "telegram-blog",
+      "kind": "manual",
+      "intervall_tage": 60,
+      "note": "https://telegram.org/blog — kein Feed (Claudias Messung 24.09.)."
     }
   ],
   "_faelligkeit": "manual-Eintraege melden sich nach intervall_tage von selbst (Standard 90). Der Zaehler startet beim ERSTEN Lauf, nicht rueckwirkend, und wird nach jeder Meldung zurueckgesetzt - eine Erinnerung, die jede Woche wiederkommt, wird nicht gelesen. Stand siehe logs/version-monitor-gesehen.json."

@@ -45,11 +45,20 @@ def zeile(name: str, bedingung, *, gemessen: str = "") -> None:
 
 print("== Hotfix H-3 bis H-5 ==")
 
-# ── H-3: Am Stichtag muss Adam erreicht werden ──────────────────────────────
+# ── H-3: Am Stichtag muss die Frist ihren Adressaten erreichen ───────────────
 #
 # `add` landet nur im Log; gesendet wird ausschliesslich, was `red` sammelt.
 # Die Berichtigung vom 09.09. stellte den Wortlaut richtig und kappte dabei
 # den Meldeweg — genau am Tag, an dem noch etwas zu entscheiden ist.
+#
+# **[GEAENDERT 24.09.2026, Block 3] Der Adressat ist jetzt die Kontrolle,
+# nicht Adam.** Claudias Auftrag vom 19.09. mit Adams Wortlaut: *„Frist
+# abgelaufen, Auftragsbuch — keine Ahnung, was das ist. Das hat für mich keine
+# Wichtigkeit."* Die Auswertung fuehrt die Kontrolle aus; Engywucks Uebergabe
+# nennt den Fristmelder ausdruecklich als Teil dieses Blocks. **Der Kern von
+# H-3 bleibt:** Die Frist darf nicht zu einer Zeile verkommen, die niemand
+# liest — sie geht durch `intern`, die markierte ⚙️-Tuer fuer die Kontrolle,
+# nicht durch `add`. Genau das misst diese Zeile weiter.
 CHECK = ROOT / "scripts" / "daily_check.sh"
 quelle = CHECK.read_text(encoding="utf-8")
 block = re.search(r'^  if \[ "\$HEUTE_ISO" = "\$bis" \]; then.*?^  fi$',
@@ -61,6 +70,7 @@ if block is not None:
         """Faehrt den ECHTEN Block mit Attrappen fuer red/add."""
         skript = (
             'red() { printf "RED:%s\\n" "$*"; }\n'
+            'intern() { printf "INTERN:%s\\n" "$*"; }\n'
             'add() { printf "ADD:%s\\n" "$*"; }\n'
             f'HEUTE_ISO="{heute}"\nbis="{bis}"\nfrist_datei="/tmp/f.json"\n'
             + block.group(0).replace("  if [", "if [", 1)
@@ -70,11 +80,11 @@ if block is not None:
         return (e.stdout or "") + (e.stderr or "")
 
     _stichtag = frist("2026-09-10", "2026-09-10")
-    zeile("H-3: AM Stichtag geht die Meldung an Adam (rot), nicht nur ins Log",
-          _stichtag.startswith("RED:") and "HEUTE ab" in _stichtag,
+    zeile("H-3: AM Stichtag geht die Meldung an die Kontrolle (⚙️), nicht nur ins Log",
+          _stichtag.startswith("INTERN:") and "HEUTE ab" in _stichtag,
           gemessen=_stichtag.strip()[:120])
     _danach = frist("2026-09-11", "2026-09-10")
-    zeile("H-3: danach weiterhin rot", _danach.startswith("RED:"),
+    zeile("H-3: danach weiterhin an die Kontrolle", _danach.startswith("INTERN:"),
           gemessen=_danach.strip()[:80])
     _davor = frist("2026-09-09", "2026-09-10")
     zeile("H-3: davor bleibt es eine Log-Zeile (Gegenrichtung)",

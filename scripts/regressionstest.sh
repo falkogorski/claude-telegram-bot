@@ -47,6 +47,12 @@ export CLAUDE_ARBEITSORDNER="$PRUEFHEIM/workspace"
 export BASHFREI_HEIM="$PRUEFHEIM"
 export BASHFREI_PROTOKOLL="$PRUEFHEIM/bash-freigaben.jsonl"
 export GEGENLESER_DIR="$PRUEFHEIM/gegenleser"
+# Block 6 (24.09.): Zufluss-Eingang und Sichtungs-Merker. Die Quellenliste
+# wird auf eine LEERE umgebogen — ein Pruefer, der sie liest, soll nie ins Netz.
+export ZUFLUSS_DIR="$PRUEFHEIM/zufluss"
+export WISSEN_DIR="$PRUEFHEIM/wissen"
+export ZUFLUSS_QUELLEN="$PRUEFHEIM/quellen-leer.json"
+printf '{"quellen": []}' > "$ZUFLUSS_QUELLEN"
 # `[NEU 2026-08-20]` Das Auftragsbuch fehlte hier — und der Riegel hat prompt
 # ein Loch gehabt, das sich am selben Tag zeigte: Der Zielumgebungs-Pruefer
 # startet den ECHTEN Tagescheck, und der legt seit A6.1 einen Sichtungs-Vermerk
@@ -309,6 +315,7 @@ run "Session-Waechter 5.18"             "$PY" scripts/test_stall_5_18.py
 # dass es bei der Entscheidung sofort aufhoert.
 run "Freigabe-Erinnerungen (N-1)"       "$PY" scripts/test_freigabe_erinnerung.py
 run "Kanal-Routing Phase 6"             "$PY" scripts/test_channels_6.py
+run "Zimmerliste aus dem Chat (Block 5)" "$PY" scripts/test_zimmerliste.py
 run "Warteschlange FIFO 5.5"            "$PY" scripts/test_queue_order_5_5.py
 run "Updater-Haertung A1-A7"            "$PY" scripts/test_updater_haertung.py
 run "Medien-Transport H1 (Bild/Video)"  "$PY" scripts/test_media_h1.py
@@ -321,10 +328,14 @@ run "Link-Inbox 5.14"                   "$PY" scripts/test_linkinbox_5_14.py
 run "E-Mail-Kanal 9.5"                  "$PY" scripts/test_email_9_5.py
 run "Freigabe-Postfach 9.4"             "$PY" scripts/test_freigaben_9_4.py
 run "Hora (autonomer Laeufer)"          "$PY" scripts/test_hora.py
+run "Meldungen nur, was Adam betrifft (Block 3)" "$PY" scripts/test_meldungen_adressat.py
+run "Modellwaechter (Block 4)" "$PY" scripts/test_modellwaechter.py
 run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py
 run "Zustell-Waechter (erreicht uns TG?)" "$PY" scripts/test_zustellwaechter.py
 run "Pruefumgebung (Riegel 3)"          "$PY" scripts/test_pruefumgebung.py
 run "Versions-Monitor (5.21)"           "$PY" scripts/test_version_monitor.py
+run "Frische-Strang (Block 6)" "$PY" scripts/test_frische.py
+run "Transkript-Kette und Wissensablage (Block 6, Teil 2)" "$PY" scripts/test_transkript_wissen.py
 run "Update-Textbefehl (E4)"           "$PY" scripts/test_update_textbefehl.py
 run "Wachposten (Log-Waechter)"        "$PY" scripts/test_wachposten.py
 run "Postfach-Wiederaufgriff (A1)"     "$PY" scripts/test_postfach_wiederaufgriff.py
@@ -352,7 +363,9 @@ run "Hermetik der Pruefläufe (L)"       "$PY" scripts/test_hermetik.py
 run "Zielumgebung (bash -n + env -i)"  bash scripts/test_zielumgebung.sh
 run "Keine undefinierten Namen"        "$PY" scripts/test_undefinierte_namen.py
 run "Sendepfad-Rauchtest (Pflicht 1)"  "$PY" scripts/test_sendepfad_rauch.py
+run "Darstellung im Antwortweg (Block 2)" "$PY" scripts/test_darstellung.py
 run "Freigabeweg (Genehmigen=erlaubt)" "$PY" scripts/test_freigabeweg.py
+run "Sammelnachricht (neu senden, alt kuerzen)" "$PY" scripts/test_sammelnachricht.py
 run "Gruendlich-Umschalter (B3)"        "$PY" scripts/test_gruendlich_b3.py
 run "Limit-Vorwarnung 5.20 (B4)"        "$PY" scripts/test_limitwarnung_b4.py
 run "Vorlese-Regeln (B5)"               "$PY" scripts/test_vorlese_b5.py

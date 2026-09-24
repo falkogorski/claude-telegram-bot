@@ -50,7 +50,10 @@ def _liste(*auftraege):
 
 
 def _leeren():
-    for p in (hora.LISTE, hora.ZUSTAND / "fehlserie.json"):
+    # Protokoll und Leerlauf-Marke gehören dazu, seit der Leerlauf dort seinen
+    # Ort hat (24.09.) — sonst zählte ein Prüfer die Einträge des vorigen mit.
+    for p in (hora.LISTE, hora.ZUSTAND / "fehlserie.json", hora.PROTOKOLL,
+              hora.LEERLAUF_MARKE):
         if p.exists():
             p.unlink()
     out = Path(os.environ["POSTFACH_DIR"]) / "outbox"
@@ -69,6 +72,14 @@ def _meldungen():
         return []
     return [json.loads(f.read_text(encoding="utf-8"))["text"]
             for f in sorted(out.glob("*.json"))]
+
+
+def _leerlaeufe():
+    """Wie oft der Leerlauf im Protokoll steht — seit dem 24.09. sein Ort."""
+    if not hora.PROTOKOLL.exists():
+        return 0
+    return sum(1 for z in hora.PROTOKOLL.read_text(encoding="utf-8").splitlines()
+               if z.strip() and json.loads(z).get("ereignis") == "leerlauf")
 
 
 def _patch(regression=(True, "Ergebnis: 27/27"), lauf_erfolg=True):
@@ -95,8 +106,12 @@ def _leere_liste_meldet():
     ausgefuehrt = _patch()
     assert hora.lauf() == 0
     assert not ausgefuehrt, "bei leerer Liste wurde etwas ausgeführt"
+    # [24.09.2026, Claudias Auftrag 4] Leerlauf geht ins Protokoll, nicht an
+    # Adam. Beides wird gemessen: keine Meldung UND ein Eintrag — sonst wäre
+    # „nicht gemeldet" auch erfüllt, wenn der Leerlauf spurlos verschwände.
     m = _meldungen()
-    assert m and "leer" in m[0], f"Leerlauf nicht gemeldet: {m}"
+    assert not m, f"Leerlauf ging an Adam statt ins Protokoll: {m}"
+    assert _leerlaeufe() == 1, f"Leerlauf nicht protokolliert: {_leerlaeufe()}"
 
 
 # --- Bedingung 3: rotes Fundament → nichts anfassen ------------------------
@@ -392,18 +407,19 @@ def _leerlauf_wird_gedaempft():
     _patch()
 
     hora.lauf()
-    assert len(_meldungen()) == 1, "die erste Leermeldung kam nicht"
+    assert _leerlaeufe() == 1, "der erste Leerlauf wurde nicht festgehalten"
     for _ in range(5):
         hora.lauf()
-    assert len(_meldungen()) == 1, \
-        f"der Leerlauf wurde {len(_meldungen())}× gemeldet statt einmal"
+    assert _leerlaeufe() == 1, \
+        f"der Leerlauf wurde {_leerlaeufe()}× festgehalten statt einmal"
 
     # Nach einem Tag darf er wieder — die Auskunft veraltet ja.
     hora.LEERLAUF_MARKE.write_text(
         json.dumps({"zuletzt": time.time() - hora.LEERLAUF_STILLE_S - 60}),
         encoding="utf-8")
     hora.lauf()
-    assert len(_meldungen()) == 2, "nach einem Tag kam keine neue Auskunft"
+    assert _leerlaeufe() == 2, "nach einem Tag kam kein neuer Eintrag"
+    assert not _meldungen(), f"Leerlauf ging an Adam: {_meldungen()}"
 
     # Und sobald wieder Arbeit da war, gilt die nächste Leere als neue Auskunft.
     _liste({"titel": "wieder was", "befehl": "echo x"})

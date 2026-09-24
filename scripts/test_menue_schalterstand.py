@@ -71,6 +71,8 @@ def setz(name: str, an: bool) -> None:
         p["raw_tools"] = an
     elif name in ("quiet", "verbose"):
         _SESS.quiet = an
+    elif name == "vorschau":
+        p["link_vorschau"] = an          # [Block 2] Vorgabe an
     else:
         raise AssertionError(f"unbekannter Schalter {name}")
 

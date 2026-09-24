@@ -87,6 +87,19 @@ e = bauen("Command failed", {"errors": ["prompt is too long: 250000 tokens"]})
 zeile("Kontext-Ueberlauf in der Nutzlast wird erkannt", bot.is_context_overflow(e))
 zeile("Kontext-Ueberlauf im message-Feld weiterhin",
       bot.is_context_overflow(Exception("prompt is too long")))
+# ── Kontingent-Limit (D8-Klonprobe, 24.09.2026): das dritte Geschwister ──
+e = bauen("Command failed", {"errors": ["Claude AI usage limit reached"]})
+zeile("Kontingent-Limit NUR in der Nutzlast wird erkannt", bot.is_session_limit(e),
+      gemessen=str(e))
+e = bauen("Command failed", {"api_error_status": 429})
+zeile("Status 429 gilt als Limit, ohne jedes Stichwort", bot.is_session_limit(e))
+e = bauen("Command failed", {"errors": ["usage limit reached"],
+                             "result": "Claude AI usage limit reached|resets 5am"})
+zeile("die Rueckkehrzeit wird auch aus `result` gelesen",
+      bot.parse_reset_zeit(bot.fehlertext_vollstaendig(e)) is not None,
+      gemessen=bot.fehlertext_vollstaendig(e))
+zeile("harmlose Ausnahme ist kein Limit",
+      not bot.is_session_limit(Exception("connection reset by peer")))
 zeile("harmlose Ausnahme ist kein Ueberlauf",
       not bot.is_context_overflow(Exception("timeout")))
 

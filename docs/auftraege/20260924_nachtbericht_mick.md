@@ -51,7 +51,11 @@ Einzelheiten je Block stehen in `MIGRATION.md`, Einträge (57) bis (63), je im j
 
 Ursprungs-Repo `WhiskeySockets/Baileys`, `src/Socket/newsletter.ts` (SafeDep-Auflage: nie eine Abspaltung). **Für das Lesen eines Kanals genügen zwei Funktionen:** `newsletterMetadata('invite', code)` (Einladungscode → Kennung) und `newsletterFetchMessages(jid, count, since, after)`. **Alle übrigen schreiben** — auch `newsletterFollow`, das den Kanal mit der Nummer des Kontos abonniert, also ein Schritt nach außen ist; dazu Anlegen, Umbenennen, Reagieren, Löschen, Besitzwechsel. **Für den späteren Bau:** Der Dienst darf nur die zwei lesenden erreichen (Positivliste, kein Verbot einzelner); ob das Abrufen ohne Folgen geht, ist zu messen. Grenzen für Abrufe nennt der Quelltext keine.
 
-## Aufräumen, wartet auf dein Ja
+## Aufräumen — ERLEDIGT 24.09. (Adams Ja)
+
+Alle neun Arbeitsbäume entfernt, vorher geprüft: keine eigenen Änderungen, nichts ungepusht. Die Zweige bleiben lokal und auf dem Server; die gemeinsame Umgebung ist unberührt. Stehen geblieben ist nur `.claude/worktrees/telegram-bot-kontrolle-…` — nicht meiner, nicht auf der Liste.
+
+### Stand davor
 
 Neun Arbeitsbäume neben dem Hauptbaum (`probe-sammel`, `-darstellung`, `-meldungen`, `-modell`, `-zimmer`, `-frische`, `-sdk`, `-gesamt`, dazu der alte `probe-f22`). Alle Zweige sind gepusht; an den Bäumen hängt nichts. `probe-sdk` trägt eine eigene venv (rund 1 GB). **Löschen frage ich vorher** — ein Ja genügt, dann räume ich sie mit `git worktree remove`.
 

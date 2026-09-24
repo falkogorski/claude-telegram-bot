@@ -93,7 +93,7 @@
     {
       "name": "claude-modelle",
       "kind": "manual",
-      "note": "Modell-Aliasse in bot.py (_MODEL_ALIASES: opus/sonnet/haiku/fable). Ob eine neuere Modellreihe verfuegbar ist, laesst sich NICHT offline ermitteln — deshalb bewusst 'manual' und kein erfundener Automatismus: beim Monitorlauf per Abo-Probe (claude -p --model <id>) gegenpruefen und den Alias anheben. Stand 25.07.: opus=claude-opus-5, sonnet=claude-sonnet-5, haiku=claude-haiku-4-5-20251001, fable=claude-fable-5. Abo-Weg, keine Kosten.",
+      "note": "[ANGEHOBEN 24.09.2026, Block 4] Die NEUE Fassung erkennt jetzt der Modellwaechter (scripts/modellwaechter.py, taeglich im Tagescheck, kein Modellaufruf): Er liest den Anthropic-Release-Notes-Feed und stellt models.json um (Adams Entscheid 23.09.: von selbst, mit Rueckweg-Knopf; die erste Nachricht ist die Probe, bei Scheitern faellt der Bot selbst zurueck). Vorgaben in modellwahl.py. WAS DIESER EINTRAG NOCH TUT: Er legt im Monatsrhythmus vor, was der Feed nicht sagt — ob eine Kennung im ABO laeuft, zeigt nur ein echter Aufruf. Stand 24.09.: opus=claude-opus-5-5 (Vorgabe), sonnet=claude-sonnet-5, haiku=claude-haiku-4-5-20251001, fable=claude-fable-5 (Feed nennt claude-fable-5-1 seit 01.09.). Abo-Weg, keine Kosten.",
       "intervall_tage": 30
     },
     {

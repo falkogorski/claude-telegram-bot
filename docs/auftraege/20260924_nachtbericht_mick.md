@@ -6,6 +6,16 @@ Stand: 24.09.2026, 02:4x — **Übergabe abgearbeitet.** Live: `d54b272`. **Nich
 
 **Nenner:** Engywucks Übergabe Fassung 3 mit den Blöcken 1 bis 6 (Block 6 bis Fassung 5), dazu Vormerkung 6b. Gebaut: 1b, 2, 3 (Teil 1), 4, 5, 6 (Teile 1 und 2) — sieben Zweige. Geparkt, begründet: drei Punkte (unten). D8 erledigt, dazu Integrationszweig (92/92), Lesepflicht Dienst B, Lesenotiz 6b.
 
+## Nachtrag 24.09., 06:0x — Zettel F2 (Adam unterwegs, Deploy am Abend)
+
+**Nenner:** Zettel F2, Teil 3, Punkt 5 mit vier Entscheiden. Zwei davon verlangen Arbeit, zwei nicht. Gebaut: einer. Als Papier: einer. Nichts zu tun: zwei.
+
+- **Kurs-Videos Mac → VPS: gebaut, im Zweig `probe-kurse` (`8eb57fc`, 94/94), nicht im Hauptstrang.** Der Hauptstrang bleibt für deinen Deploy heute Abend unverändert: **Nach `748239a` kommen dort nur noch Papiere unter `docs/`, kein Code.** Den Kurs-Zweig führe ich erst nach deinem Deploy zusammen (Engywuck: *nach dem Deploy*). Danach genügt am Mac ein Aufruf: `bash scripts/mac/kurse_hochladen.sh <Ordner>`. Das überträgt als claudebot, transkribiert lokal und meldet sich über den Bot. **Adams Material geht nicht nach GitHub:** Die Transkripte liegen unter `wissen/kurse/`, und genau dieser Ordner ist aus dem Log-Abgleich genommen. Echte Probe am Mac: 4 Sekunden, Mitschrift korrekt.
+- **Block 7, Mac als Videoarbeiter: Konzept an Engywuck** (`20260924_konzept_mac_videoarbeiter.md`). Erster Schnitt ist nur der Weg mit einem Probeauftrag, dazu der Wer-merkt-es-Prüfer. Der wichtigste Befund: **Der Mac braucht dafür kein iCloud und darf deshalb an einem eigenen Zeitgeber hängen** — so holt er Aufträge ab, sobald er läuft, auch ohne offene Sitzung. Drei Fragen an Engywuck; gebaut wird erst nach seiner Antwort.
+- **Fable-Automatik** und **Transkriptdienst:** nichts zu bauen. Beides wirkt nach deinem Deploy von selbst beziehungsweise bleibt, wie es ist.
+
+**Für die Zusammenführung nach dem Deploy:** Der Arbeitsbaum `probe-kurse` bleibt so lange stehen.
+
 ## Nachtrag 24.09., 05:5x — Engywucks Zettel F1
 
 **Nenner:** vier Punkte im Zettel. Drei erledigt, einer wartet auf deinen Deploy. Dazu zwei F-Punkte: einer behoben, einer ohne Wortlaut.

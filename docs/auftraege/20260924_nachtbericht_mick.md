@@ -17,6 +17,7 @@ Stand: 24.09.2026, 02:1x (wird je Block fortgeschrieben). Live: `d54b272`. **Nic
 | 5 Zimmerliste | `probe-zimmer` · `366b394` | test_zimmerliste (17 · 6) | 86/86 | nichts Besonderes |
 | 6 Frische, Teil 1 | `probe-frische` · `a621e29` | test_frische (21 · 8), Zielumgebung | 86/86 | nichts Besonderes |
 | 6 Frische, Teil 2 | `probe-frische` · `544fd7a` | test_transkript_wissen (13 · 5) | 87/87 | `pip install -r requirements.txt` (youtube-transcript-api u. a.) |
+| D8 SDK-Klonprobe | `probe-sdk` · `9667f08` (Reparatur), `1cf5da3` (Pin) | test_fehlererkennung_sdk (+4 · 1) | 85/85 mit 0.2.127 und mit 0.2.159 | Reparatur: nichts; Pin: dein Fenster, **nach Node** |
 
 Einzelheiten je Block stehen in `MIGRATION.md`, Einträge (57) bis (63), je im jeweiligen Zweig.
 
@@ -30,6 +31,8 @@ Einzelheiten je Block stehen in `MIGRATION.md`, Einträge (57) bis (63), je im j
 4. **Kurs-Videos (6.4):** Weg Mac → VPS. Vorschlag: du kopierst per `rsync` in einen Eingangsordner des Bots, er transkribiert lokal mit faster-whisper und legt unter `wissen/kurse/` ab. Grob eine Stunde Bau. **Kein Bau ohne dein Wort.**
 5. **Zielkonflikt H-3, zur Kenntnis:** Die Frist am Stichtag geht jetzt an die Kontrolle (⚙️ im Protokoll) statt an dich — nach deinem Wortlaut vom 19.09. Der Hotfix vom 10.09. verlangte das Gegenteil; sein Kern (keine ungelesene Zeile) bleibt gemessen.
 
+6. **D8, SDK-Sprung 0.2.127 → 0.2.159:** Klonprobe grün, Paarung abgelesen (`mcp` 1.30.0, `anyio` 4.15.1, CLI 2.1.281). **Beim Messen gefunden und repariert:** Die Kontingent-Erkennung las die Nutzlast der neuen Fehlerart nicht — mit dem Sprung wäre die Rücklage (Rang A) blind geworden. **Die Reparatur `9667f08` ist ohne den Sprung deploybar; ich empfehle, sie mit dem nächsten Block mitzunehmen.** Den Sprung selbst: in einem Fenster deiner Wahl, nach Node. Befund: `docs/auftraege/20260924_befund_sdk_klonprobe.md` (Zweig `probe-sdk`).
+
 ## Geparkt, begründet
 
 - **Block 3, Auftrag 3** (stiller Neustart) und das **Stundenblumen-Prüfmoment**: Engywucks Ergänzung „Zähler, ab dem dritten laut" nennt keinen Zeitraum; Grundlage `20260919_nachtlese.md` fehlt mir.
@@ -38,7 +41,7 @@ Einzelheiten je Block stehen in `MIGRATION.md`, Einträge (57) bis (63), je im j
 
 ## Nächste Schritte in dieser Nacht (wird fortgeschrieben)
 
-- D8 (Node/SDK Klon-Probe) aus Engywucks Teil C.
+- ~~D8~~ erledigt (siehe oben). Node bleibt Adams Fenster mit dem Vollzugs-Zettel.
 - Ein Integrationszweig, der alle Blöcke zusammenführt und den Regressionslauf über das Ganze fährt — damit die Deploy-Reihenfolge keine Überraschung bringt.
 - Dienst B (`youtube-transcript.ai`): Lesepflicht; die Messung vom VPS erst danach.
 

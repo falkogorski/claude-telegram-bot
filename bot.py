@@ -24,6 +24,7 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 from telegram import BotCommand, BotCommandScopeChat, CopyTextButton, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, MessageEntity, ReactionTypeEmoji, ReplyKeyboardMarkup, ReplyParameters, Update
 from telegram.constants import ChatAction, ParseMode
+from telegram.error import BadRequest
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -2927,13 +2928,196 @@ def _text_ends_with_heading(text: str) -> bool:
     return False
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# DARSTELLUNG IM ANTWORTWEG  `[NEU 24.09.2026, Block 2]`
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# **Der Befund (Claudia 23.09.):** Der Antwortweg sendete ohne jede
+# Auszeichnung; `**fett**` und `[Text](Adresse)` kamen roh bei Adam an. Der
+# Grund war gut — Telegram lehnt eine Nachricht mit fehlerhafter Auszeichnung
+# VOLLSTAENDIG ab, ein einzelner Stern im Dateinamen genuegte. Er bleibt gut;
+# es brauchte nur ein besseres Werkzeug.
+#
+# **Transport, nach Probe gewaehlt (Adams Entscheid: Mick waehlt):** Das Paket
+# `telegramify-markdown` bietet zwei Wege. Ich nehme **Klartext plus
+# Auszeichnungs-Angaben (Entities)** statt MarkdownV2. Das Bild ist dasselbe;
+# aber es gibt keine Maskierung — also nichts, was die Laenge nach dem Schnitt
+# verschiebt, und keinen Stern, der den Parser stolpern laesst.
+#
+# **Der Rueckfall ist Pflicht, nicht Zierde:** Lehnt Telegram trotzdem ab, geht
+# DERSELBE Rohtext ohne Auszeichnung hinterher — der schlimmste Fall ist danach
+# der Zustand vor diesem Umbau, nie eine verlorene Antwort.
+#
+# **Geltungsbereich eng** (Claudias Auftrag 3): nur der Antwortweg und die
+# Bildunterschrift der Sprachnachricht. `send_chunked` wandelt nur um, wenn
+# `auszeichnen=True` uebergeben wird — alle anderen Stellen senden wie bisher.
+try:
+    import telegramify_markdown as _tgm
+except Exception:  # fehlt das Paket, wird roh gesendet (Selbstcheck meldet es)
+    _tgm = None
+
+# Telegram zaehlt in UTF-16-Einheiten; eine Nachricht traegt hoechstens 4096.
+_TELEGRAM_TEXT_UTF16 = 4096
+_TELEGRAM_CAPTION_UTF16 = 1024
+
+
+def auszeichnung(roh: str):
+    """Markdown → (Klartext, Telegram-Entities) — oder `None` fuer „roh senden".
+
+    `None` heisst nie Fehler beim Nutzer, nur: dieser Text geht wie bisher.
+    """
+    if _tgm is None or not roh:
+        return None
+    try:
+        klar, ents = _tgm.convert(roh)
+    except Exception:
+        log.warning("⚙️ Auszeichnung: Umwandlung gescheitert — Rohtext", exc_info=True)
+        return None
+    if not klar.strip():
+        return None
+    return klar, [MessageEntity(type=e.type, offset=e.offset, length=e.length,
+                                url=e.url, language=e.language,
+                                custom_emoji_id=e.custom_emoji_id)
+                  for e in ents]
+
+
+def _utf16(text: str) -> int:
+    return len(text.encode("utf-16-le")) // 2
+
+
+# ---- Steuerangaben im Antworttext ---------------------------------------------
+#
+# Zwei Angaben kann Claudia in ihre Antwort schreiben; **beide erscheinen nie
+# im Chat und nie in der Sprachausgabe** — sie werden am Eingang von
+# `send_answer_to_user` herausgenommen, vor allem anderen:
+#
+#   <vorschau>ADRESSE</vorschau>   welche Adresse die Vorschaukarte bekommt
+#   <kopie>TEXT</kopie>            dieser Text geht als EIGENE Nachricht, roh
+#
+# Spitze Klammern statt einer Klartextzeile: In gewoehnlicher Prosa kommen sie
+# nicht vor — eine Zeile „Vorschau: …" koennte ein echter Satz sein und
+# verschwaende dann still.
+_VORSCHAU_ANGABE = re.compile(r"<vorschau>\s*(.*?)\s*</vorschau>\s*", re.I | re.S)
+_KOPIE_ANGABE = re.compile(r"<kopie>\n?(.*?)\n?</kopie>", re.I | re.S)
+_MD_LINK = re.compile(r"\[[^\]\n]*\]\((https?://[^)\s]+)\)")
+_ROH_LINK = re.compile(r"https?://[^\s<>()\[\]]+")
+
+
+def vorschau_angabe_trennen(text: str) -> "tuple[str, str | None]":
+    """Alle Vorschau-Angaben entfernen; die LETZTE gilt."""
+    angaben = _VORSCHAU_ANGABE.findall(text or "")
+    return _VORSCHAU_ANGABE.sub("", text or "").rstrip(), (angaben[-1] if angaben else None)
+
+
+def links_im_text(text: str) -> "list[str]":
+    """Die Adressen, die Adam in dieser Antwort als Link SIEHT — in Reihenfolge.
+
+    Markdown-Links und nackte Adressen. Satzzeichen am Ende einer nackten
+    Adresse gehoeren zum Satz, nicht zur Adresse.
+    """
+    gefunden: list[tuple[int, str]] = []
+    for m in _MD_LINK.finditer(text or ""):
+        gefunden.append((m.start(), m.group(1)))
+    ohne_md = _MD_LINK.sub(lambda m: " " * len(m.group(0)), text or "")
+    for m in _ROH_LINK.finditer(ohne_md):
+        gefunden.append((m.start(), m.group(0).rstrip(".,;:!?'\"")))
+    reihe: list[str] = []
+    for _pos, url in sorted(gefunden):
+        if url not in reihe:
+            reihe.append(url)
+    return reihe
+
+
+def vorschau_adresse(text: str, angabe: "str | None") -> "str | None":
+    """Welche Adresse die Vorschaukarte bekommt — Claudias dreistufige Regel.
+
+    1. Steuerangabe → diese Adresse, **aber nur, wenn sie im Text steht.**
+       Das ist der eine Riegel, der die Oeffnung traegt (Engywucks Auflage):
+       Die Angabe ist Modellausgabe, fremdes Material kann sie beeinflussen —
+       ohne diese Pruefung erschiene eine Karte fuer eine Adresse, die Adam im
+       Text nie sieht, und Telegram riefe sie ab.
+    2. keine (gueltige) Angabe, ein Link → dieser.
+    3. mehrere Links → der letzte.
+    """
+    links = links_im_text(text)
+    if angabe and angabe in links:
+        return angabe
+    return links[-1] if links else None
+
+
+def antwort_zerlegen(text: str) -> "list[tuple[str, bool]]":
+    """Text in Stuecke teilen: (Stueck, ist_kopiertext). Leere fallen weg.
+
+    **Adams Wunsch vom 15.09., 17:54:** Was er kopieren soll, kommt als eigene
+    Nachricht — ohne etwas davor und dahinter, und auch bei eingeschalteter
+    Sprachausgabe nicht zerpflueckt.
+    """
+    stuecke: list[tuple[str, bool]] = []
+    pos = 0
+    for m in _KOPIE_ANGABE.finditer(text or ""):
+        davor = text[pos:m.start()].strip()
+        if davor:
+            stuecke.append((davor, False))
+        if m.group(1).strip():
+            stuecke.append((m.group(1), True))
+        pos = m.end()
+    rest = (text or "")[pos:].strip()
+    if rest:
+        stuecke.append((rest, False))
+    return stuecke
+
+
+def _nicht_im_codeblock(text: str, cut: int) -> int:
+    """Den Schnitt vor einen Codeblock ziehen, den er sonst zerteilen wuerde.
+
+    Ein Codeblock, der im einen Stueck oeffnet und im naechsten schliesst,
+    wuerde in beiden falsch dargestellt — der Rest der Nachricht erschiene
+    als Code. Ist der Block allein laenger als eine Nachricht, bleibt es beim
+    Schnitt; dann traegt der Rueckfall.
+    """
+    if text[:cut].count("```") % 2 == 0:
+        return cut
+    zaun = text.rfind("```", 0, cut)
+    vorher = text.rfind("\n", 0, zaun)
+    return vorher if vorher > 0 else cut
+
+
+async def _sende_stueck(bot, chat_id: int, roh: str, *, rp, thread_id,
+                        auszeichnen: bool, vorschau_url: "str | None", kwargs):
+    """Ein Stueck senden — ausgezeichnet, sonst oder im Rueckfall roh."""
+    if auszeichnen:
+        au = auszeichnung(roh)
+        if au is not None and _utf16(au[0]) <= _TELEGRAM_TEXT_UTF16:
+            extra = {}
+            # Die Karte nur an dem Stueck, das die Adresse traegt — sonst
+            # zeigte ein anderes Stueck eine Karte ohne sichtbaren Link.
+            if vorschau_url and vorschau_url in roh:
+                extra["link_preview_options"] = LinkPreviewOptions(
+                    is_disabled=False, url=vorschau_url)
+            try:
+                return await bot.send_message(
+                    chat_id=chat_id, text=au[0], entities=au[1],
+                    reply_parameters=rp, message_thread_id=thread_id,
+                    **extra, **kwargs)
+            except BadRequest as e:
+                log.warning("⚙️ Auszeichnung von Telegram abgelehnt (%s) — "
+                            "Rohtext gesendet", e)
+    return await bot.send_message(chat_id=chat_id, text=roh, reply_parameters=rp,
+                                  message_thread_id=thread_id, **kwargs)
+
+
 async def send_chunked(bot, chat_id: int, text: str, reply_to: int | None = None,
-                       thread_id: int | None = None, **kwargs) -> None:
+                       thread_id: int | None = None, *, auszeichnen: bool = False,
+                       vorschau_url: "str | None" = None, **kwargs) -> None:
     """Telegram caps messages at ~4096 chars — split on newlines when needed.
 
     reply_to: markiert NUR die erste ausgehende Nachricht als Reply auf die
     auslösende User-Nachricht (Folge-Chunks hängen normal an, kein Zitat-Spam).
     thread_id: Forum-Thema (message_thread_id), in das ALLE Chunks gehen.
+    auszeichnen: `[Block 2]` Markdown als Telegram-Auszeichnung senden, mit
+    Rueckfall auf Rohtext. **Geschnitten wird VOR dem Umwandeln**, am Rohtext —
+    so gilt die Ueberschriften-Regel von `_find_safe_cut` weiter.
+    vorschau_url: `[Block 2]` Adresse der Vorschaukarte, nur mit `auszeichnen`.
     """
     if not text:
         return None
@@ -2941,15 +3125,17 @@ async def send_chunked(bot, chat_id: int, text: str, reply_to: int | None = None
     first_msg = None
     while text:
         if len(text) <= TELEGRAM_MSG_LIMIT:
-            m = await bot.send_message(chat_id=chat_id, text=text, reply_parameters=rp,
-                                       message_thread_id=thread_id, **kwargs)
-            return first_msg or m
-        cut = _find_safe_cut(text, TELEGRAM_MSG_LIMIT)
-        m = await bot.send_message(chat_id=chat_id, text=text[:cut], reply_parameters=rp,
-                                   message_thread_id=thread_id, **kwargs)
+            stueck, text = text, ""
+        else:
+            cut = _find_safe_cut(text, TELEGRAM_MSG_LIMIT)
+            if auszeichnen:
+                cut = _nicht_im_codeblock(text, cut)
+            stueck, text = text[:cut], text[cut:].lstrip("\n")
+        m = await _sende_stueck(bot, chat_id, stueck, rp=rp, thread_id=thread_id,
+                                auszeichnen=auszeichnen, vorschau_url=vorschau_url,
+                                kwargs=kwargs)
         first_msg = first_msg or m
         rp = None  # nur der erste Chunk threadet zur Ursprungsnachricht
-        text = text[cut:].lstrip("\n")
     return first_msg
 
 
@@ -4772,6 +4958,19 @@ _QUALITY_GUIDANCE = (
     "nie aus dem Sitzungsgedächtnis antworten.\n"
     "- Du darfst dort NIEMALS schreiben, ändern oder committen — das tut nur die "
     "führende Migrations-Sitzung am Mac. Änderungswünsche als Textvorschlag an Adam.\n"
+    "\n"
+    "# DARSTELLUNG IN TELEGRAM\n"
+    "- Markdown wird in Telegram **dargestellt**: Fett, Kursiv, `Code`, "
+    "[Linktext](Adresse), Listen. Links am sprechenden Wort statt als nackte Adresse.\n"
+    "- **Vorschaukarte:** Telegram zeigt eine Karte für EINEN Link. Ohne Angabe "
+    "nimmt der Bot den einzigen bzw. den letzten Link. Soll es ein anderer sein, "
+    "schreib ans Ende eine eigene Zeile `<vorschau>ADRESSE</vorschau>` — die "
+    "Adresse muss als Link im Text stehen, sonst wird die Angabe übergangen. "
+    "Die Zeile erscheint nie im Chat und wird nie vorgelesen.\n"
+    "- **Kopiertext:** Was Adam kopieren und einfügen soll (Mail, Nachricht, "
+    "Befehl), setz zwischen `<kopie>` und `</kopie>`. Es geht als EIGENE "
+    "Nachricht raus, roh und ohne etwas davor oder dahinter, auch bei "
+    "eingeschalteter Sprachausgabe nie vorgelesen (Adams Wunsch vom 15.09.).\n"
 )
 
 
@@ -7402,6 +7601,8 @@ _BEFEHLE: tuple[tuple[str, str | None, str], ...] = (
      "verfügbare Updates zeigen und einzeln/gesammelt freigeben"),
     ("usage", "Token-Verbrauch heute", "Token-Verbrauch heute (Bot-Kanal)"),
     ("verbose", "Tipp-Indikator wieder an", "Tipp-Indikator wieder an"),
+    ("vorschau", "Link-Vorschau an/aus",
+     "Link-Vorschau in Antworten an/aus (Vorgabe an; Freigabe-Anfragen nie)"),
     ("whereami", "Aktuellen Kanal zeigen", "Kanal-Info anzeigen"),
     ("whoami", None, "User-Info"),
     ("zimmer", "Leitstand: welches Zimmer arbeitet woran",
@@ -7457,6 +7658,11 @@ def _rohform_an(user_id: int) -> bool:
     return bool(_USER_PREFS.get(str(user_id), {}).get("raw_tools", False))
 
 
+def _vorschau_an(user_id: int) -> bool:
+    """`[Block 2]` Link-Vorschau im Antwortweg — **Vorgabe an** (Adam 23.09.)."""
+    return bool(_USER_PREFS.get(str(user_id), {}).get("link_vorschau", True))
+
+
 def _still_an(user_id: int) -> bool:
     """Stille ist eine SITZUNGS-Größe, keine Vorliebe — sie überlebt keinen Neustart.
 
@@ -7479,6 +7685,7 @@ _SCHALTER: "dict[str, tuple[Any, str, str]]" = {
     "technik": (_rohform_an,  "Rohform", "Klartext"),
     "quiet":   (_still_an,    "still",   "läuft mit"),
     "verbose": (_still_an,    "still",   "läuft mit"),
+    "vorschau": (_vorschau_an, "an",     "aus"),
 }
 
 # Telegram lehnt bei Überlänge den GANZEN Aufruf ab — dann bliebe das Menü
@@ -8127,6 +8334,27 @@ async def cmd_spur(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await update.message.reply_text(
             "🔧 Werkzeug-Spur an — du siehst wieder pro Aufruf, was ich tue.")
+
+
+async def cmd_vorschau(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """`[Block 2, 24.09.2026]` /vorschau: Link-Vorschau im Antwortweg an/aus.
+
+    Adam am 23.09.: *„Auch da könnte man natürlich im Menü einen Schalter
+    anlegen, Linkvorschau aus oder ein."* Vorgabe an. Der Freigabedialog und
+    die Meldungen der Wächter bleiben in jedem Fall ohne Vorschau — der
+    Schalter öffnet nur den Antwortweg.
+    """
+    if not authorized(update):
+        return
+    user_id = update.effective_user.id
+    prefs = _USER_PREFS.setdefault(str(user_id), {})
+    jetzt_an = not prefs.get("link_vorschau", True)
+    prefs["link_vorschau"] = jetzt_an
+    _save_prefs(_USER_PREFS)
+    await update.message.reply_text(
+        "🔗 Link-Vorschau an — Antworten mit Link bekommen wieder eine Karte."
+        if jetzt_an else
+        "🔗 Link-Vorschau aus — Antworten kommen ohne Karte. Mit /vorschau wieder an.")
 
 
 def _load_updater():
@@ -11369,6 +11597,25 @@ def run_self_check() -> tuple[bool, list[str]]:
                 "max_buffer_size fehlt an einer der beiden ClaudeAgentOptions-Stellen"
     check("Medien-Transport (H1)", _c_medien_transport)
 
+    def _c_auszeichnung() -> None:
+        """`[Block 2]` Die Umwandlung für den Antwortweg ist da und trägt.
+
+        **Fehlt das Paket, fällt der Bot still auf Rohtext zurück** — das ist
+        gewollt, damit keine Antwort verloren geht, aber ohne diese Zeile sähe
+        es aus wie Normalbetrieb. Geprüft wird die Umwandlung der heiklen
+        Zeichen (Stern, Unterstrich im Dateinamen), nicht Telegrams Annahme:
+        die ließe sich nur mit einer echten Nachricht messen.
+        """
+        assert _tgm is not None, \
+            "telegramify-markdown fehlt — Antworten gehen roh (pip install -r requirements.txt)"
+        au = auszeichnung("**fett** und [Link](https://example.org) und "
+                          "`mein_name.md` und ein * Stern")
+        assert au is not None, "Umwandlung liefert nichts"
+        arten = {e.type for e in au[1]}
+        assert {"bold", "text_link", "code"} <= arten, f"Auszeichnung unvollständig: {arten}"
+        assert "**" not in au[0], "Sternchen stehen noch im Klartext"
+    check("Auszeichnung im Antwortweg (Block 2)", _c_auszeichnung)
+
     def _c_register_vollstaendig() -> None:
         """R2: Wächter für Regel 3 der Bezugs-Integrität.
 
@@ -13114,6 +13361,9 @@ async def _handle_keyboard_btn(update: Update, text: str) -> None:
 
         lines: list[str] = ["ℹ️ Systemstatus", ""]
         lines.append(f"Modell: {model_str}  ·  Denken: {effort_str}  ·  TTS: {tts_str}")
+        # [Block 2] Der Schalter gehört in den Statusblock (Claudias Auftrag 3):
+        # Wer die Karte vermisst, soll hier sehen, dass er sie abgeschaltet hat.
+        lines.append(f"Link-Vorschau: {'🔗 an' if _vorschau_an(user_id) else '○ aus'}")
 
         if sess:
             elapsed_min = int((time.monotonic() - sess.started_at) / 60)
@@ -15265,22 +15515,41 @@ async def _send_pdf_chapters_tts(
 async def _send_tts_chunk(
     bot, chat_id: int, chunk: str, caption: str | None = None, reply_to: int | None = None,
     thread_id: int | None = None, reply_markup=None,
+    caption_entities=None, caption_roh: "str | None" = None,
 ):
     """Generiert und sendet einen einzelnen TTS-Chunk als Telegram-Voice.
-    Gibt das gesendete Message-Objekt zurück (oder None bei Fehler)."""
+    Gibt das gesendete Message-Objekt zurück (oder None bei Fehler).
+
+    `[Block 2]` `caption_entities`: ausgezeichnete Bildunterschrift. Lehnt
+    Telegram sie ab, geht dieselbe Sprachnachricht mit `caption_roh` hinterher
+    — die Stimme ist schon erzeugt, sie soll nicht an der Unterschrift scheitern.
+    """
     import edge_tts
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
         tmp_path = Path(f.name)
     try:
         communicate = edge_tts.Communicate(chunk, TTS_VOICE)
         await communicate.save(str(tmp_path))
-        with tmp_path.open("rb") as audio:
-            sent = await bot.send_voice(
-                chat_id=chat_id, voice=audio, caption=caption,
-                reply_parameters=_reply_params(reply_to),
-                message_thread_id=thread_id,
-                reply_markup=reply_markup,
-            )
+        try:
+            with tmp_path.open("rb") as audio:
+                sent = await bot.send_voice(
+                    chat_id=chat_id, voice=audio, caption=caption,
+                    caption_entities=caption_entities,
+                    reply_parameters=_reply_params(reply_to),
+                    message_thread_id=thread_id,
+                    reply_markup=reply_markup,
+                )
+        except BadRequest as e:
+            if not caption_entities:
+                raise
+            log.warning("⚙️ Bildunterschrift-Auszeichnung abgelehnt (%s) — roh", e)
+            with tmp_path.open("rb") as audio:
+                sent = await bot.send_voice(
+                    chat_id=chat_id, voice=audio, caption=caption_roh,
+                    reply_parameters=_reply_params(reply_to),
+                    message_thread_id=thread_id,
+                    reply_markup=reply_markup,
+                )
         if sent is not None:
             _remember_bot_msg(chat_id, sent.message_id, chunk)
         return sent
@@ -15670,6 +15939,7 @@ async def stream_response(
 async def send_answer_to_user(
     sess: UserSession, chat_id: int, text: str, *, force_tts: bool = False,
     reply_to: int | None = None, thread_id: int | None = None,
+    vorschau_url: Any = _UNSET,
 ) -> bool:
     """ZENTRALER Sendepfad für Antworttext (Vorstufe 5.8) — nach dem Pre-Send-Hook.
 
@@ -15688,6 +15958,42 @@ async def send_answer_to_user(
     text = (text or "").strip()
     if not text:
         return True  # nichts zu senden ist kein Zustellfehler
+
+    # ---- [Block 2] Steuerangaben ZUERST heraus — vor allem anderen ----------
+    #
+    # Hier und nur hier: Alles danach (Senden, Sprachausgabe, Merken, offene
+    # Frage) sieht den Text ohne sie. Eine Stelle weiter unten haette die
+    # Vorlese-Strecke verfehlt — Katja laese dann spitze Klammern vor.
+    if vorschau_url is _UNSET:
+        text, _angabe = vorschau_angabe_trennen(text)
+        vorschau_url = (vorschau_adresse(text, _angabe)
+                        if _vorschau_an(sess.user_id) else None)
+    else:
+        text, _angabe = vorschau_angabe_trennen(text)
+    stuecke = antwort_zerlegen(text)
+    if len(stuecke) > 1 or (stuecke and stuecke[0][1]):
+        # Kopiertext als eigene Nachricht, roh, nie vorgelesen. Die Stuecke
+        # davor und danach laufen einzeln durch diese Funktion.
+        kb0 = _main_keyboard(sess.tts_enabled, sess.current_model,
+                             sess.current_effort, user_id=sess.user_id)
+        zugestellt = False
+        for stueck, ist_kopie in stuecke:
+            if ist_kopie:
+                m = await send_chunked(sess.bot, chat_id, stueck, reply_markup=kb0,
+                                       reply_to=reply_to, thread_id=thread_id)
+                if m is not None:
+                    _remember_bot_msg(chat_id, m.message_id, stueck)
+                ok = m is not None
+            else:
+                ok = await send_answer_to_user(
+                    sess, chat_id, stueck, force_tts=force_tts, reply_to=reply_to,
+                    thread_id=thread_id, vorschau_url=vorschau_url)
+            zugestellt = zugestellt or ok
+            reply_to = None
+        return zugestellt
+    text = stuecke[0][0] if stuecke else ""
+    if not text.strip():
+        return True
     use_tts = sess.tts_enabled or force_tts
     first_pending = reply_to is not None
     # `sess.user_id` ist der Besitzer der Sitzung. Der urspruengliche Eingriff
@@ -15713,7 +16019,7 @@ async def send_answer_to_user(
         sent = await send_chunked(
             sess.bot, chat_id, text, reply_markup=opt_kb or kb,
             reply_to=reply_to if first_pending else None,
-            thread_id=thread_id,
+            thread_id=thread_id, auszeichnen=True, vorschau_url=vorschau_url,
         )
         if sent is not None:
             _remember_bot_msg(chat_id, sent.message_id, text)
@@ -15760,12 +16066,21 @@ async def send_answer_to_user(
                           else "\nDie Quellen sind im Text verlinkt.")
         sent = None
         if tts_clean:
+            # [Block 2] Die Bildunterschrift ausgezeichnet, wenn sie nach dem
+            # Umwandeln in Telegrams Grenze passt — sonst roh wie bisher.
+            _roh_unterschrift = None if force_tts else chunk[:1024]
+            _unterschrift, _u_ents = _roh_unterschrift, None
+            if _roh_unterschrift:
+                _au = auszeichnung(_roh_unterschrift)
+                if _au is not None and _utf16(_au[0]) <= _TELEGRAM_CAPTION_UTF16:
+                    _unterschrift, _u_ents = _au
             sent = await _send_tts_chunk(
                 sess.bot, chat_id, tts_clean,
-                caption=None if force_tts else chunk[:1024],
+                caption=_unterschrift,
                 reply_to=reply_to if first_pending else None,
                 thread_id=thread_id,
                 reply_markup=None if force_tts else kb,
+                caption_entities=_u_ents, caption_roh=_roh_unterschrift,
             )
         if sent is None:
             # Sprachausgabe ausgefallen (edge-tts nicht erreichbar o. ä.) ODER der
@@ -15777,7 +16092,7 @@ async def send_answer_to_user(
             sent = await send_chunked(
                 sess.bot, chat_id, chunk, reply_markup=kb,
                 reply_to=reply_to if first_pending else None,
-                thread_id=thread_id,
+                thread_id=thread_id, auszeichnen=True, vorschau_url=vorschau_url,
             )
             if sent is not None:
                 _remember_bot_msg(chat_id, sent.message_id, chunk)
@@ -15907,6 +16222,7 @@ def main() -> None:
     app.add_handler(CommandHandler("stopp", cmd_stopp))
     app.add_handler(CommandHandler("technik", cmd_technik))
     app.add_handler(CommandHandler("spur", cmd_spur))
+    app.add_handler(CommandHandler("vorschau", cmd_vorschau))
     app.add_handler(CommandHandler("updates", cmd_updates))
     app.add_handler(CommandHandler("update_ja", cmd_update_ja))
     app.add_handler(CommandHandler("update_nacht", cmd_update_nacht))

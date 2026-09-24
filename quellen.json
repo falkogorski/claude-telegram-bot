@@ -230,5 +230,17 @@
       "gruppe": "landschaft",
       "schweigen_tage": 7
     }
-  ]
+  ],
+  "dienste": {
+    "freetranscriptapi": {
+      "freigegeben": true,
+      "adresse": "https://api.freetranscriptapi.com/v1/transcript",
+      "grundlage": "Adams Freigabe 23.09.2026 12:41 ([in dieser Phase], nicht fuer eigenes Material). Bedingungen und Datenschutz gelesen 24.09.: Netchase UG Berlin, Hosting netcup/Hetzner, Weiterleitung ueber Cloudflare (USA); ohne Konto 20 Abrufe je Stunde (50 befristet bis 19.09.); keine Kosten ohne Konto."
+    },
+    "youtube-transcript.ai": {
+      "freigegeben": false,
+      "adresse": "https://youtube-transcript.ai/",
+      "grundlage": "Nicht freigegeben: vorher Lesepflicht (Bedingungen, Datenschutz) und Messung vom VPS an drei Videos (Fassung 5, 6.0c Punkt 3)."
+    }
+  }
 }

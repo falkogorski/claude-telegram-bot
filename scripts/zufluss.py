@@ -238,6 +238,16 @@ def lauf(jetzt: "float | None" = None) -> "list[str]":
     ZUSTAND.write_text(json.dumps(zustand, ensure_ascii=False, indent=2), encoding="utf-8")
     zeilen.insert(0, f"Zufluss: {neu_gesamt} neue Einträge, {len(bestand)} im Eingang "
                      f"(hält {HALTEN_TAGE} Tage)")
+    # Fassung 5, 6.0c: Der abgewiesene Direktabruf wird nicht gemeldet, nur
+    # GEZAEHLT — hier steht der Stand, damit ein spaeteres Oeffnen von YouTube
+    # (direkt_ok steigt) im Protokoll auffaellt.
+    try:
+        zaehler = json.loads((ORDNER / "transkript-zaehler.json").read_text(encoding="utf-8"))
+        if zaehler:
+            zeilen.append("Transkripte bisher: " + ", ".join(
+                f"{k} {v}" for k, v in sorted(zaehler.items())))
+    except Exception:
+        pass
     return zeilen
 
 

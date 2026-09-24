@@ -50,6 +50,7 @@ export GEGENLESER_DIR="$PRUEFHEIM/gegenleser"
 # Block 6 (24.09.): Zufluss-Eingang und Sichtungs-Merker. Die Quellenliste
 # wird auf eine LEERE umgebogen — ein Pruefer, der sie liest, soll nie ins Netz.
 export ZUFLUSS_DIR="$PRUEFHEIM/zufluss"
+export WISSEN_DIR="$PRUEFHEIM/wissen"
 export ZUFLUSS_QUELLEN="$PRUEFHEIM/quellen-leer.json"
 printf '{"quellen": []}' > "$ZUFLUSS_QUELLEN"
 # `[NEU 2026-08-20]` Das Auftragsbuch fehlte hier — und der Riegel hat prompt
@@ -331,6 +332,7 @@ run "Zustell-Waechter (erreicht uns TG?)" "$PY" scripts/test_zustellwaechter.py
 run "Pruefumgebung (Riegel 3)"          "$PY" scripts/test_pruefumgebung.py
 run "Versions-Monitor (5.21)"           "$PY" scripts/test_version_monitor.py
 run "Frische-Strang (Block 6)" "$PY" scripts/test_frische.py
+run "Transkript-Kette und Wissensablage (Block 6, Teil 2)" "$PY" scripts/test_transkript_wissen.py
 run "Update-Textbefehl (E4)"           "$PY" scripts/test_update_textbefehl.py
 run "Wachposten (Log-Waechter)"        "$PY" scripts/test_wachposten.py
 run "Postfach-Wiederaufgriff (A1)"     "$PY" scripts/test_postfach_wiederaufgriff.py

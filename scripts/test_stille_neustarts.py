@@ -208,6 +208,32 @@ for rc, satz, erwartet, name in (
         ok = ok and "❌" not in protokoll
     zeile(name, ok, gemessen=aus[-200:])
 
+print("== G. Die Belegkette rollt nur im echten Lauf (echter Abschnitt ROLLEN) ==")
+# F-Punkt „Belegkette nie gerollt", gemessen 24.09.: Sie rollte am 02.09. und
+# 16.09. — im Trockenlauf, den der Regressionslauf im Tagescheck startet, und
+# der äußere Lauf meldete danach „noch keine Kette" an Adam.
+ro = _abschnitt("ROLLEN")
+zeile("der Abschnitt ist im Skript markiert", bool(ro) and "--rollen" in ro)
+for trocken, name in ((True, "im Trockenlauf bleibt die echte Kette liegen"),
+                      (False, "im echten Lauf wird gerollt und protokolliert")):
+    with tempfile.TemporaryDirectory() as d:
+        kette = Path(d) / "kette.jsonl"
+        kette.write_text("".join(f'{{"zeit": {i}, "abdruck": "a{i}"}}\n' for i in range(5)),
+                         encoding="utf-8")
+        rumpf = ro.replace('$(dirname "$0")', str(WURZEL / "scripts"))
+        vorspann = VORSPANN.replace("trocken() { return 1; }",
+                                    "trocken() { return 0; }" if trocken else "trocken() { return 1; }")
+        vorspann = vorspann.replace("BOTENV=(env)",
+                                    f'BOTENV=(env BLUMEN_DIR="{d}" BLUMEN_ROLL_GRENZE=3)')
+        aus = _bash(vorspann + f'VENVPY="{sys.executable}"\n' + rumpf + NACHSPANN, {"TMPD": d})
+        liegt = kette.exists()
+        archiv = [x.name for x in Path(d).glob("kette.jsonl.*")]
+    if trocken:
+        zeile(name, liegt and not archiv, gemessen=f"{liegt} {archiv}")
+    else:
+        zeile(name, not liegt and archiv and "📜 Belegkette beiseitegelegt" in aus,
+              gemessen=f"{liegt} {archiv} {aus[-120:]}")
+
 print()
 if fehler:
     print(f"❌ {len(fehler)} von {zeilen} Zeilen rot: {', '.join(fehler)}")

@@ -324,13 +324,23 @@ fi
 # Kette rollen, wenn sie zu lang wird. Gemessen: 20160 Glieder = 3,2 MiB,
 # --pruefen in 0,15 s - also Vorsorge, keine Not. Die Naht sorgt dafuer, dass
 # das erste Glied der neuen Datei auf das letzte der alten zeigt.
-if [ -f "$(dirname "$0")/stundenblume.py" ]; then
+#
+# **[GEAENDERT 24.09.2026] Nie im Trockenlauf** (F-Punkt „Belegkette seit
+# 18.08. nie gerollt", gemessen): Sie IST gerollt, am 02.09. und 16.09. je um
+# 04:11 — aber vom Tagescheck, den der Regressionslauf IM Tagescheck als
+# Trockenlauf startet. `BOTENV` zeigt auch dort auf die echte Kette; der innere
+# Lauf legte sie beiseite, sein Protokoll wird nie geschrieben, und der aeussere
+# fand Sekunden spaeter „Es gibt noch keine Kette" — ein ❌ an Adam, genau an
+# beiden Rolltagen. Das Rollen ist ein vierter Ausgang: Er aendert Zustand.
+# >>> ROLLEN
+if ! trocken && [ -f "$(dirname "$0")/stundenblume.py" ]; then
   gerollt=$("${BOTENV[@]}" "$VENVPY" "$(dirname "$0")/stundenblume.py" --rollen 2>/dev/null)
   # Ohne die Bot-Umgebung rollte root eine LEERE Kette unter /root - und
   # haette die echte nie angefasst. Ein Aufraeumen, das am falschen Ort
   # aufraeumt, sieht von aussen genauso aus wie eines, das funktioniert.
   [ -n "$gerollt" ] && add "📜 Belegkette beiseitegelegt: $gerollt"
 fi
+# <<< ROLLEN
 
 # --- 9e. FRISTMELDER: laeuft heute eine Betriebslage ab? -------------------
 #

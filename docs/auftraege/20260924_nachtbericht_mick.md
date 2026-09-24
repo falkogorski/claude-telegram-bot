@@ -2,9 +2,9 @@
 
 # Nachtbericht Mick — Durchlauf 23./24.09.2026
 
-Stand: 24.09.2026, 02:1x (wird je Block fortgeschrieben). Live: `d54b272`. **Nichts davon ist deployt.**
+Stand: 24.09.2026, 02:4x — **Übergabe abgearbeitet.** Live: `d54b272`. **Nichts davon ist deployt.**
 
-**Nenner:** Engywucks Übergabe Fassung 3 mit den Blöcken 1 bis 6 (Block 6 bis Fassung 5), dazu Vormerkung 6b. Gebaut: 1b, 2, 3 (Teil 1), 4, 5, 6 (Teile 1 und 2) — sieben Zweige. Geparkt, begründet: drei Punkte (unten). Offen aus der Übergabe: D8.
+**Nenner:** Engywucks Übergabe Fassung 3 mit den Blöcken 1 bis 6 (Block 6 bis Fassung 5), dazu Vormerkung 6b. Gebaut: 1b, 2, 3 (Teil 1), 4, 5, 6 (Teile 1 und 2) — sieben Zweige. Geparkt, begründet: drei Punkte (unten). D8 erledigt, dazu Integrationszweig (92/92), Lesepflicht Dienst B, Lesenotiz 6b.
 
 ## Je Block
 
@@ -38,7 +38,7 @@ Einzelheiten je Block stehen in `MIGRATION.md`, Einträge (57) bis (63), je im j
 ## Geparkt, begründet
 
 - **Block 3, Auftrag 3** (stiller Neustart) und das **Stundenblumen-Prüfmoment**: Engywucks Ergänzung „Zähler, ab dem dritten laut" nennt keinen Zeitraum; Grundlage `20260919_nachtlese.md` fehlt mir.
-- **Block 5, Auftrag 4 zweiter Halbsatz:** ein in Telegram gelöschtes Thema beim nächsten Zugriff bemerken — hängt an allen Sendestellen, eigener kleiner Block.
+- **Block 5, Auftrag 4 zweiter Halbsatz:** ein in Telegram gelöschtes Thema beim nächsten Zugriff bemerken. Er ändert dieselbe Sendefunktion wie Block 2 — **gehört deshalb nach dessen Deploy**, sonst zwei Umbauten an einer Stelle.
 - **F-Punkte** „Belegkette nie gerollt", „Gedächtnis-Pfad im Prompt": Grundlage ebenfalls die Nachtlese vom 19.09.
 
 ## Nächste Schritte in dieser Nacht (wird fortgeschrieben)
@@ -51,6 +51,10 @@ Einzelheiten je Block stehen in `MIGRATION.md`, Einträge (57) bis (63), je im j
 
 Ursprungs-Repo `WhiskeySockets/Baileys`, `src/Socket/newsletter.ts` (SafeDep-Auflage: nie eine Abspaltung). **Für das Lesen eines Kanals genügen zwei Funktionen:** `newsletterMetadata('invite', code)` (Einladungscode → Kennung) und `newsletterFetchMessages(jid, count, since, after)`. **Alle übrigen schreiben** — auch `newsletterFollow`, das den Kanal mit der Nummer des Kontos abonniert, also ein Schritt nach außen ist; dazu Anlegen, Umbenennen, Reagieren, Löschen, Besitzwechsel. **Für den späteren Bau:** Der Dienst darf nur die zwei lesenden erreichen (Positivliste, kein Verbot einzelner); ob das Abrufen ohne Folgen geht, ist zu messen. Grenzen für Abrufe nennt der Quelltext keine.
 
+## Aufräumen, wartet auf dein Ja
+
+Neun Arbeitsbäume neben dem Hauptbaum (`probe-sammel`, `-darstellung`, `-meldungen`, `-modell`, `-zimmer`, `-frische`, `-sdk`, `-gesamt`, dazu der alte `probe-f22`). Alle Zweige sind gepusht; an den Bäumen hängt nichts. `probe-sdk` trägt eine eigene venv (rund 1 GB). **Löschen frage ich vorher** — ein Ja genügt, dann räume ich sie mit `git worktree remove`.
+
 ## Weiterarbeiten ohne Adams Hand
 
-Zwei Wecker in dieser Sitzung (05:17 und 10:23, je einmal), falls das Kontingent greift. **Grenze:** Sie leben nur, solange diese Sitzung in der App offen ist.
+Zwei Wecker waren gesetzt (05:17 und 10:23). **Zurückgenommen um 02:4x**, weil die Übergabe abgearbeitet ist: Ein Wecker ohne offene Arbeit hätte nur einen Modelllauf ohne Grund ausgelöst. **Für künftige Nächte gemessen:** Das Werkzeug (`CronCreate`) weckt diese Sitzung nach einem Kontingent-Stopp von selbst — solange sie in der App offen bleibt; auf die Platte schreibt es nichts. Je Unterbrechung setze ich einen Wecker, keinen Dauertakt (Kontingent-Regel in `CLAUDE.md`).

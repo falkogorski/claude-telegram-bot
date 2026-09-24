@@ -33,6 +33,8 @@ Einzelheiten je Block stehen in `MIGRATION.md`, Einträge (57) bis (63), je im j
 
 6. **D8, SDK-Sprung 0.2.127 → 0.2.159:** Klonprobe grün, Paarung abgelesen (`mcp` 1.30.0, `anyio` 4.15.1, CLI 2.1.281). **Beim Messen gefunden und repariert:** Die Kontingent-Erkennung las die Nutzlast der neuen Fehlerart nicht — mit dem Sprung wäre die Rücklage (Rang A) blind geworden. **Die Reparatur `9667f08` ist ohne den Sprung deploybar; ich empfehle, sie mit dem nächsten Block mitzunehmen.** Den Sprung selbst: in einem Fenster deiner Wahl, nach Node. Befund: `docs/auftraege/20260924_befund_sdk_klonprobe.md` (Zweig `probe-sdk`).
 
+7. **Dienst B (`youtube-transcript.ai`), Lesepflicht erfüllt — Urteil: geht nicht, nicht aufnehmen.** Betreiber, Land und Impressum fehlen; es gilt „das Recht am Sitz des Betreibers", und der Sitz steht nirgends; DSGVO nicht erwähnt. Keine dokumentierte Schnittstelle (Web-Werkzeug; Selmas `curl` nutzt einen inoffiziellen Endpunkt). Analytik über PostHog mit pseudonymer Besucherkennung. **Deshalb auch keine Messung vom VPS** — sie gäbe genau die Daten an einen unbekannten Betreiber, die die Lesepflicht schützen soll. Die Freigabe in `quellen.json` steht auf nein und bleibt dort. Wenn du einen zweiten Dienst willst, suche ich einen mit benanntem Betreiber in der EU.
+
 ## Geparkt, begründet
 
 - **Block 3, Auftrag 3** (stiller Neustart) und das **Stundenblumen-Prüfmoment**: Engywucks Ergänzung „Zähler, ab dem dritten laut" nennt keinen Zeitraum; Grundlage `20260919_nachtlese.md` fehlt mir.
@@ -43,7 +45,7 @@ Einzelheiten je Block stehen in `MIGRATION.md`, Einträge (57) bis (63), je im j
 
 - ~~D8~~ erledigt (siehe oben). Node bleibt Adams Fenster mit dem Vollzugs-Zettel.
 - ~~Integrationszweig~~ erledigt: **`probe-gesamt` (`202564e`) führt 1b, 2, 3, 4, 5, 6 und die Limit-Reparatur zusammen — 92/92.** Konflikte gab es nur dort, wo zwei Blöcke an derselben Stelle eingetragen haben (Drehbuch, Register, Blaupause, `requirements.txt`) und zweimal im Code, beide additiv (je eine Selbstcheck-Zeile und ein Tagescheck-Abschnitt nebeneinander). **Eine Stelle war inhaltlich:** Der Registereintrag `claude-modelle` trägt jetzt die angehobene Notiz aus Block 4 **und** die Fähigkeitsfelder aus Block 6. **Für dich heißt das:** Du kannst Block für Block deployen, oder `probe-gesamt` in einem Zug — dann aber **zuerst die Abo-Probe für Opus 5.5** (Punkt 1 oben), weil Block 4 darin steckt.
-- Dienst B (`youtube-transcript.ai`): Lesepflicht; die Messung vom VPS erst danach.
+- ~~Dienst B~~ gelesen, Urteil oben (Punkt 7).
 
 ## Weiterarbeiten ohne Adams Hand
 

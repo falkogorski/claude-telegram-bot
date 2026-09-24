@@ -1,7 +1,7 @@
 <!-- ROLLE: pruefliste-sdk-sprung -->
 # Prüfliste: der SDK-Sprung, wenn Adam das Fenster setzt
 
-**Stichtag:** 29.08.2026, 17:3x · **überholt durch:** — · **maßgeblich ist diese Datei**
+**Stichtag:** 29.08.2026, 17:3x · **überholt durch:** `20260924_befund_sdk_klonprobe.md` **für Fassung und Paarung** (jetzt 0.2.159 / mcp 1.30.0 / anyio 4.15.1) · **das Verfahren im Fenster bleibt hier maßgeblich**
 **Gilt für:** Update-Auftrag `2026-08-29_bauauftrag-offene-updates-einspielen.md`, Schritt 2
 **Belege:** `BEFUND-klonlauf-sdk-0.2.148.md` (Messungen), `BEFUND-sdk-aenderungsnotizen-0.2.127-0.2.148.md` (Notizen)
 

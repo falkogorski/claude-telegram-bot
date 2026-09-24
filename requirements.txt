@@ -23,7 +23,16 @@
 # ungepinnte npm-Stand entscheidend.
 # [SYNC 25.07.] Pin von 0.2.118 auf 0.2.127 nachgezogen, nachdem Adam das gelbe
 # Update via /updates bewusst uebernommen hat (Regressionstest gruen, Bot lief sauber).
-claude-agent-sdk==0.2.127
+# [KLONPROBE 24.09.2026, D8 — Adams Entscheid 8 vom 23.09.] Sprung 0.2.127 -> 0.2.159
+# im Arbeitsbaum ../probe-sdk mit EIGENER venv gefahren. Abgelesen, nicht getippt:
+# gebuendelte CLI 2.1.281 (<sdk>/_bundled/claude --version), mcp und anyio unten
+# aus derselben pip freeze. Deploy NUR im Fenster, das Adam setzt — und NACH Node.
+claude-agent-sdk==0.2.159
+# Mitzieher des SDK, mitgepinnt (Adams Auflage 1 vom 29.08.: beide oder keins).
+# Gemessen 24.09.: Schon SDK 0.2.127 zieht in frischer Umgebung mcp 1.30.0 und
+# anyio 4.15.1 — genau die Drift, gegen die dieser Pin steht.
+mcp==1.30.0
+anyio==4.15.1
 # [webhooks]-Extra (tornado) fuer den 1.9-Webhook-Modus — Umschalten nur mit Adam
 python-telegram-bot[webhooks]>=22.7
 python-dotenv>=1.0

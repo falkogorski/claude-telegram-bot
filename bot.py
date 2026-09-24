@@ -1150,7 +1150,15 @@ def is_session_limit(exc: Exception) -> bool:
     er fiel in den allgemeinen Fehlerzweig, der die Session schließt und den
     Auftrag als gescheitert abhakt.
     """
-    msg = str(exc).lower()
+    # **[GEAENDERT 24.09.2026, D8-Klonprobe] Samt Nutzlast, wie die Geschwister.**
+    # `is_auth_error` und `is_context_overflow` lesen seit dem 29.08. ueber
+    # `fehlertext_vollstaendig`; diese Stelle las weiter nur `str(exc)`. Ab SDK
+    # 0.2.140 bildet `ResultError` seinen Text bevorzugt aus `errors[]` — steht
+    # das Limit dann nur in `result` oder allein als Status 429, waere die
+    # Kontingent-Ruecklage (Rang A) blind gewesen. Geschwister-Regel.
+    if _api_status(exc) == 429:
+        return True
+    msg = fehlertext_vollstaendig(exc).lower()
     needles = ("usage limit", "session limit", "rate limit", "limit reached",
                "quota exceeded", "kontingent", "too many requests", "429")
     return any(n in msg for n in needles)
@@ -2673,7 +2681,9 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 # Zuruecklegen eingestellt, waere er gruen geblieben, und Adams
                 # Nachricht waere beim naechsten Kontingent-Limit verloren
                 # gewesen — genau der Fall, fuer den A1 gebaut wurde.
-                bis = limit_ruecklage(mb, job, str(e))
+                # Samt Nutzlast: Die Rueckkehrzeit („resets 5am") steht bei
+                # `ResultError` oft nur in `result`, nicht in der Meldung.
+                bis = limit_ruecklage(mb, job, fehlertext_vollstaendig(e))
                 if bis:
                     from datetime import datetime as _dt2
                     wann = _dt2.fromtimestamp(bis).astimezone().strftime("%H:%M")

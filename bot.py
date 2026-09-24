@@ -5890,6 +5890,163 @@ async def cmd_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+# ── Zimmer aus dem Chat  [NEU 24.09.2026, Block 5, Claudias Auftrag 13.09.] ──
+#
+# Adam: *„Ich möchte nicht jedes Mal über Mick gehen, wenn ich ein Zimmer
+# hinzufügen oder verändern will."* Nur Adam (`authorized`), kein Löschbefehl
+# (Auftrag 4: Löschen ist destruktiv und bleibt in Adams Hand in Telegram).
+# Deterministisch, kein Modell.
+
+# Offene Rückfragen bei Namensgleichheit: Kennung → (Haus, Name). Im Speicher;
+# nach einem Neustart fragt Adam einfach noch einmal.
+_ZIMMER_RUECKFRAGEN: dict[str, tuple[str, str]] = {}
+
+
+async def _zimmer_anlegen(bot_obj, haus: str, name: str) -> str:
+    """Thema in Telegram anlegen, dann eintragen — in dieser Reihenfolge.
+
+    Erst Telegram: Scheitert es, ist nichts eingetragen. Scheitert danach das
+    Eintragen, steht das Thema in Telegram ohne Kennung in den Vorlieben — und
+    genau das legte `missing_zimmer` beim nächsten Haus-Durchlauf doppelt an.
+    Deshalb wird dann das Thema wieder geschlossen und das gesagt.
+    """
+    from telegram.error import RetryAfter, TelegramError
+    eintrag = channels._channels_root(_USER_PREFS)["houses"][haus]
+    topic = None
+    for _ in range(2):
+        try:
+            topic = await bot_obj.create_forum_topic(chat_id=eintrag["chat_id"], name=name)
+            break
+        except RetryAfter as e:
+            await asyncio.sleep(float(getattr(e, "retry_after", 2)) + 0.5)
+        except TelegramError as e:
+            return f"❌ Telegram hat das Thema nicht angelegt: {e}"
+    if topic is None:
+        return "❌ Telegram bremst gerade — bitte gleich noch einmal."
+    try:
+        channels.zimmer_eintragen(haus, name)
+        channels.record_topic(_USER_PREFS, haus, name, topic.message_thread_id)
+        _save_prefs(_USER_PREFS)
+    except Exception as e:
+        log.exception("Zimmer angelegt, Eintragen gescheitert")
+        try:
+            await bot_obj.close_forum_topic(chat_id=eintrag["chat_id"],
+                                            message_thread_id=topic.message_thread_id)
+        except Exception:
+            pass
+        return (f"⚠️ Das Thema steht in Telegram, aber ich konnte es nicht eintragen ({e}). "
+                "Ich habe es geschlossen — bitte in Telegram löschen und noch einmal anlegen.")
+    titel = channels.haeuser()[haus]["title"]
+    return f"✅ Zimmer „{name}“ in {titel} angelegt."
+
+
+async def cmd_zimmer_neu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not authorized(update):
+        return
+    args = list(context.args or [])
+    if len(args) < 2:
+        await update.message.reply_text(
+            "So geht es: /zimmer_neu Werkstatt Neues Zimmer\n"
+            "Häuser: " + ", ".join(h["title"] for h in channels.haeuser().values()))
+        return
+    haus = channels.haus_finden(args[0])
+    name = " ".join(args[1:]).strip()
+    if haus is None:
+        await update.message.reply_text(
+            f"Ein Haus „{args[0]}“ kenne ich nicht. Häuser: "
+            + ", ".join(h["title"] for h in channels.haeuser().values()))
+        return
+    absage, warnung = channels.anlegen_pruefen(_USER_PREFS, haus, name)
+    if absage:
+        await update.message.reply_text(f"❌ {absage}")
+        return
+    if warnung:
+        kennung = uuid.uuid4().hex[:8]
+        _ZIMMER_RUECKFRAGEN[kennung] = (haus, name)
+        await update.message.reply_text(
+            f"⚠️ {warnung}\n\nTrotzdem anlegen?",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("Ja, anlegen", callback_data=f"zn:{kennung}:ja"),
+                InlineKeyboardButton("Nein", callback_data=f"zn:{kennung}:nein")]]))
+        return
+    await update.message.reply_text(await _zimmer_anlegen(context.bot, haus, name))
+
+
+async def on_zimmer_knopf(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query is None or not authorized(update):
+        return
+    await query.answer()
+    teile = (query.data or "").split(":")
+    offen = _ZIMMER_RUECKFRAGEN.pop(teile[1], None) if len(teile) == 3 else None
+    if offen is None:
+        text = "ℹ️ Diese Rückfrage ist nicht mehr offen — bitte den Befehl noch einmal."
+    elif teile[2] != "ja":
+        text = "Nicht angelegt."
+    else:
+        text = await _zimmer_anlegen(context.bot, *offen)
+    try:
+        await query.edit_message_text(((query.message.text or "") if query.message else "")
+                                      + "\n\n" + text, reply_markup=None)
+    except Exception:
+        log.warning("Zimmer-Knopf: Meldung nicht ergänzt", exc_info=True)
+
+
+_TRENNER = re.compile(r"\s*(?:\||->|→|=>)\s*")
+
+
+async def cmd_zimmer_umbenennen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Umbenennen als EIN Vorgang (Claudias Auftrag 3): erst Telegram, dann
+    Liste, Kennung und Routen zugleich; scheitert das, geht Telegram zurück."""
+    if not authorized(update):
+        return
+    from telegram.error import TelegramError
+    roh = " ".join(context.args or [])
+    teile = _TRENNER.split(roh, maxsplit=1)
+    if len(teile) != 2 or not teile[0].strip() or not teile[1].strip():
+        await update.message.reply_text(
+            "So geht es: /zimmer_umbenennen Alter Name | Neuer Name")
+        return
+    alt, neu = teile[0].strip(), teile[1].strip()
+    gefunden = channels.umbenennen_finden(_USER_PREFS, alt)
+    if isinstance(gefunden, str):
+        await update.message.reply_text(f"❌ {gefunden}")
+        return
+    haus, alt_genau, tid = gefunden
+    if any(channels.folder_name(z) == channels.folder_name(neu)
+           for z in channels.zimmer_for(haus)):
+        await update.message.reply_text("❌ Diesen Namen trägt in dem Haus schon ein Zimmer.")
+        return
+    chat_id = (channels._channels_root(_USER_PREFS)["houses"].get(haus) or {}).get("chat_id")
+    if tid is not None and chat_id is not None:
+        try:
+            await context.bot.edit_forum_topic(chat_id=chat_id, message_thread_id=tid, name=neu)
+        except TelegramError as e:
+            await update.message.reply_text(f"❌ Telegram hat nicht umbenannt: {e} — nichts geändert.")
+            return
+    try:
+        vorher = channels.umbenennen_anwenden(_USER_PREFS, haus, alt_genau, neu)
+        try:
+            _save_prefs(_USER_PREFS)
+        except Exception:
+            channels.umbenennen_zuruecknehmen(_USER_PREFS, haus, vorher)
+            raise
+    except Exception as e:
+        log.exception("Zimmer umbenennen: Daten nicht geschrieben")
+        if tid is not None and chat_id is not None:
+            try:
+                await context.bot.edit_forum_topic(chat_id=chat_id, message_thread_id=tid,
+                                                   name=alt_genau)
+            except Exception:
+                pass
+        await update.message.reply_text(
+            f"❌ Umbenennen nicht gelungen ({e}) — ich habe alles zurückgestellt.")
+        return
+    nur_liste = "" if tid is not None else (
+        " (Das Zimmer war in Telegram noch nicht angelegt — geändert ist die Liste.)")
+    await update.message.reply_text(f"✅ „{alt_genau}“ heißt jetzt „{neu}“.{nur_liste}")
+
+
 async def cmd_zimmer(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Der Leitstand als Text -- Auftrag 6 aus dem Zimmer-Bauauftrag.
 
@@ -7679,6 +7836,13 @@ _BEFEHLE: tuple[tuple[str, str | None, str], ...] = (
      "Link-Vorschau in Antworten an/aus (Vorgabe an; Freigabe-Anfragen nie)"),
     ("whereami", "Aktuellen Kanal zeigen", "Kanal-Info anzeigen"),
     ("whoami", None, "User-Info"),
+    # Block 5 (Claudias Auftrag 13.09.): Zimmer aus dem Chat, ohne Deploy.
+    # Unterstrich statt Bindestrich — Telegram erlaubt keinen Bindestrich im
+    # Befehlsnamen, und Adams Regel vom 11.09. sagt dasselbe.
+    ("zimmer_neu", "Zimmer anlegen: /zimmer_neu Haus Name",
+     "<Haus> <Name> — legt im Haus ein neues Zimmer (Thema) an"),
+    ("zimmer_umbenennen", "Zimmer umbenennen: /zimmer_umbenennen alt | neu",
+     "<alter Name> | <neuer Name> — benennt ein Zimmer um, samt Routen und Kennung"),
     ("zimmer", "Leitstand: welches Zimmer arbeitet woran",
      "Leitstand: welche Zimmer wach sind, woran sie arbeiten, seit wann"),
 )
@@ -8182,7 +8346,7 @@ async def _provision_house(bot, chat, house_key: str) -> None:
     bereits angelegte Zimmer werden übersprungen (Prefs führen die Topic-IDs)."""
     from telegram.error import RetryAfter, TelegramError
 
-    spec = channels.HOUSES[house_key]
+    spec = channels.haeuser()[house_key]
     channels.register_house(_USER_PREFS, house_key, chat.id,
                             chat.title or spec["title"],
                             bool(getattr(chat, "is_forum", False)))
@@ -8294,7 +8458,7 @@ async def on_my_chat_member(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
         if str(chat.id).startswith("-100"):
             lines.append(f"Interne ID: {str(chat.id)[4:]}")
         if house_key and not is_forum:
-            spec = channels.HOUSES[house_key]
+            spec = channels.haeuser()[house_key]
             lines.append(
                 f'Das sieht nach dem Haus {spec["emoji"]} „{spec["title"]}“ aus — '
                 "aber der Forum-Modus (Themen) ist noch aus. Aktiviere ihn in den "
@@ -11689,6 +11853,18 @@ def run_self_check() -> tuple[bool, list[str]]:
         assert {"bold", "text_link", "code"} <= arten, f"Auszeichnung unvollständig: {arten}"
         assert "**" not in au[0], "Sternchen stehen noch im Klartext"
     check("Auszeichnung im Antwortweg (Block 2)", _c_auszeichnung)
+    def _c_zimmerliste() -> None:
+        """`[Block 5]` Die Zimmerliste ist lesbar, und jede Route trifft ein Zimmer.
+
+        **Beschädigt heißt: es gilt die eingebaute Liste** — das Routing läuft
+        weiter, aber Adams eigene Zimmer fehlen. Ohne diese Zeile sähe das aus
+        wie Normalbetrieb (Claudias Auflage: einmal melden, nicht still).
+        """
+        assert not channels.beschaedigt(), \
+            f"Zimmerliste beschädigt ({channels.datei()}) — es gilt die eingebaute Liste"
+        kaputt = channels.routen_pruefen()
+        assert not kaputt, "Route zeigt ins Leere: " + "; ".join(kaputt)
+    check("Zimmerliste und Routen (Block 5)", _c_zimmerliste)
 
     def _c_register_vollstaendig() -> None:
         """R2: Wächter für Regel 3 der Bezugs-Integrität.
@@ -12201,6 +12377,13 @@ def _voice_when(rec: dict) -> str:
 
 async def post_init(app: Application) -> None:
     """Started after Application.initialize() — kicks off the watchdog task."""
+    # Block 5: Fehlt die Zimmerliste als Datei, wird sie jetzt aus der
+    # Erstbefuellung geschrieben — vom Bot, damit sie dem Bot gehoert.
+    try:
+        if channels.erstbefuellen():
+            log.info("Zimmerliste angelegt: %s", channels.datei())
+    except Exception:
+        log.exception("Zimmerliste nicht angelegt (nicht-fatal, es gilt die Erstbefuellung)")
     app.create_task(watchdog(app), name="watchdog")
     log.info("watchdog started (interval=%ds, timeout=%ds, threshold=%d)",
              WATCHDOG_INTERVAL_S, WATCHDOG_TIMEOUT_S, WATCHDOG_FAIL_THRESHOLD)
@@ -16296,6 +16479,9 @@ def main() -> None:
     app.add_handler(CommandHandler("verbose", cmd_verbose))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("zimmer", cmd_zimmer))
+    app.add_handler(CommandHandler("zimmer_neu", cmd_zimmer_neu))
+    app.add_handler(CommandHandler("zimmer_umbenennen", cmd_zimmer_umbenennen))
+    app.add_handler(CallbackQueryHandler(on_zimmer_knopf, pattern=r"^zn:"))
     app.add_handler(CommandHandler("empfang", cmd_empfang))
     app.add_handler(CommandHandler("empfang_an", cmd_empfang_an))
     app.add_handler(CommandHandler("empfang_aus", cmd_empfang_aus))

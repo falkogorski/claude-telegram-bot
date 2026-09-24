@@ -309,6 +309,7 @@ run "Session-Waechter 5.18"             "$PY" scripts/test_stall_5_18.py
 # dass es bei der Entscheidung sofort aufhoert.
 run "Freigabe-Erinnerungen (N-1)"       "$PY" scripts/test_freigabe_erinnerung.py
 run "Kanal-Routing Phase 6"             "$PY" scripts/test_channels_6.py
+run "Zimmerliste aus dem Chat (Block 5)" "$PY" scripts/test_zimmerliste.py
 run "Warteschlange FIFO 5.5"            "$PY" scripts/test_queue_order_5_5.py
 run "Updater-Haertung A1-A7"            "$PY" scripts/test_updater_haertung.py
 run "Medien-Transport H1 (Bild/Video)"  "$PY" scripts/test_media_h1.py

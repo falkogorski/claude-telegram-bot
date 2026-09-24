@@ -48,3 +48,12 @@ pyflakes
 # und der Selbstcheck meldet es.
 telegramify-markdown==1.2.0
 pyromark==0.9.13
+# [NEU 24.09.2026, Block 6 Teil 2] Direktabruf von YouTube-Untertiteln
+# (transkript.py). WEICH geladen: Fehlt das Paket, geht die Kette zum
+# Fremddienst, der Bot haengt nicht davon ab. Fassung wie in Claudias
+# Werkzeug auf dem VPS gemessen (24.09.). MIT; zieht requests und defusedxml.
+youtube-transcript-api==1.2.4
+defusedxml==0.7.1
+requests==2.34.2
+# mitgezogen von requests (gemessen am Mac, 24.09.) — gepinnt, damit ein Rueckbau vollstaendig ist
+urllib3==2.8.0

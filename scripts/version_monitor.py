@@ -364,6 +364,33 @@ def _faellig(name: str, comp: dict, gesehen: dict) -> tuple[bool, int]:
     return (seit >= tage_soll, max(seit, 0))
 
 
+def _zufluss() -> "list[str]":
+    """`scripts/zufluss.py` starten — als claudebot, wenn dieser Lauf root ist.
+
+    Der Monitor laeuft als root (Unit ohne `User=`, gemessen 24.09.). Legte er
+    den Eingang selbst an, gehoerte er root, und der Bot koennte seinen
+    Sichtungs-Merker nicht setzen. Der Ordner wird ausdruecklich uebergeben,
+    statt sich auf das HOME zu verlassen, das `sudo` setzt oder nicht.
+    Scheitert der Start, ist das eine Protokollzeile — der Monitor laeuft weiter.
+    """
+    import subprocess
+    skript = ROOT / "scripts" / "zufluss.py"
+    if not skript.exists():
+        return []
+    befehl = [sys.executable, str(skript)]
+    try:
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            import pwd
+            heim = pwd.getpwnam("claudebot").pw_dir
+            befehl = ["sudo", "-u", "claudebot", "env",
+                      f"ZUFLUSS_DIR={heim}/.claude/zufluss"] + befehl
+        r = subprocess.run(befehl, capture_output=True, text=True, timeout=900)
+        return [z for z in (r.stdout or "").splitlines() if z.strip()] or \
+            [f"FEHLER keine Ausgabe (rc {r.returncode}): {(r.stderr or '')[-200:]}"]
+    except Exception as e:
+        return [f"FEHLER Zufluss nicht gestartet: {type(e).__name__}: {e}"[:300]]
+
+
 def main() -> int:
     reg = json.loads(REGISTER.read_text())
     updates: list[str] = []   # meldepflichtig
@@ -391,6 +418,31 @@ def main() -> int:
                          "übersprungen und NICHT geprüft")
             loglines.append(f"? Eintrag {nr}: unvollstaendig (GEMELDET)")
             continue
+        # **[NEU 24.09.2026, Block 6] Faehigkeits-Register: jedes Bauteil kennt
+        # seinen Ersatz.** Traegt ein Eintrag `alternativen`, meldet er sich
+        # nach seinem Intervall mit [Alternativen faellig] — dieselbe Zeile,
+        # dieselbe Sichtungslogik wie `manual`, damit es EINEN Meldeweg gibt.
+        # Eine leere Liste ist Absicht und wird so benannt: *Ein Bauteil ohne
+        # benannten Ersatz ist festgeschrieben* (Engywucks Blaupause-Zeile).
+        if "alternativen" in comp:
+            akey = f"{name}#alternativen"
+            aintervall = {"intervall_tage": comp.get("alternativen_intervall_tage")
+                          or comp.get("intervall_tage") or INTERVALL_STD_TAGE}
+            afaellig, aseit = _faellig(akey, aintervall, gesehen)
+            if afaellig:
+                alt = comp.get("alternativen") or []
+                benannt = ("; ".join(
+                    f"{a.get('name')} (gesichtet {a.get('gesichtet') or 'nie'})" for a in alt)
+                    if alt else "KEIN Ersatz benannt — das Bauteil ist festgeschrieben")
+                aufwand = (f" · Ersatz grob {comp['ersatz_aufwand_h']} h"
+                           if comp.get("ersatz_aufwand_h") else "")
+                updates.append(f"🔁 [Alternativen fällig] {name}: {comp.get('zweck', '')}"
+                               f" — {benannt}{aufwand}")
+                loglines.append(f"ALTERNATIVEN {name}: faellig"
+                                + ("" if aseit >= 0 else " (Datum unlesbar)"))
+                faellig_neu.append(akey)
+            elif akey not in gesehen:
+                faellig_neu.append(akey)          # Startdatum setzen, nicht melden
         if kind == "manual":
             # **Der stille Teil des Registers — und der Grund für diesen Umbau.**
             #
@@ -492,12 +544,22 @@ def main() -> int:
             continue
         if comp["name"] not in gesehen or comp["name"] in faellig_neu:
             gesehen[comp["name"]] = jetzt_iso
+    for akey in faellig_neu:
+        if akey.endswith("#alternativen"):
+            gesehen[akey] = jetzt_iso
     try:
         SEENFILE.parent.mkdir(parents=True, exist_ok=True)
         SEENFILE.write_text(json.dumps(gesehen, indent=2, ensure_ascii=False),
                             encoding="utf-8")
     except Exception:
         pass
+
+    # **[NEU 24.09.2026, Block 6] Der Zufluss haengt an DIESEM Zeitgeber** —
+    # kein eigener (Engywuck). Seine Zeilen gehen ins Protokoll, nicht in die
+    # Meldung: Gescheiterte und schweigende Quellen betreffen die Kontrolle,
+    # nicht Adam (Claudias Auftrag vom 19.09.).
+    for z in _zufluss():
+        loglines.append(f"zufluss: {z}")
 
     # Protokoll immer
     try:

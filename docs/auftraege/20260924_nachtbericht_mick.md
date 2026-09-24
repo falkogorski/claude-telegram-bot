@@ -42,7 +42,7 @@ Einzelheiten je Block stehen in `MIGRATION.md`, Einträge (57) bis (63), je im j
 ## Nächste Schritte in dieser Nacht (wird fortgeschrieben)
 
 - ~~D8~~ erledigt (siehe oben). Node bleibt Adams Fenster mit dem Vollzugs-Zettel.
-- Ein Integrationszweig, der alle Blöcke zusammenführt und den Regressionslauf über das Ganze fährt — damit die Deploy-Reihenfolge keine Überraschung bringt.
+- ~~Integrationszweig~~ erledigt: **`probe-gesamt` (`202564e`) führt 1b, 2, 3, 4, 5, 6 und die Limit-Reparatur zusammen — 92/92.** Konflikte gab es nur dort, wo zwei Blöcke an derselben Stelle eingetragen haben (Drehbuch, Register, Blaupause, `requirements.txt`) und zweimal im Code, beide additiv (je eine Selbstcheck-Zeile und ein Tagescheck-Abschnitt nebeneinander). **Eine Stelle war inhaltlich:** Der Registereintrag `claude-modelle` trägt jetzt die angehobene Notiz aus Block 4 **und** die Fähigkeitsfelder aus Block 6. **Für dich heißt das:** Du kannst Block für Block deployen, oder `probe-gesamt` in einem Zug — dann aber **zuerst die Abo-Probe für Opus 5.5** (Punkt 1 oben), weil Block 4 darin steckt.
 - Dienst B (`youtube-transcript.ai`): Lesepflicht; die Messung vom VPS erst danach.
 
 ## Weiterarbeiten ohne Adams Hand

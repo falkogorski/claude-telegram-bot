@@ -306,6 +306,7 @@ fi
 # oder 1 (steht still / gebrochen / unlesbar — der Satz sagt WELCHES und was
 # daran haengt). Vorher hiess es fuer alles „steht still oder ist gebrochen";
 # Adam: *„Das ist eine Info, mit der ich gar nichts anfangen kann."*
+# >>> BLUMEN
 if [ -f "$(dirname "$0")/stundenblume.py" ]; then
   "${BOTENV[@]}" "$VENVPY" "$(dirname "$0")/stundenblume.py" --pruefen > /tmp/blumen_check.log 2>&1
   _blumen_rc=$?
@@ -316,6 +317,7 @@ if [ -f "$(dirname "$0")/stundenblume.py" ]; then
     *) red "$_blumen" ;;
   esac
 fi
+# <<< BLUMEN
 
 
 
@@ -853,6 +855,26 @@ case "$_routen" in
   # Python-Meldung als „Route zeigt ins Leere".
   *)           red "Die Routenpruefung der Zimmerliste lief nicht: ${_routen:-keine Ausgabe}" ;;
 esac
+
+# --- 9m. STILLE NEUSTARTS (Block 3 Teil 2, 24.09.2026) ----------------------
+# Seit Claudias Auftrag 3 schweigt ein sauberer Neustart, gleich aus welchem
+# Grund. Engywucks Ergaenzung: Der dritte an einem Tag ist ein Befund — sonst
+# sieht eine Neustart-Schleife aus wie Ruhe. Der Bot vermerkt, HIER wird nur
+# gezaehlt (Fenster: gestern vier Uhr bis heute vier Uhr). Nur LESEND: Die
+# Datei gehoert claudebot; als root angelegt, koennte der Bot sie nie wieder
+# beschreiben.
+# >>> NEUSTARTS
+if [ -f "$BOTDIR/neustarte.py" ]; then
+  _ns="$("${BOTENV[@]}" "$VENVPY" "$BOTDIR/neustarte.py" 2>&1 | tail -1)"
+  case "$_ns" in
+    adam$'\t'*)      add "🔁 ${_ns#adam$'\t'}"; adam "${_ns#adam$'\t'}" ;;
+    protokoll$'\t'*) add "✅ ${_ns#protokoll$'\t'}" ;;
+    # Eine abgestuerzte Zaehlung ist kein Neustart-Befund, aber auch keine
+    # Ruhe: an die Kontrolle.
+    *)               intern "Zaehlung stiller Neustarts lief nicht: ${_ns:-keine Ausgabe}" ;;
+  esac
+fi
+# <<< NEUSTARTS
 
 # --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
 # Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete

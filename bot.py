@@ -709,6 +709,9 @@ TTS_VOICE = os.environ.get("TTS_VOICE") or "de-DE-KatjaNeural"
 TTS_CHUNK_CHARS = 4000  # max. Zeichen pro Sprachnachricht (PDF-Vorlesen etc.)
 TTS_SYNC_CHUNK = 1024  # max. Zeichen pro Text-Chunk wenn TTS-Sync-Modus aktiv
 _RESTART_REASON_FILE = Path.home() / ".claude/bot-restart-reason.txt"
+# `[NEU 24.09.2026, Block 3 Teil 2]` Kopf eines Grundes, den Adam selbst
+# ausgelöst hat (/restart): Dieser Neustart meldet sich immer.
+_LAUT_MARKE = "[LAUT]"  # dasselbe Zeichen wie `neustarte.LAUT` (Prüfer hält es fest)
 UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR") or str(Path.home() / "Downloads" / "claude-uploads"))
 # H1 (Befund 24.07.): Der SDK-Vorgabewert von 1 MB ließ jedes größere Foto den
 # Turn abbrechen — viermal hintereinander, danach Sitzungs-Neustart. Zuerst den
@@ -12764,13 +12767,20 @@ async def post_init(app: Application) -> None:
         # bei sauberem Start KEINE Telegram-Meldung (4-Uhr-Fenster, Rotes-Team
         # C.3); Auffälligkeiten (Selbstcheck, Reconcile, Restart-Fenster-
         # Eingänge) werden trotzdem gebündelt gemeldet.
+        # `[NEU 24.09.2026, Block 3 Teil 2]` Seit Claudias Auftrag 3 gilt das
+        # für JEDEN Neustart (`neustarte.still`); [STILL] heißt jetzt nur noch
+        # „planmäßig, nicht mitzählen". Laut bleibt Adams eigener /restart
+        # ([LAUT]-Marker aus `_do_restart`).
+        import neustarte
+        adam_ausgeloest = False
+        neustart_grund = neustarte.OHNE_GRUND
         if _RESTART_REASON_FILE.exists():
-            startup_msg = _RESTART_REASON_FILE.read_text(encoding="utf-8").strip()
+            kopf = neustarte.grund_lesen(_RESTART_REASON_FILE.read_text(encoding="utf-8"))
             _RESTART_REASON_FILE.unlink(missing_ok=True)
-            if startup_msg.startswith("[STILL]"):
-                silent_ok = True
-                startup_msg = startup_msg[len("[STILL]"):].strip() or (
-                    "🌙 Nächtlicher Hygiene-Neustart (4-Uhr-Fenster).")
+            silent_ok = kopf["planmaessig"]
+            adam_ausgeloest = kopf["adam_ausgeloest"]
+            startup_msg = kopf["meldung"]
+            neustart_grund = kopf["grund"]
             # AUTORUN-Marker extrahieren
             if "[AUTORUN]:" in startup_msg:
                 parts = startup_msg.split("[AUTORUN]:", 1)
@@ -12851,13 +12861,29 @@ async def post_init(app: Application) -> None:
         except Exception as e:
             selfcheck_trouble = True
             startup_msg += f"\n\n⚠️ Selbstcheck konnte nicht laufen: {e}"
-        # Stiller Hygiene-Neustart: sauber (kein Befund) → nur Log, kein Telegram.
-        noteworthy = bool(pending_info_line) or bool(reconcile_line) or selfcheck_trouble
-        if silent_ok and not noteworthy:
-            log.info("Hygiene-Neustart sauber — Startmeldung unterdrückt ([STILL]).")
+        # Stiller Neustart (Claudias Auftrag 3): Selbstcheck grün, nichts
+        # nachzuholen, nichts in der Schlange → nur Log, kein Telegram — gleich
+        # aus welchem Grund. Ein Lauf, der nach dem Start folgt (AUTORUN, offene
+        # Frage aus dem Log), ist Schlange: Adam sähe die Antwort ohne Anlass.
+        still = neustarte.still(
+            adam_ausgeloest=adam_ausgeloest,
+            nachzuholen=bool(pending_info_line) or bool(reconcile_line),
+            selbstcheck_rot=selfcheck_trouble,
+            auftraege=bool(autorun_tasks))
+        if still:
+            log.info("Neustart sauber — Startmeldung unterdrückt (%s): %s",
+                     "planmäßig" if silent_ok else "still", neustart_grund)
             send_targets: list[int] = []
         else:
             send_targets = list(ALLOWED_USER_IDS)
+        # Buchführung in EIGENER Klammer (Regel vom 10.09.): Der Vermerk für
+        # die Zählung im Tagescheck darf den Start nie berühren. Der planmäßige
+        # Hygiene-Neustart zählt nicht — er ist kein Befund.
+        if still and not silent_ok:
+            try:
+                neustarte.vermerken(neustart_grund)
+            except Exception:
+                log.warning("Stiller Neustart nicht vermerkt (nicht-fatal)", exc_info=True)
         for uid in send_targets:
             try:
                 prefs = _USER_PREFS.get(str(uid), {})
@@ -13603,7 +13629,8 @@ async def _do_restart(update: Update, user_id: int, via_callback: bool = False) 
     eingehenden Updates eine letzte Chance, noch verarbeitet zu werden."""
     try:
         _RESTART_REASON_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _RESTART_REASON_FILE.write_text(_build_restart_reason(user_id), encoding="utf-8")
+        _RESTART_REASON_FILE.write_text(_LAUT_MARKE + _build_restart_reason(user_id),
+                                        encoding="utf-8")
     except Exception:
         log.exception("could not write restart reason file")
     restart_msg = "🔄 Starte neu — ich melde mich gleich wieder."

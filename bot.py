@@ -3086,18 +3086,24 @@ _AUTOLINK = re.compile(r"<(?:https?://|mailto:)[^\s<>]*>", re.I)
 _AUFGABE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]", re.M)
 _SATZZEICHEN = set("!\"#$%&'()+,-./:;<=>?@[\\]^_{|}~")   # ohne * und ` (eigene Regeln)
 _SANFT_ARTEN = {"bold", "code", "pre", "url", "text_link"}
+# `[26.09.2026, Engywucks Gegenpruefung, Befund 2 — am Paket nachgemessen]`
+# Sanft wirkt `**` nur als ECHTES Paar: geoeffnet am Zeilenanfang oder nach
+# Leerraum/Klammer, geschlossen vor Zeilenende, Leerraum oder Satzzeichen.
+# Vorher wurde `x**2 + y**2` zu fettem `x2 + y2`, `src/**/*.py` zu `src//*.py`
+# — der Waechter schwieg, weil er Sterne nicht zaehlt.
+# Die typographischen Anfuehrungen als \u-Escapes (u201e, u201c, u00ab,
+# u00bb) — `re` versteht sie, und kein Zeichen steht ungepaart im Quelltext.
+_FETT_PAAR = re.compile(r'(?<![^\s(\[\u201e"\u00ab])\*\*(?=[^\s*])(?:(?!\*\*).)+?(?<=[^\s*])\*\*'
+                        r'(?=$|[\s.,:;!?)\]\u201c"\u00bb])')
+_EINZUG = re.compile(r"^[ \t]+\S", re.M)
 
 
 def _zeile_maskieren(zeile: str, *, sanft: bool) -> str:
     """Satzzeichen ausserhalb von Code-Spannen und Autolinks mit `\\` maskieren."""
     aus: list[str] = []
     i, n = 0, len(zeile)
-    if sanft:
-        # Fuehrende Einzuege bleiben sichtbar — CommonMark wirft sie sonst weg.
-        einzug = len(zeile) - len(zeile.lstrip(" "))
-        if einzug and zeile.strip():
-            aus.append(" " * einzug)
-            i = einzug
+    fett = ({s for m in _FETT_PAAR.finditer(zeile) for s in (m.start(), m.end() - 2)}
+            if sanft else set())
     while i < n:
         c = zeile[i]
         if c == "`":
@@ -3133,8 +3139,9 @@ def _zeile_maskieren(zeile: str, *, sanft: bool) -> str:
             j = i
             while j < n and zeile[j] == "*":
                 j += 1
-            # `**` bleibt Fettdruck; ein einzelner Stern ist Inhalt.
-            aus.append(zeile[i:j] if j - i == 2 else "\\*" * (j - i))
+            # Nur ein echtes `**`-Paar ist Fettdruck; jeder andere Stern ist
+            # Inhalt (Befund 2).
+            aus.append(zeile[i:j] if (j - i == 2 and i in fett) else "\\*" * (j - i))
             i = j
             continue
         if c == "|" and not sanft:
@@ -3223,6 +3230,12 @@ def auszeichnung(roh: str, *, sanft: bool = False):
     einer fremden Adresse, ein Dateiname `a||.exe||` verdeckte seine Endung).
     """
     if _tgm is None or not roh:
+        return None
+    if sanft and _EINZUG.search(roh):
+        # `[26.09.2026, Befund 3]` Eingerueckter Bot-Text geht roh: CommonMark
+        # wirft den Einzug weg, und ein Ersatz durch geschuetzte Leerzeichen
+        # machte kopierten Einzug (YAML, Python) unbrauchbar. Roh war der
+        # Zustand vor 2b — das Bild bleibt, das Kopieren traegt.
         return None
     try:
         klar, ents = _tgm.convert(_md_vorbereiten(roh, sanft=sanft), latex_escape=False)
@@ -3573,6 +3586,27 @@ class AusgangBot(ExtBot):
     sendPhoto = send_photo
     sendVideo = send_video
     sendAudio = send_audio
+
+
+def marken_text(teile) -> dict:
+    """Text aus Stuecken bauen, die Auszeichnung als Entities — ohne jedes Parsen.
+
+    `[NEU 26.09.2026, Engywucks Gegenpruefung, Befund 1]` Fuer Nachrichten, in
+    denen Fremdinhalt steht (Mail-Betreff, vorgeschlagene Aktion): Ein Betreff
+    `[Rechnung](https://fremd)` wurde im 9.4-Freigabedialog unter altem
+    Markdown ein klickbarer Link mit harmlosem Text, drei Backticks brachen den
+    Aktionsblock auf. Hier wird nichts gedeutet — was im Stueck steht, steht so
+    im Chat, und nur die Stellen, die WIR auszeichnen, sind ausgezeichnet.
+
+    `teile`: Folge von (Text, Art) mit Art `None`, "bold", "pre", "code".
+    """
+    text = ""
+    marken: list = []
+    for stueck, art in teile:
+        if art and stueck:
+            marken.append(MessageEntity(type=art, offset=_utf16(text), length=_utf16(stueck)))
+        text += stueck
+    return {"text": text, "entities": marken}
 
 
 def nachtrag_angaben(nachricht, zusatz: str, *, trenner: str = "\n\n",
@@ -10215,9 +10249,13 @@ async def _freigabe_anzeigen(bot_obj, chat_id: int, a) -> None:
     # Das Klemmbrett für Ablage-Fragen hat er selbst gewählt; der Schlüssel
     # bleibt für alles, was eine Handlung auslöst.
     art_sym = a.symbol() if hasattr(a, "symbol") else "🗝️"
-    zeilen = [f"{art_sym} {sym} Freigabe erbeten — von: {a.herkunft}", "",
-              f"*{a.titel}*", "", "Das würde konkret geschehen:",
-              f"```\n{a.aktion[:900]}\n```"]
+    # `[26.09.2026, Befund 1]` Titel und Aktion kommen aus Fremdinhalt (Mail-
+    # Betreff) — sie werden nicht mehr als Markdown gedeutet, sondern als
+    # Entities gesetzt (`marken_text`). Kopf und Aktion sind eigene Stuecke.
+    kopf = [(f"{art_sym} {sym} Freigabe erbeten — von: {a.herkunft}\n\n", None),
+            (a.titel, "bold"), ("\n\nDas würde konkret geschehen:\n", None),
+            (a.aktion[:900], "pre")]
+    zeilen: list[str] = []
     if getattr(a, "geaendert_am", 0):
         # **Auflage 3: sichtbar, nicht still.** Wer die Zeile formuliert hat,
         # gehört über den Text — sonst urteilt Adam über seinen eigenen
@@ -10258,9 +10296,9 @@ async def _freigabe_anzeigen(bot_obj, chat_id: int, a) -> None:
     if len(a.aktion) <= 250:
         knoepfe.append([InlineKeyboardButton(
             "📄 Text kopieren", copy_text=CopyTextButton(text=a.aktion))])
-    await bot_obj.send_message(chat_id=chat_id, text="\n".join(zeilen),
-                               reply_markup=InlineKeyboardMarkup(knoepfe),
-                               parse_mode=ParseMode.MARKDOWN)
+    await bot_obj.send_message(chat_id=chat_id,
+                               **marken_text(kopf + [("\n" + "\n".join(zeilen), None)]),
+                               reply_markup=InlineKeyboardMarkup(knoepfe))
 
 
 async def freigabe_worker(app) -> None:
@@ -10343,12 +10381,14 @@ async def on_freigabe_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> 
         # hier — so bleiben Claudias zwei Kopierwege erhalten, ohne dass einer
         # den anderen verdrängt.
         gesendet = await query.message.reply_text(
-            "✏️ *Ändern* — schreib die Fassung, die du meinst.\n\n"
-            "Hier ist der bisherige Text zum Übernehmen:\n"
-            f"```\n{a.aktion[:900]}\n```\n"
-            "Antworte auf **diese** Nachricht. Danach lege ich dir die Anfrage "
-            "mit deinem Wortlaut erneut vor — freigegeben ist noch nichts.",
-            parse_mode=ParseMode.MARKDOWN,
+            **marken_text([
+                ("✏️ ", None), ("Ändern", "bold"),
+                (" — schreib die Fassung, die du meinst.\n\n"
+                 "Hier ist der bisherige Text zum Übernehmen:\n", None),
+                (a.aktion[:900], "pre"),
+                ("\nAntworte auf ", None), ("diese", "bold"),
+                (" Nachricht. Danach lege ich dir die Anfrage mit deinem Wortlaut "
+                 "erneut vor — freigegeben ist noch nichts.", None)]),
             reply_markup=ForceReply(selective=True,
                                     input_field_placeholder="Deine Fassung …"),
         )
@@ -10372,7 +10412,7 @@ async def on_freigabe_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> 
     await query.edit_message_text(
         f"{sym} {eintrag['urteil'].capitalize()}: {eintrag['titel']}"
         + (f"\n({eintrag['grund']})" if eintrag["grund"] else "")
-        + nachsatz)
+        + nachsatz, parse_mode=None)   # der Titel ist Fremdinhalt (Befund 1)
 
 
 async def cmd_freigaben(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -16605,7 +16645,15 @@ async def _azure_ton(chunk: str, rot: "bool | None" = None) -> "bytes | None":
     if rot or _rot_eingestuft(chunk):
         log.info("⚙️ Sprachausgabe: als rot eingestuft — nicht zu Azure, edge-tts spricht")
         return None
-    erlaubt, meldungen = sprachausgabe_azure.pruefen_und_buchen(len(chunk))
+    # `[26.09.2026, Befund 4]` Die Buchung in EIGENER Klammer: Klemmte die
+    # Zaehlerdatei, lief der Fehler bis `_send_tts_chunk` durch, und weder
+    # Azure noch edge-tts sprachen. Ohne Buchung kein Azure (der Riegel waere
+    # blind) — also edge-tts, nie Stille.
+    try:
+        erlaubt, meldungen = sprachausgabe_azure.pruefen_und_buchen(len(chunk))
+    except Exception as e:
+        log.warning("⚙️ Azure-Zaehler nicht buchbar (%s) — edge-tts spricht", e)
+        return None
     try:
         import botenpost
         for text in meldungen:

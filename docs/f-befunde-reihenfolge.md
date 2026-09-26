@@ -352,6 +352,29 @@ feuert, hinterlässt keine Spur; ein Neustart, der wartet, kann es melden.
 
 ---
 
+### F-23 · Fünf Kleinigkeiten aus Engywucks Gegenprüfung vom 26.09. `[offen, klein, 26.09.2026]`
+
+Aus `20260926_gegenpruefung_mick_f1.md`, Abschnitt *Klein* (Befunde 7 bis 11);
+die Befunde 1 bis 6 sind geschlossen (Drehbuch (83)).
+
+- **(7) Azure-Zähler ohne Sperre:** Lesen, Addieren, Schreiben ohne Dateisperre;
+  parallele Läufe zählen zu wenig. Auslöser: bevor zwei Sprachausgaben
+  gleichzeitig laufen können (heute ein Zimmer je Lauf).
+- **(8) `macauftrag.py` räumte bei vorhandener `fertig.json` ohne
+  Inhaltsprüfung** — **im Block-7-Umbau (74bbcfe) bereits geschlossen**: eine
+  Ablehnung ist dort ein roter Befund, Ergebnisordner werden nach 30 Tagen
+  geräumt. Bleibt hier nur zum Abhaken bei Engywucks Nachprüfung.
+- **(9) Zeitmuster der SSML trifft Verhältnisse:** „Maßstab 1:50“ wird als
+  Uhrzeit ausgezeichnet. Erst mit Azure-Schlüssel hörbar; dann prüfen.
+- **(10) Auftrag G: `TimedOut` nach dem ersten von mehreren Textstücken** →
+  das erste Stück kommt doppelt (als Text und als Unterschrift der Stimme).
+  Selten (Antworten über 4096 Zeichen bei Sprachausgabe und Netzfehler).
+- **(11) Sanfter Rückfall bei BadRequest** wiederholt auch bei Ursachen ohne
+  Bezug zur Auszeichnung und protokolliert dann irreführend „Auszeichnung
+  abgelehnt“.
+
+---
+
 ### F-22 · Der Zimmer-Schlüssel trägt keine `chat_id` `[offen, Auslöser benannt, 09.09.2026]`
 
 **Auslöser, an dem er fällig wird: vor dem ersten Haus** (Forum-Gruppe mit

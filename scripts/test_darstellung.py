@@ -28,6 +28,7 @@ os.environ["USER_PREFS_FILE"] = str(_TMP / "prefs.json")
 os.environ["QUESTIONS_FILE"] = str(_TMP / "open_questions.json")
 os.environ["PENDING_DIR"] = str(_TMP / "pending")
 os.environ["CONVERSATION_LOG_DIR"] = str(_TMP / "conversations")
+os.environ["TTS_ROT_LOKAL"] = "aus"   # 9.2: die lokale Stimme misst ihr eigener Pruefer
 
 # Die Stimme ist ein Netzdienst — am Rand ersetzt. Die Attrappe schreibt eine
 # Datei, damit der echte `_send_tts_chunk` sie öffnen kann wie im Betrieb.

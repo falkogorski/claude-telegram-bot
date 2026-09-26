@@ -39,6 +39,7 @@ os.environ["USER_PREFS_FILE"] = str(_TMP / "prefs.json")
 os.environ["QUESTIONS_FILE"] = str(_TMP / "open_questions.json")
 os.environ["PENDING_DIR"] = str(_TMP / "pending")
 os.environ["CONVERSATION_LOG_DIR"] = str(_TMP / "conversations")
+os.environ["TTS_ROT_LOKAL"] = "aus"   # 9.2: die lokale Stimme misst ihr eigener Pruefer
 os.environ["TTS_BACKEND"] = "edge"
 os.environ.pop("AZURE_SPEECH_KEY", None)
 
@@ -280,21 +281,33 @@ zeile("verschluckt die Umwandlung Buchstaben, geht der Rohtext (Waechter greift)
       au is None, gemessen=repr(au))
 
 # S2: im sanften Modus bleibt jedes sichtbare Zeichen, wie es dasteht.
-for roh in ("🖥️ **führe aus:** cd /srv/app || exit 1; make || echo fertig",
-            "**Suche** in src/**/*.py und docs/**/*.md",
-            "**Muster** a\\.b und \\d+\\.\\d+ und \\\\server",
-            "**Stand**\n# Kommentar\n> zitiert\n+ plus\nText\n---",
-            "**Formel** $x^2$ und 5 $",
-            "**Liste**\n  • eingerueckt\n    tiefer"):
+# `[GESCHAERFT 26.09., Engywucks Befund 2]` Verglichen wird mit dem GENAU
+# erwarteten Text — die erste Fassung verglich nach Entfernen aller `**` und
+# sah deshalb nie, dass `x**2 + y**2` seine Sterne verlor.
+for roh, erwartet in (
+        ("🖥️ **führe aus:** cd /srv/app || exit 1; make || echo fertig",
+         "🖥️ führe aus: cd /srv/app || exit 1; make || echo fertig"),
+        ("**Suche** in src/**/*.py und docs/**/*.md", "Suche in src/**/*.py und docs/**/*.md"),
+        ("**Formel** x**2 + y**2 und a**b**c", "Formel x**2 + y**2 und a**b**c"),
+        ("**Muster** a\\.b und \\d+\\.\\d+ und \\\\server",
+         "Muster a\\.b und \\d+\\.\\d+ und \\\\server"),
+        ("**Stand**\n# Kommentar\n> zitiert\n+ plus\nText\n---",
+         "Stand\n# Kommentar\n> zitiert\n+ plus\nText\n---"),
+        ("**Preis** $x^2$ und 5 $", "Preis $x^2$ und 5 $")):
     _lauf(AUS.send_message(chat_id=1, text=roh))
     k = _Rand.rufe[0][1]
-    gesehen = k.get("text", "").replace(" ", " ")
     # `bold` muss dabei sein: Faengt erst der Waechter den Text ab, kommt er
     # zwar wortgetreu, aber roh an — dann trug die Maskierung nicht.
     zeile(f"sanft wortgetreu: {roh[:34]!r}",
-          gesehen.replace("**", "") == roh.replace("**", "")
-          and "bold" in _arten(k) and "spoiler" not in _arten(k),
-          gemessen=f"{gesehen!r} {_arten(k)}")
+          k.get("text") == erwartet and "bold" in _arten(k) and "spoiler" not in _arten(k),
+          gemessen=f"{k.get('text')!r} {_arten(k)}")
+
+# Befund 3: Eingerueckter Bot-Text geht roh — echte Leerzeichen, kopierbar.
+EINGERUECKT = "**Liste**\n  • eingerueckt\n    tiefer: a: 1"
+_lauf(AUS.send_message(chat_id=1, text=EINGERUECKT))
+k = _Rand.rufe[0][1]
+zeile("eingerueckter Bot-Text geht roh, der Einzug bleibt echter Leerraum",
+      k.get("text") == EINGERUECKT and not k.get("entities"), gemessen=repr(k.get("text")))
 
 # Im Antwortweg (Claudias Markdown) werden `||` und `$…$` nicht zu Spoiler/Code.
 au = bot.auszeichnung("Befehl a || b || c und $x^2$ und ~/pfad")
@@ -440,6 +453,22 @@ for c in ast.walk(_baum):
 zeile("kein Klartext einer alten Nachricht geht ohne ihre Auszeichnung zurueck",
       not rundreisen, gemessen="Zeilen " + ", ".join(rundreisen))
 
+# Befund 1 (Engywucks Gegenpruefung 26.09.): Der 9.4-Freigabedialog zeigt
+# einen Mail-Betreff und eine Aktion — Fremdinhalt. Er wird nicht gedeutet,
+# nur unsere eigenen Stellen sind ausgezeichnet.
+_BETREFF = "[Rechnung](https://fremd.example/x) ``` **dringend**"
+_AKTION = "rm -rf a*b*c ```\n**y** <neu> & _z_"
+_anfrage = types.SimpleNamespace(
+    ampel="gelb", herkunft="Mail von fremd@example.org", titel=_BETREFF, aktion=_AKTION,
+    geaendert_am=0, begruendung="", rueckweg="", vorgelegt=1, gesehen=False, kennung="k1")
+ok, err = _lauf(bot._freigabe_anzeigen(AUS, 1, _anfrage))
+k = _Rand.rufe[0][1] if _Rand.rufe else {}
+_marken = sorted(str(e.type) for e in (k.get("entities") or []))
+zeile("9.4-Freigabedialog: Betreff und Aktion stehen woertlich, nur Titel und Aktion markiert",
+      err is None and _BETREFF in k.get("text", "") and _AKTION in k.get("text", "")
+      and _marken == ["bold", "pre"] and "parse_mode" not in k,
+      gemessen=f"{err!r} {_marken} {k.get('text', '')[:160]!r}")
+
 # ── 6. Auftrag G: Leseregeln bei Sprachausgabe ──────────────────────────────
 print("== 6. Sprachausgabe (Auftrag G) ==")
 ABSATZ = ("Dies ist ein ruhiger Absatz mit etwas Inhalt, der sich gut lesen laesst. " * 6).strip()
@@ -517,12 +546,13 @@ alte_angaben = [f"{c.lineno}:{ast.unparse(kw.value)}" for c in ast.walk(_baum)
                 if isinstance(c, ast.Call) for kw in c.keywords
                 if kw.arg == "parse_mode"
                 and not (isinstance(kw.value, ast.Constant) and kw.value.value is None)]
-# Bestand am 26.09.2026: 16 alte Markdown-, 7 HTML-Angaben. Gezaehlt wird JEDE
+# Bestand am 26.09.2026: 16 alte Markdown-, 7 HTML-Angaben; nach Befund 1
+# (9.4-Dialog ohne Parsen) 14 und 7. Gezaehlt wird JEDE
 # Angabe ausser dem ausdruecklichen None — auch MarkdownV2, Variablen und
 # constants.ParseMode (S12). Wer eine Stelle umstellt, senkt die Zahl hier mit;
 # wer eine neue schreibt, wird rot.
-zeile("alte Angaben (Markdown, HTML, alles ausser None): hoechstens 23",
-      len(alte_angaben) <= 23, gemessen=f"{len(alte_angaben)}: {alte_angaben[:6]}")
+zeile("alte Angaben (Markdown, HTML, alles ausser None): hoechstens 21",
+      len(alte_angaben) <= 21, gemessen=f"{len(alte_angaben)}: {alte_angaben[:6]}")
 
 # ── 8. Tagescheck 9q: der Abschnitt selbst (echter Abschnitt, Rand ersetzt) ──
 print("== 8. Tagescheck 9q ==")

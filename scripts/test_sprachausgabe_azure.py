@@ -35,6 +35,9 @@ os.environ.update({
     "TTS_AZURE_ZAEHLER": str(_TMP / "zaehler.json"),
     "POSTFACH_DIR": str(_TMP / "postfach"),
     "TTS_BACKEND": "edge",
+    # 9.2: Liegt die lokale Stimme auf dem Rechner, sprachen die roten
+    # Probetexte sonst dort — dieser Pruefer misst Azure und edge-tts.
+    "TTS_ROT_LOKAL": "aus",
 })
 os.environ.pop("AZURE_SPEECH_KEY", None)
 
@@ -125,8 +128,8 @@ zeile("die SSML ist wohlgeformt, auch mit & und <", _wohl is True, gemessen=str(
 
 print("== B. Der Riegel bei fünf Euro ==")
 _deckel = az.deckel_zeichen()
-zeile("Deckel = Freikontingent + 5 € / Preis", _deckel == 500_000 + int(5 / 16 * 1_000_000),
-      gemessen=str(_deckel))
+zeile("Deckel = 5 € / Preis, ohne Freikontingent als Vorgabe (Befund 6)",
+      az.FREI_ZEICHEN == 0 and _deckel == int(5 / 16 * 1_000_000), gemessen=str(_deckel))
 _zaehler(_deckel - 10)
 _azure(True)
 ok1, m1 = az.pruefen_und_buchen(20)
@@ -205,6 +208,17 @@ zeile("Azure fällt aus: edge-tts spricht, keine Stille", tg.stimmen == [b"ID3ed
       gemessen=f"stimmen={tg.stimmen}")
 zeile("und bekommt die Zahlen-Umschreiber nachgeholt", _EDGE and "800.000" not in _EDGE[0],
       gemessen=str(_EDGE))
+_ANTWORTEN[:] = [200]
+_alt_z = os.environ["TTS_AZURE_ZAEHLER"]
+os.environ["TTS_AZURE_ZAEHLER"] = str(_TMP / "gibt-es-nicht" / "nie" / "z.json")
+(_TMP / "gibt-es-nicht").write_text("eine Datei, kein Ordner")   # mkdir scheitert
+try:
+    tg, r = _senden("Es kostet 800.000 Euro.")
+finally:
+    os.environ["TTS_AZURE_ZAEHLER"] = _alt_z
+zeile("klemmt die Zaehlerdatei: kein Azure, aber edge-tts spricht (nie Stille, Befund 4)",
+      r is not None and tg.stimmen == [b"ID3edge"] and not _GESENDET,
+      gemessen=f"r={r} stimmen={tg.stimmen} an Azure: {len(_GESENDET)}")
 _ANTWORTEN[:] = [200]
 _zaehler(0)
 tg, r = _senden("Dein Passwort steht im Befund vom Arzt.")

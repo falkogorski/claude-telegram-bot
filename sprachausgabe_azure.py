@@ -11,8 +11,13 @@ Was dieses Modul trägt, und nur das:
   `<say-as>` statt über die sieben Umschreiber, die edge-tts braucht. Die
   Werte sind in Microsofts Dokumentation nachgesehen (26.09.): `cardinal`,
   `number_digit` (nicht „digits"), `time` mit `hms24`, `date` mit `y`.
-- **Der Zähler und der Riegel.** Gezählt wird je Kalendermonat, was an Azure
-  geht, in einer Datei neben den Vorlieben — sie überlebt jeden Neustart. Bei
+- **Der Zähler und der Riegel.** Gezählt wird je Kalendermonat der
+  **Vorlesetext** (Zeichen vor der SSML-Verpackung), in einer Datei neben den
+  Vorlieben — sie überlebt jeden Neustart. `[BERICHTIGT 26.09., Befund 5]`
+  Hier stand „was an Azure geht": Gesendet wird die SSML, bei zahlenreichem
+  Text gut das Vierfache (gemessen 113 → 526 Zeichen). Ob Microsoft die
+  Auszeichnung mitberechnet, ist ohne Konto nicht messbar — im ersten Monat
+  wird unser Zähler gegen den Portal-Zähler gehalten. Bei
   der Hälfte und bei achtzig Prozent der Kostengrenze eine Vorwarnung, beim
   Erreichen **kein Aufruf mehr**, Rückfall auf edge-tts und eine Meldung an
   Adam, genau einmal. **Die Grenze ist Code, nicht nur eine Kontoeinstellung:**
@@ -42,7 +47,13 @@ from pathlib import Path
 # ---- Einstellgrößen — Zahlen an einer Stelle (Register: ABHAENGIGKEITEN.md) --
 REGION = (os.environ.get("AZURE_SPEECH_REGION") or "germanywestcentral").strip()
 DECKEL_EUR = float(os.environ.get("TTS_AZURE_DECKEL_EUR") or 5)
-FREI_ZEICHEN = int(os.environ.get("TTS_AZURE_FREI_ZEICHEN") or 500_000)
+# `[GEAENDERT 26.09.2026, Engywucks Gegenpruefung, Befund 6]` Vorgabe NULL.
+# Hier standen 500.000: Dass das Freikontingent auch auf der Stufe S0 gilt,
+# stand nur in einem Papier, nicht amtlich belegt. Gilt es nicht, griffe der
+# „5-Euro-Riegel" erst bei rund 13 Euro. Kostenregel: unklar gilt als ja.
+# Zeigt der erste Portal-Zaehlerstand das Freikontingent auf S0, setzt Adam
+# `TTS_AZURE_FREI_ZEICHEN` in der Dienst-Umgebung.
+FREI_ZEICHEN = int(os.environ.get("TTS_AZURE_FREI_ZEICHEN") or 0)
 # Preis je Million Zeichen über dem Freikontingent. Microsoft rechnet mit
 # 15 USD, Drittübersichten nennen 16; der amtliche Eurobetrag wird beim
 # Anlegen des Kontos abgelesen. **16 als Euro gelesen ist die vorsichtige

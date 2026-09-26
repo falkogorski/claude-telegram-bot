@@ -337,6 +337,70 @@ _kleber = [n.lineno for n in _ast.walk(_baum)
 zeile("keine Sammelstelle klebt Blöcke mehr mit leerem Trenner (alle Geschwister)",
       not _kleber, gemessen=str(_kleber))
 
+# ── G. Eine Stimme je Text (26.09.) ─────────────────────────────────────────
+# Adams Wunsch 17:32: *„Ein Text, … dann kommt darunter eine Sprachnachricht
+# pro Text."* Die 1024 gelten nur, wo die Stimme eine Bildunterschrift traegt.
+# Gegenprobe: `TTS_CHUNK_CHARS` auf 1024 → die ersten drei Zeilen werden rot.
+print("== G. Eine Stimme je Text ==")
+_absatz = ("Der Alfa Romeo 6C war ein leichter, schneller Wagen mit Reihensechszylinder, "
+           "gebaut in kleiner Stueckzahl und vor allem im Rennsport erfolgreich. ")
+lang = "\n\n".join([_absatz * 3] * 6)          # rund 2600 Zeichen, sechs Absaetze
+ok, tg = _senden(lang, tts=True, vorschau=False)
+zeile("2500 Zeichen, Stimme an: ein Text und genau EINE Sprachnachricht",
+      ok and len(tg.texte) == 1 and len(tg.stimmen) == 1,
+      gemessen=f"zeichen={len(lang)} texte={len(tg.texte)} stimmen={len(tg.stimmen)}")
+
+tg = _Telegram()
+try:
+    asyncio.run(bot.send_answer_to_user(_sitzung(tg, False, False), 1, lang, force_tts=True))
+except Exception as e:
+    print(f"     (Pfad warf {type(e).__name__}: {e})")
+zeile("nur Stimme (force_tts): ebenfalls genau eine Sprachnachricht",
+      len(tg.stimmen) == 1 and not tg.texte,
+      gemessen=f"texte={len(tg.texte)} stimmen={len(tg.stimmen)}")
+
+tg = _Telegram()
+try:
+    asyncio.run(bot._startmeldung_mit_stimme(tg, 1, lang, None))
+except Exception as e:
+    print(f"     (Pfad warf {type(e).__name__}: {e})")
+_bezug = (tg.stimmen[0].get("reply_parameters") if tg.stimmen else None)
+zeile("lange Startmeldung: Text zuerst, darunter EINE Stimme als Antwort darauf",
+      tg.folge == ["text", "stimme"] and not tg.stimmen[0].get("caption")
+      and getattr(_bezug, "message_id", None) == 101,
+      gemessen=f"folge={tg.folge} bezug={getattr(_bezug, 'message_id', None)}")
+
+tg = _Telegram()
+try:
+    asyncio.run(bot._startmeldung_mit_stimme(tg, 1, "Kurz weg, alles laeuft wieder.", None))
+except Exception as e:
+    print(f"     (Pfad warf {type(e).__name__}: {e})")
+zeile("kurze Startmeldung bleibt eine Nachricht: Stimme mit Text als Unterschrift",
+      tg.folge == ["stimme"] and tg.stimmen[0].get("caption"),
+      gemessen=f"folge={tg.folge}")
+
+tg = _Telegram()
+try:
+    asyncio.run(bot._send_tts(tg, 1, lang))
+except Exception as e:
+    print(f"     (Pfad warf {type(e).__name__}: {e})")
+zeile("Geschwister: gekoppelte Stimme (_send_tts) spricht 2500 Zeichen am Stueck",
+      len(tg.stimmen) == 1, gemessen=f"stimmen={len(tg.stimmen)}")
+
+_bereit_vorher, _lokal_vorher = bot.sprachausgabe_lokal.bereit, bot.TTS_STIMME_LOKAL
+try:
+    bot.sprachausgabe_lokal.bereit = lambda: True
+    bot.TTS_STIMME_LOKAL = 1500
+    zeile("lokale Stimme hat ihre eigene Grenze (rot, bereit → 1500), sonst 4000",
+          bot._stimm_grenze(True) == 1500 and bot._stimm_grenze(False) == bot.TTS_CHUNK_CHARS,
+          gemessen=f"rot={bot._stimm_grenze(True)} normal={bot._stimm_grenze(False)}")
+    bot.sprachausgabe_lokal.bereit = lambda: False
+    zeile("rot ohne bereite lokale Stimme: die gewoehnliche Grenze",
+          bot._stimm_grenze(True) == bot.TTS_CHUNK_CHARS,
+          gemessen=str(bot._stimm_grenze(True)))
+finally:
+    bot.sprachausgabe_lokal.bereit, bot.TTS_STIMME_LOKAL = _bereit_vorher, _lokal_vorher
+
 import shutil                                                   # noqa: E402
 shutil.rmtree(_TMP, ignore_errors=True)
 print()

@@ -711,8 +711,14 @@ LOG_DIR = Path(os.environ.get("CONVERSATION_LOG_DIR") or str(_DEFAULT_LOG_DIR))
 TELEGRAM_MSG_LIMIT = 4000  # actual is 4096; leave headroom for formatting
 VOICE_LANGUAGE = os.environ.get("VOICE_LANGUAGE") or "de"
 TTS_VOICE = os.environ.get("TTS_VOICE") or "de-DE-KatjaNeural"
-TTS_CHUNK_CHARS = 4000  # max. Zeichen pro Sprachnachricht (PDF-Vorlesen etc.)
-TTS_SYNC_CHUNK = 1024  # max. Zeichen pro Text-Chunk wenn TTS-Sync-Modus aktiv
+TTS_CHUNK_CHARS = 4000  # max. Zeichen je Sprachnachricht OHNE Bildunterschrift (alle Wege)
+TTS_SYNC_CHUNK = 1024  # max. Zeichen je Stueck, wenn der Text als Bildunterschrift mitgeht
+# `[NEU 26.09.2026, eine Stimme je Text]` Eigene Grenze fuer die lokale Stimme
+# (Thorsten rechnet auf der CPU). Gemessen am Mac: 4000 Zeichen in 5,9 s
+# (3,7 min Ton, 897 KB); auf dem Server nach Faktor 18 etwa 12 s — weit unter
+# `sprachausgabe_lokal.ZEITGRENZE_S`. Als Einstellgroesse, damit sie ohne
+# Code-Eingriff kleiner wird, falls der Server es verlangt.
+TTS_STIMME_LOKAL = int(os.environ.get("TTS_STIMME_LOKAL") or TTS_CHUNK_CHARS)
 _RESTART_REASON_FILE = Path.home() / ".claude/bot-restart-reason.txt"
 # `[NEU 24.09.2026, Block 3 Teil 2]` Kopf eines Grundes, den Adam selbst
 # ausgelöst hat (/restart): Dieser Neustart meldet sich immer.
@@ -13339,31 +13345,7 @@ async def post_init(app: Application) -> None:
                 tts_on = prefs.get("tts_enabled", False)
                 tts_clean = _strip_markdown_for_tts(startup_msg) if tts_on else ""
                 if tts_on and tts_clean:
-                    # Voice + Text als Caption in EINER Nachricht (konsistent zu
-                    # normalen Antworten — Adam will keine getrennte Reply-Voice).
-                    text_parts = _split_tts_chunks(startup_msg, max_chars=1024)
-                    sent_first = None
-                    start_rot = _rot_eingestuft(startup_msg)   # 9.2: der Rohtext, ganz
-                    for i, part in enumerate(text_parts):
-                        tts_part = _strip_markdown_for_tts(part)
-                        if not tts_part:
-                            # Reststück ohne sprechbaren Inhalt → als normalen Text
-                            m = await app.bot.send_message(
-                                chat_id=uid, text=part,
-                                reply_markup=kb if i == 0 else None,
-                            )
-                            sent_first = sent_first or m
-                            continue
-                        v = await _send_tts_chunk(
-                            app.bot, uid, tts_part,
-                            caption=part[:1024],
-                            reply_markup=kb if i == 0 else None, rot=start_rot,
-                        )
-                        if v is None:
-                            # Der Text stand nur als Unterschrift der Stimme —
-                            # ohne Ton kaeme sonst gar nichts an (9.2, S3).
-                            await app.bot.send_message(chat_id=uid, text=part,
-                                                       reply_markup=kb if i == 0 else None)
+                    await _startmeldung_mit_stimme(app.bot, uid, startup_msg, kb)
                 else:
                     m = await app.bot.send_message(chat_id=uid, text=startup_msg,
                                                    reply_markup=kb)
@@ -16243,6 +16225,20 @@ def _strip_markdown_for_tts(text: str) -> str:
     return text.strip()
 
 
+def _stimm_grenze(rot: bool) -> int:
+    """Wie lang EINE Sprachnachricht ohne Bildunterschrift werden darf.
+
+    `[NEU 26.09.2026, Adams Wunsch 17:32]` *„Ein Text, … dann kommt darunter
+    eine Sprachnachricht pro Text."* Die 1024 stammen aus Telegrams Grenze fuer
+    Bildunterschriften; wo die Stimme keine traegt, gilt diese Grenze fuer
+    alle Wege (Antwort, Startmeldung, PDF, gekoppelte Stimme). Rotes spricht
+    die lokale Stimme — die bekommt ihre eigene, notfalls kleinere Grenze.
+    """
+    if rot and sprachausgabe_lokal.bereit():
+        return max(200, min(TTS_CHUNK_CHARS, TTS_STIMME_LOKAL))
+    return TTS_CHUNK_CHARS
+
+
 def _split_tts_chunks(text: str, max_chars: int = TTS_CHUNK_CHARS) -> list[str]:
     """Teilt Text an Satzgrenzen in Chunks für mehrere Sprachnachrichten."""
     import re
@@ -16578,7 +16574,7 @@ async def _send_pdf_chapters_tts(
         if not clean.strip():
             continue
 
-        chunks = _split_tts_chunks(clean)
+        chunks = _split_tts_chunks(clean, max_chars=_stimm_grenze(rot))
         n = len(chunks)
         for j, chunk in enumerate(chunks, 1):
             # Caption beginnt IMMER mit dem Dateititel → alphabetisch sortierbar,
@@ -16811,8 +16807,8 @@ async def _send_tts(bot, chat_id: int, text: str, reply_to: int | None = None,
             first_msg = await send_chunked(bot, chat_id, coupled_text,
                                            reply_to=reply_to, thread_id=thread_id)
         return first_msg
-    chunks = _split_tts_chunks(cleaned)
     rot = _rot_eingestuft(text)   # 9.2: das GANZE Dokument, eine Stimme
+    chunks = _split_tts_chunks(cleaned, max_chars=_stimm_grenze(rot))
     caption_for_first: str | None = None
     rest_text = ""
     if coupled_text:
@@ -17201,6 +17197,57 @@ def _passt_als_unterschrift(text: str) -> bool:
     return _utf16(au[0] if au is not None else text) <= _TELEGRAM_CAPTION_UTF16
 
 
+async def _startmeldung_mit_stimme(tgbot, uid: int, startup_msg: str, kb) -> None:
+    """Startmeldung bei aktiver Sprachausgabe — herausgezogen, damit ein
+    Pruefer sie ausfuehren kann (scripts/test_darstellung.py, G)."""
+    # Voice + Text als Caption in EINER Nachricht (konsistent zu
+    # normalen Antworten — Adam will keine getrennte Reply-Voice).
+    # `[NEU 26.09.2026, eine Stimme je Text]` Passt die Meldung
+    # nicht als EINE Unterschrift, geht der Text vorab als
+    # eigene Nachricht, und die Stimme folgt ungeteilt darunter
+    # — wie im Antwortweg (Auftrag G).
+    start_rot = _rot_eingestuft(startup_msg)   # 9.2: der Rohtext, ganz
+    passt = _passt_als_unterschrift(startup_msg)
+    vorab = None
+    if not passt:
+        vorab = await tgbot.send_message(chat_id=uid, text=startup_msg,
+                                         reply_markup=kb)
+        _remember_bot_msg(uid, vorab.message_id, startup_msg)
+        reactions.register_question(uid, vorab.message_id, startup_msg)
+    text_parts = ([startup_msg] if passt else
+                  _split_tts_chunks(startup_msg,
+                                    max_chars=_stimm_grenze(start_rot)))
+    sent_first = None
+    for i, part in enumerate(text_parts):
+        if vorab is not None:
+            tts_part = _strip_markdown_for_tts(part)
+            if tts_part:
+                await _send_tts_chunk(
+                    tgbot, uid, tts_part,
+                    reply_to=vorab.message_id if i == 0 else None,
+                    rot=start_rot)
+            continue
+        tts_part = _strip_markdown_for_tts(part)
+        if not tts_part:
+            # Reststück ohne sprechbaren Inhalt → als normalen Text
+            m = await tgbot.send_message(
+                chat_id=uid, text=part,
+                reply_markup=kb if i == 0 else None,
+            )
+            sent_first = sent_first or m
+            continue
+        v = await _send_tts_chunk(
+            tgbot, uid, tts_part,
+            caption=part[:1024],
+            reply_markup=kb if i == 0 else None, rot=start_rot,
+        )
+        if v is None:
+            # Der Text stand nur als Unterschrift der Stimme —
+            # ohne Ton kaeme sonst gar nichts an (9.2, S3).
+            await tgbot.send_message(chat_id=uid, text=part,
+                                     reply_markup=kb if i == 0 else None)
+
+
 async def send_answer_to_user(
     sess: UserSession, chat_id: int, text: str, *, force_tts: bool = False,
     reply_to: int | None = None, thread_id: int | None = None,
@@ -17208,8 +17255,9 @@ async def send_answer_to_user(
 ) -> bool:
     """ZENTRALER Sendepfad für Antworttext (Vorstufe 5.8) — nach dem Pre-Send-Hook.
 
-    Bei aktivem TTS wird der Text in TTS_SYNC_CHUNK-Stücke geschnitten; jedes
-    bekommt seine eigene Sprachnachricht (Text als Caption; bei force_tts nur Audio).
+    Bei aktivem TTS: Passt die Antwort als EINE Bildunterschrift, geht sie mit
+    der Stimme; sonst steht der Text zuerst, und EINE Stimme folgt (bis
+    `_stimm_grenze`). Bei force_tts nur Audio.
     Sonst: als Text senden (send_chunked splittet am Telegram-Limit).
 
     **Rückgabe = Zustellnachweis** (seit 19.07.): True, wenn mindestens ein Stück
@@ -17362,14 +17410,19 @@ async def send_answer_to_user(
     # wechselte der Sprecher mitten in der Antwort, und Adams Signal
     # (Thorsten = rot) truege nicht.
     antwort_rot = rot
+    # `[NEU 26.09.2026, eine Stimme je Text]` Traegt die Stimme keine
+    # Bildunterschrift (Text steht schon, oder force_tts), schneidet sie nicht
+    # mehr nach 1024: eine Antwort, eine Sprachnachricht.
+    grenze = (TTS_SYNC_CHUNK if not (force_tts or getrennt)
+              else _stimm_grenze(bool(antwort_rot)))
     while rest:
-        if len(rest) <= TTS_SYNC_CHUNK:
+        if len(rest) <= grenze:
             chunk, rest = rest, ""
         else:
-            cut = TTS_SYNC_CHUNK
+            cut = grenze
             for sep in ("\n\n", "\n", ". ", "! ", "? ", "; ", ", "):
-                pos = rest.rfind(sep, 0, TTS_SYNC_CHUNK)
-                if pos > TTS_SYNC_CHUNK // 2:
+                pos = rest.rfind(sep, 0, grenze)
+                if pos > grenze // 2:
                     cut = pos + len(sep)
                     break
             chunk, rest = rest[:cut], rest[cut:]

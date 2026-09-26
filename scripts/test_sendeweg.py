@@ -481,8 +481,8 @@ zeile("lange Antwort bei Sprachausgabe: Text zuerst als eigene Nachricht",
       err is None and arten_folge[:1] == ["send"] and len(texte) == 1
       and "Zweiter Teil" in texte[0].get("text", ""),
       gemessen=f"{err!r} {arten_folge}")
-zeile("die Stimmen folgen ohne Bildunterschrift (keine Textschnipsel nach Sprechtakt)",
-      len(stimmen) >= 2 and all(not s.get("caption") for s in stimmen),
+zeile("EINE Stimme folgt ohne Bildunterschrift (keine Textschnipsel nach Sprechtakt)",
+      len(stimmen) == 1 and all(not s.get("caption") for s in stimmen),
       gemessen=f"{len(stimmen)} Stimmen, Unterschriften {[bool(s.get('caption')) for s in stimmen]}")
 
 ok, err = _lauf(bot.send_answer_to_user(_sitzung(tts=True), 1, "**Kurz** gesagt: passt."))

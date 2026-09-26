@@ -183,7 +183,13 @@ _lokal_attrappe(True)
 ABSATZ = ("Hier folgt ein ruhiger Absatz ohne jedes heikle Wort, nur zum Lesen. " * 8).strip()
 LANG = f"Dein Passwort gehoert nicht in den Chat.\n\n{ABSATZ}\n\n{ABSATZ}"
 tg = _neu()
-ok = asyncio.run(bot.send_answer_to_user(_sitzung(tg), 1, LANG))
+# Seit „eine Stimme je Text" (26.09.) teilt erst die Grenze der lokalen Stimme;
+# hier klein gesetzt, damit es Teilstuecke GIBT, deren Sprecher man pruefen kann.
+_grenze_vorher, bot.TTS_STIMME_LOKAL = bot.TTS_STIMME_LOKAL, 600
+try:
+    ok = asyncio.run(bot.send_answer_to_user(_sitzung(tg), 1, LANG))
+finally:
+    bot.TTS_STIMME_LOKAL = _grenze_vorher
 zeile("lange rote Antwort: JEDES Teilstueck spricht lokal, auch das ohne rotes Wort",
       ok and len(tg.stimmen) >= 2 and all(s == (b"OggS-lokal", ".ogg") for s in tg.stimmen)
       and not _AZURE and not _EDGE, gemessen=f"{[s[1] for s in tg.stimmen]} azure={len(_AZURE)}")

@@ -552,6 +552,10 @@ zeile("nach cd wird der relative Pfad im richtigen Bereich gemessen",
 _frei = e(f"python3 {_skripte}/postfach_ablegen.py --chat 1 --text x")
 zeile("ein benanntes Skript laeuft ohne Rueckfrage (U-3)",
       _frei.urteil == bf.FREI, gemessen=f"{_frei.urteil} · {_frei.grund}")
+(_skripte / "bash_dialog_auswertung.py").write_text("x")
+_ausw = e(f"python3 {_skripte}/bash_dialog_auswertung.py --tage 7")
+zeile("die Dialog-Auswertung (M-3) laeuft ohne Rueckfrage (26.09.)",
+      _ausw.urteil == bf.FREI, gemessen=f"{_ausw.urteil} · {_ausw.grund}")
 
 for _cmd, _erwartet_im_grund, _was in [
     (f"python3 {_skripte}/irgendwas.py", "nicht unter den benannten",

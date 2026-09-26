@@ -226,6 +226,11 @@ BENANNTE_SKRIPTE = frozenset({
     # nach draussen zeigt, bevor pandoc es sieht; die Ausgabe bleibt in den
     # Arbeitsbereichen. Vierzehn Pruefzeilen, drei Gegenproben.
     "konzept_pdf.py",
+    # **[NEU 26.09.2026, Engywucks Zettel]** Wertet das Bash-Freigabe-
+    # Protokoll aus (M-3). Am Code gemessen: nur Standardbibliothek, liest
+    # das Protokoll, schreibt nichts, kein Netz, kein Modell. Claudia ruft es
+    # fuer ihre Messungen auf — bisher jedes Mal mit Dialog.
+    "bash_dialog_auswertung.py",
 })
 
 # **Der zweite Basisordner: Adams Rechnungswerkzeuge** `[NEU 09.09.2026, M-2]`

@@ -1,7 +1,7 @@
 <!-- ROLLE: f-befunde-reihenfolge -->
 # F-Befunde der Gegenprüfung — Reihenfolge und Stand
 
-**Stichtag:** 2026-09-11 · **Stand: F-15, F-19, F-21, F-22 und F-23 offen.**
+**Stichtag:** 2026-09-26 · **Stand: F-15, F-19, F-21, F-22, F-23, F-24 und F-25 offen.**
 
 | | Stand | seit |
 |---|---|---|
@@ -18,6 +18,8 @@
 | **F-21** | **offen, bewusst zurückgestellt** bis zur Nachmessung nach dem Deploy | 02.09. |
 | **F-22** | **gebaut im Klon `probe-f22`**, abgenommen, **nicht gemergt** | 09.09. |
 | **F-23** | **offen**, Adams Entscheid liegt vor | 11.09. |
+| **F-24** | **offen, klein** (Engywucks Gegenprüfung, 7 bis 11) | 26.09. |
+| **F-25** | **offen, klein** (Widerlegung zu Stimme/Schnitt/Jahreszahl) | 26.09. |
 
 ⚠️ **Diese Kopfzeile war bis zum 04.09. falsch.** Sie sagte *„F-12 bis F-17
 offen"*, während im Text darunter vier dieser sechs Punkte seit dem 31.08. als
@@ -352,7 +354,13 @@ feuert, hinterlässt keine Spur; ein Neustart, der wartet, kann es melden.
 
 ---
 
-### F-23 · Fünf Kleinigkeiten aus Engywucks Gegenprüfung vom 26.09. `[offen, klein, 26.09.2026]`
+### F-24 · Fünf Kleinigkeiten aus Engywucks Gegenprüfung vom 26.09. `[offen, klein, 26.09.2026]`
+
+⚠️ **Bis zum 26.09., 19:0x stand dieser Eintrag als F-23** — die Nummer trug seit
+dem 11.09. schon den Hygiene-Neustart. Beim Anlegen nicht in die Kopftabelle
+gesehen; gefunden beim Eintragen von F-25. Verweise im Drehbuch (83) und im
+Laufplan nachgezogen; das Deploy-Papier `20260926_deploy_block_7099628.md` ist
+abgelegte Übergabe und bleibt, wie es an Adam ging.
 
 Aus `20260926_gegenpruefung_mick_f1.md`, Abschnitt *Klein* (Befunde 7 bis 11);
 die Befunde 1 bis 6 sind geschlossen (Drehbuch (83)).
@@ -372,6 +380,16 @@ die Befunde 1 bis 6 sind geschlossen (Drehbuch (83)).
 - **(11) Sanfter Rückfall bei BadRequest** wiederholt auch bei Ursachen ohne
   Bezug zur Auszeichnung und protokolliert dann irreführend „Auszeichnung
   abgelehnt“.
+
+### F-25 · Drei Kleinigkeiten aus der Widerlegung vom 26.09. (Drehbuch (89)) `[offen, klein, 26.09.2026]`
+
+- **K1 Ein Nachrichtenrest beginnt mitten im Codeblock:** `_themen_schnitt`
+  zählt die Zaunzeilen dann verkehrt herum; ein `# Kommentar` im Bash-Block
+  gilt als Überschrift. Nur bei Codeblöcken über 4000 Zeichen.
+- **Klammer mit Komma und Wort danach:** „(1250, Spalte 3)“ liest sich als
+  Jahr (bekannte Grenze, im Prüfer dokumentiert).
+- **Azure bei „unklar“:** „(1920, 1080)“ bleibt bei Azure ein Jahr — seine
+  bisherige Lesart ohne Hinweis. Erst mit Schlüssel hörbar; dann prüfen.
 
 ---
 

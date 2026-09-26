@@ -952,6 +952,22 @@ if [ -f "$BOTDIR/scripts/konzept_pdf.py" ]; then
 fi
 # <<< PDFPROBE
 
+# --- 9p. SPRACHAUSGABE: Zaehlerstand der Azure-Stimme (26.09.2026, 9.1) -------
+# Claudias Bruchtabelle, letzte Zeile: Laeuft der Zaehler nicht mit, greift der
+# Kostenriegel nie, und die Freigabe waere wirkungslos — ein Zaehler, den
+# niemand sieht, ist keiner. Nur LESEND; die Datei schreibt allein der Bot.
+# Schalter und Schluessel kommen aus der Dienst-Umgebung (oben geladen).
+# >>> AZURE
+if [ -f "$BOTDIR/sprachausgabe_azure.py" ]; then
+  _az="$("${BOTENV[@]}" "$VENVPY" "$BOTDIR/sprachausgabe_azure.py" 2>&1 | tail -1)"
+  case "$_az" in
+    AUS*|AN*) add "🔊 Sprachausgabe: ${_az#* }" ;;
+    OHNE*)    intern "Sprachausgabe: ${_az#OHNE }" ;;
+    *)        intern "Zaehlerstand der Sprachausgabe nicht lesbar: ${_az:-keine Ausgabe}" ;;
+  esac
+fi
+# <<< AZURE
+
 # --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
 # Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete
 # hoeflich "Keine Treffer" - vier Stunden lang, in Adams Richtung. Ein Ausfall,

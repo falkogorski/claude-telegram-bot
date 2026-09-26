@@ -88,6 +88,7 @@ import channels
 import freigaben as freigabepost
 import kalender
 import kontingent_sitzung
+import sprachausgabe_azure
 import linkinbox
 import authmarke
 import email_kanal
@@ -15574,6 +15575,29 @@ def _benenne_gemeinte_emojis(text: str) -> str:
     return _re.sub(r"\s+([,.;:!?])", r"\1", ergebnis)
 
 
+def _zahlen_normalisieren(text: str) -> str:
+    """Die sieben Zahlen-Umschreiber fuer edge-tts, in ihrer Reihenfolge.
+
+    `[AUSGELAGERT 26.09.2026, 9.1]` Vorher mitten in `_strip_markdown_for_tts`.
+    Als eigene Funktion, weil der Rueckfall von Azure auf edge-tts sie an der
+    Sendestelle nachholen muss — und damit ein Pruefer sie je Backend messen
+    kann (Claudias Bruchtabelle: Umschreiber doppelt aktiv)."""
+    # 4. Doppelpunkt-Zahlen VOR den Bindestrich-Bereichen: Sonst trifft dort
+    #    womoeglich die Doppelpunkt-Zahl anders (Claudias Auflage, 28.08.).
+    text = _normalize_doppelpunkt_zahlen(text)
+    text = _normalize_number_ranges(text)
+    text = _normalize_dates(text)
+    # 5. Tausenderpunkte nach dem Datum, vor den Fassungsnummern — als
+    #    zweite Linie. **Der eigentliche Schutz sitzt im Muster selbst**
+    #    (gemessen 29.08.: der Filter laesst Datum und Fassungsnummer auch
+    #    dann in Ruhe, wenn er zuerst laeuft). Die Stellung kostet nichts und
+    #    bleibt deshalb, wie Claudias Auftrag sie vorgibt.
+    text = _normalize_tausenderpunkte(text)
+    text = _normalize_kennnummern(text)
+    text = _normalize_jahreszahlen(text)
+    return _normalize_versions(text)
+
+
 def _strip_markdown_for_tts(text: str) -> str:
     """Entfernt Markdown-Formatierungszeichen und Emojis für saubere TTS-Ausgabe."""
     import re
@@ -15589,20 +15613,12 @@ def _strip_markdown_for_tts(text: str) -> str:
     #     ihren letzten vier Ziffern zu einem Jahrhundert werden.
     text = _strip_kontext_hinweis(text)
     text = _apply_tts_pronunciation(text)
-    # 4. Doppelpunkt-Zahlen VOR den Bindestrich-Bereichen: Sonst trifft dort
-    #    womoeglich die Doppelpunkt-Zahl anders (Claudias Auflage, 28.08.).
-    text = _normalize_doppelpunkt_zahlen(text)
-    text = _normalize_number_ranges(text)
-    text = _normalize_dates(text)
-    # 5. Tausenderpunkte nach dem Datum, vor den Fassungsnummern — als
-    #    zweite Linie. **Der eigentliche Schutz sitzt im Muster selbst**
-    #    (gemessen 29.08.: der Filter laesst Datum und Fassungsnummer auch
-    #    dann in Ruhe, wenn er zuerst laeuft). Die Stellung kostet nichts und
-    #    bleibt deshalb, wie Claudias Auftrag sie vorgibt.
-    text = _normalize_tausenderpunkte(text)
-    text = _normalize_kennnummern(text)
-    text = _normalize_jahreszahlen(text)
-    text = _normalize_versions(text)
+    # `[GEAENDERT 26.09.2026, 9.1]` Die Zahlen-Umschreiber laufen nur noch fuer
+    # edge-tts. Spricht Azure, traegt die SSML die Unterscheidung (`say-as`);
+    # doppelt umgeformte Zahlen waeren unsinnig. Die Umschreiber bleiben im
+    # Code: Faellt Azure aus, holt `_send_tts_chunk` sie fuer edge-tts nach.
+    if not sprachausgabe_azure.bereit():
+        text = _zahlen_normalisieren(text)
     # Code-Blöcke werden NICHT zeichengenau vorgelesen, sondern durch eine
     # knappe Inhaltsbeschreibung ersetzt. Sprache aus dem Fence-Hinweis
     # (z.B. ```bash) wird übernommen, um die Beschreibung treffsicherer zu
@@ -16128,6 +16144,31 @@ async def _send_pdf_chapters_tts(
             await _send_tts_chunk(bot, target_id, chunk, caption=cap)
 
 
+async def _azure_ton(chunk: str) -> "bytes | None":
+    """Ton von Azure — oder None, dann spricht edge-tts.
+
+    Die Buchfuehrung (Meldungen an Adam) sitzt in EIGENER Klammer hinter der
+    Entscheidung (Regel vom 10.09.): Ein Fehler beim Melden darf die Stimme
+    nicht kosten, und ein Fehler bei Azure nicht die Meldung."""
+    if not sprachausgabe_azure.bereit():
+        return None
+    erlaubt, meldungen = sprachausgabe_azure.pruefen_und_buchen(len(chunk))
+    try:
+        import botenpost
+        for text in meldungen:
+            botenpost.legen(text, "bot")
+    except Exception:
+        log.warning("⚙️ Azure-Meldung nicht abgelegt", exc_info=True)
+    if not erlaubt:
+        return None
+    try:
+        return await sprachausgabe_azure.sprechen(
+            sprachausgabe_azure.ssml_bauen(chunk, TTS_VOICE))
+    except Exception as e:
+        log.warning("⚙️ Azure-Stimme ausgefallen (%s) — edge-tts spricht", e)
+        return None
+
+
 async def _send_tts_chunk(
     bot, chat_id: int, chunk: str, caption: str | None = None, reply_to: int | None = None,
     thread_id: int | None = None, reply_markup=None,
@@ -16144,8 +16185,18 @@ async def _send_tts_chunk(
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
         tmp_path = Path(f.name)
     try:
-        communicate = edge_tts.Communicate(chunk, TTS_VOICE)
-        await communicate.save(str(tmp_path))
+        # `[NEU 26.09.2026, 9.1]` Die einzige Sendestelle traegt den Schalter.
+        # Azure nur, wenn Schalter, Schluessel und Riegel es erlauben; jeder
+        # Fehler dort endet bei edge-tts, nie in Stille (Claudias Bruchtabelle:
+        # „Azure antwortet nicht" merkt sonst niemand).
+        ton = await _azure_ton(chunk)
+        if ton is not None:
+            tmp_path.write_bytes(ton)
+        else:
+            edge_text = (_zahlen_normalisieren(chunk)
+                         if sprachausgabe_azure.backend() == "azure" else chunk)
+            communicate = edge_tts.Communicate(edge_text, TTS_VOICE)
+            await communicate.save(str(tmp_path))
         try:
             with tmp_path.open("rb") as audio:
                 sent = await bot.send_voice(

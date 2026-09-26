@@ -192,6 +192,16 @@ zeile("eine abgestürzte Zählung geht an die Kontrolle, nicht in die Ruhe",
 
 print("== F. Stundenblumen-Prüfmoment (echter Abschnitt BLUMEN) ==")
 bl = _abschnitt("BLUMEN")
+# `[NEU 26.09.]` Auf dem VPS gemessen: Eine feste Zwischendatei unter /tmp
+# gehoerte root, und dieser Pruefer las als claudebot still den Stand der
+# letzten Nacht. Hier nachgestellt, wenn die Datei auf dieser Maschine fehlt:
+# eine unbeschreibbare Datei an genau der alten Stelle.
+_falle = Path("/tmp/blumen_check.log")
+_falle_gelegt = False
+if not _falle.exists():
+    _falle.write_text("✅ Kette lebt (Stand der letzten Nacht)\n", encoding="utf-8")
+    _falle.chmod(0o444)
+    _falle_gelegt = True
 zeile("der Abschnitt ist im Skript markiert", bool(bl) and "--pruefen" in bl)
 for rc, satz, erwartet, name in (
         (2, "Es gibt noch keine Kette.", 0, "noch keine Kette: kein Eintrag in problems, kein Kreuz"),
@@ -207,6 +217,10 @@ for rc, satz, erwartet, name in (
     if rc == 2:
         ok = ok and "❌" not in protokoll
     zeile(name, ok, gemessen=aus[-200:])
+
+if _falle_gelegt:
+    _falle.chmod(0o644)
+    _falle.unlink()
 
 print("== G. Die Belegkette rollt nur im echten Lauf (echter Abschnitt ROLLEN) ==")
 # F-Punkt „Belegkette nie gerollt", gemessen 24.09.: Sie rollte am 02.09. und

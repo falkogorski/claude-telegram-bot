@@ -308,9 +308,15 @@ fi
 # Adam: *„Das ist eine Info, mit der ich gar nichts anfangen kann."*
 # >>> BLUMEN
 if [ -f "$(dirname "$0")/stundenblume.py" ]; then
-  "${BOTENV[@]}" "$VENVPY" "$(dirname "$0")/stundenblume.py" --pruefen > /tmp/blumen_check.log 2>&1
+  # `[GEAENDERT 26.09.]` Eigene Zwischendatei statt fester unter /tmp:
+  # Die feste gehoerte root (dieser Lauf), und ein Lauf als claudebot (der
+  # Pruefer im Regressionslauf) konnte sie nicht ueberschreiben — er las dann
+  # still den Stand der letzten Nacht. Gemessen am 26.09. auf dem VPS.
+  _blumen_log="$(mktemp)"
+  "${BOTENV[@]}" "$VENVPY" "$(dirname "$0")/stundenblume.py" --pruefen > "$_blumen_log" 2>&1
   _blumen_rc=$?
-  _blumen="$(tail -1 /tmp/blumen_check.log)"
+  _blumen="$(tail -1 "$_blumen_log")"
+  rm -f "$_blumen_log"
   case "$_blumen_rc" in
     0) add "✅ Stundenblumen: $_blumen" ;;
     2) add "Stundenblumen: $_blumen" ;;

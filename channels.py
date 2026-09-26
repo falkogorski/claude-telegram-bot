@@ -116,7 +116,13 @@ def _laden() -> dict:
     """
     pfad = datei()
     try:
-        mtime = pfad.stat().st_mtime
+        # `[GEAENDERT 26.09.]` Merkmal ist Aenderungszeit UND Groesse, in
+        # Nanosekunden. Gemessen auf dem VPS: Zwei Schreibvorgaenge binnen
+        # weniger Millisekunden bekamen dieselbe Zeit (ext4 stempelt im
+        # Kernel-Takt) — die zweite Aenderung wurde uebersehen, und eine
+        # beschaedigte Datei galt als die alte gute.
+        s = pfad.stat()
+        mtime = (s.st_mtime_ns, s.st_size)
     except OSError:
         _ZWISCHENSPEICHER.update(mtime=None, daten=None, beschaedigt=False)
         return _erstbefuellung()

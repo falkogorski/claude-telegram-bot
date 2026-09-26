@@ -59,6 +59,17 @@ zeile("eine Änderung in der Datei gilt ohne Deploy",
 DATEI.write_text("{kaputt", encoding="utf-8")
 zeile("eine beschädigte Datei: es gilt die eingebaute Liste, und es wird gesagt",
       channels.beschaedigt() and channels.zimmer_for("werkstatt") == channels.HOUSES["werkstatt"]["zimmer"])
+# `[NEU 26.09.]` Auf dem VPS gemessen: Zwei Schreibvorgaenge binnen weniger
+# Millisekunden tragen dort dieselbe Aenderungszeit. Hier erzwungen — gleiche
+# Zeit, anderer Inhalt: Die Beschaedigung muss trotzdem erkannt werden.
+DATEI.unlink()
+channels.erstbefuellen()
+channels.zimmer_for("werkstatt")                    # Zwischenspeicher fuellen
+_ns = DATEI.stat().st_mtime_ns
+DATEI.write_text("{kaputt", encoding="utf-8")
+os.utime(DATEI, ns=(_ns, _ns))
+zeile("gleiche Änderungszeit, anderer Inhalt: die Beschädigung wird trotzdem erkannt",
+      channels.beschaedigt(), gemessen=str(DATEI.stat().st_mtime_ns == _ns))
 DATEI.unlink()
 channels.erstbefuellen()
 

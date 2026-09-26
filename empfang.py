@@ -253,3 +253,70 @@ def knopf_lesen(daten: str) -> "tuple[str, str] | None":
     if len(teile) != 3 or teile[0] != "nf" or teile[2] not in dict((w, 1) for w, _, _ in WEGE):
         return None
     return teile[1], teile[2]
+
+
+# ── Wer merkt es: das Buch des Nebenfadens  `[NEU 26.09.2026, f2 Teil 5/6]` ──
+#
+# Je Entscheidung und je Nebenfaden eine Zeile JSON. Nur Ablage — gelernt wird
+# in diesem Block nicht; die Auswertung nach vierzehn Tagen entscheidet.
+# Reine Funktionen ueber einer Datei: Der Tagescheck ruft sie ohne Bot auf.
+def buch_pfad():
+    import os
+    from pathlib import Path
+    roh = os.environ.get("NEBENFADEN_BUCH")
+    if roh:
+        return Path(roh)
+    prefs = os.environ.get("USER_PREFS_FILE")
+    basis = Path(prefs).parent if prefs else Path.home() / ".config" / "claude-telegram-bot"
+    return basis / "nebenfaden.jsonl"
+
+
+def buch_schreiben(art: str, weg: "str | None" = None, *, pfad=None,
+                   jetzt: "float | None" = None) -> None:
+    """art: auto · uebersteuert · gestartet · zugestellt · rueckfall. Wirft nie."""
+    import json
+    import time
+    try:
+        p = pfad or buch_pfad()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"t": jetzt or time.time(), "art": art, "weg": weg}) + "\n")
+    except Exception:
+        pass
+
+
+def tageszeile(*, pfad=None, jetzt: "float | None" = None) -> str:
+    """Eine Zeile fuer den Tagescheck: `OK …`, `INTERN …` (Rueckfaelle) oder `LEER`."""
+    import json
+    import time
+    p = pfad or buch_pfad()
+    grenze = (jetzt or time.time()) - 86400
+    z: dict = {}
+    try:
+        for roh in p.read_text(encoding="utf-8").splitlines():
+            try:
+                e = json.loads(roh)
+            except ValueError:
+                continue
+            if float(e.get("t") or 0) < grenze:
+                continue
+            schluessel = e.get("art") if e.get("art") != "auto" else f"auto:{e.get('weg')}"
+            z[schluessel] = z.get(schluessel, 0) + 1
+    except FileNotFoundError:
+        return "LEER"
+    except Exception as e:
+        return f"INTERN Buch des Nebenfadens nicht lesbar: {e}"
+    if not z:
+        return "LEER"
+    text = (f"Nebenfaden 24 h: {z.get('gestartet', 0)} gestartet, "
+            f"{z.get('zugestellt', 0)} zugestellt, {z.get('rueckfall', 0)} zurückgefallen · "
+            f"Einschätzung: {z.get('auto:nebenbei', 0)} nebenbei, "
+            f"{z.get('auto:einarbeiten', 0)} einarbeiten, {z.get('auto:anreihen', 0)} anreihen, "
+            f"{z.get('uebersteuert', 0)} übersteuert")
+    return ("INTERN " if z.get("rueckfall") else "OK ") + text
+
+
+if __name__ == "__main__":
+    import sys
+    if "--tageszeile" in sys.argv:
+        print(tageszeile())

@@ -3392,6 +3392,31 @@ _MD_LINK = re.compile(r"\[[^\]\n]*\]\((https?://[^)\s]+)\)")
 _ROH_LINK = re.compile(r"https?://[^\s<>()\[\]]+")
 
 
+# ── Antwort auf einen Zettel als eigene Nachricht  `[NEU 26.09.2026, f2 Teil 8]`
+_ANTWORT_ANGABE = re.compile(r'<antwort\s+auf="(\d{1,12})"\s*>(.*?)</antwort\s*>', re.S)
+_ANTWORT_RESTE = re.compile(r"</?antwort\b[^>]*>")
+# Nur Kennungen, die ein gelesener Zettel dieser Sitzung genannt hat: Die
+# Angabe ist Modellausgabe — ohne Riegel koennte fremdes Material eine
+# Antwort an eine beliebige Nachricht haengen.
+_ANTWORT_ERLAUBT: set = set()
+
+
+def antwort_angaben_trennen(text: str, chat_id: int) -> "tuple[str, list[tuple[int, str]]]":
+    """Zettel-Antworten herausloesen. Unbekannte Kennung: der Inhalt bleibt
+    im Text, nur die Angabe verschwindet — nie verloren, nie sichtbar."""
+    stuecke: list[tuple[int, str]] = []
+
+    def _ers(m: "re.Match") -> str:
+        mid, inhalt = int(m.group(1)), m.group(2).strip()
+        if inhalt and (chat_id, mid) in _ANTWORT_ERLAUBT:
+            stuecke.append((mid, inhalt))
+            return ""
+        return inhalt
+
+    rest = _ANTWORT_RESTE.sub("", _ANTWORT_ANGABE.sub(_ers, text or ""))
+    return re.sub(r"\n{3,}", "\n\n", rest).strip(), stuecke
+
+
 def vorschau_angabe_trennen(text: str) -> "tuple[str, str | None]":
     """Alle Vorschau-Angaben entfernen; die LETZTE gilt."""
     angaben = _VORSCHAU_ANGABE.findall(text or "")
@@ -6218,7 +6243,7 @@ def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None,
         muster = f"{auftrag}__*.txt" if auftrag else "*.txt"
         for datei in sorted(ordner.glob(muster)):
             try:
-                stuecke.append(datei.read_text(encoding="utf-8").strip())
+                inhalt = datei.read_text(encoding="utf-8").strip()
                 datei.unlink()
             except OSError:
                 continue
@@ -6226,7 +6251,19 @@ def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None,
                 _schl = _zettel_schluessel_aus_dateiname(
                     datei.stem.rsplit("__", 1)[-1])
             except ValueError:
+                stuecke.append(inhalt)
                 continue
+            # `[NEU 26.09.2026, Nebenfaden f2 Teil 8]` Adam 17:37: Ein neues
+            # Thema bekommt eine eigene Nachricht. Die Sitzung erfaehrt dafuer
+            # die Kennung — und nur Kennungen, die hier genannt wurden, nimmt
+            # der Sendeweg spaeter an (`_ANTWORT_ERLAUBT`).
+            if _schl and inhalt:
+                _ANTWORT_ERLAUBT.add(_schl)
+                inhalt = (f"[Nachricht {_schl[1]}] {inhalt}\n(Ist das ein neues "
+                          f"Thema, beantworte es als eigene Nachricht: "
+                          f"<antwort auf=\"{_schl[1]}\">…</antwort> — sonst "
+                          f"arbeite es ein.)")
+            stuecke.append(inhalt)
             eintrag = _ZETTEL.get(_schl) if _schl else None
             if eintrag is not None:
                 eintrag["gelesen"] = True
@@ -7003,6 +7040,10 @@ async def cmd_status(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
                     f"(Wächter greift nach {STALL_LIMIT_S // 60} Minuten)")
     else:
         lines.append("▶️ Läuft: nichts")
+    # `[NEU 26.09.2026, Nebenfaden Teil 6]` Ein laufender Nebenfaden als eigene Zeile.
+    _nmb = _mb_opt(user_id, neben_faden_thread(_fd))
+    if _nmb is not None and _nmb.current_job is not None:
+        lines.append(f"⏩ Nebenbei: „{_job_preview(_nmb.current_job.text)}“")
 
     # Warteschlange (Reihenfolge der Abarbeitung: neueste zuerst)
     if mb and mb.queue:
@@ -8667,6 +8708,12 @@ async def cmd_hilfe(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         "in Sekunden antwortet und Arbeit an ein Zimmer weitergibt. Aus "
         "bedeutet, dass alles wie bisher in einem Faden läuft. Dieselbe "
         "Wirkung wie /empfang; gezielt mit /empfang_an und /empfang_aus\n\n"
+        "Nachricht, während etwas läuft: Unter der 📨-Meldung stehen vier Knöpfe — "
+        "⏫ Vorrang (kommt als Nächstes, ohne zu stoppen) · ⏩ Nebenbei (eine "
+        "eigene Sitzung antwortet sofort, nur lesend) · 📎 Einarbeiten (geht in den "
+        "laufenden Vorgang) · ⏳ Anreihen (kommt danach). Mit Empfang an wählt der "
+        "Bot selbst, sonst reicht er es hinein. Stoppen geht weiter mit „Stopp“. "
+        "Ein Album mit mehreren Fotos zählt als ein Auftrag.\n\n"
         "Neustart, TTS und Info liegen im „/“-Menü, nicht mehr in der Tastatur."
     )
     await update.message.reply_text(text)
@@ -13934,6 +13981,7 @@ def _nebenfaden_starten(e: dict) -> None:
                      neben_kennung=e["kennung"])
     e["neben_job"] = nj
     _NEBEN_LAUFEND.add(e["schl"])
+    empfang.buch_schreiben("gestartet")
     _get_mailbox(uid, nfd).queue.append(nj)
     _ensure_worker(uid, nfd)
 
@@ -14037,6 +14085,7 @@ async def nebenfaden_einordnen(update, user_id: int, chat_id: int,
     _NEBEN[kennung] = e
     await _weg_umsetzen(e, weg)
     _neben_vermerk(e, f"automatisch: {e['weg']}")
+    empfang.buch_schreiben("auto", e["weg"])
     await msg.reply_text(_neben_meldung(e["weg"], running),
                          reply_markup=_neben_knoepfe(kennung),
                          reply_parameters=_reply_params(msg.message_id))
@@ -14067,6 +14116,7 @@ async def on_nebenfaden_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> N
         return
     if e["weg"] != alt:
         _neben_vermerk(e, f"übersteuert: {alt} → {e['weg']}")
+        empfang.buch_schreiben("uebersteuert", e["weg"])
     await query.answer({w: wort for w, wort, _ in empfang.WEGE}[e["weg"]])
     try:
         await query.edit_message_text(_neben_meldung(e["weg"], e["running"]),
@@ -14089,7 +14139,9 @@ def _neben_buchen(user_id: int, job, outcome: str) -> None:
             _ZETTEL[schl] = {"auftrag": "nebenfaden", "gelesen": True, "erledigt": True}
             e["zugestellt"] = True
             _neben_vermerk(e, "zugestellt")
+            empfang.buch_schreiben("zugestellt")
         else:
+            empfang.buch_schreiben("rueckfall", outcome)
             log.warning("⚙️ Nebenfaden ohne Antwort (%s) — die Nachricht laeuft "
                         "auf dem gewohnten Weg", outcome)
     except Exception:
@@ -15487,6 +15539,52 @@ def _media_eingang(update: Update, art: str, groesse_mb: float | None = None) ->
         return None
 
 
+# ── Ein Buendel ist ein Auftrag  `[NEU 26.09.2026, Nebenfaden f2, Teil 7]` ──
+#
+# Adam schickt Bildschirmfotos zu fuenft; Telegram liefert ein Album als
+# fuenf Nachrichten mit derselben `media_group_id`, binnen etwa einer Sekunde.
+# Bis heute wurden daraus fuenf Auftraege, fuenf Zettel, fuenf Meldungen.
+# Jetzt: gesammelt, bis eine Weile nichts mehr kommt, dann EIN Auftrag mit
+# allen Anhaengen — unter der Nachricht, die die Beschriftung traegt (die
+# erste). Geschwister: Foto, Datei, Video; Sprachnachrichten kommen nie als
+# Album.
+_BUENDEL: dict[tuple, dict] = {}
+BUENDEL_WARTEN_S = float(os.environ.get("BUENDEL_WARTEN_S") or 1.5)
+
+
+async def _medien_weiter(update: Update, text: str, *, mkey: "str | None" = None,
+                         **kw) -> None:
+    """Einzelstueck: wie bisher. Albumstueck: sammeln, der letzte reicht weiter."""
+    msg = update.message
+    gruppe = getattr(msg, "media_group_id", None)
+    if not gruppe:
+        await process_user_text(update, text, **kw)
+        return
+    schluessel = (update.effective_chat.id, gruppe)
+    b = _BUENDEL.setdefault(schluessel, {"teile": [], "stand": 0})
+    b["teile"].append({"mid": msg.message_id, "update": update, "text": text,
+                       "kw": kw, "mkey": mkey})
+    b["stand"] += 1
+    stand = b["stand"]
+    await asyncio.sleep(BUENDEL_WARTEN_S)
+    if b["stand"] != stand or _BUENDEL.get(schluessel) is not b:
+        return          # ein spaeteres Stueck reicht weiter
+    _BUENDEL.pop(schluessel, None)
+    teile = sorted(b["teile"], key=lambda x: x["mid"])
+    erstes = teile[0]
+    kw1 = dict(erstes["kw"])
+    kw1["log_note"] = f"🗂️ Album: {len(teile)} Anhänge — " + " · ".join(
+        (x["kw"].get("log_note") or "")[:60] for x in teile)
+    await process_user_text(
+        erstes["update"],
+        f"[Album mit {len(teile)} Anhängen, als EIN Auftrag]\n\n"
+        + "\n\n".join(x["text"] for x in teile), **kw1)
+    # Erst NACH dem Einreihen (das den ersten sichert) die Eingangs-Stufen der
+    # uebrigen loesen — sonst laege das Album einen Moment nirgends (Fenster-Regel).
+    for x in teile[1:]:
+        _resolve_media_stage(x["mkey"])
+
+
 def _resolve_media_stage(key: str | None) -> None:
     """Löst den Eingangs-Eintrag auf, wenn sauber abgebrochen wurde.
 
@@ -15582,8 +15680,8 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             "Fehler, und Adam soll nicht erst nachfragen müssen.")
     if caption:
         parts.append(f"Beschriftung: {caption}")
-    await process_user_text(update, prefix + "\n".join(parts),
-                            log_note=f"📷 Foto: {local_path.name}")
+    await _medien_weiter(update, prefix + "\n".join(parts), mkey=_mkey,
+                         log_note=f"📷 Foto: {local_path.name}")
 
 
 async def on_document(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -15695,9 +15793,9 @@ async def on_document(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     await msg.reply_text(f"{filename} ({groesse_lesbar(size_mb, ist_mb=True)}) empfangen — weiterleiten …")
-    await process_user_text(update, prefix + "\n".join(parts),
-                            log_note=f"📎 Datei: {filename} · {mime} · {groesse_lesbar(size_mb, ist_mb=True)}",
-                            adam_anteil=_adam_anteil(update, caption))
+    await _medien_weiter(update, prefix + "\n".join(parts), mkey=_mkey,
+                         log_note=f"📎 Datei: {filename} · {mime} · {groesse_lesbar(size_mb, ist_mb=True)}",
+                         adam_anteil=_adam_anteil(update, caption))
 
 
 async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -15783,8 +15881,8 @@ async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         # (e) Ehrlich melden statt still scheitern — das Original bleibt liegen.
         parts.append(f"Hinweis: Das Video konnte nicht zerlegt werden "
                      f"({teile['error']}). Die Datei liegt unter {local_path}.")
-    await process_user_text(update, prefix + "\n".join(parts),
-                            log_note=f"🎬 {label}: {filename} · {groesse_lesbar(size_mb, ist_mb=True)}")
+    await _medien_weiter(update, prefix + "\n".join(parts), mkey=_mkey,
+                         log_note=f"🎬 {label}: {filename} · {groesse_lesbar(size_mb, ist_mb=True)}")
 
 
 # Gängige Abkürzungen für die Sprachausgabe ausschreiben — sonst liest edge-tts
@@ -17613,6 +17711,23 @@ async def send_answer_to_user(
                         if _vorschau_an(sess.user_id) else None)
     else:
         text, _angabe = vorschau_angabe_trennen(text)
+    # `[NEU 26.09.2026, Nebenfaden f2 Teil 8]` Antworten auf Zettel mit neuem
+    # Thema als eigene Nachricht, mit Zitat der Frage. Hier, an derselben
+    # Eingangsstelle wie die Vorschau: Nichts danach sieht die Angabe, auch
+    # die Vorlese-Strecke nicht. Eingestuft wird das GANZE (9.2).
+    _rot_ganz = rot if rot is not None else _rot_eingestuft(text)
+    text, _antworten = antwort_angaben_trennen(text, chat_id)
+    if _antworten:
+        zugestellt = await send_answer_to_user(
+            sess, chat_id, text, force_tts=force_tts, reply_to=reply_to,
+            thread_id=thread_id, vorschau_url=vorschau_url, rot=_rot_ganz)
+        for _mid, _inhalt in _antworten:
+            ok = await send_answer_to_user(
+                sess, chat_id, _inhalt, force_tts=force_tts, reply_to=_mid,
+                thread_id=thread_id, vorschau_url=None, rot=_rot_ganz)
+            zugestellt = zugestellt or ok
+            _ANTWORT_ERLAUBT.discard((chat_id, _mid))
+        return zugestellt
     # `[9.2, Widerlegungspruefung S2]` Eingestuft wird die GANZE Antwort,
     # bevor sie in Kopiertext-Stuecke zerfaellt — sonst sah jedes Stueck nur
     # sich selbst, und die Saetze um eine IBAN gingen an Azure.

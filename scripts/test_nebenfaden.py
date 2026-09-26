@@ -22,6 +22,20 @@ os.environ["QUESTIONS_FILE"] = str(_TMP / "open_questions.json")
 os.environ["PENDING_DIR"] = str(_TMP / "pending")
 os.environ["CONVERSATION_LOG_DIR"] = str(_TMP / "conversations")
 os.environ["TTS_ROT_LOKAL"] = "aus"
+# Die Stimme ist ein Netzdienst — am Rand ersetzt (Datei, damit der echte
+# `_send_tts_chunk` sie oeffnen kann).
+import types as _types                                          # noqa: E402
+
+
+class _Stimme:
+    def __init__(self, text, stimme):
+        pass
+
+    async def save(self, pfad):
+        Path(pfad).write_bytes(b"ID3")
+
+
+sys.modules["edge_tts"] = _types.SimpleNamespace(Communicate=_Stimme)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import empfang                                                  # noqa: E402
 import bot                                                      # noqa: E402
@@ -348,6 +362,134 @@ zeile("das Nebenzimmer steht nicht im Leitstand (kein Ziel fuer Zettel, nicht in
       all(not bot.ist_nebenzimmer(z.get("thread_id")) for z in bot.leitstand(1))
       and bot.ausgabe_thread(bot.neben_faden_thread(None)) is None
       and bot.ausgabe_thread(bot.neben_faden_thread(48)) == 48)
+
+# ── D. Ein Buendel ist ein Auftrag (Teil 7) ────────────────────────────────
+print("== D. Buendel ==")
+EINGEREIHT: list[str] = []
+_ptu_vorher = bot.process_user_text
+
+
+async def _ptu_attrappe(update, text, **kw):
+    EINGEREIHT.append(text)
+
+
+class _MedienMsg:
+    def __init__(self, mid, gruppe):
+        self.message_id, self.media_group_id = mid, gruppe
+
+
+def _medien_update(mid, gruppe):
+    return types.SimpleNamespace(message=_MedienMsg(mid, gruppe),
+                                 effective_chat=types.SimpleNamespace(id=1))
+
+
+async def _album(gruppe, n):
+    await asyncio.gather(*(bot._medien_weiter(_medien_update(2000 + i, gruppe),
+                                              f"[Bild {i}]", mkey=None,
+                                              log_note=f"📷 Foto {i}")
+                           for i in range(n)))
+
+bot.process_user_text, bot.BUENDEL_WARTEN_S = _ptu_attrappe, 0.05
+try:
+    asyncio.run(_album("album-1", 5))
+    album = list(EINGEREIHT)
+    EINGEREIHT.clear()
+    asyncio.run(_album(None, 3))
+    einzeln = list(EINGEREIHT)
+finally:
+    bot.process_user_text = _ptu_vorher
+zeile("fuenf Fotos mit gleicher Gruppen-Kennung → EIN Auftrag mit allen fuenf (ein Zettel, eine Meldung)",
+      len(album) == 1 and all(f"[Bild {i}]" in album[0] for i in range(5)), str(album)[:120])
+zeile("ohne Gruppen-Kennung wie bisher: jedes Stueck ein Auftrag",
+      len(einzeln) == 3, str(einzeln))
+
+# ── E. Neues Thema: eigene Nachricht mit Zitat (Teil 8) ────────────────────
+print("== E. Antwort auf einen Zettel als eigene Nachricht ==")
+
+
+class _TG:
+    def __init__(self):
+        self.texte, self.stimmen = [], []
+
+    async def send_message(self, **kw):
+        self.texte.append(kw)
+        return types.SimpleNamespace(message_id=300 + len(self.texte))
+
+    async def send_voice(self, **kw):
+        kw.pop("voice", None)
+        self.stimmen.append(kw)
+        return types.SimpleNamespace(message_id=600 + len(self.stimmen))
+
+
+def _sess_tg(tg, tts=False):
+    bot._USER_PREFS.setdefault("1", {})["link_vorschau"] = False
+    s = bot.UserSession(client=None, user_id=1, chat_id=1)
+    s.bot, s.tts_enabled = tg, tts
+    return s
+
+
+bot._ANTWORT_ERLAUBT.clear()
+bot.nachsteuer_schreiben(1, None, "auftrag-y", (1, 4242), "Wie baue ich ein sicheres Passwort?")
+vorlage = bot.nachsteuer_lesen(1, None, "auftrag-y")
+zeile("der Zettel nennt der Sitzung die Kennung und die Form der Antwort",
+      "[Nachricht 4242]" in vorlage and '<antwort auf="4242">' in vorlage
+      and (1, 4242) in bot._ANTWORT_ERLAUBT, vorlage[:120])
+tg = _TG()
+antwort = ("Hier ist die Alfa-Romeo-Liste.\n\n<antwort auf=\"4242\">Ein sicheres Passwort "
+           "hat mindestens sechzehn Zeichen.</antwort>")
+asyncio.run(bot.send_answer_to_user(_sess_tg(tg), 1, antwort, reply_to=4100))
+_bez = [getattr(k.get("reply_parameters"), "message_id", None) for k in tg.texte]
+zeile("Zettel-Antwort mit Steuerangabe → zwei Nachrichten, die zweite zitiert die Zettel-Frage",
+      len(tg.texte) == 2 and _bez == [4100, 4242] and "Passwort" in tg.texte[1].get("text", "")
+      and "Passwort" not in tg.texte[0].get("text", ""), f"bezuege={_bez}")
+zeile("die Steuerangabe ist nie als Text sichtbar",
+      not any("<antwort" in (k.get("text") or "") or "</antwort" in (k.get("text") or "")
+              for k in tg.texte), str([k.get("text") for k in tg.texte]))
+bot._ANTWORT_ERLAUBT.add((1, 4243))
+tg = _TG()
+asyncio.run(bot.send_answer_to_user(_sess_tg(tg, tts=True), 1,
+            'Kurz.\n<antwort auf="4243">Ja, das geht.</antwort>', force_tts=True))
+_alles = " ".join(str(k) for k in tg.stimmen + tg.texte)
+zeile("…und wird nie vorgelesen (weder Unterschrift noch Text traegt sie)",
+      "<antwort" not in _alles and len(tg.stimmen) == 2, f"stimmen={len(tg.stimmen)} {_alles[:100]}")
+tg = _TG()
+asyncio.run(bot.send_answer_to_user(_sess_tg(tg), 1,
+            'Liste.\n<antwort auf="9999">Fremd eingeschleust.</antwort>'))
+zeile("unbekannte Kennung: keine zweite Nachricht, Inhalt bleibt im Text, Angabe verschwindet",
+      len(tg.texte) == 1 and "Fremd eingeschleust" in tg.texte[0].get("text", "")
+      and "<antwort" not in tg.texte[0].get("text", ""), str([k.get("text") for k in tg.texte]))
+
+# ── F. Wer merkt es: Buch, Tagescheck, /status (Teil 5 und 6) ─────────────
+print("== F. Buch und Tagescheck ==")
+import json as _json                                            # noqa: E402
+import subprocess                                               # noqa: E402
+import time as _time                                            # noqa: E402
+
+_buch = empfang.buch_pfad()
+_arten = [_json.loads(z)["art"] for z in _buch.read_text().splitlines()] if _buch.exists() else []
+zeile("der Bot bucht Einschaetzung, Start, Zustellung und Rueckfall (ausgefuehrte Faelle oben)",
+      {"auto", "gestartet", "zugestellt", "rueckfall"} <= set(_arten), str(sorted(set(_arten))))
+_probe = _TMP / "probe.jsonl"
+jetzt = _time.time()
+for art, weg, t in (("auto", "nebenbei", jetzt), ("gestartet", None, jetzt), ("zugestellt", None, jetzt),
+                    ("uebersteuert", "vorrang", jetzt), ("rueckfall", "fehler", jetzt - 90000)):
+    empfang.buch_schreiben(art, weg, pfad=_probe, jetzt=t)
+z = empfang.tageszeile(pfad=_probe, jetzt=jetzt)
+zeile("Tageszeile: 24 h gezaehlt, der alte Rueckfall zaehlt nicht → OK",
+      z.startswith("OK ") and "1 gestartet, 1 zugestellt, 0 zurückgefallen" in z
+      and "1 nebenbei" in z and "1 übersteuert" in z, z)
+empfang.buch_schreiben("rueckfall", "fehler", pfad=_probe, jetzt=jetzt)
+zeile("ein Rueckfall in 24 h macht die Zeile intern (kein Adam-Alarm)",
+      empfang.tageszeile(pfad=_probe, jetzt=jetzt).startswith("INTERN "))
+zeile("ohne Buch: LEER, keine Zeile", empfang.tageszeile(pfad=_TMP / "fehlt.jsonl") == "LEER")
+_aus = subprocess.run([sys.executable, str(Path(empfang.__file__)), "--tageszeile"],
+                      env={**os.environ, "NEBENFADEN_BUCH": str(_probe)},
+                      capture_output=True, text=True, timeout=30).stdout.strip()
+zeile("die Probe laeuft eigenstaendig, ohne Bot (so ruft sie der Tagescheck)",
+      _aus.startswith("INTERN Nebenfaden 24 h"), _aus)
+_dc = (Path(bot.__file__).parent / "scripts" / "daily_check.sh").read_text()
+zeile("der Tagescheck ruft die Probe (Abschnitt NEBENFADEN)",
+      "# >>> NEBENFADEN" in _dc and "empfang.py\" --tageszeile" in _dc)
 
 import shutil                                                   # noqa: E402
 shutil.rmtree(_TMP, ignore_errors=True)

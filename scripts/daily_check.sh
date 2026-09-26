@@ -1038,6 +1038,22 @@ if [ -f "$BOTDIR/sprachausgabe_lokal.py" ]; then
 fi
 # <<< LOKALSTIMME
 
+# >>> NEBENFADEN
+# `[NEU 26.09.2026, Nebenfaden f2 Teil 6]` Wer merkt es: gestartet, zugestellt,
+# zurueckgefallen in 24 h, dazu die Einschaetzungen. Rueckfaelle sind intern
+# (die Nachricht kam trotzdem an), kein Adam-Alarm. Modellfrei.
+if [ -f "$BOTDIR/empfang.py" ]; then
+  _nf="$(sudo -u claudebot env HOME="$BOTHOME" USER_PREFS_FILE="${USER_PREFS_FILE:-}" \
+         "$VENVPY" "$BOTDIR/empfang.py" --tageszeile 2>&1 | tail -1)"
+  case "$_nf" in
+    OK*)     add "⏩ ${_nf#OK }" ;;
+    INTERN*) intern "${_nf#INTERN }" ;;
+    LEER)    : ;;
+    *)       intern "Tageszeile des Nebenfadens lief nicht: ${_nf:-keine Ausgabe}" ;;
+  esac
+fi
+# <<< NEBENFADEN
+
 # --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
 # Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete
 # hoeflich "Keine Treffer" - vier Stunden lang, in Adams Richtung. Ein Ausfall,

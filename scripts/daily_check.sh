@@ -1023,7 +1023,12 @@ fi
 # Nicht eingerichtet ist kein Alarm, nur eine Protokollzeile.
 # >>> LOKALSTIMME
 if [ -f "$BOTDIR/sprachausgabe_lokal.py" ]; then
-  _ls="$(sudo -u claudebot env HOME="$BOTHOME" "$VENVPY" "$BOTDIR/sprachausgabe_lokal.py" --probe 2>&1 | tail -1)"
+  # Die Einstellungen des Dienstes ausdruecklich mitgeben: sudo setzt die
+  # Umgebung zurueck, sonst pruefte die Probe womoeglich eine andere Stimme
+  # als die, die der Bot benutzt (Widerlegungspruefung M2).
+  _ls="$(sudo -u claudebot env HOME="$BOTHOME" TTS_ROT_LOKAL="${TTS_ROT_LOKAL:-}" \
+         TTS_LOKAL_MODELL="${TTS_LOKAL_MODELL:-}" \
+         "$VENVPY" "$BOTDIR/sprachausgabe_lokal.py" --probe 2>&1 | tail -1)"
   case "$_ls" in
     OK*)     add "🗣️ ${_ls#OK }" ;;
     AUS*)    add "🗣️ Lokale Stimme nicht aktiv: ${_ls#AUS }" ;;

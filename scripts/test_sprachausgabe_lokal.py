@@ -257,6 +257,119 @@ zeile("falsche Pruefsumme: Abbruch, nichts am Ort, kein Rest",
       r.returncode != 0 and "Pruefsumme stimmt nicht" in r.stdout and not _ziel.exists()
       and not list(_ziel.parent.glob(".teil-*")), gemessen=f"rc={r.returncode} {r.stdout[-120:]!r}")
 
+# ── H. Die Nebenwege (Widerlegungspruefung 26.09.) ──────────────────────────
+print("== H. Jeder Sprechweg, nicht nur der Hauptweg ==")
+os.environ.update({"TTS_BACKEND": "azure", "AZURE_SPEECH_KEY": "test"})
+_lokal_attrappe(True)
+_themen: list[str] = []
+
+
+async def _thema(text, max_words=7):
+    _themen.append(text)
+    return "Thema"
+_alt_thema = bot._ai_topic_label
+bot._ai_topic_label = _thema
+try:
+    tg = _neu()
+    asyncio.run(bot._send_pdf_chapters_tts(tg, 1, 1, "brief.pdf", [
+        ("Befund", "Die Diagnose lautet Diabetes Typ 2."),
+        ("Weiteres Vorgehen", "Zweimal taeglich spritzen, Kontrolle in vier Wochen.")]))
+    zeile("PDF: das ganze Dokument ist rot, JEDES Kapitel spricht lokal (S1)",
+          len(tg.stimmen) == 2 and all(s == (b"OggS-lokal", ".ogg") for s in tg.stimmen)
+          and not _AZURE and not _EDGE, gemessen=f"{tg.stimmen} azure={len(_AZURE)}")
+    tg = _neu()
+    asyncio.run(bot._send_pdf_chapters_tts(tg, 1, 1, "brief.pdf", [
+        ("Dokument", "Der Befund zeigt erhoehte Blutwerte, eine Therapie ist noetig.")]))
+    zeile("PDF: ein rotes Dokument geht nicht an das Hilfsmodell fuer Kapitelthemen (K4)",
+          not _themen, gemessen=str(_themen))
+    tg = _neu()
+    _LOKAL_FEHLER[0] = True
+    asyncio.run(bot._send_pdf_chapters_tts(tg, 1, 1, "brief.pdf", [
+        ("Befund", "Die Diagnose lautet Diabetes Typ 2.")]))
+    zeile("PDF: faellt die lokale Stimme aus, kommt das Kapitel als Text (S3)",
+          not tg.stimmen and tg.texte and "Diagnose" in tg.texte[-1] and not _AZURE,
+          gemessen=f"texte={tg.texte} azure={len(_AZURE)}")
+finally:
+    bot._ai_topic_label = _alt_thema
+
+tg = _neu()
+ok = asyncio.run(bot.send_answer_to_user(_sitzung(tg), 1,
+    "Hier die Daten fuer die Ueberweisung.\n<kopie>DE89 3704 0044 0532 0130 00</kopie>\n"
+    "Sag Bescheid, wenn es geklappt hat."))
+zeile("Kopiertext: die ganze Antwort ist rot, auch die Saetze darum sprechen lokal (S2)",
+      ok and tg.stimmen and all(s[1] == ".ogg" for s in tg.stimmen) and not _AZURE and not _EDGE,
+      gemessen=f"{tg.stimmen} azure={len(_AZURE)} edge={len(_EDGE)}")
+
+tg = _neu()
+_LOKAL_FEHLER[0] = True
+erste = asyncio.run(bot._send_tts(tg, 1, "Die Diagnose lautet Diabetes.", coupled_text="Die Diagnose lautet Diabetes."))
+zeile("Kurzfassung (gekoppelt): faellt die lokale Stimme aus, kommt der Text (S3)",
+      erste is not None and tg.texte and "Diagnose" in tg.texte[0] and not _AZURE,
+      gemessen=f"erste={erste} texte={tg.texte}")
+
+tg = _neu()
+asyncio.run(bot._send_tts_chunk(tg, 1, "Dein Passwort bitte nie teilen.", rot=False))
+zeile("ausdrueckliches rot=False schaltet die Einstufung des Teilstuecks nicht ab (M1)",
+      tg.stimmen == [(b"OggS-lokal", ".ogg")] and not _EDGE, gemessen=f"{tg.stimmen} edge={_EDGE}")
+
+_lokal_attrappe(False)
+_mdir = _TMP / "stimmen"
+_mdir.mkdir()
+(_mdir / ".eingerichtet").write_text("")
+os.environ["TTS_LOKAL_MODELL"] = str(_mdir / "weg.onnx")
+tg = _neu()
+r = asyncio.run(bot._send_tts_chunk(tg, 1, ROT))
+zeile("eingerichtet, aber verloren: Rotes geht NICHT still an edge-tts (M3)",
+      r is None and not tg.stimmen and not _EDGE and not _AZURE, gemessen=f"r={r} edge={_EDGE}")
+zeile("und die Probe meldet es als Fehler, nicht als [nicht aktiv]",
+      lok.probe().startswith("FEHLER eingerichtet"), gemessen=lok.probe())
+os.environ["TTS_LOKAL_MODELL"] = str(_TMP / "keine-stimme.onnx")
+os.environ["TTS_BACKEND"] = "edge"
+os.environ.pop("AZURE_SPEECH_KEY", None)
+
+for roh, soll in (("Ramipril 1-0-1", "Ramipril 1-0-1"),
+                  ("Arzttermin 14:30–15:00 Uhr", "Arzttermin 14 Uhr 30 bis 15 Uhr"),
+                  ("am 3. und 4. Juni", "am dritten und vierten Juni"),
+                  ("Rechnung 2026-017", "Rechnung 2026-017")):
+    ist = bot._fuer_lokale_stimme(roh)
+    zeile(f"M4: {roh!r} -> {soll!r}", ist == soll, gemessen=repr(ist))
+
+# M2: sudo setzt die Umgebung zurueck — die Attrappe tut es jetzt auch.
+_py = _TMP / "py_env"
+_py.write_text('#!/bin/bash\necho "OK sieht ROT_LOKAL=[$TTS_ROT_LOKAL] MODELL=[$TTS_LOKAL_MODELL]"\n')
+_py.chmod(0o755)
+_a = subprocess.run(["bash", "-c",
+    'set -uo pipefail\nadd() { echo "ADD:$1"; }\nintern() { echo "INTERN:$1"; }\n'
+    'sudo() { shift 2; env -i PATH="$PATH" "$@"; }\n'
+    f'BOTDIR="{WURZEL}"\nVENVPY="{_py}"\nBOTHOME="$HOME"\n'
+    'TTS_ROT_LOKAL=pflicht\nTTS_LOKAL_MODELL=/dienst/stimme.onnx\n' + _abschnitt],
+    capture_output=True, text=True).stdout
+zeile("9s: die Probe sieht die Einstellungen des Dienstes, obwohl sudo die Umgebung leert (M2)",
+      "ROT_LOKAL=[pflicht]" in _a and "MODELL=[/dienst/stimme.onnx]" in _a, gemessen=_a)
+
+# K1: die Beschreibung wird geprueft, die Rechte stimmen, die Marke wird gesetzt.
+_echt = Path(_ECHTES_MODELL) if _ECHTES_MODELL else lok.modell().__class__.home() / ".local" / "share" / "piper-stimmen" / lok.MODELL_NAME
+if _echt.is_file() and Path(str(_echt) + ".json").is_file():
+    for json_quelle, erwartet_ok in (("kaputt", False), ("echt", True)):
+        (_bin / "curl").write_text(
+            '#!/bin/bash\nwhile [ $# -gt 0 ]; do case "$1" in -o) ziel="$2"; shift;; http*) url="$1";; esac; shift; done\n'
+            f'case "$url" in *.json) {"echo kaputt" if json_quelle == "kaputt" else f"cat {str(_echt)!r}.json"} > "$ziel";; '
+            f'*) cp {str(_echt)!r} "$ziel";; esac\n')
+        _z = _TMP / f"k1-{json_quelle}" / lok.MODELL_NAME
+        r = subprocess.run(["bash", str(WURZEL / "scripts" / "lokale_stimme_laden.sh")],
+                           capture_output=True, text=True,
+                           env={**os.environ, "PATH": f"{_bin}:{os.environ['PATH']}", "TTS_LOKAL_MODELL": str(_z)})
+        if erwartet_ok:
+            zeile("K1: echte Stimme und Beschreibung: abgelegt, lesbar (644), Marke gesetzt",
+                  r.returncode == 0 and _z.is_file() and oct(_z.stat().st_mode)[-3:] == "644"
+                  and (_z.parent / ".eingerichtet").is_file(), gemessen=f"rc={r.returncode} {r.stdout[-120:]!r}")
+        else:
+            zeile("K1: kaputte Beschreibung: Abbruch, nichts abgelegt, keine Marke",
+                  r.returncode != 0 and "Beschreibung stimmt nicht" in r.stdout and not _z.exists()
+                  and not (_z.parent / ".eingerichtet").exists(), gemessen=f"rc={r.returncode} {r.stdout[-120:]!r}")
+else:
+    uebersprungen.append("Ladeskript mit echter Stimme: keine Stimme auf diesem Rechner")
+
 # ── G. Die echte Stimme ─────────────────────────────────────────────────────
 print("== G. Die echte Stimme (wenn sie auf diesem Rechner liegt) ==")
 if _ECHTES_MODELL:

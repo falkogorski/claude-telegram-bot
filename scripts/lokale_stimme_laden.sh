@@ -13,12 +13,19 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 ZIEL="${TTS_LOKAL_MODELL:-$HOME/.local/share/piper-stimmen/de_DE-thorsten-medium.onnx}"
 QUELLE="https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium"
 SOLL="$(sed -n 's/^MODELL_SHA256 = "\([0-9a-f]*\)"$/\1/p' "$REPO/sprachausgabe_lokal.py")"
-[ ${#SOLL} -eq 64 ] || { echo "Pruefsumme in sprachausgabe_lokal.py nicht gefunden"; exit 1; }
+SOLL_JSON="$(sed -n 's/^JSON_SHA256 = "\([0-9a-f]*\)"$/\1/p' "$REPO/sprachausgabe_lokal.py")"
+[ ${#SOLL} -eq 64 ] && [ ${#SOLL_JSON} -eq 64 ] \
+  || { echo "Pruefsummen in sprachausgabe_lokal.py nicht gefunden"; exit 1; }
 summe() { if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -c1-64; else shasum -a 256 "$1" | cut -c1-64; fi; }
 
 mkdir -p "$(dirname "$ZIEL")"
-if [ -f "$ZIEL" ] && [ "$(summe "$ZIEL")" = "$SOLL" ] && [ -f "$ZIEL.json" ]; then
-  echo "Stimme liegt schon, Pruefsumme stimmt: $ZIEL"; exit 0
+# Die Marke `.eingerichtet` macht die Stimme fuer Rotes zur Pflicht: Geht sie
+# spaeter verloren, faellt Rotes nicht still in die Cloud zurueck, und der
+# Tagescheck meldet es (Widerlegungspruefung M3).
+fertig() { chmod 644 "$ZIEL" "$ZIEL.json"; touch "$(dirname "$ZIEL")/.eingerichtet"; }
+if [ -f "$ZIEL" ] && [ -f "$ZIEL.json" ] && [ "$(summe "$ZIEL")" = "$SOLL" ] \
+   && [ "$(summe "$ZIEL.json")" = "$SOLL_JSON" ]; then
+  fertig; echo "Stimme liegt schon, Pruefsummen stimmen: $ZIEL"; exit 0
 fi
 teil="$(mktemp "$(dirname "$ZIEL")/.teil-XXXXXX")"
 trap 'rm -f "$teil" "$teil.json"' EXIT
@@ -26,6 +33,10 @@ curl -sfL -m 600 -o "$teil" "$QUELLE/$(basename "$ZIEL")"
 curl -sfL -m 60 -o "$teil.json" "$QUELLE/$(basename "$ZIEL").json"
 IST="$(summe "$teil")"
 [ "$IST" = "$SOLL" ] || { echo "ABBRUCH: Pruefsumme stimmt nicht ($IST) — nichts abgelegt"; exit 1; }
+IST_JSON="$(summe "$teil.json")"
+[ "$IST_JSON" = "$SOLL_JSON" ] \
+  || { echo "ABBRUCH: Pruefsumme der Beschreibung stimmt nicht ($IST_JSON) — nichts abgelegt"; exit 1; }
 mv "$teil.json" "$ZIEL.json"
 mv "$teil" "$ZIEL"
-echo "Stimme abgelegt, Pruefsumme stimmt: $ZIEL"
+fertig
+echo "Stimme abgelegt, Pruefsummen stimmen: $ZIEL"

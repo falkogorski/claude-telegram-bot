@@ -17,7 +17,8 @@ Piper liefert WAV; `ffmpeg` macht daraus Opus. Fehlt eines davon, ist die
 Stimme nicht bereit, und der Bot verhält sich wie vor 9.2.
 
 Einstellungen (Umgebung):
-    TTS_ROT_LOKAL      an (Vorgabe) | aus
+    TTS_ROT_LOKAL      an (Vorgabe) | aus | pflicht (sonst Pflicht ab der Marke
+                       `.eingerichtet`, die das Ladeskript setzt)
     TTS_LOKAL_MODELL   Pfad zur .onnx-Datei (Vorgabe: ~/.local/share/piper-stimmen/
                        de_DE-thorsten-medium.onnx; die .onnx.json daneben)
 
@@ -40,6 +41,9 @@ MODELL_NAME = "de_DE-thorsten-medium.onnx"
 # Pruefsumme der Datei bei Hugging Face (rhasspy/piper-voices), am 26.09.2026
 # gegen den Download gehalten.
 MODELL_SHA256 = "7e64762d8e5118bb578f2eea6207e1a35a8e0c30595010b666f983fc87bb7819"
+# Die Beschreibung daneben (26.09.: Git-Kennung 71e1158… = die bei Hugging Face).
+JSON_SHA256 = "974adee790533adb273a1ac88f49027d2a1b8f0f2cf4905954a4791e79264e85"
+ZEITGRENZE_S = 120           # laenger rechnet kein Teilstueck (Mac: 1,4 s fuer 1024 Zeichen)
 PROBESATZ = "Guten Tag. Die lokale Stimme ist bereit, am zweiundzwanzigsten Juni um zwanzig Uhr fünf."
 
 _stimme = None
@@ -57,6 +61,24 @@ def modell() -> Path:
 
 def ffmpeg() -> str | None:
     return shutil.which("ffmpeg")
+
+
+def marke() -> Path:
+    """Die Marke, die `scripts/lokale_stimme_laden.sh` nach Erfolg setzt."""
+    return modell().parent / ".eingerichtet"
+
+
+def pflicht() -> bool:
+    """Ist die Stimme eingerichtet worden, ist sie fuer Rotes Pflicht.
+
+    `[9.2, Widerlegungspruefung M3]` Ohne diese Unterscheidung fiele Rotes
+    still wieder an edge-tts (Microsoft), sobald die Stimme verloren geht —
+    „nie eingerichtet" und „verloren" saehen gleich aus. Adams ausdrueckliches
+    `TTS_ROT_LOKAL=aus` gewinnt.
+    """
+    if not schalter():
+        return False
+    return (os.environ.get("TTS_ROT_LOKAL") or "").strip().lower() == "pflicht" or marke().is_file()
 
 
 def grund() -> str:
@@ -111,6 +133,8 @@ def sprechen(text: str) -> bytes:
 def probe() -> str:
     """Eine Zeile für den Tagescheck: spricht die Stimme, und wie schnell?"""
     g = grund()
+    if g and pflicht():
+        return f"FEHLER eingerichtet, aber: {g}"
     if g:
         return f"AUS {g}"
     try:

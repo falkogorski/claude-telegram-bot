@@ -13343,6 +13343,7 @@ async def post_init(app: Application) -> None:
                     # normalen Antworten — Adam will keine getrennte Reply-Voice).
                     text_parts = _split_tts_chunks(startup_msg, max_chars=1024)
                     sent_first = None
+                    start_rot = _rot_eingestuft(startup_msg)   # 9.2: der Rohtext, ganz
                     for i, part in enumerate(text_parts):
                         tts_part = _strip_markdown_for_tts(part)
                         if not tts_part:
@@ -13353,11 +13354,16 @@ async def post_init(app: Application) -> None:
                             )
                             sent_first = sent_first or m
                             continue
-                        await _send_tts_chunk(
+                        v = await _send_tts_chunk(
                             app.bot, uid, tts_part,
                             caption=part[:1024],
-                            reply_markup=kb if i == 0 else None,
+                            reply_markup=kb if i == 0 else None, rot=start_rot,
                         )
+                        if v is None:
+                            # Der Text stand nur als Unterschrift der Stimme —
+                            # ohne Ton kaeme sonst gar nichts an (9.2, S3).
+                            await app.bot.send_message(chat_id=uid, text=part,
+                                                       reply_markup=kb if i == 0 else None)
                 else:
                     m = await app.bot.send_message(chat_id=uid, text=startup_msg,
                                                    reply_markup=kb)
@@ -14102,6 +14108,7 @@ async def _do_restart(update: Update, user_id: int, via_callback: bool = False) 
             if tts_clean:
                 await _send_tts_chunk(
                     bot, chat_id, tts_clean, reply_to=m.message_id,
+                    rot=_rot_eingestuft(restart_msg),
                 )
     except Exception:
         log.exception("restart confirmation TTS failed")
@@ -16560,6 +16567,10 @@ async def _send_pdf_chapters_tts(
         )
     total = len(chapters)
     stem = Path(filename).stem.strip()
+    # `[9.2, Widerlegungspruefung S1]` Das GANZE Dokument, Rohtext: Ein
+    # Arztbrief spricht sonst Kapitel 1 lokal und Kapitel 2 ueber Azure — und
+    # der Sprecher wechselt mitten im Dokument.
+    rot = _rot_eingestuft("\n".join(f"{t}\n{c}" for t, c in chapters))
     # Kein erkanntes Kapitel → jede Sprachnachricht ist ein nummerierter Teil des Ganzen.
     single_blob = total == 1 and chapters[0][0] == "Dokument"
     for i, (title, content) in enumerate(chapters, 1):
@@ -16577,7 +16588,9 @@ async def _send_pdf_chapters_tts(
                 # knappe Überschrift — bevorzugt der Abschnittsanfang (lokal),
                 # sonst KI-Thema, sonst nichts.
                 topic = _caption_topic(chunk)
-                if not topic:
+                if not topic and not rot:
+                    # Ein rotes Dokument geht auch nicht an das Hilfsmodell
+                    # fuer die Kapitelueberschrift (K4).
                     topic = await _ai_topic_label(chunk)
                 cap = f"{stem} {j:02d}/{n}" + (f" — {topic}" if topic else "")
             else:
@@ -16585,7 +16598,10 @@ async def _send_pdf_chapters_tts(
                 # chronologisch) + echte Überschrift; geteilter Abschnitt → "(j/n)".
                 base = f"{stem} {i:02d} — {title}"
                 cap = base if n == 1 else f"{base} ({j}/{n})"
-            await _send_tts_chunk(bot, target_id, chunk, caption=cap)
+            m = await _send_tts_chunk(bot, target_id, chunk, caption=cap, rot=rot)
+            if m is None:
+                # Ohne Ton kaeme vom Kapitel nichts an (S3) — dann als Text.
+                await send_chunked(bot, target_id, f"{cap}\n\n{chunk}")
 
 
 def _rot_eingestuft(text: str) -> bool:
@@ -16617,10 +16633,28 @@ def _fuer_lokale_stimme(text: str) -> str:
     import re
     text = _normalize_dates(text)
     monate = "|".join(_MONATE)
-    text = re.sub(rf"\b([1-9]|[12][0-9]|3[01])\.\s+({monate})\b",
+    tag = r"\b([1-9]|[12][0-9]|3[01])\."
+    text = re.sub(rf"{tag}\s+({monate})\b",
                   lambda m: f"{_ordnungszahl(int(m.group(1)))} {m.group(2)}", text)
+    # `[M4]` Aufzaehlungen von Tagen: „am 3. und 4. Juni", „1., 2. und 3. Mai".
+    vorher = None
+    while vorher != text:
+        vorher = text
+        text = re.sub(rf"{tag}(\s*(?:,|und|bis|oder)\s+)(?=\w+ten\b)",
+                      lambda m: f"{_ordnungszahl(int(m.group(1)))}{m.group(2)}", text)
+    # `[M4]` Zeitspannen „14:30–15:00 Uhr" — die Vorlese-Saeuberung macht aus dem
+    # Strich ein Komma; beide Formen sind eine Spanne, kein Spielstand.
+    def _uhr(h: str, mi: str) -> str:
+        return f"{int(h)} Uhr" + ("" if mi == "00" else f" {int(mi)}")
+    text = re.sub(r"\b(\d{1,2}):(\d{2})\s*[–—,-]\s*(\d{1,2}):(\d{2})(?:\s*Uhr\b)?",
+                  lambda m: f"{_uhr(m.group(1), m.group(2))} bis {_uhr(m.group(3), m.group(4))}", text)
     text = _normalize_doppelpunkt_zahlen(text)
-    geschuetzt = re.sub(r"\b(0\d+)-(\d+)\b", "\\1\u2011\\2", text)
+    # Keine Bereiche: Nummern mit fuehrender Null (`017-26`, `2026-017`) und
+    # Dosierschemata (`1-0-1`, `1-1-1-0`) — M4, K5.
+    geschuetzt = re.sub(r"\b\d(?:-\d){2,3}\b",
+                        lambda m: m.group(0).replace("-", "\u2011"), text)
+    geschuetzt = re.sub(r"\b(0\d+-\d+|\d+-0\d+)\b",
+                        lambda m: m.group(0).replace("-", "\u2011"), geschuetzt)
     text = _normalize_number_ranges(geschuetzt).replace("\u2011", "-")
     return _normalize_jahreszahlen(text)
 
@@ -16690,16 +16724,23 @@ async def _send_tts_chunk(
     # einen Cloud-Dienst: Dann kommt kein Ton, und der Aufrufer stellt den
     # Text zu (nie Stille). Ist sie gar nicht eingerichtet, bleibt es beim
     # Zustand vor 9.2 (edge-tts; Azure nie).
-    if rot is None:
-        rot = _rot_eingestuft(chunk)
+    # `rot` von oben zaehlt, das Teilstueck zaehlt AUCH (M1): Ein
+    # ausdrueckliches False schaltete sonst die eigene Einstufung ab.
+    rot = bool(rot) or _rot_eingestuft(chunk)
     lokal = rot and sprachausgabe_lokal.bereit()
+    if rot and not lokal and sprachausgabe_lokal.pflicht():
+        # Eingerichtet, aber verloren (M3): Rotes nicht still in die Cloud.
+        log.warning("⚙️ Lokale Stimme eingerichtet, aber nicht bereit (%s) — kein Ton, der Text kommt",
+                    sprachausgabe_lokal.grund())
+        return None
     with tempfile.NamedTemporaryFile(suffix=".ogg" if lokal else ".mp3", delete=False) as f:
         tmp_path = Path(f.name)
     try:
         if lokal:
             try:
-                tmp_path.write_bytes(await asyncio.to_thread(
-                    sprachausgabe_lokal.sprechen, _fuer_lokale_stimme(chunk)))
+                tmp_path.write_bytes(await asyncio.wait_for(asyncio.to_thread(
+                    sprachausgabe_lokal.sprechen, _fuer_lokale_stimme(chunk)),
+                    timeout=sprachausgabe_lokal.ZEITGRENZE_S))
             except Exception as e:
                 log.warning("⚙️ Lokale Stimme ausgefallen (%s) — kein Ton, der Text kommt", e)
                 return None
@@ -16801,6 +16842,16 @@ async def _send_tts(bot, chat_id: int, text: str, reply_to: int | None = None,
             reply_to=reply_to if i == 0 else None,
             thread_id=thread_id, rot=rot,
         )
+        if sent is None:
+            # Ohne Ton kaeme der Text nicht an — er stand nur als Unterschrift
+            # (S3). Beim gekoppelten Text genuegt der erste Teil; der Rest
+            # folgt ohnehin als Nachricht.
+            ersatz = (caption_for_first if i == 0 and caption_for_first
+                      else (None if coupled_text else chunk))
+            if ersatz:
+                sent = await send_chunked(bot, chat_id, ersatz,
+                                          reply_to=reply_to if i == 0 else None,
+                                          thread_id=thread_id)
         if first_msg is None:
             first_msg = sent
     if rest_text:
@@ -17153,7 +17204,7 @@ def _passt_als_unterschrift(text: str) -> bool:
 async def send_answer_to_user(
     sess: UserSession, chat_id: int, text: str, *, force_tts: bool = False,
     reply_to: int | None = None, thread_id: int | None = None,
-    vorschau_url: Any = _UNSET,
+    vorschau_url: Any = _UNSET, rot: "bool | None" = None,
 ) -> bool:
     """ZENTRALER Sendepfad für Antworttext (Vorstufe 5.8) — nach dem Pre-Send-Hook.
 
@@ -17184,6 +17235,11 @@ async def send_answer_to_user(
                         if _vorschau_an(sess.user_id) else None)
     else:
         text, _angabe = vorschau_angabe_trennen(text)
+    # `[9.2, Widerlegungspruefung S2]` Eingestuft wird die GANZE Antwort,
+    # bevor sie in Kopiertext-Stuecke zerfaellt — sonst sah jedes Stueck nur
+    # sich selbst, und die Saetze um eine IBAN gingen an Azure.
+    if rot is None:
+        rot = _rot_eingestuft(text)
     stuecke = antwort_zerlegen(text)
     if len(stuecke) > 1 or (stuecke and stuecke[0][1]):
         # Kopiertext als eigene Nachricht, roh, nie vorgelesen. Die Stuecke
@@ -17202,7 +17258,7 @@ async def send_answer_to_user(
             else:
                 ok = await send_answer_to_user(
                     sess, chat_id, stueck, force_tts=force_tts, reply_to=reply_to,
-                    thread_id=thread_id, vorschau_url=vorschau_url)
+                    thread_id=thread_id, vorschau_url=vorschau_url, rot=rot)
             zugestellt = zugestellt or ok
             reply_to = None
         return zugestellt
@@ -17305,7 +17361,7 @@ async def send_answer_to_user(
     # Teilstueck die lokale Stimme — auch eines ohne rotes Wort. Sonst
     # wechselte der Sprecher mitten in der Antwort, und Adams Signal
     # (Thorsten = rot) truege nicht.
-    antwort_rot = _rot_eingestuft(text)
+    antwort_rot = rot
     while rest:
         if len(rest) <= TTS_SYNC_CHUNK:
             chunk, rest = rest, ""

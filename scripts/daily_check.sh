@@ -922,6 +922,30 @@ if [ -f "$BOTDIR/scripts/kurse.py" ]; then
 fi
 # <<< KURSE
 
+# --- 9r. MAC-WEG: kommen Auftraege vom Mac zurueck? (26.09.2026, Block 7) ----
+# Micks Konzept, Teil 2 [wer merkt es]: Liegt ein Auftrag ueber 24 Stunden
+# ungeholt, war der Mac aus oder der Schluessel greift nicht; ist er geholt,
+# aber ohne Quittung, brach der Lauf am Mac ab. Beides geht an Adam — es ist
+# sein Rechner. Ist nichts offen, nur eine Protokollzeile mit dem letzten
+# Lebenszeichen. Nebenbei raeumt `--stand` quittierte Auftraege weg: Der Mac
+# darf nur LESEN (`rrsync -ro`), also raeumt der Server.
+# >>> MACWEG
+if [ -f "$BOTDIR/macauftrag.py" ]; then
+  _mw="$("${BOTENV[@]}" "$VENVPY" "$BOTDIR/macauftrag.py" --stand 2>&1)"
+  _mw_rc=$?
+  if [ "$_mw_rc" -ne 0 ] || [ -z "$_mw" ]; then
+    intern "Pruefung des Mac-Wegs lief nicht (rc=$_mw_rc): $(printf '%s' "$_mw" | tail -1)"
+  else
+    while IFS= read -r _z; do
+      case "$_z" in
+        ROT:*) red "${_z#ROT: }" ;;
+        OK:*)  add "🖥️ ${_z#OK: }" ;;
+      esac
+    done <<< "$_mw"
+  fi
+fi
+# <<< MACWEG
+
 # --- 9o. PDF-WERKZEUG: setzt es noch? (26.09.2026, Claudias PDF-Auftrag) ----
 # Claudias Tabelle: Fehlt die gewaehlte Schrift oder bricht eine neue Fassung
 # von pandoc oder typst die Vorlage, merkt es heute niemand. Deshalb setzt

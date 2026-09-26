@@ -60,6 +60,8 @@ export STILLE_NEUSTARTS="$PRUEFHEIM/stille-neustarts.jsonl"
 # echten Eingang und schriebe in den echten Stand.
 export KURSE_EINGANG="$PRUEFHEIM/kurse-eingang"
 export KURSE_STAND="$PRUEFHEIM/kurse-stand.json"
+export MAC_AUFTRAEGE="$PRUEFHEIM/mac-auftraege"
+export MAC_ERGEBNISSE="$PRUEFHEIM/mac-ergebnisse"
 # 9.1 (26.09.): Zaehler der Azure-Stimme — ein Pruefer, der bucht, soll nie
 # den echten Monatsstand veraendern. Und der Schalter bleibt im Lauf aus.
 export TTS_AZURE_ZAEHLER="$PRUEFHEIM/tts-azure-zaehler.json"
@@ -343,6 +345,7 @@ run "Hora (autonomer Laeufer)"          "$PY" scripts/test_hora.py
 run "Meldungen nur, was Adam betrifft (Block 3)" "$PY" scripts/test_meldungen_adressat.py
 run "Stille Neustarts und Stundenblumen-Pruefmoment (Block 3 Teil 2)" "$PY" scripts/test_stille_neustarts.py
 run "Kurs-Videos: Transkription, Ablage, Wache (24.09.)" "$PY" scripts/test_kurse.py
+run "Mac-Weg: Auftrag hin und zurueck (Block 7)" "$PY" scripts/test_macweg.py
 run "Azure-Stimme: SSML, Riegel, Rueckfall (9.1)" "$PY" scripts/test_sprachausgabe_azure.py
 run "Modellwaechter (Block 4)" "$PY" scripts/test_modellwaechter.py
 run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py

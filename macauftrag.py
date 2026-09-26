@@ -96,7 +96,10 @@ def menschlich(sekunden: float | None) -> str:
     if sekunden is None:
         return "noch nie"
     if sekunden < 5400:
-        return f"vor {max(1, round(sekunden / 60))} Minuten"
+        # Einzahl als Wort, ab zwei die Ziffer (Adams Zeitform-Regel) — die
+        # Einrichtung am 26.09. zeigte „vor 1 Minuten".
+        minuten = max(1, round(sekunden / 60))
+        return "vor einer Minute" if minuten == 1 else f"vor {minuten} Minuten"
     if sekunden < 48 * 3600:
         return f"vor etwa {round(sekunden / 3600)} Stunden"
     return f"vor {round(sekunden / 86400)} Tagen"

@@ -362,6 +362,9 @@ zeile("25 Stunden ungeholt: an Adam, mit dem letzten Lebenszeichen",
 rot = [t for a, t in macauftrag.stand(jetzt) if a == "rot"]
 zeile("geholt, aber 25 Stunden ohne Quittung: an Adam",
       len(rot) == 1 and "nicht zurueckgekommen" in rot[0], gemessen=str(rot))
+zeile("Zeitform: Einzahl als Wort, Mehrzahl als Ziffer",
+      macauftrag.menschlich(50) == "vor einer Minute" and macauftrag.menschlich(600) == "vor 10 Minuten",
+      gemessen=f"{macauftrag.menschlich(50)!r} / {macauftrag.menschlich(600)!r}")
 try:
     macauftrag.ablegen("shell")
     zeile("unbekannte Art wird gar nicht erst abgelegt", False)

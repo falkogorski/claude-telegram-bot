@@ -719,7 +719,10 @@ TTS_SYNC_CHUNK = 1024  # max. Zeichen je Stueck, wenn der Text als Bildunterschr
 # (3,7 min Ton, 897 KB); auf dem Server nach Faktor 18 etwa 12 s — weit unter
 # `sprachausgabe_lokal.ZEITGRENZE_S`. Als Einstellgroesse, damit sie ohne
 # Code-Eingriff kleiner wird, falls der Server es verlangt.
-TTS_STIMME_LOKAL = int(os.environ.get("TTS_STIMME_LOKAL") or TTS_CHUNK_CHARS)
+try:
+    TTS_STIMME_LOKAL = int(os.environ.get("TTS_STIMME_LOKAL") or TTS_CHUNK_CHARS)
+except ValueError:   # Widerlegung K4: ein Tippfehler darf den Start nicht kosten
+    TTS_STIMME_LOKAL = TTS_CHUNK_CHARS
 _RESTART_REASON_FILE = Path.home() / ".claude/bot-restart-reason.txt"
 # `[NEU 24.09.2026, Block 3 Teil 2]` Kopf eines Grundes, den Adam selbst
 # ausgelöst hat (/restart): Dieser Neustart meldet sich immer.
@@ -3031,7 +3034,14 @@ def _themen_schnitt(text: str, limit: int) -> "int | None":
         elif not im_code:
             kand = None
             if ende >= 0 and _TRENNLINIE.match(zeile):
-                kand = ende
+                vorige = fenster[:max(0, start - 1)].rsplit("\n", 1)
+                if start > 0 and vorige[-1].strip() and not _TRENNLINIE.match(vorige[-1]):
+                    # `Titel\n---` ist eine Ueberschrift (Setext), keine
+                    # Trennlinie (Widerlegung K2): Schnitt VOR dem Titel.
+                    kand = (len(vorige[0]) if len(vorige) > 1 else 0)
+                    kand = kand if kand > 0 else None
+                else:
+                    kand = ende
             elif start > 0 and _text_ends_with_heading(zeile):
                 kand = start - 1
             if kand is not None and kand > limit // 2:
@@ -13398,12 +13408,14 @@ async def post_init(app: Application) -> None:
                 if tts_on and tts_clean:
                     await _startmeldung_mit_stimme(app.bot, uid, startup_msg, kb)
                 else:
-                    m = await app.bot.send_message(chat_id=uid, text=startup_msg,
-                                                   reply_markup=kb)
+                    # `send_chunked` (Widerlegung S1, 26.09.): Ein roter
+                    # Selbstcheck mit vielen Zeilen ist laenger als 4096 Zeichen.
+                    m = await send_chunked(app.bot, uid, startup_msg, reply_markup=kb)
                     # 5.9: Auch die Startnachricht ist reaktionsfähig — Bezug
                     # merken und (falls sie fragt) als offene Frage registrieren.
-                    _remember_bot_msg(uid, m.message_id, startup_msg)
-                    reactions.register_question(uid, m.message_id, startup_msg)
+                    if m is not None:
+                        _remember_bot_msg(uid, m.message_id, startup_msg)
+                        reactions.register_question(uid, m.message_id, startup_msg)
             except Exception:
                 log.warning("startup message to user %s failed", uid)
         # 5.2 Schritt 2: Die Worker für nachgeholte Nachrichten erst JETZT
@@ -17237,13 +17249,16 @@ async def _startmeldung_mit_stimme(tgbot, uid: int, startup_msg: str, kb) -> Non
     passt = _passt_als_unterschrift(startup_msg)
     vorab = None
     if not passt:
-        vorab = await tgbot.send_message(chat_id=uid, text=startup_msg,
-                                         reply_markup=kb)
-        _remember_bot_msg(uid, vorab.message_id, startup_msg)
-        reactions.register_question(uid, vorab.message_id, startup_msg)
-    text_parts = ([startup_msg] if passt else
-                  _split_tts_chunks(startup_msg,
-                                    max_chars=_stimm_grenze(start_rot)))
+        # `send_chunked`, nicht `send_message` (Widerlegung S1): Ueber 4096
+        # Zeichen lehnt Telegram ab, und dann kaeme weder Text noch Stimme an.
+        vorab = await send_chunked(tgbot, uid, startup_msg, reply_markup=kb)
+        if vorab is not None:
+            _remember_bot_msg(uid, vorab.message_id, startup_msg)
+            reactions.register_question(uid, vorab.message_id, startup_msg)
+    # Scheitert der Text, bleibt es beim alten Weg: Text als Unterschrift
+    # der Stimme, geschnitten nach 1024 (nie Stille).
+    text_parts = _split_tts_chunks(
+        startup_msg, max_chars=_stimm_grenze(start_rot) if vorab is not None else 1024)
     sent_first = None
     for i, part in enumerate(text_parts):
         if vorab is not None:
@@ -17477,7 +17492,10 @@ async def send_answer_to_user(
             sent = await _send_tts_chunk(
                 sess.bot, chat_id, tts_clean,
                 caption=_unterschrift,
-                reply_to=reply_to if first_pending else None,
+                # Getrennt: die Stimme antwortet auf den Text (Auftrag
+                # „eine Stimme je Text", Widerlegung M1).
+                reply_to=(reply_to if first_pending
+                          else (frage_id if getrennt and frage_id else None)),
                 thread_id=thread_id,
                 reply_markup=None if (force_tts or getrennt) else kb,
                 caption_entities=_u_ents, caption_roh=_roh_unterschrift,

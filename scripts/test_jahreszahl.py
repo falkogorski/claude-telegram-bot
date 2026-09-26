@@ -83,6 +83,13 @@ zeile("Dezimalzahl bleibt Zahl, Satzpunkt verdeckt das Jahr nicht",
       "1936,5" in e and "neunzehnhunderteins" in e, e)
 a = az.ssml_text("Maßstab 1985 Teilnehmer")
 zeile("Azure: Menge mit Einheit nicht mehr als Jahr", _az("1985", "cardinal") in a, a)
+for f in ("Kundennummer (1234)", "PIN (1234)", "(1920, 1080)", "Preise (1300, 1500 Euro)",
+          "Raum (1204, 2. OG)"):
+    e, p = bot._strip_markdown_for_tts(f), bot._fuer_lokale_stimme(f)
+    zeile(f"(Widerlegung M2/M3) keine Jahreszahl: {f}", e == f and p == f, f"{e} / {p}")
+a = az.ssml_text("Seit 1990 Kunden bei uns")
+zeile("(M4) Jahres-Wort UND Einheit: Azure bleibt beim Jahr (unklar, nicht Menge)",
+      _az("1990", "date") in a, a)
 e = bot._strip_markdown_for_tts("Teilnehmer (1200)")
 zeile("BEKANNTE GRENZE (dokumentiert): Menge ohne Einheit allein in Klammern liest sich als Jahr",
       "zwölfhundert" in e, e)

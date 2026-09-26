@@ -401,6 +401,50 @@ try:
 finally:
     bot.sprachausgabe_lokal.bereit, bot.TTS_STIMME_LOKAL = _bereit_vorher, _lokal_vorher
 
+# Widerlegung 26.09. (S1, M1, K3, K5): die Befunde als Zeilen, damit keiner
+# still zurueckkommt.
+ok, tg = _senden(lang, tts=True, vorschau=False)
+_b = tg.stimmen[0].get("reply_parameters") if tg.stimmen else None
+zeile("(M1) getrennter Weg: die Stimme antwortet auf den Text",
+      getattr(_b, "message_id", None) == 101, gemessen=f"bezug={getattr(_b, 'message_id', None)}")
+
+bot.reactions._save({})   # K5 misst sonst Reste frueherer Zeilen
+tg = _Telegram()
+_riesig = "\n".join(f"✗ Pruefzeile {i}: etwas ist rot und braucht Aufmerksamkeit." for i in range(90)) + "\nSoll ich nachsehen?"
+try:
+    asyncio.run(bot._startmeldung_mit_stimme(tg, 1, _riesig, None))
+except Exception as e:
+    print(f"     (Pfad warf {type(e).__name__}: {e})")
+_t = [k.get("text", "") for k in tg.texte]
+zeile("(S1) Startmeldung ueber 4096 Zeichen: in Stuecken zugestellt, keines zu lang, Stimme folgt",
+      len(_riesig) > 4096 and len(_t) >= 2 and all(len(x) <= 4096 for x in _t) and tg.stimmen,
+      gemessen=f"zeichen={len(_riesig)} texte={[len(x) for x in _t]} stimmen={len(tg.stimmen)}")
+zeile("(K5) die offene Frage der Startmeldung steht an ihrer Textnachricht",
+      "1_101" in bot.reactions._load(), gemessen=str(list(bot.reactions._load())[:3]))
+
+_gemessen: list[int] = []
+_split_vorher, _chunk_vorher = bot._split_tts_chunks, bot._send_tts_chunk
+_bereit_vorher, _lokal_vorher = bot.sprachausgabe_lokal.bereit, bot.TTS_STIMME_LOKAL
+
+
+def _split_mess(text, max_chars=bot.TTS_CHUNK_CHARS):
+    _gemessen.append(max_chars)
+    return _split_vorher(text, max_chars)
+
+
+async def _chunk_attrappe(*a, **kw):
+    return _Nachricht(900)
+try:
+    bot._split_tts_chunks, bot._send_tts_chunk = _split_mess, _chunk_attrappe
+    bot.sprachausgabe_lokal.bereit, bot.TTS_STIMME_LOKAL = (lambda: True), 1500
+    asyncio.run(bot._send_tts(_Telegram(), 1, "Dein Passwort gehoert nicht in den Chat. " + lang))
+    asyncio.run(bot._startmeldung_mit_stimme(_Telegram(), 1, "Dein Passwort: " + lang, None))
+finally:
+    bot._split_tts_chunks, bot._send_tts_chunk = _split_vorher, _chunk_vorher
+    bot.sprachausgabe_lokal.bereit, bot.TTS_STIMME_LOKAL = _bereit_vorher, _lokal_vorher
+zeile("(K3) Rotes: gekoppelte Stimme und Startmeldung teilen nach der Grenze der lokalen Stimme",
+      _gemessen[:2] == [1500, 1500], gemessen=str(_gemessen))
+
 # ── H. Schnitt am Themenwechsel (26.09., Nebenfaden f2 Teil 8) ─────────────
 # Adams Fotos 17:37: Der Laengenschnitt fiel mitten in die Passwort-Liste.
 # Gegenprobe: `_themen_schnitt` liefert None → Zeilen 1, 2 und 5 rot.
@@ -425,6 +469,10 @@ t4 = _vorn + "```yaml\n---\nname: x\n```\n" + _fuell * 60
 s4 = bot._find_safe_cut(t4, bot.TELEGRAM_MSG_LIMIT)
 zeile("Trennlinie im Codeblock zaehlt nicht als Themenwechsel",
       s4 > 3200, gemessen=f"schnitt={s4}")
+t5 = _vorn + "\nNeuer Abschnitt\n---\n\n" + _hinten
+s5 = bot._find_safe_cut(t5, bot.TELEGRAM_MSG_LIMIT)
+zeile("(K2) Setext-Ueberschrift `Titel` + `---`: Schnitt VOR dem Titel, nicht dahinter",
+      t5[s5:].lstrip().startswith("Neuer Abschnitt"), gemessen=f"ende={t5[:s5][-20:]!r}")
 ok, tg = _senden(t2, vorschau=False)
 _zweite = tg.texte[1].get("text", "") if len(tg.texte) > 1 else ""
 zeile("ausgefuehrt: zwei Nachrichten, das zweite Thema steht ganz in der zweiten",

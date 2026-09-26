@@ -22,9 +22,10 @@ vom 28.08.: ein einzelnes Wort traegt keinen verlaesslichen Parameter):
 **Die Einheit danach gewinnt immer** — auch gegen ein Jahres-Wort: „bis 1500
 Zeichen" und „(1500 Euro)" sind Mengen.
 
-**Bekannte Grenze** (im Pruefer dokumentiert): Eine Menge allein in Klammern
-ohne Einheit, etwa „Teilnehmer (1200)", wird als Jahr gelesen. Das kommt
-seltener vor als der Jahresfall und fiele nur beim Hoeren auf.
+**Bekannte Grenzen** (im Pruefer dokumentiert): Eine Menge allein in
+Klammern ohne Einheit, etwa „Teilnehmer (1200)", wird als Jahr gelesen, ebenso
+„(1250, Spalte 3)". Das kommt seltener vor als der Jahresfall und fiele nur
+beim Hoeren auf. Ein Kennungs-Wort davor („Kundennummer (1234)") schuetzt.
 """
 from __future__ import annotations
 
@@ -51,7 +52,16 @@ _STRICH = r"(?:bis|–|—|-)"
 _BEREICH_NACH = re.compile(rf"\s*{_STRICH}\s*(?:{_JAHR})\b(.{{0,20}})", re.DOTALL)
 _BEREICH_VOR = re.compile(rf"(?:{_JAHR})\s*{_STRICH}\s*$")
 _KLAMMER_AUF = re.compile(r"\(\s*$")
-_KLAMMER_ZU = re.compile(r"\s*(?:\)|,)")
+# Komma nur, wenn danach keine Zahl und kein Strich folgt (Widerlegung M3):
+# `(1920, 1080)` und `(1300, 1500 Euro)` sind keine Jahre.
+_KLAMMER_ZU = re.compile(r"\s*(?:\)|,(?!\s*[\d\-–]))")
+# Ein Kennungs-Wort vor der Klammer macht die Zahl zur Nummer (Widerlegung
+# M2): `Kundennummer (1234)`, `PIN (1234)`, `Seite (1234)`.
+_KENNUNG_VOR = re.compile(
+    r"\b(?:nummer|nr|kennung|kennzahl|id|pin|tan|iban|konto|kontonummer|"
+    r"auftrag|beleg|sendung|telefon|rufnummer|bestellung|ticket|vorgang|"
+    r"referenz|aktenzeichen|postleitzahl|plz|seite|raum|zimmer|platz|"
+    r"\w*nummer|\w*nr)\.?\s*\(\s*$", re.IGNORECASE)
 
 
 def art(text: str, start: int, ende: int) -> str:
@@ -59,6 +69,11 @@ def art(text: str, start: int, ende: int) -> str:
     vor = text[max(0, start - 30):start]
     nach = text[ende:ende + 30]
     if MENGEN_EINHEIT.match(nach[:20]):
+        # Jahres-Wort UND Einheit: widerspruechlich — „seit 1990 Kunden" ist
+        # ein Jahr, „bis 1500 Zeichen" eine Menge. Dann unklar, und jeder Weg
+        # bleibt bei seiner bisherigen Lesart (Widerlegung M4).
+        return "unklar" if JAHR_HINWEIS.search(vor) else "menge"
+    if _KENNUNG_VOR.search(vor):
         return "menge"
     bereich = _BEREICH_NACH.match(nach)
     if bereich:

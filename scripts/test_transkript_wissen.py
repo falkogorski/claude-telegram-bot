@@ -167,12 +167,16 @@ zeile("mit Transkript: ein Auftrag, das Transkript als Mitschrift, mit Wissens-K
       gemessen=(job.text[:120] if job else "kein Auftrag"))
 tg = _Tg()
 asyncio.run(bot._wissen_nachlauf(SimpleNamespace(bot=tg), 4711, None, job.wissen_meta, "Zusammenfassung."))
-zeile("nach der Antwort liegt sie in der Wissensablage — mit Herkunft",
-      tg.texte and "Wissensablage" in tg.texte[0]["text"]
-      and "Adams Knopf [mehr auswerten]" in (Path(os.environ["WISSEN_DIR"]) / "2026"
-                                             / "everlast-ai_2026-09-24_ki-2035.md").read_text(encoding="utf-8")
-      if (Path(os.environ["WISSEN_DIR"]) / "2026" / "everlast-ai_2026-09-24_ki-2035.md").exists() else False,
-      gemessen=str(sorted(p.name for p in (Path(os.environ["WISSEN_DIR"]) / "2026").glob("*"))))
+# `[BERICHTIGT 26.09.]` Hier stand der Dateiname mit dem Datum des Bautags
+# (24.09.) — der Bot setzt aber das Datum des Tipps, und am 26.09. war die Zeile
+# rot, ohne dass sich am Code etwas geaendert hatte. Das Datum kommt jetzt aus
+# dem Auftrag selbst, und dass es das heutige ist, prueft die Zeile mit.
+_heute = __import__("datetime").date.today().isoformat()
+_wz = Path(os.environ["WISSEN_DIR"]) / _heute[:4] / f"everlast-ai_{_heute}_ki-2035.md"
+zeile("nach der Antwort liegt sie in der Wissensablage — mit Herkunft und dem Datum des Tipps",
+      tg.texte and "Wissensablage" in tg.texte[0]["text"] and job.wissen_meta["datum"] == _heute
+      and _wz.exists() and "Adams Knopf [mehr auswerten]" in _wz.read_text(encoding="utf-8"),
+      gemessen=str(sorted(p.name for p in (Path(os.environ["WISSEN_DIR"]) / _heute[:4]).glob("*"))))
 
 import shutil                                                   # noqa: E402
 shutil.rmtree(_TMP, ignore_errors=True)

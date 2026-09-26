@@ -600,6 +600,22 @@ denken) und einzeln prüfen. Wo möglich, den Prüfer so bauen, dass er alle
 Geschwister zugleich erfasst — die Selbstcheck-Zeile „Medien-Eingangsschutz"
 prüft deshalb Foto, Video **und** Datei in einer Schleife.
 
+### Und über die Geschwister hinaus: Weitblick `[NEU 2026-09-26, Adam vom 24.09., 06:48]`
+
+Die Geschwister-Regel fragt nach **demselben Fehler** an Nachbarstellen. Adam
+fragt weiter, nach **derselben Verbesserung**: *„Wann immer wir optimieren in
+einzelnen Bereichen, dass du das weiterfasst bzw. weiterdenkst und auch den
+Vorschlag unterbreitest, sofern möglich und sinnvoll, das auf weitere Teile des
+Projektes oder auf das gesamte Projekt anzuwenden."* Sein Grund: *„Wir haben
+das sonst immer wieder, dass wir diese Flickenteppiche bauen."*
+
+**How to apply:** Jeder Bericht über eine Verbesserung trägt eine Zeile
+**„Reichweite"** — wo dieselbe Verbesserung sonst noch trüge, und ein Vorschlag,
+wie weit sie reichen soll. **Vorschlag, nicht Umbau:** Die Ausweitung selbst ist
+Adams Entscheid; ein stiller Mitumbau wäre genau der Wildwuchs, gegen den die
+Kurs-Regel steht. Adam wünscht das ausdrücklich von selbst, ohne dass er
+fragen muss, so wie Engywuck den Weitblick von alleine hat (sinngemäß).
+
 ## 🔧 FREMDES NEHMEN, WO ES NICHT ANS HERZ GEHT (Adam 2026-07-25)
 
 **Ohne Sicherheits- oder Werte-Berührung: Vorhandenes nehmen und anpassen
@@ -724,6 +740,32 @@ Richtung: Sie fand einen echten Bezugsrahmen-Bruch und erklärte ihn zum
 
 **Daraus die Erweiterung dieser Regel:** *Ein „geht nicht" aus zweiter Hand ist
 keine Diagnose* — **und ein „geht doch" ohne Gegenprobe ebenso wenig.**
+
+### Und vor der Aussage: nachsehen, wie andere es gelöst haben `[NEU 2026-09-26, Adam vom 25.09., 08:38]`
+
+**Adams Anlass:** YouTube galt bei uns lange als nicht machbar — und Adam kennt
+Menschen, bei denen es läuft, einen davon *„mit genau dem gleichen Setup wie bei
+uns"* auf einem Netcup-Server. Sein Wortlaut: *„Geht nicht gibt es nicht, es
+wird immer irgendeinen Weg geben"* — und: *„Es gibt ja Schwarmintelligenz, warum
+sollten wir die nicht nutzen?"*
+
+> **Vor jeder Aussage über Machbarkeit wird nachgesehen, wie andere es gelöst
+> haben** — Foren, Blogs, Tutorials, Fachseiten, und die Videosuche samt
+> Beschreibung und Show Notes, ohne jedes Video anzusehen.
+
+- **Ein gescheiterter Weg heißt „auf diesem Weg nicht"** und nennt, was draußen
+  zu sehen war. Er wird nie als Niederlage gemeldet, und es wird auch keine
+  vermutet.
+- **Wer festhängt, fragt Adam** — *„hast du eine Idee, wo ich nachschauen
+  könnte?"* Adam: *„Wir sind ja Partner."* Eine Frage kostet eine Runde; eine
+  falsche Unmöglichkeit hat hier lange Zeit gekostet.
+- **Gegenprüfen gilt auch für Werkzeuge und Schritte**, die wir wählen: Was
+  sagen andere dazu? Das ist die Umkehrung von *Fremdes nehmen, wo es nicht
+  ans Herz geht* — dort nehmen wir Fertiges, hier wenigstens das Wissen darum.
+
+**Kein Prüfer möglich**, deshalb steht die Regel an der Regel, die sie
+fortsetzt: Die drei Teile eines „geht nicht" (welcher Weg, woran, welche Wege
+offen) bekommen einen vierten — **was draußen dazu steht.**
 
 ## 💶 ERLÖSBEZUG MITPRÜFEN (W, 2026-07-25)
 
@@ -1161,6 +1203,25 @@ Liste von Verboten wäre dieselbe Regel im falschen Ton.
 - **Gilt für alle Instanzen**, ausdrücklich auch für die Kontrollrolle: Ihre
   eigenen Papiere aus der Nacht zum 01.09. tragen genau diese Sätze. Sie hat es
   selbst benannt und mit eingetragen.
+
+## 🎯 QUALITÄTSANSPRUCH ALS WERT (Adam 2026-09-24, 07:10)
+
+> **Wir arbeiten, recherchieren und treten qualitativ hochwertig auf — in allen
+> Bereichen des Projekts.** Hohe Standards werden festgelegt und als Maßstab
+> gesetzt; übertrieben wird nicht, und aufgehalten wird sich damit nicht.
+
+**Adams Begründung ist eine wirtschaftliche:** *„Im Endeffekt machen wir es uns
+damit leichter"* — weil sonst hinterher vieles nachgerüstet werden muss (sinngemäß).
+Der Anlass belegt es: Die Darstellung im Antwortweg musste nachträglich
+umgebaut werden, damit HTML oder Markdown *„sprichwörtlich keinen Strich durch
+die Rechnung"* machen. Ein Standard von Anfang an hätte diese Runde erspart.
+
+- **Das Auftreten gehört dazu.** PDFs, Berichte und Meldungen bekommen eine
+  aufgeräumte, moderne Optik; sie müssen dabei gut lesbar bleiben.
+- **Vorschläge dazu kommen von selbst**, zwischendurch, wo es sinnvoll ist.
+- **Die Grenze steht daneben, damit die Regel befolgbar bleibt:** Qualität heißt
+  hier Maßstab, nicht Perfektion. Sie steht unter der Kurs-Regel — die
+  „Gut genug wenn:"-Zeile eines Auftrags gilt weiter.
 
 ## 🛠️ VOR JEDER NEUEN SCHRANKE: WELCHE FÄHIGKEIT SCHÜTZT SIE? (Adam 2026-09-02)
 

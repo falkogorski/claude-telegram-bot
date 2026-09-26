@@ -30,13 +30,18 @@ import json
 import os
 import re
 import secrets
+import shutil
+import stat
 import sys
 import time
 from pathlib import Path
 
 ARTEN = ("probe",)
 FRIST_S = 24 * 3600          # Konzept Teil 2: nach 24 Stunden meldet es sich
-KENNUNG = re.compile(r"^\d{8}T\d{6}-[0-9a-f]{6}$")
+GROESSE_MAX = 64 * 1024     # dieselbe Grenze wie am Mac (videoarbeiter.py)
+AUFHEBEN_S = 30 * 86400      # Ergebnisordner ohne Auftrag, danach geraeumt (K5)
+# Nur ASCII-Ziffern, ganzer Name (Widerlegungspruefung K1).
+KENNUNG = re.compile(r"[0-9]{8}T[0-9]{6}-[0-9a-f]{6}", re.ASCII)
 
 
 def auftraege() -> Path:
@@ -74,9 +79,17 @@ def ablegen(art: str = "probe", *, jetzt: float | None = None) -> str:
 
 def _alter(pfad: Path, jetzt: float) -> float | None:
     try:
-        return jetzt - pfad.stat().st_mtime
+        return jetzt - pfad.lstat().st_mtime
     except OSError:
         return None
+
+
+def _regulaer(pfad: Path) -> bool:
+    """Eine echte Datei — kein Link, kein Ordner (Widerlegungspruefung S1, S9)."""
+    try:
+        return stat.S_ISREG(pfad.lstat().st_mode)
+    except OSError:
+        return False
 
 
 def menschlich(sekunden: float | None) -> str:
@@ -89,41 +102,93 @@ def menschlich(sekunden: float | None) -> str:
     return f"vor {round(sekunden / 86400)} Tagen"
 
 
+def _quittung(rueck: Path) -> dict | None:
+    """Die `fertig.json` eines Auftrags — nur als echte, kleine Datei gelesen."""
+    f = rueck / "fertig.json"
+    if not _regulaer(f) or f.lstat().st_size > 64 * 1024:
+        return None
+    try:
+        daten = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"abgelehnt": "Quittung nicht lesbar"}
+    return daten if isinstance(daten, dict) else {"abgelehnt": "Quittung kein Objekt"}
+
+
+def _ein_auftrag(eintrag: Path, erg: Path, jetzt: float,
+                 lebenszeichen: float | None) -> tuple[list[tuple[str, str]], bool]:
+    """Zeilen und ob der Auftrag noch offen ist."""
+    name = eintrag.name
+    stamm = name[:-5] if name.endswith(".json") else ""
+    if not stamm or not KENNUNG.fullmatch(stamm) or not _regulaer(eintrag):
+        return [("intern", f"fremder Eintrag im Auftragsordner: {name[:60]!r} "
+                           f"(keine Auftragsdatei) — liegt und wird nicht geholt")], False
+    if eintrag.lstat().st_size > GROESSE_MAX:
+        # Der Mac holt nur bis 64 KB; ohne diese Zeile hiesse es nach 24
+        # Stunden faelschlich „ungeholt, der Mac war aus".
+        return [("intern", f"Auftrag {stamm} ist groesser als 64 KB — "
+                           f"der Mac holt ihn nicht")], False
+    rueck = erg / stamm
+    quittung = _quittung(rueck)
+    if quittung is not None:
+        eintrag.unlink(missing_ok=True)       # der Mac darf nicht loeschen
+        if "abgelehnt" in quittung:
+            # Eine Ablehnung ist kein Erfolg (S3) — sonst verschwaende im
+            # zweiten Schnitt ein Videoauftrag still, wenn die Positivlisten
+            # auseinanderlaufen.
+            return [("rot", f"Mac-Auftrag {stamm} vom Mac abgelehnt: "
+                            f"{str(quittung.get('abgelehnt'))[:80]}")], False
+        return [("ok", f"Mac-Auftrag {stamm} zurueckgekommen, erledigt "
+                       f"({str(quittung.get('art', '?'))[:20]})")], False
+    alter = _alter(eintrag, jetzt) or 0
+    if alter < FRIST_S:
+        return [], True
+    if _regulaer(rueck / "geholt.json"):
+        return [("rot", f"Mac-Auftrag {stamm} abgeholt, aber seit "
+                        f"{menschlich(alter).removeprefix('vor ')} nicht zurueckgekommen")], True
+    return [("rot", f"Mac-Auftrag {stamm} liegt seit "
+                    f"{menschlich(alter).removeprefix('vor ')} ungeholt — "
+                    f"der Mac meldete sich zuletzt {menschlich(lebenszeichen)}")], True
+
+
 def stand(jetzt: float | None = None) -> list[tuple[str, str]]:
     """Aufräumen und den Stand melden: Liste von (Art, Text).
 
-    Art `rot` heißt: Adam soll es wissen. `ok` ist eine Protokollzeile.
+    `rot` heißt: Adam soll es wissen. `intern` geht an die Kontrolle, `ok` ist
+    eine Protokollzeile. **Kein Eintrag bringt den Stand zum Absturz** (S1):
+    Jeder wird für sich geprüft, ein Fehler wird selbst zur Zeile.
     """
     jetzt = jetzt or time.time()
     aus, erg = auftraege(), ergebnisse()
     if not aus.is_dir():
         return [("ok", "Mac-Weg nicht eingerichtet (kein Auftragsordner) — nichts zu pruefen")]
-    lebenszeichen = _alter(erg / ".mac-zuletzt", jetzt)
+    lebenszeichen = _alter(erg / ".mac-zuletzt", jetzt) if _regulaer(erg / ".mac-zuletzt") else None
     zeilen: list[tuple[str, str]] = []
     offen = 0
-    for datei in sorted(aus.glob("*.json")):
-        kennung = datei.stem
-        if not KENNUNG.match(kennung):
-            continue
-        rueck = erg / kennung
-        if (rueck / "fertig.json").is_file():
-            datei.unlink(missing_ok=True)       # der Mac darf nicht loeschen
-            zeilen.append(("ok", f"Mac-Auftrag {kennung} zurueckgekommen, aufgeraeumt"))
-            continue
-        offen += 1
-        alter = _alter(datei, jetzt) or 0
-        if alter < FRIST_S:
-            continue
-        if (rueck / "geholt.json").is_file():
-            zeilen.append(("rot", f"Mac-Auftrag {kennung} abgeholt, aber seit "
-                                  f"{menschlich(alter).removeprefix('vor ')} nicht zurueckgekommen"))
-        else:
-            zeilen.append(("rot", f"Mac-Auftrag {kennung} liegt seit "
-                                  f"{menschlich(alter).removeprefix('vor ')} ungeholt — "
-                                  f"der Mac meldete sich zuletzt {menschlich(lebenszeichen)}"))
+    for eintrag in sorted(aus.iterdir()):
+        if eintrag.name.startswith("."):
+            continue                            # halbe Auftraege (.teil-…)
+        try:
+            neu, noch_offen = _ein_auftrag(eintrag, erg, jetzt, lebenszeichen)
+        except Exception as e:
+            neu, noch_offen = [("intern", f"Eintrag {eintrag.name[:60]!r} nicht pruefbar: "
+                                          f"{type(e).__name__}: {e}")], False
+        zeilen += neu
+        offen += noch_offen
+    # Ergebnisordner ohne Auftrag nach 30 Tagen raeumen (K5) — nur echte Ordner.
+    if erg.is_dir():
+        for d in erg.iterdir():
+            try:
+                if (stat.S_ISDIR(d.lstat().st_mode) and KENNUNG.fullmatch(d.name)
+                        and not (aus / f"{d.name}.json").exists()
+                        and (_alter(d, jetzt) or 0) > AUFHEBEN_S):
+                    shutil.rmtree(d)
+            except OSError:
+                pass
     zeilen.append(("ok", f"Mac-Weg: {offen} Auftrag/Auftraege offen, letztes Lebenszeichen "
                          f"{menschlich(lebenszeichen)}"))
-    return zeilen
+    # Eine Zeile je Befund, ohne Zeilenumbruch — sonst zerfiele sie im
+    # Tagescheck in eine Zeile ohne Tuer (K1).
+    return [(a, " ".join(t.split())) for a, t in zeilen]
 
 
 def main(argv: list[str]) -> int:

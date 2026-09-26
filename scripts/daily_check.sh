@@ -931,15 +931,18 @@ fi
 # darf nur LESEN (`rrsync -ro`), also raeumt der Server.
 # >>> MACWEG
 if [ -f "$BOTDIR/macauftrag.py" ]; then
-  _mw="$("${BOTENV[@]}" "$VENVPY" "$BOTDIR/macauftrag.py" --stand 2>&1)"
+  # Als claudebot, nicht als root (Widerlegungspruefung K3): `--stand` raeumt
+  # Dateien weg, und root folgte einem Link in fremde Ordner.
+  _mw="$(sudo -u claudebot env HOME="$BOTHOME" "$VENVPY" "$BOTDIR/macauftrag.py" --stand 2>&1)"
   _mw_rc=$?
   if [ "$_mw_rc" -ne 0 ] || [ -z "$_mw" ]; then
     intern "Pruefung des Mac-Wegs lief nicht (rc=$_mw_rc): $(printf '%s' "$_mw" | tail -1)"
   else
     while IFS= read -r _z; do
       case "$_z" in
-        ROT:*) red "${_z#ROT: }" ;;
-        OK:*)  add "🖥️ ${_z#OK: }" ;;
+        ROT:*)    red "${_z#ROT: }" ;;
+        INTERN:*) intern "${_z#INTERN: }" ;;
+        OK:*)     add "🖥️ ${_z#OK: }" ;;
       esac
     done <<< "$_mw"
   fi

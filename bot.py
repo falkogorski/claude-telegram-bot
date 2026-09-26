@@ -25,8 +25,11 @@ from dotenv import load_dotenv
 from telegram import BotCommand, BotCommandScopeChat, CopyTextButton, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions, MessageEntity, ReactionTypeEmoji, ReplyKeyboardMarkup, ReplyParameters, Update
 from telegram.constants import ChatAction, ParseMode
 from telegram.error import BadRequest
+from telegram._utils.defaultvalue import DEFAULT_NONE, DefaultValue
 from telegram.ext import (
     Application,
+    ApplicationBuilder,
+    ExtBot,
     CallbackQueryHandler,
     ChatMemberHandler,
     CommandHandler,
@@ -3030,9 +3033,11 @@ def _text_ends_with_heading(text: str) -> bool:
 # DERSELBE Rohtext ohne Auszeichnung hinterher — der schlimmste Fall ist danach
 # der Zustand vor diesem Umbau, nie eine verlorene Antwort.
 #
-# **Geltungsbereich eng** (Claudias Auftrag 3): nur der Antwortweg und die
-# Bildunterschrift der Sprachnachricht. `send_chunked` wandelt nur um, wenn
-# `auszeichnen=True` uebergeben wird — alle anderen Stellen senden wie bisher.
+# **Geltungsbereich** `[GEAENDERT 26.09.2026, Block 2b]`: Hier stand „eng — nur
+# der Antwortweg" (Claudias Auftrag 3 vom 23.09.). Ihr Auftrag C vom 24.09.
+# ersetzt ihn: Jeder Text an Adam laeuft jetzt durch `AusgangBot` (unten).
+# Der Antwortweg bleibt der einzige mit Verweisen am Wort; alles andere wird
+# sanft ausgezeichnet.
 try:
     import telegramify_markdown as _tgm
 except Exception:  # fehlt das Paket, wird roh gesendet (Selbstcheck meldet es)
@@ -3043,19 +3048,143 @@ _TELEGRAM_TEXT_UTF16 = 4096
 _TELEGRAM_CAPTION_UTF16 = 1024
 
 
-def auszeichnung(roh: str):
+# ---- Vorbereitung und Verlustwaechter  `[NEU 26.09.2026, Block 2b]` ------------
+#
+# **Gemessen am Paket, bevor der Ausgang breit wurde:** Die Umwandlung folgt
+# CommonMark, und CommonMark kennt eingebettetes HTML. Alles in spitzen
+# Klammern verschwindet still — `Ordner <neu>` wird zu `Ordner `, ein
+# `<div>`-Absatz zu gar nichts. `__init__.py` wird zu fettem `init.py`. Im
+# Antwortweg war das seit Block 2 moeglich; mit dem einen Ausgang haette es
+# jeden Text getroffen.
+#
+# Deshalb zwei Griffe, beide an dieser einen Stelle:
+#   1. **Vorbereiten:** `<`, `&` und `_` werden ausserhalb von Code maskiert —
+#      sie sind in Adams Ablage Inhalt, nie Auszeichnung. Im sanften Modus
+#      (Bot-eigene Texte) auch der einzelne Stern: Dort ist `a*b*c` ein Befehl,
+#      kein Kursivsatz; nur `**fett**` wirkt.
+#   2. **Verlustwaechter:** Jeder Buchstabe und jede Ziffer des Rohtexts muss
+#      im Ergebnis stehen (oder als Adresse in einer Auszeichnung). Fehlt einer,
+#      geht der Rohtext — der Waechter erkennt die Klasse, nicht den Einzelfall.
+_ZAUN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_AUTOLINK = re.compile(r"<(?:https?://|mailto:)[^\s<>]*>", re.I)
+_AUFGABE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]", re.M)
+
+
+def _zeile_maskieren(zeile: str, zeichen: str) -> str:
+    """`zeichen` ausserhalb von Code-Spannen und Autolinks mit `\\` maskieren."""
+    aus: list[str] = []
+    i, n = 0, len(zeile)
+    while i < n:
+        c = zeile[i]
+        if c == "`":
+            j = i
+            while j < n and zeile[j] == "`":
+                j += 1
+            lauf, k, ende = j - i, j, -1
+            while k < n:  # schliessender Lauf GLEICHER Laenge (CommonMark)
+                if zeile[k] == "`":
+                    m = k
+                    while m < n and zeile[m] == "`":
+                        m += 1
+                    if m - k == lauf:
+                        ende = m
+                        break
+                    k = m
+                else:
+                    k += 1
+            aus.append(zeile[i:ende if ende > 0 else j])
+            i = ende if ende > 0 else j
+            continue
+        if c == "<":
+            m = _AUTOLINK.match(zeile, i)
+            if m:
+                aus.append(m.group(0))
+                i = m.end()
+                continue
+        if c == "\\" and i + 1 < n:
+            aus.append(zeile[i:i + 2])  # vorhandene Maskierung unberuehrt
+            i += 2
+            continue
+        if c == "*" and "*" in zeichen:
+            j = i
+            while j < n and zeile[j] == "*":
+                j += 1
+            # `**` bleibt Fettdruck; ein einzelner Stern ist Inhalt.
+            aus.append(zeile[i:j] if j - i == 2 else "\\*" * (j - i))
+            i = j
+            continue
+        aus.append("\\" + c if c in zeichen else c)
+        i += 1
+    return "".join(aus)
+
+
+def _md_vorbereiten(roh: str, *, sanft: bool = False) -> str:
+    """Den Rohtext so maskieren, dass die Umwandlung nichts davon verschluckt."""
+    zeichen = "<&_*" if sanft else "<&_"
+    aus: list[str] = []
+    zaun = None
+    for zeile in roh.split("\n"):
+        m = _ZAUN.match(zeile)
+        if zaun:
+            aus.append(zeile)
+            if (m and m.group(1)[0] == zaun[0] and len(m.group(1)) >= len(zaun)
+                    and not zeile[m.end():].strip()):
+                zaun = None
+            continue
+        if m and not (m.group(1)[0] == "`" and "`" in zeile[m.end():]):
+            zaun = m.group(1)
+            aus.append(zeile)
+            continue
+        aus.append(_zeile_maskieren(zeile, zeichen))
+    return "\n".join(aus)
+
+
+def _inhalt_verloren(roh: str, klar: str, ents) -> str:
+    """Die Buchstaben und Ziffern, die die Umwandlung verloren haette."""
+    from collections import Counter
+    soll = Counter(ch for ch in _AUFGABE.sub("", roh) if ch.isalnum())
+    hat = Counter(ch for ch in klar if ch.isalnum())
+    for e in ents:
+        for extra in (getattr(e, "url", None), getattr(e, "language", None)):
+            if extra:
+                hat.update(ch for ch in extra if ch.isalnum())
+    return "".join(sorted((soll - hat).elements()))
+
+
+def _verdeckter_verweis(klar: str, e) -> bool:
+    """Ein Verweis, dessen sichtbarer Text nicht die Adresse selbst ist."""
+    if e.type != "text_link":
+        return False
+    b = klar.encode("utf-16-le")
+    sichtbar = b[e.offset * 2:(e.offset + e.length) * 2].decode("utf-16-le", "replace")
+    return sichtbar.strip().rstrip("/") != (e.url or "").strip().rstrip("/")
+
+
+def auszeichnung(roh: str, *, sanft: bool = False):
     """Markdown → (Klartext, Telegram-Entities) — oder `None` fuer „roh senden".
 
     `None` heisst nie Fehler beim Nutzer, nur: dieser Text geht wie bisher.
+
+    `sanft` `[Block 2b]`: fuer Texte, die der Bot selbst zusammensetzt und in
+    die fremde Angaben einfliessen (Betreffzeilen, Dateinamen, Befehle).
+    Einzelne Sterne bleiben stehen, und **ein Verweis mit verdeckter Adresse
+    entsteht nie** — sonst zeigte eine Betreffzeile `[Rechnung](…)` Adam
+    einen harmlosen Titel ueber einer fremden Adresse.
     """
     if _tgm is None or not roh:
         return None
     try:
-        klar, ents = _tgm.convert(roh)
+        klar, ents = _tgm.convert(_md_vorbereiten(roh, sanft=sanft))
     except Exception:
         log.warning("⚙️ Auszeichnung: Umwandlung gescheitert — Rohtext", exc_info=True)
         return None
     if not klar.strip():
+        return None
+    fehlt = _inhalt_verloren(roh, klar, ents)
+    if fehlt:
+        log.warning("⚙️ Auszeichnung haette Inhalt verschluckt (%r) — Rohtext", fehlt[:40])
+        return None
+    if sanft and any(_verdeckter_verweis(klar, e) for e in ents):
         return None
     return klar, [MessageEntity(type=e.type, offset=e.offset, length=e.length,
                                 url=e.url, language=e.language,
@@ -3165,10 +3294,16 @@ def _nicht_im_codeblock(text: str, cut: int) -> int:
 
 
 async def _sende_stueck(bot, chat_id: int, roh: str, *, rp, thread_id,
-                        auszeichnen: bool, vorschau_url: "str | None", kwargs):
-    """Ein Stueck senden — ausgezeichnet, sonst oder im Rueckfall roh."""
+                        auszeichnen, vorschau_url: "str | None", kwargs):
+    """Ein Stueck senden — ausgezeichnet, sonst oder im Rueckfall roh.
+
+    `auszeichnen`: True (Claudias Antwort), "sanft" (Bot-eigener Text, siehe
+    `auszeichnung`) oder False (der Aufrufer bringt eine eigene Angabe mit).
+    """
     if auszeichnen:
-        au = auszeichnung(roh)
+        au = auszeichnung(roh, sanft=auszeichnen == "sanft")
+        if auszeichnen == "sanft" and au is not None and not au[1]:
+            au = None  # nichts auszuzeichnen: der Rohtext behaelt sein Bild
         if au is not None and _utf16(au[0]) <= _TELEGRAM_TEXT_UTF16:
             extra = {}
             # Die Karte nur an dem Stueck, das die Adresse traegt — sonst
@@ -3184,12 +3319,15 @@ async def _sende_stueck(bot, chat_id: int, roh: str, *, rp, thread_id,
             except BadRequest as e:
                 log.warning("⚙️ Auszeichnung von Telegram abgelehnt (%s) — "
                             "Rohtext gesendet", e)
+        # Roh heisst roh: ausdruecklich ohne Angabe, sonst zeichnete der
+        # Ausgang (`AusgangBot`) denselben Text ein zweites Mal aus.
+        kwargs = dict(kwargs, parse_mode=None)
     return await bot.send_message(chat_id=chat_id, text=roh, reply_parameters=rp,
                                   message_thread_id=thread_id, **kwargs)
 
 
 async def send_chunked(bot, chat_id: int, text: str, reply_to: int | None = None,
-                       thread_id: int | None = None, *, auszeichnen: bool = False,
+                       thread_id: int | None = None, *, auszeichnen=None,
                        vorschau_url: "str | None" = None, **kwargs) -> None:
     """Telegram caps messages at ~4096 chars — split on newlines when needed.
 
@@ -3200,9 +3338,15 @@ async def send_chunked(bot, chat_id: int, text: str, reply_to: int | None = None
     Rueckfall auf Rohtext. **Geschnitten wird VOR dem Umwandeln**, am Rohtext —
     so gilt die Ueberschriften-Regel von `_find_safe_cut` weiter.
     vorschau_url: `[Block 2]` Adresse der Vorschaukarte, nur mit `auszeichnen`.
+
+    `[Block 2b]` Ohne Angabe wird **sanft** ausgezeichnet (Bot-eigener Text),
+    es sei denn, der Aufrufer bringt `parse_mode` oder `entities` mit — dann
+    bleibt es bei seiner Angabe. `parse_mode=None` heisst ausdruecklich roh.
     """
     if not text:
         return None
+    if auszeichnen is None:
+        auszeichnen = False if {"parse_mode", "entities"} & kwargs.keys() else "sanft"
     rp = _reply_params(reply_to)
     first_msg = None
     while text:
@@ -3219,6 +3363,167 @@ async def send_chunked(bot, chat_id: int, text: str, reply_to: int | None = None
         first_msg = first_msg or m
         rp = None  # nur der erste Chunk threadet zur Ursprungsnachricht
     return first_msg
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DER EINE AUSGANG  `[NEU 26.09.2026, Block 2b]`
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# **Der Befund (Claudia 24.09.):** rund zweihundert Sendestellen, jede einmal
+# fuer sich entschieden — alte Markdown-Angabe, HTML, ausdruecklich roh, gar
+# keine Angabe. Eine Form, die an zweihundert Stellen einzeln steht, ist nach
+# dem naechsten Umbau wieder ungleich.
+#
+# **Die Bauform (Engywuck 25.09.):** kein Umbau an zweihundert Stellen,
+# sondern eine Unterklasse des Bot-Objekts. `reply_text`, `edit_text` und
+# `query.edit_message_text` laufen in python-telegram-bot alle ueber
+# `send_message` bzw. `edit_message_text` DIESES Objekts — also gibt es genau
+# einen Ausgang, und die Aufrufer bleiben, wie sie sind.
+#
+# **Was der Ausgang je Angabe tut:**
+#   • Auszeichnung mitgebracht (`entities`)  → unveraendert durch.
+#   • keine Angabe                            → sanft auszeichnen (Fett, Code,
+#     Listen; keine verdeckten Verweise, einzelne Sterne bleiben). Ergibt das
+#     keine Auszeichnung, geht der Rohtext — sein Bild bleibt, wie es war.
+#   • `parse_mode=None`                       → ausdruecklich roh (Freigabe-
+#     dialog, Kopiertext: Was Adam sieht, muss Zeichen fuer Zeichen stimmen).
+#   • alte Angabe (HTML, Markdown)            → so, wie der Aufrufer sie
+#     schrieb; die Angaben werden schrittweise entfernt, nicht am Stueck.
+#
+# **Der Rueckfall ist die Bedingung, unter der der weite Geltungsbereich
+# ueberhaupt vertretbar ist** (Claudias Auftrag D): Lehnt Telegram die Form ab,
+# geht derselbe Text sofort roh hinterher und der Vorfall ins Protokoll (⚙️).
+# Der schlechteste Fall ist danach der Zustand vor diesem Umbau, nie eine
+# verschwundene Nachricht. Ausgenommen ist „not modified" beim Bearbeiten:
+# Dort wuerde ein roher zweiter Versuch die Auszeichnung einer unveraenderten
+# Nachricht still entfernen.
+#
+# **Bewusst NICHT durch diesen Ausgang:** die Meldung des Tageschecks per curl
+# — der Waechter muss einen toten Bot melden koennen (Engywuck 21.08.).
+_HTML_MARKE = re.compile(r"<[^<>\n]+>")
+
+
+def _nicht_angegeben(wert) -> bool:
+    """Wahr, wenn der Aufrufer gar keine Angabe gemacht hat (PTB-Platzhalter)."""
+    return isinstance(wert, DefaultValue)
+
+
+def _html_zu_roh(text: str) -> str:
+    import html as _html
+    return _html.unescape(_HTML_MARKE.sub("", text or ""))
+
+
+def _rueckfall_erlaubt(e: Exception) -> bool:
+    return "not modified" not in str(e).lower()
+
+
+def _zurueckspulen(medium) -> bool:
+    """Ob ein Medium ein zweites Mal gesendet werden kann (fuer den Rueckfall)."""
+    if isinstance(medium, (str, bytes, Path)):
+        return True
+    try:
+        if medium is not None and medium.seekable():
+            medium.seek(0)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+class AusgangBot(ExtBot):
+    """Das Bot-Objekt dieses Programms — jeder Text an Adam passiert es."""
+
+    __slots__ = ()
+
+    async def _text_ausgang(self, senden, roh, kw: dict):
+        if roh is None or kw.get("entities"):
+            return await senden(text=roh, **kw)
+        pm = kw.get("parse_mode", DEFAULT_NONE)
+        if _nicht_angegeben(pm):
+            au = auszeichnung(roh, sanft=True)
+            if au is None or not au[1] or _utf16(au[0]) > _TELEGRAM_TEXT_UTF16:
+                return await senden(text=roh, **kw)
+            # `reply_text` gibt `entities=None` ausdruecklich mit — beide Felder
+            # heraus, sonst stuende `entities` im Aufruf doppelt.
+            versuch = {k: v for k, v in kw.items() if k not in ("parse_mode", "entities")}
+            try:
+                return await senden(text=au[0], entities=au[1], **versuch)
+            except BadRequest as e:
+                if not _rueckfall_erlaubt(e):
+                    raise
+                log.warning("⚙️ Ausgang: Auszeichnung abgelehnt (%s) — Rohtext", e)
+                return await senden(text=roh, **dict(kw, parse_mode=None))
+        if pm is None:
+            return await senden(text=roh, **kw)
+        try:
+            return await senden(text=roh, **kw)
+        except BadRequest as e:
+            if not _rueckfall_erlaubt(e):
+                raise
+            log.warning("⚙️ Ausgang: Angabe %s abgelehnt (%s) — Rohtext", pm, e)
+            ohne = _html_zu_roh(roh) if str(pm).upper().endswith("HTML") else roh
+            return await senden(text=ohne, **dict(kw, parse_mode=None))
+
+    async def send_message(self, chat_id, text=None, *args, **kw):
+        if args:  # positionale Zusatzangaben nutzt hier niemand — unberuehrt
+            return await super().send_message(chat_id, text, *args, **kw)
+        return await self._text_ausgang(super().send_message, text,
+                                        dict(kw, chat_id=chat_id))
+
+    async def edit_message_text(self, text=None, *args, **kw):
+        if args:
+            return await super().edit_message_text(text, *args, **kw)
+        return await self._text_ausgang(super().edit_message_text, text, kw)
+
+    async def _unterschrift_ausgang(self, senden, feld: str, args, kw: dict):
+        cap = kw.get("caption")
+        if (not cap or kw.get("caption_entities")
+                or not _nicht_angegeben(kw.get("parse_mode", DEFAULT_NONE))):
+            return await senden(*args, **kw)
+        au = auszeichnung(cap, sanft=True)
+        if au is None or not au[1] or _utf16(au[0]) > _TELEGRAM_CAPTION_UTF16:
+            return await senden(*args, **kw)
+        try:
+            return await senden(*args, **dict(kw, caption=au[0], caption_entities=au[1]))
+        except BadRequest as e:
+            medium = kw.get(feld, args[1] if len(args) > 1 else None)
+            if not _rueckfall_erlaubt(e) or not _zurueckspulen(medium):
+                raise
+            log.warning("⚙️ Ausgang: Bildunterschrift abgelehnt (%s) — roh", e)
+            return await senden(*args, **dict(kw, parse_mode=None))
+
+    async def send_voice(self, *args, **kw):
+        return await self._unterschrift_ausgang(super().send_voice, "voice", args, kw)
+
+    async def send_document(self, *args, **kw):
+        return await self._unterschrift_ausgang(super().send_document, "document", args, kw)
+
+    async def send_photo(self, *args, **kw):
+        return await self._unterschrift_ausgang(super().send_photo, "photo", args, kw)
+
+    async def send_video(self, *args, **kw):
+        return await self._unterschrift_ausgang(super().send_video, "video", args, kw)
+
+    async def send_audio(self, *args, **kw):
+        return await self._unterschrift_ausgang(super().send_audio, "audio", args, kw)
+
+
+class _AusgangBauplan(ApplicationBuilder):
+    """Baut die Anwendung mit `AusgangBot` statt des gewoehnlichen Bot-Objekts.
+
+    python-telegram-bot bietet keinen oeffentlichen Weg, die Bot-Klasse zu
+    waehlen, ohne auf Token, Adressen und Voreinstellungen im Bauplan zu
+    verzichten. Deshalb wird das fertig gebaute Objekt umgewidmet — beide
+    Klassen haben dieselbe Gestalt (`__slots__ = ()`). Stuende hier eines Tages
+    ein anderer Name, bliebe das Programm beim gewoehnlichen Bot; genau das
+    misst `scripts/test_sendeweg.py` (Zeile „die Anwendung sendet ueber den
+    Ausgang").
+    """
+
+    def _build_ext_bot(self):
+        bot = super()._build_ext_bot()
+        bot.__class__ = AusgangBot
+        return bot
 
 
 # Werkzeuge mit möglichen Extra-Kosten (💰-Kostenregel): NIE „always allow",
@@ -4388,7 +4693,7 @@ async def _sammel_nachziehen(sess, message_id: int) -> None:
             text, zeilen = sammel_ansicht(eintraege)
         await sess.bot.edit_message_text(
             chat_id=sess.chat_id, message_id=message_id, text=text,
-            reply_markup=_sammel_tastatur(zeilen))
+            reply_markup=_sammel_tastatur(zeilen), parse_mode=None)
     except Exception:
         log.info("Sammelnachricht nicht nachgezogen (ignoriert)", exc_info=True)
 
@@ -4820,7 +5125,7 @@ def make_permission_callback(user_id: int, thread_id: "int | None" = None):
                 try:
                     await sess.bot.edit_message_text(
                         chat_id=sess.chat_id, message_id=alt_msg,
-                        text=protokoll, reply_markup=None)
+                        text=protokoll, reply_markup=None, parse_mode=None)
                 except Exception:
                     log.info("alte Freigabe-Nachricht nicht gekuerzt (ignoriert)",
                              exc_info=True)
@@ -4880,6 +5185,7 @@ def make_permission_callback(user_id: int, thread_id: "int | None" = None):
                     text=text,
                     reply_to_message_id=sess.sammel_msg_id or sent.message_id,
                     message_thread_id=sess.thread_id,
+                    parse_mode=None,
                 )
             except Exception:
                 # Eine misslungene Erinnerung darf die Anfrage nicht beenden —
@@ -12173,6 +12479,18 @@ def run_self_check() -> tuple[bool, list[str]]:
         arten = {e.type for e in au[1]}
         assert {"bold", "text_link", "code"} <= arten, f"Auszeichnung unvollständig: {arten}"
         assert "**" not in au[0], "Sternchen stehen noch im Klartext"
+        # `[Block 2b]` Claudias Selbsttext, Auftrag E: nichts darf verschwinden
+        # — spitze Klammer und & im Ordner, Unterstrich im Dateinamen.
+        au = auszeichnung("## Stand\n\n**Fett**, *kursiv*, [Beleg](https://beispiel.de/q?a=1&b=2)\n\n"
+                          "| Datei | Ort |\n|---|---|\n| mein_datei_name.md | Kunden & <Archiv> |\n\n"
+                          "Ein einzelner * Stern.")
+        assert au is not None, "Selbsttext: Umwandlung liefert nichts"
+        for teil in ("mein_datei_name.md", "Kunden & <Archiv>", " * "):
+            assert teil in au[0], f"Selbsttext: [{teil}] verschwunden"
+        # Nach einem Sprung von python-telegram-bot koennte die Umwidmung ins
+        # Leere laufen — dann saendete das Programm am Ausgang vorbei.
+        assert isinstance(_AusgangBauplan().token("1:selbstcheck")._build_ext_bot(),
+                          AusgangBot), "der Bauplan liefert nicht mehr den Ausgang"
     check("Auszeichnung im Antwortweg (Block 2)", _c_auszeichnung)
     def _c_zimmerliste() -> None:
         """`[Block 5]` Die Zimmerliste ist lesbar, und jede Route trifft ein Zimmer.
@@ -16615,6 +16933,19 @@ def textbloecke_verbinden(teile: "list[str]") -> str:
     return "\n\n".join(s for s in ((x or "").strip() for x in teile) if s)
 
 
+def _passt_als_unterschrift(text: str) -> bool:
+    """Ob die ganze Antwort als EINE Bildunterschrift an die Stimme passt.
+
+    Beide Grenzen zaehlen: die Stimme schneidet den Rohtext bei
+    `TTS_SYNC_CHUNK` Zeichen, Telegram die Unterschrift bei 1024
+    UTF-16-Einheiten — ein Emoji zaehlt dort doppelt.
+    """
+    if len(text) > TTS_SYNC_CHUNK:
+        return False
+    au = auszeichnung(text)
+    return _utf16(au[0] if au is not None else text) <= _TELEGRAM_CAPTION_UTF16
+
+
 async def send_answer_to_user(
     sess: UserSession, chat_id: int, text: str, *, force_tts: bool = False,
     reply_to: int | None = None, thread_id: int | None = None,
@@ -16659,7 +16990,8 @@ async def send_answer_to_user(
         for stueck, ist_kopie in stuecke:
             if ist_kopie:
                 m = await send_chunked(sess.bot, chat_id, stueck, reply_markup=kb0,
-                                       reply_to=reply_to, thread_id=thread_id)
+                                       reply_to=reply_to, thread_id=thread_id,
+                                       parse_mode=None)
                 if m is not None:
                     _remember_bot_msg(chat_id, m.message_id, stueck)
                 ok = m is not None
@@ -16716,7 +17048,16 @@ async def send_answer_to_user(
     # eigene Nachricht mit Karte, und die Stimme folgt mit kurzer Unterschrift
     # (wie bei force_tts). **Text zuerst** (Fenster-Regel): Die Antwort ist
     # gesichert, bevor die langsamere Sprachausgabe laeuft.
-    getrennt = bool(vorschau_url) and not force_tts
+    #
+    # `[NEU 26.09.2026, Block 2b, Claudias Auftrag G]` **Auge und Ohr getrennt
+    # schneiden.** Bis hier ging der Text als Bildunterschrift mit, geschnitten
+    # nach 1024 Zeichen fuer die Stimme — also nach Sprechtakt, notfalls am
+    # Komma. Adams Beobachtung vom 24.09.: mit Sprachausgabe sieht der Text
+    # schlechter aus als ohne. Passt die Antwort nicht als EINE Unterschrift,
+    # geht sie jetzt wie ohne Sprachausgabe als eigene Nachricht (Leseregeln:
+    # Absaetze, keine Ueberschrift am Ende), und die Stimme folgt nach
+    # Sprechlaenge. Derselbe Weg wie bei der Vorschaukarte.
+    getrennt = (bool(vorschau_url) or not _passt_als_unterschrift(text)) and not force_tts
     if getrennt:
         sent_text = await send_chunked(
             sess.bot, chat_id, text, reply_markup=kb,
@@ -16853,7 +17194,7 @@ def anwendungs_bauplan():
     — nicht zur Verschönerung, sondern damit überhaupt gemessen wird.
     """
     return (
-        Application.builder()
+        _AusgangBauplan()   # [Block 2b] der eine Ausgang, siehe AusgangBot
         .token(TELEGRAM_BOT_TOKEN)
         .post_init(post_init)
         .concurrent_updates(True)

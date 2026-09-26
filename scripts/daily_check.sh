@@ -992,6 +992,25 @@ if [ -f "$BOTDIR/sprachausgabe_azure.py" ]; then
 fi
 # <<< AZURE
 
+# --- 9q. AUSGANG: nimmt der eine Ausgang noch jeden Text? (26.09.2026, 2b) ----
+# Claudias Auftrag E: der Selbsttext (Fett, Kursiv, Verweis am Wort,
+# Ueberschrift, Tabelle, Unterstrich im Dateinamen, & und < im Ordner, einzelner
+# Stern) laeuft durch den Ausgang, die Stimme hoert keine Auszeichnung, der
+# Kopiertext bleibt roh. Gesendet wird dabei NICHTS — der Pruefer ersetzt nur
+# Telegrams Netzaufruf. Bricht das Umwandlungspaket bei einer neuen Fassung,
+# steht es hier, bevor Adam es an einer Antwort sieht.
+# >>> AUSGANG
+if [ -f "$BOTDIR/scripts/test_sendeweg.py" ]; then
+  _aus="$(sudo -u claudebot env HOME="$BOTHOME" "$VENVPY" "$BOTDIR/scripts/test_sendeweg.py" 2>/dev/null)"
+  _aus_rc=$?
+  if [ "$_aus_rc" -eq 0 ]; then
+    add "✅ Ausgang: $(printf '%s' "$_aus" | grep 'Ergebnis' | tail -1 | tr -d '=' | sed 's/^ *//')"
+  else
+    intern "Ausgang: Selbsttest rot (rc=$_aus_rc): $(printf '%s' "$_aus" | grep '❌' | head -3 | tr '\n' ' ')"
+  fi
+fi
+# <<< AUSGANG
+
 # --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
 # Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete
 # hoeflich "Keine Treffer" - vier Stunden lang, in Adams Richtung. Ein Ausfall,

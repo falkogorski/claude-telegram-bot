@@ -26,6 +26,7 @@ import asyncio
 import datetime as _dt
 import io
 import os
+import re
 import sys
 import tempfile
 import types
@@ -149,15 +150,26 @@ zeile("reply_text laeuft durch denselben Ausgang (wird ausgezeichnet)",
       err is None and "bold" in _arten(k) and k.get("text") == "Stand in Ordnung",
       gemessen=f"{err!r} {k.get('text')!r} {_arten(k)}")
 
-_ERLAUBT_ANDERSWO = {"scripts/version_monitor.py"}   # siehe Kopf von bot.AusgangBot
+# Wer ueberhaupt die Telegram-Adresse kennt, steht hier mit Grund (S12: eine
+# Suche nach `/send` allein liesse `BASE + "/sendMessage"` durch).
+_KENNT_ADRESSE = {"bot.py": "Netzwarte beim Start",
+                  "zustellmarke.py": "maskiert den Schluessel in Fehlermeldungen",
+                  "scripts/version_monitor.py": "sendet direkt — Kandidat fuers Botenpostfach"}
+# Sendewege, die AusgangBot nicht ueberschreibt, und Telegrams Schreibweise (S11).
+_NICHT_UEBERSCHRIEBEN = {"send_animation", "send_media_group", "edit_message_caption",
+                         "copy_message", "send_poll", "send_message_draft"}
 _BOT_BAUER = {"Bot", "ExtBot", "ApplicationBuilder"}
 fremde_bauer: list[str] = []
 fremde_netzwege: list[str] = []
-for pfad in sorted(list(WURZEL.glob("*.py")) + list((WURZEL / "scripts").glob("*.py"))):
+vorbei: list[str] = []
+for pfad in sorted(list(WURZEL.glob("*.py")) + list((WURZEL / "scripts").glob("*.py"))
+                   + list((WURZEL / "scripts" / "mac").glob("*.py"))):
     rel = str(pfad.relative_to(WURZEL))
     if rel.startswith("scripts/test_"):
         continue
     src = pfad.read_text(encoding="utf-8")
+    if "api.telegram.org" in src and rel not in _KENNT_ADRESSE:
+        fremde_netzwege.append(rel)
     try:
         baum = ast.parse(src)
     except SyntaxError:
@@ -169,17 +181,20 @@ for pfad in sorted(list(WURZEL.glob("*.py")) + list((WURZEL / "scripts").glob("*
             if name in _BOT_BAUER or (name == "builder" and isinstance(f, ast.Attribute)
                                       and getattr(f.value, "id", "") == "Application"):
                 fremde_bauer.append(f"{rel}:{n.lineno} {name}")
-        if (isinstance(n, ast.Constant) and isinstance(n.value, str)
-                and "api.telegram.org" in n.value and "/send" in n.value
-                and rel not in _ERLAUBT_ANDERSWO):
-            fremde_netzwege.append(f"{rel}:{n.lineno}")
-        if (isinstance(n, ast.JoinedStr) and rel not in _ERLAUBT_ANDERSWO
-                and "api.telegram.org" in ast.unparse(n) and "/send" in ast.unparse(n)):
-            fremde_netzwege.append(f"{rel}:{n.lineno}")
+            if isinstance(f, ast.Attribute) and (
+                    name in _NICHT_UEBERSCHRIEBEN
+                    or re.match(r"^(send|edit|copy)[A-Z]", name)):
+                vorbei.append(f"{rel}:{n.lineno} {name}")
 zeile("kein zweites Bot-Objekt und kein zweiter Bauplan (Syntaxbaum, alle Module)",
       not fremde_bauer, gemessen="; ".join(fremde_bauer))
-zeile("kein Python-Modul sendet an Telegram vorbei (ausser benannter Ausnahme)",
+zeile("nur benannte Module kennen die Telegram-Adresse (Mengen-Zeile)",
       not fremde_netzwege, gemessen="; ".join(fremde_netzwege))
+zeile("kein Aufruf eines Sendewegs, den der Ausgang nicht ueberschreibt",
+      not vorbei, gemessen="; ".join(vorbei))
+zeile("Telegrams Schreibweise zeigt auf den Ausgang (sendMessage = send_message)",
+      bot.AusgangBot.sendMessage is bot.AusgangBot.send_message
+      and bot.AusgangBot.editMessageText is bot.AusgangBot.edit_message_text
+      and bot.AusgangBot.sendVoice is bot.AusgangBot.send_voice)
 
 # ── 2. Je Angabe das richtige Verhalten, und der Rückfall ───────────────────
 print("== 2. Angaben und Rückfall ==")
@@ -250,7 +265,7 @@ for roh in ("Ordner <neu> und x<y", "__init__.py und _privat_", "<div>\nBlock\n<
         au = bot.auszeichnung(roh, sanft=sanft)
         klar = roh if au is None else au[0]
         zeile(f"nichts verschluckt ({'sanft' if sanft else 'Antwort'}): {roh[:28]!r}",
-              not bot._inhalt_verloren(roh.replace("&amp;", "&amp;"), klar, [] if au is None else au[1])
+              not bot._inhalt_verloren(roh, klar, [] if au is None else au[1], sanft=sanft)
               and all(t in klar for t in ("<neu>", "__init__", "<div>", "&amp;", "d__e")
                       if t in roh),
               gemessen=repr(klar))
@@ -264,6 +279,41 @@ finally:
 zeile("verschluckt die Umwandlung Buchstaben, geht der Rohtext (Waechter greift)",
       au is None, gemessen=repr(au))
 
+# S2: im sanften Modus bleibt jedes sichtbare Zeichen, wie es dasteht.
+for roh in ("🖥️ **führe aus:** cd /srv/app || exit 1; make || echo fertig",
+            "**Suche** in src/**/*.py und docs/**/*.md",
+            "**Muster** a\\.b und \\d+\\.\\d+ und \\\\server",
+            "**Stand**\n# Kommentar\n> zitiert\n+ plus\nText\n---",
+            "**Formel** $x^2$ und 5 $",
+            "**Liste**\n  • eingerueckt\n    tiefer"):
+    _lauf(AUS.send_message(chat_id=1, text=roh))
+    k = _Rand.rufe[0][1]
+    gesehen = k.get("text", "").replace(" ", " ")
+    # `bold` muss dabei sein: Faengt erst der Waechter den Text ab, kommt er
+    # zwar wortgetreu, aber roh an — dann trug die Maskierung nicht.
+    zeile(f"sanft wortgetreu: {roh[:34]!r}",
+          gesehen.replace("**", "") == roh.replace("**", "")
+          and "bold" in _arten(k) and "spoiler" not in _arten(k),
+          gemessen=f"{gesehen!r} {_arten(k)}")
+
+# Im Antwortweg (Claudias Markdown) werden `||` und `$…$` nicht zu Spoiler/Code.
+au = bot.auszeichnung("Befehl a || b || c und $x^2$ und ~/pfad")
+zeile("Antwortweg: `||`, `$…$` und `~/pfad` bleiben Inhalt",
+      au is not None and "a || b || c" in au[0] and "$x^2$" in au[0] and "~/pfad" in au[0]
+      and not {"spoiler", "code", "strikethrough"} & {str(e.type) for e in au[1]},
+      gemessen=repr(au))
+
+# S7: eine offene Aufgabe sieht offen aus.
+au = bot.auszeichnung("Offen:\n- [ ] Steuer\n- [x] Miete")
+zeile("offene Aufgabe zeigt ☐, erledigte ✅ (nicht beide mit Haken)",
+      au is not None and "☐ Steuer" in au[0] and "✅ Miete" in au[0], gemessen=repr(au))
+
+# S8: der HTML-Rueckfall nimmt nur Telegrams Marken heraus.
+zeile("HTML-Rueckfall: `x<5 und y>3` ist Inhalt, keine Marke",
+      bot._html_zu_roh("<b>Datei</b>: Wert x<5 und y>3 &amp; mehr")
+      == "Datei: Wert x<5 und y>3 & mehr",
+      gemessen=repr(bot._html_zu_roh("<b>Datei</b>: Wert x<5 und y>3 &amp; mehr")))
+
 # ── 4. Kein verdeckter Verweis in Bot-eigenem Text ──────────────────────────
 print("== 4. Sanfter Modus ==")
 _lauf(AUS.send_message(chat_id=1, text="Neue Mail: [Rechnung](https://fremd.example/x)"))
@@ -275,9 +325,36 @@ _lauf(AUS.send_message(chat_id=1, text="**Befehl:** rm -rf a*b*c"))
 k = _Rand.rufe[0][1]
 zeile("einzelne Sterne bleiben stehen (Befehl a*b*c unverfaelscht)",
       "a*b*c" in k.get("text", "") and "bold" in _arten(k), gemessen=repr(k.get("text")))
-au = bot.auszeichnung("<https://beispiel.de/a_b>", sanft=True)
-zeile("ein Verweis, der seine Adresse zeigt, ist erlaubt",
-      au is not None and au[0] == "https://beispiel.de/a_b", gemessen=repr(au))
+_lauf(AUS.send_message(chat_id=1, text="**Quelle:** <https://beispiel.de/a_b>"))
+k = _Rand.rufe[0][1]
+zeile("sanft bleibt eine Adresse woertlich stehen (Telegram verlinkt sie selbst)",
+      k.get("text") == "Quelle: <https://beispiel.de/a_b>" and "text_link" not in _arten(k),
+      gemessen=repr(k))
+au = bot.auszeichnung("<https://beispiel.de/a_b>")
+zeile("im Antwortweg ist ein Verweis, der seine Adresse zeigt, nicht verdeckt",
+      au is not None and not any(bot._verdeckter_verweis(au[0], e) for e in au[1])
+      and any(str(e.type) == "text_link" for e in au[1]), gemessen=repr(au))
+# Die Artenliste ist die zweite Schicht: Liefert die Umwandlung trotz
+# Maskierung etwas Verdeckendes (eine neue Paketfassung), geht der Rohtext.
+_alt = bot._tgm.convert
+bot._tgm.convert = lambda s, **_: (s.replace("\\", ""), [
+    types.SimpleNamespace(type="spoiler", offset=0, length=3, url=None,
+                          language=None, custom_emoji_id=None)])
+try:
+    au = bot.auszeichnung("abc def", sanft=True)
+finally:
+    bot._tgm.convert = _alt
+zeile("sanft: eine verdeckende Auszeichnung faellt auf den Rohtext zurueck (Artenliste)",
+      au is None, gemessen=repr(au))
+
+# S5: fremder Inhalt verdeckt nichts — weder Spoiler noch Durchgestrichenes.
+for roh in ("📄 **Rechnung||_2026.pdf.exe||.pdf** empfangen", "Status: ~~bezahlt~~ offen"):
+    _lauf(AUS.send_message(chat_id=1, text=roh))
+    k = _Rand.rufe[0][1]
+    zeile(f"sanft verdeckt nichts: {roh[:30]!r}",
+          not {"spoiler", "strikethrough", "blockquote"} & _arten(k)
+          and ("||" in k.get("text", "") or "~~" in k.get("text", "")),
+          gemessen=repr(k))
 
 # ── 5. Auftrag E: der Selbsttext ────────────────────────────────────────────
 print("== 5. Selbsttext (Auftrag E) ==")
@@ -342,6 +419,26 @@ for fn in ast.walk(_baum):
                 ohne_roh.append(f"{fn.name}:{c.lineno}")
 zeile("Freigabedialog: jedes Senden und Nachziehen ist ausdruecklich roh",
       not ohne_roh, gemessen="; ".join(ohne_roh))
+# S1/S10: Wer eine vorhandene Nachricht nachtraegt, nimmt ihre Auszeichnung
+# mit — sonst deutete der Ausgang den Klartext ein zweites Mal.
+_bold = bot.auszeichnung("**Freigabe?**")[1]
+_alt_msg = types.SimpleNamespace(text="Freigabe? cd /srv || exit 1; rm -rf build/**/tmp",
+                                 entities=_bold)
+_lauf(AUS.edit_message_text(chat_id=1, message_id=9,
+                            **bot.nachtrag_angaben(_alt_msg, "✅ genehmigt")))
+k = _Rand.rufe[0][1]
+zeile("Nachtrag: Befehl bleibt wortgetreu, eigene Auszeichnung reist mit",
+      k.get("text") == _alt_msg.text + "\n\n✅ genehmigt" and k.get("entities") == _bold,
+      gemessen=repr(k))
+rundreisen: list[str] = []
+for c in ast.walk(_baum):
+    if (isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
+            and c.func.attr in ("send_message", "edit_message_text", "reply_text", "edit_text")):
+        teile = list(c.args[:2]) + [k2.value for k2 in c.keywords if k2.arg in ("text",)]
+        if any(re.search(r"\.message\.(text|caption)\b", ast.unparse(x)) for x in teile):
+            rundreisen.append(str(c.lineno))
+zeile("kein Klartext einer alten Nachricht geht ohne ihre Auszeichnung zurueck",
+      not rundreisen, gemessen="Zeilen " + ", ".join(rundreisen))
 
 # ── 6. Auftrag G: Leseregeln bei Sprachausgabe ──────────────────────────────
 print("== 6. Sprachausgabe (Auftrag G) ==")
@@ -366,24 +463,66 @@ zeile("kurze Antwort bleibt eine Einheit: Stimme mit ausgezeichneter Unterschrif
       and "bold" in _arten(stimmen[0]),
       gemessen=f"{err!r} {[r[0] for r in _Rand.rufe]}")
 
+# S3: Bei getrenntem Weg steht die Frage im Text — dort muss der Daumen wirken.
+_fragen: list[int] = []
+_alt_reg = bot.reactions.register_question
+bot.reactions.register_question = lambda chat, mid, text: _fragen.append(mid)
+try:
+    ok, err = _lauf(bot.send_answer_to_user(_sitzung(tts=True), 1, LANG + "\n\nSoll ich das so umsetzen?"))
+finally:
+    bot.reactions.register_question = _alt_reg
+text_ids = [i + 1 for i, r in enumerate(_Rand.rufe) if r[0] == "send"]
+zeile("offene Frage wird auf der Textnachricht registriert, nicht an der Stimme",
+      err is None and _fragen and _fragen[-1] in text_ids,
+      gemessen=f"registriert {_fragen}, Text {text_ids}")
+
+# S6: Ein Netzfehler beim Text reisst die Stimme nicht mit.
+from telegram.error import TimedOut                               # noqa: E402
+_alt_send = ExtBot.send_message
+
+
+async def _zeitueberschreitung(self, **kw):
+    _Rand.rufe.append(("send", kw))
+    raise TimedOut("Timed out")
+ExtBot.send_message = _zeitueberschreitung
+try:
+    ok, err = _lauf(bot.send_answer_to_user(_sitzung(tts=True), 1, LANG))
+finally:
+    ExtBot.send_message = _alt_send
+stimmen = [r[1] for r in _Rand.rufe if r[0] == "voice"]
+zeile("Netzfehler beim Text: die Stimmen kommen trotzdem, mit Unterschrift",
+      err is None and ok and len(stimmen) >= 2 and all(s.get("caption") for s in stimmen),
+      gemessen=f"{err!r} ok={ok} {[r[0] for r in _Rand.rufe]}")
+
+# S4: Eine leere Auszeichnungsliste ist eine fertige Antwort — keine zweite Deutung.
+_lauf(bot.send_chunked(AUS, 1, "Kein \\*\\*Fett\\*\\* und \\|\\|kein Spoiler\\|\\|", auszeichnen=True))
+k = _Rand.rufe[0][1]
+zeile("leere Auszeichnungsliste wird nicht ein zweites Mal umgewandelt",
+      k.get("text") == "Kein **Fett** und ||kein Spoiler||" and not k.get("entities"),
+      gemessen=repr(k))
+
+# S9: Der Roh-Rueckfall der Sprach-Unterschrift ist wirklich roh.
+_ents = bot.auszeichnung("**fett**")[1]
+_lauf(bot._send_tts_chunk(AUS, 1, "gesprochen", caption="fett", caption_entities=_ents,
+                          caption_roh="**fett**"), lehnt="entities")
+stimmen = [r[1] for r in _Rand.rufe if r[0] == "voice"]
+zeile("Unterschrift abgelehnt: der zweite Versuch geht ausdruecklich roh",
+      len(stimmen) == 2 and stimmen[1].get("caption") == "**fett**"
+      and stimmen[1].get("parse_mode") is None and not stimmen[1].get("caption_entities"),
+      gemessen=repr([(s.get("caption"), s.get("parse_mode")) for s in stimmen]))
+
 # ── 7. Sperrklinke: die alten Angaben werden weniger ────────────────────────
 print("== 7. Sperrklinke ==")
-zaehl = {"markdown": 0, "html": 0}
-for c in ast.walk(_baum):
-    if isinstance(c, ast.Call):
-        for kw in c.keywords:
-            if kw.arg == "parse_mode":
-                w = ast.unparse(kw.value)
-                if w in ("ParseMode.MARKDOWN", "'Markdown'"):
-                    zaehl["markdown"] += 1
-                elif w in ("ParseMode.HTML", "'HTML'"):
-                    zaehl["html"] += 1
-# Bestand am 26.09.2026. Wer eine Stelle umstellt, senkt die Zahl hier mit;
-# wer eine neue alte Angabe schreibt, wird rot.
-zeile("alte Markdown-Angaben: hoechstens 16 (Bestand 26.09.)",
-      zaehl["markdown"] <= 16, gemessen=str(zaehl["markdown"]))
-zeile("HTML-Angaben: hoechstens 7 (Bestand 26.09.)",
-      zaehl["html"] <= 7, gemessen=str(zaehl["html"]))
+alte_angaben = [f"{c.lineno}:{ast.unparse(kw.value)}" for c in ast.walk(_baum)
+                if isinstance(c, ast.Call) for kw in c.keywords
+                if kw.arg == "parse_mode"
+                and not (isinstance(kw.value, ast.Constant) and kw.value.value is None)]
+# Bestand am 26.09.2026: 16 alte Markdown-, 7 HTML-Angaben. Gezaehlt wird JEDE
+# Angabe ausser dem ausdruecklichen None — auch MarkdownV2, Variablen und
+# constants.ParseMode (S12). Wer eine Stelle umstellt, senkt die Zahl hier mit;
+# wer eine neue schreibt, wird rot.
+zeile("alte Angaben (Markdown, HTML, alles ausser None): hoechstens 23",
+      len(alte_angaben) <= 23, gemessen=f"{len(alte_angaben)}: {alte_angaben[:6]}")
 
 # ── 8. Tagescheck 9q: der Abschnitt selbst (echter Abschnitt, Rand ersetzt) ──
 print("== 8. Tagescheck 9q ==")

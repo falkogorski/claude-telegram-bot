@@ -3042,6 +3042,13 @@ try:
     import telegramify_markdown as _tgm
 except Exception:  # fehlt das Paket, wird roh gesendet (Selbstcheck meldet es)
     _tgm = None
+else:
+    # `[Block 2b, S7]` Das Paket zeigt eine OFFENE Aufgabe als ☑ (Kaestchen
+    # MIT Haken) — offene Punkte saehen erledigt aus. ☐ ist das leere Kaestchen.
+    try:
+        _tgm.config.get_runtime_config().markdown_symbol.task_uncompleted = "\u2610"
+    except Exception:
+        log.warning("⚙️ Aufgaben-Symbol nicht gesetzt — offene Punkte zeigen ☑")
 
 # Telegram zaehlt in UTF-16-Einheiten; eine Nachricht traegt hoechstens 4096.
 _TELEGRAM_TEXT_UTF16 = 4096
@@ -3058,22 +3065,38 @@ _TELEGRAM_CAPTION_UTF16 = 1024
 # jeden Text getroffen.
 #
 # Deshalb zwei Griffe, beide an dieser einen Stelle:
-#   1. **Vorbereiten:** `<`, `&` und `_` werden ausserhalb von Code maskiert —
-#      sie sind in Adams Ablage Inhalt, nie Auszeichnung. Im sanften Modus
-#      (Bot-eigene Texte) auch der einzelne Stern: Dort ist `a*b*c` ein Befehl,
-#      kein Kursivsatz; nur `**fett**` wirkt.
-#   2. **Verlustwaechter:** Jeder Buchstabe und jede Ziffer des Rohtexts muss
-#      im Ergebnis stehen (oder als Adresse in einer Auszeichnung). Fehlt einer,
-#      geht der Rohtext — der Waechter erkennt die Klasse, nicht den Einzelfall.
+#   1. **Vorbereiten:** Im Antwortweg (Claudias Markdown) werden `<`, `&`, `_`,
+#      `$` und doppelte Striche `||` ausserhalb von Code maskiert — sie sind in
+#      Adams Ablage Inhalt, nie Auszeichnung (`||` waere ein Spoiler, `$…$`
+#      Code). Im **sanften Modus** (Bot-eigene Texte, fremde Angaben darin)
+#      wird JEDES Satzzeichen maskiert, auch der Rueckstrich; nur `**fett**`
+#      und Code wirken, fuehrende Einzuege bleiben stehen. Dort ist `a || b`
+#      ein Befehl und `# Kommentar` eine Kommentarzeile.
+#   2. **Verlustwaechter:** Im Antwortweg muss jeder Buchstabe und jede Ziffer
+#      ankommen, im sanften Modus **jedes sichtbare Zeichen** ausser den
+#      Fett-Sternen und Code-Strichen. Fehlt etwas, geht der Rohtext — der
+#      Waechter erkennt die Klasse, nicht den Einzelfall.
+#
+# `[NACHGEZOGEN 26.09.2026]` Die Widerlegungspruefung (S2) fand, dass die
+# erste Fassung nur Buchstaben zaehlte: `cd /x || exit 1` verlor seine
+# Striche und wurde zum Spoiler, ohne dass der Waechter anschlug.
 _ZAUN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 _AUTOLINK = re.compile(r"<(?:https?://|mailto:)[^\s<>]*>", re.I)
 _AUFGABE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]", re.M)
+_SATZZEICHEN = set("!\"#$%&'()+,-./:;<=>?@[\\]^_{|}~")   # ohne * und ` (eigene Regeln)
+_SANFT_ARTEN = {"bold", "code", "pre", "url", "text_link"}
 
 
-def _zeile_maskieren(zeile: str, zeichen: str) -> str:
-    """`zeichen` ausserhalb von Code-Spannen und Autolinks mit `\\` maskieren."""
+def _zeile_maskieren(zeile: str, *, sanft: bool) -> str:
+    """Satzzeichen ausserhalb von Code-Spannen und Autolinks mit `\\` maskieren."""
     aus: list[str] = []
     i, n = 0, len(zeile)
+    if sanft:
+        # Fuehrende Einzuege bleiben sichtbar — CommonMark wirft sie sonst weg.
+        einzug = len(zeile) - len(zeile.lstrip(" "))
+        if einzug and zeile.strip():
+            aus.append(" " * einzug)
+            i = einzug
     while i < n:
         c = zeile[i]
         if c == "`":
@@ -3095,17 +3118,17 @@ def _zeile_maskieren(zeile: str, zeichen: str) -> str:
             aus.append(zeile[i:ende if ende > 0 else j])
             i = ende if ende > 0 else j
             continue
-        if c == "<":
+        if c == "<" and not sanft:   # sanft bleibt auch `<adresse>` woertlich
             m = _AUTOLINK.match(zeile, i)
             if m:
                 aus.append(m.group(0))
                 i = m.end()
                 continue
-        if c == "\\" and i + 1 < n:
-            aus.append(zeile[i:i + 2])  # vorhandene Maskierung unberuehrt
+        if c == "\\" and not sanft and i + 1 < n:
+            aus.append(zeile[i:i + 2])  # Claudias eigene Maskierung unberuehrt
             i += 2
             continue
-        if c == "*" and "*" in zeichen:
+        if c == "*" and sanft:
             j = i
             while j < n and zeile[j] == "*":
                 j += 1
@@ -3113,14 +3136,24 @@ def _zeile_maskieren(zeile: str, zeichen: str) -> str:
             aus.append(zeile[i:j] if j - i == 2 else "\\*" * (j - i))
             i = j
             continue
-        aus.append("\\" + c if c in zeichen else c)
+        if c == "|" and not sanft:
+            j = i
+            while j < n and zeile[j] == "|":
+                j += 1
+            # Ein Strich traegt Tabellen; zwei waeren ein Spoiler.
+            aus.append("|" if j - i == 1 else "\\|" * (j - i))
+            i = j
+            continue
+        if (c in _SATZZEICHEN) if sanft else (c in "<&_$"):
+            aus.append("\\" + c)
+        else:
+            aus.append(c)
         i += 1
     return "".join(aus)
 
 
 def _md_vorbereiten(roh: str, *, sanft: bool = False) -> str:
     """Den Rohtext so maskieren, dass die Umwandlung nichts davon verschluckt."""
-    zeichen = "<&_*" if sanft else "<&_"
     aus: list[str] = []
     zaun = None
     for zeile in roh.split("\n"):
@@ -3135,20 +3168,36 @@ def _md_vorbereiten(roh: str, *, sanft: bool = False) -> str:
             zaun = m.group(1)
             aus.append(zeile)
             continue
-        aus.append(_zeile_maskieren(zeile, zeichen))
+        aus.append(_zeile_maskieren(zeile, sanft=sanft))
     return "\n".join(aus)
 
 
-def _inhalt_verloren(roh: str, klar: str, ents) -> str:
-    """Die Buchstaben und Ziffern, die die Umwandlung verloren haette."""
+def _inhalt_verloren(roh: str, klar: str, ents, *, sanft: bool = False) -> str:
+    """Was die Umwandlung verloren oder hinzugedichtet haette.
+
+    Antwortweg: Buchstaben und Ziffern (Claudias Auszeichnungszeichen duerfen
+    verschwinden). Sanft: jedes sichtbare Zeichen ausser `*` und `` ` ``, in
+    BEIDE Richtungen — dort darf auch nichts dazukommen (etwa ein Symbol fuer
+    eine Ueberschrift).
+    """
     from collections import Counter
-    soll = Counter(ch for ch in _AUFGABE.sub("", roh) if ch.isalnum())
-    hat = Counter(ch for ch in klar if ch.isalnum())
+    if sanft:
+        def zaehlbar(ch: str) -> bool:
+            return not ch.isspace() and ch not in "*`"
+        soll = Counter(ch for ch in roh if zaehlbar(ch))
+    else:
+        def zaehlbar(ch: str) -> bool:
+            return ch.isalnum()
+        soll = Counter(ch for ch in _AUFGABE.sub("", roh) if zaehlbar(ch))
+    hat = Counter(ch for ch in klar if zaehlbar(ch))
     for e in ents:
         for extra in (getattr(e, "url", None), getattr(e, "language", None)):
-            if extra:
-                hat.update(ch for ch in extra if ch.isalnum())
-    return "".join(sorted((soll - hat).elements()))
+            if extra and not (sanft and getattr(e, "type", "") == "text_link"):
+                hat.update(ch for ch in extra if zaehlbar(ch))
+    fehlt = soll - hat
+    if sanft:
+        fehlt += hat - soll
+    return "".join(sorted(fehlt.elements()))
 
 
 def _verdeckter_verweis(klar: str, e) -> bool:
@@ -3166,25 +3215,27 @@ def auszeichnung(roh: str, *, sanft: bool = False):
     `None` heisst nie Fehler beim Nutzer, nur: dieser Text geht wie bisher.
 
     `sanft` `[Block 2b]`: fuer Texte, die der Bot selbst zusammensetzt und in
-    die fremde Angaben einfliessen (Betreffzeilen, Dateinamen, Befehle).
-    Einzelne Sterne bleiben stehen, und **ein Verweis mit verdeckter Adresse
-    entsteht nie** — sonst zeigte eine Betreffzeile `[Rechnung](…)` Adam
-    einen harmlosen Titel ueber einer fremden Adresse.
+    die fremde Angaben einfliessen (Betreffzeilen, Dateinamen, Befehle). Nur
+    Fett, Code und sichtbare Adressen entstehen — **nie ein Verweis mit
+    verdeckter Adresse, nie ein Spoiler, nie Durchgestrichenes** (eine
+    Betreffzeile `[Rechnung](…)` zeigte sonst einen harmlosen Titel ueber
+    einer fremden Adresse, ein Dateiname `a||.exe||` verdeckte seine Endung).
     """
     if _tgm is None or not roh:
         return None
     try:
-        klar, ents = _tgm.convert(_md_vorbereiten(roh, sanft=sanft))
+        klar, ents = _tgm.convert(_md_vorbereiten(roh, sanft=sanft), latex_escape=False)
     except Exception:
         log.warning("⚙️ Auszeichnung: Umwandlung gescheitert — Rohtext", exc_info=True)
         return None
     if not klar.strip():
         return None
-    fehlt = _inhalt_verloren(roh, klar, ents)
+    fehlt = _inhalt_verloren(roh, klar, ents, sanft=sanft)
     if fehlt:
-        log.warning("⚙️ Auszeichnung haette Inhalt verschluckt (%r) — Rohtext", fehlt[:40])
+        log.warning("⚙️ Auszeichnung haette Inhalt veraendert (%r) — Rohtext", fehlt[:40])
         return None
-    if sanft and any(_verdeckter_verweis(klar, e) for e in ents):
+    if sanft and any(str(e.type) not in _SANFT_ARTEN or _verdeckter_verweis(klar, e)
+                     for e in ents):
         return None
     return klar, [MessageEntity(type=e.type, offset=e.offset, length=e.length,
                                 url=e.url, language=e.language,
@@ -3400,7 +3451,10 @@ async def send_chunked(bot, chat_id: int, text: str, reply_to: int | None = None
 #
 # **Bewusst NICHT durch diesen Ausgang:** die Meldung des Tageschecks per curl
 # — der Waechter muss einen toten Bot melden koennen (Engywuck 21.08.).
-_HTML_MARKE = re.compile(r"<[^<>\n]+>")
+# Nur die Marken, die Telegram-HTML kennt — `x<5 und y>3` ist Inhalt (S8).
+_HTML_MARKE = re.compile(
+    r"</?(?:b|strong|i|em|u|ins|s|strike|del|a|code|pre|span|tg-spoiler|"
+    r"tg-emoji|blockquote)(?:\s[^<>]*)?>", re.I)
 
 
 def _nicht_angegeben(wert) -> bool:
@@ -3436,7 +3490,9 @@ class AusgangBot(ExtBot):
     __slots__ = ()
 
     async def _text_ausgang(self, senden, roh, kw: dict):
-        if roh is None or kw.get("entities"):
+        # Mitgebracht heisst: die Liste ist da, auch leer (S4) — `[]` ist eine
+        # fertig umgewandelte Antwort ohne Auszeichnung, kein „nichts gesagt".
+        if roh is None or kw.get("entities") is not None:
             return await senden(text=roh, **kw)
         pm = kw.get("parse_mode", DEFAULT_NONE)
         if _nicht_angegeben(pm):
@@ -3477,7 +3533,7 @@ class AusgangBot(ExtBot):
 
     async def _unterschrift_ausgang(self, senden, feld: str, args, kw: dict):
         cap = kw.get("caption")
-        if (not cap or kw.get("caption_entities")
+        if (not cap or kw.get("caption_entities") is not None
                 or not _nicht_angegeben(kw.get("parse_mode", DEFAULT_NONE))):
             return await senden(*args, **kw)
         au = auszeichnung(cap, sanft=True)
@@ -3506,6 +3562,34 @@ class AusgangBot(ExtBot):
 
     async def send_audio(self, *args, **kw):
         return await self._unterschrift_ausgang(super().send_audio, "audio", args, kw)
+
+    # PTB fuehrt jede Methode auch in Telegrams Schreibweise; diese Namen
+    # zeigten sonst an der Unterklasse vorbei auf die Elternmethode (S11).
+    sendMessage = send_message
+    editMessageText = edit_message_text
+    sendVoice = send_voice
+    sendDocument = send_document
+    sendPhoto = send_photo
+    sendVideo = send_video
+    sendAudio = send_audio
+
+
+def nachtrag_angaben(nachricht, zusatz: str, *, trenner: str = "\n\n",
+                     grenze: int = 4000) -> dict:
+    """Eine vorhandene Nachricht um einen Zusatz verlaengern — mit IHRER Auszeichnung.
+
+    Wer `query.message.text` neu sendet, schickt den Klartext einer schon
+    umgewandelten Nachricht. Ohne Angabe wuerde der Ausgang ihn ein zweites
+    Mal deuten: Aus `a || b` im Freigabedialog wurde ein Spoiler (S1). Hier
+    reisen die vorhandenen Auszeichnungen mit (ihre Stellen bleiben gueltig,
+    der Zusatz haengt hinten an), und der Zusatz selbst bleibt roh.
+    """
+    alt = (getattr(nachricht, "text", None) or "") if nachricht else ""
+    ents = list(getattr(nachricht, "entities", None) or ()) if nachricht else []
+    text = ((alt + trenner + zusatz) if alt else zusatz)[:grenze]
+    laenge = _utf16(text)
+    return {"text": text,
+            "entities": [e for e in ents if e.offset + e.length <= laenge]}
 
 
 class _AusgangBauplan(ApplicationBuilder):
@@ -6336,8 +6420,8 @@ async def on_zimmer_knopf(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     else:
         text = await _zimmer_anlegen(context.bot, *offen)
     try:
-        await query.edit_message_text(((query.message.text or "") if query.message else "")
-                                      + "\n\n" + text, reply_markup=None)
+        await query.edit_message_text(**nachtrag_angaben(query.message, text),
+                                      reply_markup=None)
     except Exception:
         log.warning("Zimmer-Knopf: Meldung nicht ergänzt", exc_info=True)
 
@@ -9381,10 +9465,13 @@ async def on_permission_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -
 
     # Best-effort: append result to the original message. Plain text only —
     # no parse_mode, no markdown roundtrip (filenames with ~ or _ break it).
+    # `[Block 2b]` Seit dem einen Ausgang heisst „keine Angabe" sanft
+    # auszeichnen — aus `a || b` wurde hier ein Spoiler, der den Befehl
+    # verdeckte (Widerlegungspruefung S1). Der Nachtrag traegt deshalb die
+    # EIGENE Auszeichnung der Nachricht mit, der Zusatz bleibt roh.
     try:
-        original = query.message.text or ""
-        new_text = f"{original}\n\n{suffix}"[:4000]
-        await query.edit_message_text(text=new_text, reply_markup=None)
+        await query.edit_message_text(**nachtrag_angaben(query.message, suffix),
+                                      reply_markup=None)
     except Exception:
         log.exception("edit_message_text failed (ignored — permission already resolved)")
 
@@ -9812,7 +9899,7 @@ async def on_neues_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             meldung = f"❌ Nicht in den Laufplan gelegt: {e}"
     try:
         await query.edit_message_text(
-            ((query.message.text or "") if query.message else "") + "\n" + meldung,
+            **nachtrag_angaben(query.message, meldung, trenner="\n"),
             reply_markup=_neues_restknoepfe(query))
     except Exception:
         log.warning("/neues: Meldung nicht ergänzt", exc_info=True)
@@ -9825,7 +9912,6 @@ async def on_mehr_knopf(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     await query.answer()
     eintrag = _NEUES_VERTIEFEN.pop((query.data or "").split(":", 1)[-1], None)
-    alt_text = (query.message.text or "") if query.message else ""
     if eintrag is None:
         meldung = "ℹ️ Dieser Knopf ist nicht mehr offen (Neustart oder schon ausgewertet)."
     else:
@@ -9869,7 +9955,7 @@ async def on_mehr_knopf(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             _ensure_worker(user_id, job.thread_id)
             meldung = f"🔎 Werte aus: {eintrag.get('titel') or adresse}"
     try:
-        await query.edit_message_text(alt_text + "\n" + meldung,
+        await query.edit_message_text(**nachtrag_angaben(query.message, meldung, trenner="\n"),
                                       reply_markup=_neues_restknoepfe(query, _NEUES_VERTIEFEN))
     except Exception:
         log.warning("[mehr auswerten]: Meldung nicht ergänzt", exc_info=True)
@@ -13808,8 +13894,7 @@ async def on_postfach_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
                    if res else "ℹ️ Nichts zurückzustellen — die Kennung gilt schon.")
         try:
             await query.edit_message_text(
-                ((query.message.text or "") if query.message else "")
-                + "\n\n" + meldung, reply_markup=None)
+                **nachtrag_angaben(query.message, meldung), reply_markup=None)
         except Exception:
             log.warning("Postfach-Knopf: Rueckweg-Meldung nicht ergaenzt", exc_info=True)
         return
@@ -13828,7 +13913,7 @@ async def on_postfach_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
         # der Dublettenschutz oben ist der doppelte Boden, nicht die einzige
         # Sicherung. (Ein Knopf, der nach dem Drücken stehenbleibt, lädt zum
         # zweiten Tippen ein.)
-        await query.edit_message_text(quelle + "\n\n" + meldung,
+        await query.edit_message_text(**nachtrag_angaben(query.message, meldung),
                                       reply_markup=None)
     except Exception:
         log.warning("Postfach-Knopf: Meldung konnte nicht ergänzt werden",
@@ -16531,6 +16616,7 @@ async def _send_tts_chunk(
             with tmp_path.open("rb") as audio:
                 sent = await bot.send_voice(
                     chat_id=chat_id, voice=audio, caption=caption_roh,
+                    parse_mode=None,
                     reply_parameters=_reply_params(reply_to),
                     message_thread_id=thread_id,
                     reply_markup=reply_markup,
@@ -17058,17 +17144,28 @@ async def send_answer_to_user(
     # Absaetze, keine Ueberschrift am Ende), und die Stimme folgt nach
     # Sprechlaenge. Derselbe Weg wie bei der Vorschaukarte.
     getrennt = (bool(vorschau_url) or not _passt_als_unterschrift(text)) and not force_tts
+    frage_id: int | None = None   # wo die offene Frage fuer Adams Daumen steht
     if getrennt:
-        sent_text = await send_chunked(
-            sess.bot, chat_id, text, reply_markup=kb,
-            reply_to=reply_to if first_pending else None,
-            thread_id=thread_id, auszeichnen=True, vorschau_url=vorschau_url,
-        )
+        # Ein Netzfehler beim Text darf die Stimme nicht mitreissen (S6):
+        # dann gilt der alte Weg, Text als Unterschrift der Stimme.
+        try:
+            sent_text = await send_chunked(
+                sess.bot, chat_id, text, reply_markup=kb,
+                reply_to=reply_to if first_pending else None,
+                thread_id=thread_id, auszeichnen=True, vorschau_url=vorschau_url,
+            )
+        except Exception:
+            log.warning("Textnachricht vor der Stimme gescheitert — alter Weg",
+                        exc_info=True)
+            sent_text = None
         # Zustellnachweis am Ergebnis, nie hart gesetzt (Selbstcheck 5.2).
         delivered = sent_text is not None
         if sent_text is not None:
             _remember_bot_msg(chat_id, sent_text.message_id, text)
             last_sent_id = getattr(sent_text, "message_id", None)
+            # Die Frage steht im TEXT, nicht an der Stimme ohne Unterschrift
+            # (S3) — sonst liefe Adams Daumen in die stille Quittung.
+            frage_id = last_sent_id
             first_pending = False
         else:
             # Scheitert der Text, bleibt es beim bisherigen Weg (Text als
@@ -17152,8 +17249,8 @@ async def send_answer_to_user(
 
     # 5.9: Auch im TTS-Modus muss eine offene Frage registriert werden — die
     # Reaktion landet auf der LETZTEN gesendeten Nachricht (dort steht der Schluss).
-    if delivered and last_sent_id is not None:
-        reactions.register_question(chat_id, last_sent_id, text)
+    if delivered and (frage_id or last_sent_id) is not None:
+        reactions.register_question(chat_id, frage_id or last_sent_id, text)
 
     return delivered
 

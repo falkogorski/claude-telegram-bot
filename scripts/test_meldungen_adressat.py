@@ -101,6 +101,26 @@ zeile("eine abgelaufene Frist erreicht Adam nicht mehr",
 zeile("sie steht mit ⚙️ im Protokoll, für die Kontrolle",
       "⚙️ Frist abgelaufen: probe_riegel.md" in aus, gemessen=aus[-150:])
 
+# `[NEU 26.09.2026]` Claudias Auftrag vom 24.09.: Ein geschlossener Riegel hat
+# keine Frist. Drei Faelle — geschlossen, scharf, und eine Datei OHNE
+# SCHARF-Zeile (wie CLAUDE.md), die sich verhalten muss wie bisher.
+print("== B2. Der Riegelzustand (echter Code) ==")
+def _frist_lauf(inhalt):
+    with tempfile.TemporaryDirectory() as d:
+        Path(d, "probe_riegel.md").write_text(inhalt, encoding="utf-8")
+        return _bash(VORSPANN + adressat + "BOTDIR=\"$TMPD\"\n" + frist + NACHSPANN,
+                     {"TMPD": d})
+aus = _frist_lauf("SCHARF: nein\nGILT-BIS: 2026-09-09\n")
+zeile("SCHARF: nein, Frist abgelaufen: keine Fristmeldung, nur eine ✅-Zeile",
+      "Frist abgelaufen" not in aus and "✅ Riegel probe_riegel.md geschlossen" in aus
+      and "PROBLEMS=0" in aus, gemessen=aus[-160:])
+aus = _frist_lauf("SCHARF: ja\nGILT-BIS: 2026-09-09\n")
+zeile("SCHARF: ja, Frist abgelaufen: die Meldung kommt weiter",
+      "⚙️ Frist abgelaufen: probe_riegel.md" in aus, gemessen=aus[-160:])
+aus = _frist_lauf("Kein Schalter hier.\nGILT-BIS: 2026-09-09\n")
+zeile("ohne SCHARF-Zeile (wie CLAUDE.md): unverändert, die Meldung kommt",
+      "⚙️ Frist abgelaufen: probe_riegel.md" in aus, gemessen=aus[-160:])
+
 print("== C. Pflichtfeld: jeder Befund nimmt eine Tür ==")
 roh = TAGESCHECK.read_text(encoding="utf-8")
 code = [z for z in roh.splitlines() if not z.lstrip().startswith("#")]

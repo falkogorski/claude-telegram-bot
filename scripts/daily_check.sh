@@ -365,6 +365,18 @@ for frist_datei in "$BOTDIR"/*riegel*.md "$BOTDIR"/CLAUDE.md; do
   bis="$(grep -oE '^[[:space:]]*GILT-BIS:[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}' "$frist_datei" 2>/dev/null \
          | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"
   [ -n "$bis" ] || continue
+  # **[NEU 26.09.2026, Claudias Auftrag vom 24.09.] Ein geschlossener Riegel
+  # hat keine Frist.** Der Melder sah nur auf GILT-BIS; der Riegel steht seit
+  # Adams Entscheid vom 11.09. auf `SCHARF: nein`, und die Frist meldete
+  # trotzdem jeden Morgen — eine Meldung, zu der es nichts zu tun gibt. Die
+  # Ausnahme gilt NUR fuer Dateien MIT einer SCHARF-Zeile (Engywucks Auflage):
+  # `CLAUDE.md` hat keine und meldet weiter wie bisher. Dieselbe Lesart wie
+  # `auftragsbuch.riegel_offen`: nicht `SCHARF: ja` heisst geschlossen.
+  if grep -qiE '^[[:space:]]*SCHARF:' "$frist_datei" 2>/dev/null \
+     && ! grep -qiE '^[[:space:]]*SCHARF:[[:space:]]*ja[[:space:]]*$' "$frist_datei" 2>/dev/null; then
+    add "✅ Riegel $(basename "$frist_datei") geschlossen (SCHARF: nein), Frist ohne Belang"
+    continue
+  fi
   # **[BERICHTIGT 09.09.2026] Am Stichtag ist die Frist NOCH NICHT abgelaufen.**
   #
   # Engywucks Befund aus der Abnahme: Hier stand eine Ungleichung, die der

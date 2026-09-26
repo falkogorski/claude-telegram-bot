@@ -66,6 +66,11 @@ export MAC_ERGEBNISSE="$PRUEFHEIM/mac-ergebnisse"
 # den echten Monatsstand veraendern. Und der Schalter bleibt im Lauf aus.
 export TTS_AZURE_ZAEHLER="$PRUEFHEIM/tts-azure-zaehler.json"
 export TTS_BACKEND=edge
+# 9.2: Die lokale Stimme liegt auf dem Mac womoeglich bereit — dann sprachen
+# rote Probetexte anderer Pruefer ploetzlich lokal. Aus, wie Azure; nur
+# test_sprachausgabe_lokal.py schaltet sie gezielt ein.
+export TTS_ROT_LOKAL=aus
+export TTS_LOKAL_MODELL="$PRUEFHEIM/keine-stimme.onnx"
 unset AZURE_SPEECH_KEY
 # `[NEU 2026-08-20]` Das Auftragsbuch fehlte hier — und der Riegel hat prompt
 # ein Loch gehabt, das sich am selben Tag zeigte: Der Zielumgebungs-Pruefer
@@ -347,6 +352,7 @@ run "Stille Neustarts und Stundenblumen-Pruefmoment (Block 3 Teil 2)" "$PY" scri
 run "Kurs-Videos: Transkription, Ablage, Wache (24.09.)" "$PY" scripts/test_kurse.py
 run "Mac-Weg: Auftrag hin und zurueck (Block 7)" "$PY" scripts/test_macweg.py
 run "Azure-Stimme: SSML, Riegel, Rueckfall (9.1)" "$PY" scripts/test_sprachausgabe_azure.py
+run "Lokale Stimme fuer Rotes (9.2)" "$PY" scripts/test_sprachausgabe_lokal.py
 run "Modellwaechter (Block 4)" "$PY" scripts/test_modellwaechter.py
 run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py
 run "Zustell-Waechter (erreicht uns TG?)" "$PY" scripts/test_zustellwaechter.py

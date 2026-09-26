@@ -66,3 +66,9 @@ defusedxml==0.7.1
 requests==2.34.2
 # mitgezogen von requests (gemessen am Mac, 24.09.) — gepinnt, damit ein Rueckbau vollstaendig ist
 urllib3==2.8.0
+# 9.2 lokale Stimme fuer Rotes (Adams Wort 26.09.2026, 16:0x): Piper, GPL-3.0-or-later.
+# onnxruntime und numpy kommen schon mit faster-whisper (gemessen: unveraendert).
+# Die Stimme selbst ist KEIN Paket: scripts/lokale_stimme_laden.sh (Pruefsumme).
+piper-tts==1.8.0
+# mitgezogen von piper-tts (gemessen am Mac, 26.09.) — gepinnt, damit ein Rueckbau vollstaendig ist
+pathvalidate==3.3.1

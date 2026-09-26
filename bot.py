@@ -92,6 +92,7 @@ import freigaben as freigabepost
 import kalender
 import kontingent_sitzung
 import sprachausgabe_azure
+import sprachausgabe_lokal
 import linkinbox
 import authmarke
 import email_kanal
@@ -16547,7 +16548,44 @@ async def _send_pdf_chapters_tts(
             await _send_tts_chunk(bot, target_id, chunk, caption=cap)
 
 
-async def _azure_ton(chunk: str) -> "bytes | None":
+def _rot_eingestuft(text: str) -> bool:
+    """Ob die Ampel diesen Text als rot einstuft. Scheitert sie, gilt er als rot."""
+    try:
+        return ampel.classify(text).get("color") == "rot"
+    except Exception:
+        return True
+
+
+def _ordnungszahl(n: int) -> str:
+    """Ordinaltag im Dativ, wie er vor einem Monat steht: 22 → zweiundzwanzigsten."""
+    besonders = {1: "ersten", 3: "dritten", 7: "siebten", 8: "achten"}
+    if n in besonders:
+        return besonders[n]
+    return _zahlwort(n) + ("ten" if n < 20 else "sten")
+
+
+def _fuer_lokale_stimme(text: str) -> str:
+    """Zahlen fuer Piper aufbereiten — nur, was Piper selbst falsch liest.
+
+    Gemessen am 26.09. mit der Stimme Thorsten: `1.250` und `3.12` liest sie
+    richtig (die Umschreiber fuer Katja wuerden es hier verschlechtern),
+    `22. Juni` dagegen als Satzende, `3-1` als „drei Strich eins", `20:05`
+    als „zwanzig Uhr null fuenf Uhr". Also: Datum, Ordinaltag, Uhrzeit,
+    Bereich und Spielstand, Jahreszahl. Eine Nummer mit fuehrender Null
+    (`017-26`) ist kein Bereich und bleibt stehen.
+    """
+    import re
+    text = _normalize_dates(text)
+    monate = "|".join(_MONATE)
+    text = re.sub(rf"\b([1-9]|[12][0-9]|3[01])\.\s+({monate})\b",
+                  lambda m: f"{_ordnungszahl(int(m.group(1)))} {m.group(2)}", text)
+    text = _normalize_doppelpunkt_zahlen(text)
+    geschuetzt = re.sub(r"\b(0\d+)-(\d+)\b", "\\1\u2011\\2", text)
+    text = _normalize_number_ranges(geschuetzt).replace("\u2011", "-")
+    return _normalize_jahreszahlen(text)
+
+
+async def _azure_ton(chunk: str, rot: "bool | None" = None) -> "bytes | None":
     """Ton von Azure — oder None, dann spricht edge-tts.
 
     Die Buchfuehrung (Meldungen an Adam) sitzt in EIGENER Klammer hinter der
@@ -16562,11 +16600,9 @@ async def _azure_ton(chunk: str) -> "bytes | None":
     # Beobachtungsphase mit breiten Regeln; sie schlaegt also eher zu oft an,
     # und das ist hier die richtige Fehlerrichtung. Scheitert die Einstufung,
     # gilt es als rot.
-    try:
-        rot = ampel.classify(chunk).get("color") == "rot"
-    except Exception:
-        rot = True
-    if rot:
+    # `rot` kommt von der Sendestelle, wenn die GANZE Antwort rot ist — dann
+    # auch ein harmloses Teilstueck nicht (9.2: eine Antwort, eine Stimme).
+    if rot or _rot_eingestuft(chunk):
         log.info("⚙️ Sprachausgabe: als rot eingestuft — nicht zu Azure, edge-tts spricht")
         return None
     erlaubt, meldungen = sprachausgabe_azure.pruefen_und_buchen(len(chunk))
@@ -16590,6 +16626,7 @@ async def _send_tts_chunk(
     bot, chat_id: int, chunk: str, caption: str | None = None, reply_to: int | None = None,
     thread_id: int | None = None, reply_markup=None,
     caption_entities=None, caption_roh: "str | None" = None,
+    rot: "bool | None" = None,
 ):
     """Generiert und sendet einen einzelnen TTS-Chunk als Telegram-Voice.
     Gibt das gesendete Message-Objekt zurück (oder None bei Fehler).
@@ -16599,15 +16636,33 @@ async def _send_tts_chunk(
     — die Stimme ist schon erzeugt, sie soll nicht an der Unterschrift scheitern.
     """
     import edge_tts
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+    # `[NEU 26.09.2026, 9.2]` **Rotes spricht die lokale Stimme** (Thorsten,
+    # Piper, auf dem eigenen Rechner) — und Adam hoert am Sprecher, dass es
+    # ueber Rot lief. Ist sie bereit und scheitert trotzdem, geht NICHTS an
+    # einen Cloud-Dienst: Dann kommt kein Ton, und der Aufrufer stellt den
+    # Text zu (nie Stille). Ist sie gar nicht eingerichtet, bleibt es beim
+    # Zustand vor 9.2 (edge-tts; Azure nie).
+    if rot is None:
+        rot = _rot_eingestuft(chunk)
+    lokal = rot and sprachausgabe_lokal.bereit()
+    with tempfile.NamedTemporaryFile(suffix=".ogg" if lokal else ".mp3", delete=False) as f:
         tmp_path = Path(f.name)
     try:
+        if lokal:
+            try:
+                tmp_path.write_bytes(await asyncio.to_thread(
+                    sprachausgabe_lokal.sprechen, _fuer_lokale_stimme(chunk)))
+            except Exception as e:
+                log.warning("⚙️ Lokale Stimme ausgefallen (%s) — kein Ton, der Text kommt", e)
+                return None
         # `[NEU 26.09.2026, 9.1]` Die einzige Sendestelle traegt den Schalter.
         # Azure nur, wenn Schalter, Schluessel und Riegel es erlauben; jeder
         # Fehler dort endet bei edge-tts, nie in Stille (Claudias Bruchtabelle:
         # „Azure antwortet nicht" merkt sonst niemand).
-        ton = await _azure_ton(chunk)
-        if ton is not None:
+        ton = None if lokal else await _azure_ton(chunk, rot=rot)
+        if lokal:
+            pass
+        elif ton is not None:
             tmp_path.write_bytes(ton)
         else:
             edge_text = (_zahlen_normalisieren(chunk)
@@ -16668,6 +16723,7 @@ async def _send_tts(bot, chat_id: int, text: str, reply_to: int | None = None,
                                            reply_to=reply_to, thread_id=thread_id)
         return first_msg
     chunks = _split_tts_chunks(cleaned)
+    rot = _rot_eingestuft(text)   # 9.2: das GANZE Dokument, eine Stimme
     caption_for_first: str | None = None
     rest_text = ""
     if coupled_text:
@@ -16695,7 +16751,7 @@ async def _send_tts(bot, chat_id: int, text: str, reply_to: int | None = None,
             bot, chat_id, chunk,
             caption=caption_for_first if i == 0 else None,
             reply_to=reply_to if i == 0 else None,
-            thread_id=thread_id,
+            thread_id=thread_id, rot=rot,
         )
         if first_msg is None:
             first_msg = sent
@@ -17197,6 +17253,11 @@ async def send_answer_to_user(
     # entfernt, ist die Doppelung harmlos. Sobald sie etwas **anhaengt**, kaeme
     # der Satz doppelt und nach jedem Teilstueck.
     _linkzahl = len(re.findall(r"\[[^\]]+\]\([^)]*\)", text or ""))
+    # `[9.2]` Die GANZE Antwort wird eingestuft: Ist sie rot, spricht jedes
+    # Teilstueck die lokale Stimme — auch eines ohne rotes Wort. Sonst
+    # wechselte der Sprecher mitten in der Antwort, und Adams Signal
+    # (Thorsten = rot) truege nicht.
+    antwort_rot = _rot_eingestuft(text)
     while rest:
         if len(rest) <= TTS_SYNC_CHUNK:
             chunk, rest = rest, ""
@@ -17236,6 +17297,7 @@ async def send_answer_to_user(
                 thread_id=thread_id,
                 reply_markup=None if (force_tts or getrennt) else kb,
                 caption_entities=_u_ents, caption_roh=_roh_unterschrift,
+                rot=antwort_rot,
             )
         if sent is None and getrennt and delivered:
             # Der Text steht schon mit Karte im Chat — ein Ausfall der Stimme

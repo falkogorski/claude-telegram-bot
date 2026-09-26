@@ -1014,6 +1014,25 @@ if [ -f "$BOTDIR/scripts/test_sendeweg.py" ]; then
 fi
 # <<< AUSGANG
 
+# --- 9s. LOKALE STIMME: spricht Rotes noch im Haus? (26.09.2026, 9.2) --------
+# Was die Ampel als rot einstuft, spricht die lokale Stimme (Piper, Thorsten).
+# Faellt sie aus, kommt fuer Rotes KEIN Ton (kein Rueckfall in die Cloud) —
+# ein Ausfall saehe also aus wie „heute nichts Rotes". Deshalb spricht sie hier
+# jede Nacht einen Probesatz, als claudebot, und die Zeile nennt die
+# Geschwindigkeit auf dieser CPU (Drehbuch 9.2: „laeuft auf VPS-CPU").
+# Nicht eingerichtet ist kein Alarm, nur eine Protokollzeile.
+# >>> LOKALSTIMME
+if [ -f "$BOTDIR/sprachausgabe_lokal.py" ]; then
+  _ls="$(sudo -u claudebot env HOME="$BOTHOME" "$VENVPY" "$BOTDIR/sprachausgabe_lokal.py" --probe 2>&1 | tail -1)"
+  case "$_ls" in
+    OK*)     add "🗣️ ${_ls#OK }" ;;
+    AUS*)    add "🗣️ Lokale Stimme nicht aktiv: ${_ls#AUS }" ;;
+    FEHLER*) intern "Lokale Stimme spricht nicht — Rotes bekommt keinen Ton: ${_ls#FEHLER }" ;;
+    *)       intern "Probe der lokalen Stimme lief nicht: ${_ls:-keine Ausgabe}" ;;
+  esac
+fi
+# <<< LOKALSTIMME
+
 # --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
 # Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete
 # hoeflich "Keine Treffer" - vier Stunden lang, in Adams Richtung. Ein Ausfall,

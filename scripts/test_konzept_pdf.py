@@ -345,6 +345,85 @@ zeile("der pandoc-Aufruf traegt einen Hauptschrift-Namen",
       len(_haupt) == 1 and _haupt[0] != "mainfont=",
       gemessen=f"gefunden: {_haupt}")
 
+# ── Gestaltungsblatt (26.09.2026, Claudias Auftrag 2 vom 24.09.) ──────────
+print("== Gestaltungsblatt ==")
+_u = _kp.zustand_umrahmen
+zeile("Zustandskopf gültig: grün umrahmt",
+      "#zustand-gueltig[" in _u("**Zustand: gültig** · verfasst x\n\n# T\n"))
+zeile("gültig mit [überholt durch: —]: bleibt grün",
+      "#zustand-gueltig[" in _u("**Zustand: gültig** · überholt durch: —\n\nText\n"))
+zeile("Zustandskopf überholt: orange umrahmt",
+      "#zustand-ueberholt[" in _u("**Zustand: überholt** durch Fassung 3\n\nText\n"))
+zeile("Zweck-Zeile: grau umrahmt",
+      "#zustand-kopf[" in _u("**Zweck: ANSICHT** · **Zu tun: nichts**\n\n# T\n"))
+_ohne = "# Titel\n\n**Zustand: gültig** steht erst im zweiten Absatz\n"
+zeile("ohne Kopf am Anfang: der Text bleibt unberührt", _u(_ohne) == _ohne)
+zeile("der Titel kommt aus der ersten Überschrift, Auszeichnung entfernt",
+      _kp.titel_von("x\n\n# Der **Titel**\n", "stamm") == "Der Titel"
+      and _kp.titel_von("kein Titel\n", "stamm") == "stamm")
+
+# Der ganze Aufruf mit Blatt: das Skript gibt es mit, und es raeumt auf.
+PROTOKOLL.unlink(missing_ok=True)
+_g = papier("gestaltet.md", '**Zustand: gültig**\n\n# Ein "Titel" mit \\ Zeichen\n\nText.\n')
+_e = lauf(_g, ARBEIT / "gestaltet.pdf")
+_args = PROTOKOLL.read_text(encoding="utf-8") if PROTOKOLL.exists() else ""
+zeile("das Skript gibt das Gestaltungsblatt mit",
+      _e.returncode == 0 and "--include-in-header" in _args, gemessen=_args[-200:])
+zeile("und hinterlässt keine Zwischendateien neben der Quelle",
+      not [x.name for x in ARBEIT.iterdir() if x.name.startswith((".konzept.", ".gestaltung."))],
+      gemessen=str([x.name for x in ARBEIT.iterdir()]))
+
+# Der echte Lauf mit Blatt, Titel mit Anfuehrungszeichen und Rueckstrich,
+# Umlauten und Zustandskopf — wo pandoc und typst da sind.
+if not (shutil.which("pandoc") and Path(_typst).exists() and _ordner):
+    print("  ⏭️  Gestaltungsblatt echt gefahren — NICHT GEMESSEN: Werkzeuge fehlen")
+else:
+    _q2 = papier("echt.md", '**Zustand: gültig** · Probe\n\n# Größe „Maß“ — "Titel" \\ Ende\n\n'
+                            'Umlaute ÄÖÜ äöü ß.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n')
+    _v = _q2.with_name(".echt.konzept.md")
+    _k = _q2.with_name(".echt.gestaltung.typ")
+    _roh = _q2.read_text(encoding="utf-8")
+    _v.write_text(_kp.zustand_umrahmen(_roh), encoding="utf-8")
+    _k.write_text(f"#let dokumenttitel = {_kp._typst_text(_kp.titel_von(_roh, 'echt'))}\n"
+                  + _kp.GESTALTUNG.read_text(encoding="utf-8"), encoding="utf-8")
+    _z2 = _q2.with_suffix(".pdf")
+    _e2 = subprocess.run(_kp.pandoc_befehl(_v, _z2, _typst, _ordner, _k),
+                         capture_output=True, text=True, cwd=str(_q2.parent))
+    zeile("mit Gestaltungsblatt entsteht ein PDF (echter Lauf, Titel mit \" und \\)",
+          _e2.returncode == 0 and _z2.exists() and _z2.stat().st_size > 0,
+          gemessen=f"rc={_e2.returncode} {_e2.stderr.strip()[-200:]}")
+
+# ── Tagescheck 9o: der Selbsttest (echter Abschnitt, Attrappen am Rand) ─────
+import re as _re                                                   # noqa: E402
+_dc = (ROOT / "scripts" / "daily_check.sh").read_text(encoding="utf-8")
+_m = _re.search(r"# >>> PDFPROBE\n(.*?)# <<< PDFPROBE", _dc, _re.S)
+_abschnitt = _m.group(1) if _m else ""
+_vorspann = (
+    'set -uo pipefail\nproblems=(); lines=()\n'
+    'add() { lines+=("$1"); echo "ADD:$1"; }\n'
+    'intern() { echo "INTERN:$1"; }\n'
+    # sudo -u claudebot … → hier ohne Benutzerwechsel
+    'sudo() { shift 2; "$@"; }\n'
+    f'BOTDIR="{ROOT}"\nVENVPY="{sys.executable}"\nBOTHOME="$HOME"\n')
+def _probe(pandoc_rc: int) -> str:
+    (BIN / "pandoc_rc").write_text(str(pandoc_rc))
+    _env = {**os.environ, "PATH": f"{BIN}:{os.environ.get('PATH', '')}",
+            "TYPST_BIN": str(BIN / "typst")}
+    if pandoc_rc:
+        _env["PATH"] = f"{_TMP / 'binfehl'}:{_env['PATH']}"
+    return subprocess.run(["bash", "-c", _vorspann + _abschnitt], capture_output=True,
+                          text=True, env=_env).stdout
+(_TMP / "binfehl").mkdir(exist_ok=True)
+(_TMP / "binfehl" / "pandoc").write_text("#!/bin/bash\necho kaputt >&2\nexit 43\n")
+(_TMP / "binfehl" / "pandoc").chmod(0o755)
+zeile("Tagescheck 9o ist markiert", bool(_abschnitt) and "konzept_pdf.py" in _abschnitt)
+_a = _probe(0)
+zeile("Tagescheck 9o: gesetzte Probe gibt eine grüne Zeile", "ADD:✅ PDF-Werkzeug" in _a,
+      gemessen=_a[-200:])
+_a = _probe(43)
+zeile("Tagescheck 9o: bricht der Setzer, geht es an die Kontrolle",
+      "INTERN:PDF-Werkzeug setzt nicht mehr" in _a, gemessen=_a[-200:])
+
 shutil.rmtree(_TMP, ignore_errors=True)
 print()
 if fehler:

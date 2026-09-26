@@ -922,6 +922,36 @@ if [ -f "$BOTDIR/scripts/kurse.py" ]; then
 fi
 # <<< KURSE
 
+# --- 9o. PDF-WERKZEUG: setzt es noch? (26.09.2026, Claudias PDF-Auftrag) ----
+# Claudias Tabelle: Fehlt die gewaehlte Schrift oder bricht eine neue Fassung
+# von pandoc oder typst die Vorlage, merkt es heute niemand. Deshalb setzt
+# dieser Abschnitt jede Nacht ein kleines Papier mit Umlauten, ss,
+# Anfuehrungszeichen und Gedankenstrich — als claudebot, in einem
+# Wegwerf-Ordner, der danach geloescht wird. Ein Ausfall ist Wartung und geht
+# an die Kontrolle.
+# >>> PDFPROBE
+if [ -f "$BOTDIR/scripts/konzept_pdf.py" ]; then
+  _pdfd="$(sudo -u claudebot mktemp -d 2>/dev/null)"
+  if [ -n "$_pdfd" ]; then
+    printf '%s\n' '**Zustand: gültig** · Selbsttest des Tageschecks' '' \
+      '# Probe: Größe, Maß, „Anführung“ — Strich' '' \
+      'Umlaute ÄÖÜ äöü ß und `code_mit_unterstrich.md`.' \
+      | sudo -u claudebot tee "$_pdfd/probe.md" >/dev/null
+    _pdf="$(sudo -u claudebot env KONZEPT_PDF_BEREICHE="$_pdfd" HOME="$BOTHOME" \
+            "$VENVPY" "$BOTDIR/scripts/konzept_pdf.py" "$_pdfd/probe.md" 2>&1)"
+    _pdf_rc=$?
+    if [ "$_pdf_rc" -eq 0 ] && sudo -u claudebot test -s "$_pdfd/probe.pdf"; then
+      add "✅ PDF-Werkzeug: Probe mit Umlauten gesetzt"
+    else
+      intern "PDF-Werkzeug setzt nicht mehr (rc=$_pdf_rc): $(printf '%s' "$_pdf" | tail -2 | tr '\n' ' ')"
+    fi
+    sudo -u claudebot rm -rf "$_pdfd"
+  else
+    intern "PDF-Selbsttest lief nicht: kein Wegwerf-Ordner als claudebot"
+  fi
+fi
+# <<< PDFPROBE
+
 # --- 9h. WEBSUCHE: antwortet ueberhaupt noch jemand? -----------------------
 # Am 27.08. waren alle vier allgemeinen Zulieferer tot, und der Bot meldete
 # hoeflich "Keine Treffer" - vier Stunden lang, in Adams Richtung. Ein Ausfall,

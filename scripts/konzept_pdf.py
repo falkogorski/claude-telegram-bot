@@ -193,12 +193,62 @@ def netzfreier_vorspann() -> "list[str] | None":
 # (typst 0.15.0 am Mac, 0.15.1 auf dem VPS): DejaVu Sans Mono, Libertinus
 # Serif, New Computer Modern, New Computer Modern Math. Sie hängen an keinem
 # Ordner — und damit ist das Bild auf Mac und Server wirklich dasselbe.
-HAUPTSCHRIFT = os.environ.get("KONZEPT_PDF_HAUPTSCHRIFT") or "Libertinus Serif"
+# `[GEAENDERT 26.09.2026, Claudias Auftrag 2 vom 24.09.]` Eine Serifenlose,
+# wie Engywuck entschied: DejaVu Sans liegt auf dem VPS (gemessen), mit
+# passender fester Breite. Fehlt sie (am Mac), faellt typst auf seine
+# eingebauten Schriften zurueck — ein anderes Bild, kein Abbruch.
+HAUPTSCHRIFT = os.environ.get("KONZEPT_PDF_HAUPTSCHRIFT") or "DejaVu Sans"
 FESTSCHRIFT = os.environ.get("KONZEPT_PDF_FESTSCHRIFT") or "DejaVu Sans Mono"
 
 
+GESTALTUNG = Path(__file__).resolve().parent / "konzept_pdf_gestaltung.typ"
+
+
+def _typst_text(s: str) -> str:
+    """Ein Text als typst-Zeichenkette — ohne dass er Code werden kann."""
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def titel_von(text: str, stamm: str) -> str:
+    """Die erste Ueberschrift erster Ebene, sonst der Dateiname."""
+    for zeile in text.splitlines():
+        if zeile.startswith("# "):
+            return re.sub(r"[*_`]", "", zeile[2:]).strip()[:90] or stamm
+    return stamm
+
+
+_ZUSTANDSKOPF = re.compile(r"^\*\*(Zustand|Zweck)\b")
+
+
+def zustand_umrahmen(text: str) -> str:
+    """Den Zustandskopf eines Papiers abgesetzt setzen — gruen fuer gueltig,
+    orange fuer ueberholt, grau fuer eine Zweck-Zeile. Nur der ERSTE Absatz,
+    und nur wenn er mit `**Zustand` oder `**Zweck` beginnt; sonst bleibt der
+    Text unberuehrt. Die Rahmung geht als roher typst-Block, der Absatz
+    dazwischen bleibt Markdown."""
+    absaetze = text.split("\n\n")
+    for i, a in enumerate(absaetze):
+        if not a.strip():
+            continue
+        if a.lstrip().startswith("<!--"):
+            continue
+        if not _ZUSTANDSKOPF.match(a.strip()):
+            return text
+        klein = a.lower()
+        if "zustand:" in klein and ("überholt" in klein.split("überholt durch")[0]
+                                    or "ueberholt" in klein.split("ueberholt durch")[0]):
+            art = "zustand-ueberholt"
+        elif "zustand:" in klein:
+            art = "zustand-gueltig"
+        else:
+            art = "zustand-kopf"
+        absaetze[i] = (f"```{{=typst}}\n#{art}[\n```\n\n{a}\n\n```{{=typst}}\n]\n```")
+        return "\n\n".join(absaetze)
+    return text
+
+
 def pandoc_befehl(quelle_abs: Path, ziel_abs: Path, typst: str,
-                  schriften: str) -> "list[str]":
+                  schriften: str, kopfdatei: "Path | None" = None) -> "list[str]":
     """Der pandoc-Aufruf, ohne Netz-Vorspann — als eigene Funktion, damit ein
     Prüfer ihn **fahren** kann und nicht nur lesen muss.
 
@@ -219,7 +269,15 @@ def pandoc_befehl(quelle_abs: Path, ziel_abs: Path, typst: str,
         "--pdf-engine-opt", f"--font-path={schriften}",
         "-V", f"mainfont={HAUPTSCHRIFT}",
         "-V", f"monofont={FESTSCHRIFT}",
-    ]
+        # Satzspiegel ueber die Variablen der Vorlage (siehe Gestaltungsblatt):
+        # etwa 75 Zeichen je Zeile bei 10,5 Punkt auf A4.
+        "-V", "fontsize=10.5pt",
+        "-V", "papersize=a4",
+        "-V", "lang=de",
+        "-V", "margin.x=2.8cm",
+        "-V", "margin.top=2.6cm",
+        "-V", "margin.bottom=2.4cm",
+    ] + (["--include-in-header", str(kopfdatei)] if kopfdatei else [])
 
 
 def main() -> int:
@@ -307,10 +365,27 @@ def main() -> int:
               file=sys.stderr)
         return 7
 
-    befehl = vorspann + pandoc_befehl(quelle_abs, ziel_abs, typst, schriften)
-
-    e = subprocess.run(befehl, capture_output=True, text=True,
-                       cwd=str(quelle_abs.parent))
+    # Das Gestaltungsblatt, mit dem Titel davor, und der umrahmte Zustandskopf
+    # — beides als versteckte Zwischendateien neben der Quelle (dort sucht
+    # typst relative Bilder; `.*` reist nicht mit dem Log-Abgleich) und danach
+    # wieder entfernt.
+    roh = quelle_abs.read_text(encoding="utf-8", errors="replace")
+    # Der Quellname bleibt im Namen erhalten — pandoc-Meldungen und das
+    # Aufrufprotokoll nennen damit weiter die Datei, um die es geht.
+    vorbereitet = quelle_abs.with_name(f".konzept.{quelle_abs.name}")
+    kopfdatei = quelle_abs.with_name(f".gestaltung.{quelle_abs.stem}.typ")
+    try:
+        vorbereitet.write_text(zustand_umrahmen(roh), encoding="utf-8")
+        kopfdatei.write_text(
+            f"#let dokumenttitel = {_typst_text(titel_von(roh, quelle_abs.stem))}\n"
+            + GESTALTUNG.read_text(encoding="utf-8"), encoding="utf-8")
+        befehl = vorspann + pandoc_befehl(vorbereitet, ziel_abs, typst, schriften,
+                                          kopfdatei)
+        e = subprocess.run(befehl, capture_output=True, text=True,
+                           cwd=str(quelle_abs.parent))
+    finally:
+        vorbereitet.unlink(missing_ok=True)
+        kopfdatei.unlink(missing_ok=True)
     if e.returncode != 0 or not ziel_abs.exists():
         print(f"FEHLER: pandoc/typst endete mit {e.returncode}\n"
               f"{(e.stderr or e.stdout or '').strip()[-400:]}", file=sys.stderr)

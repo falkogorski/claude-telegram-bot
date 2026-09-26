@@ -41,8 +41,14 @@ class Abgewiesen(ValueError):
 
 
 def ablegen(*, titel: str, quelle: str, adresse: str, datum: str,
-            grundlage: str, herkunft: str, text: str) -> Path:
-    """Eine Zusammenfassung ablegen und im Index eintragen. Gibt den Pfad zurück."""
+            grundlage: str, herkunft: str, text: str, bereich: str | None = None) -> Path:
+    """Eine Zusammenfassung ablegen und im Index eintragen. Gibt den Pfad zurück.
+
+    `[NEU 24.09.2026, Kurs-Videos]` **`bereich`** legt in einen eigenen
+    Unterordner mit eigenem Index statt nach Jahr. Gebraucht für `kurse`:
+    Adams eigenes Material darf nie über einen Fremddienst — der Log-Abgleich
+    trägt `wissen/` aber nach GitHub. Ein eigener Ordner lässt sich dort als
+    Ganzes ausschließen; ein Eintrag im gemeinsamen Index nicht."""
     if not (herkunft or "").strip():
         raise Abgewiesen("ohne Herkunftsvermerk wird nicht abgelegt")
     if not (text or "").strip():
@@ -50,15 +56,16 @@ def ablegen(*, titel: str, quelle: str, adresse: str, datum: str,
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", datum or ""):
         raise Abgewiesen("Datum fehlt oder ist nicht JJJJ-MM-TT")
     jahr = datum[:4]
-    ziel_ordner = ordner() / jahr
+    basis = ordner() / bereich if bereich else ordner()
+    ziel_ordner = basis if bereich else basis / jahr
     ziel_ordner.mkdir(parents=True, exist_ok=True)
     ziel = ziel_ordner / f"{_kurz(quelle, 30)}_{datum}_{_kurz(titel, 50)}.md"
     kopf = (f"# {titel.strip()}\n\n"
             f"- **Quelle:** {quelle}\n- **Adresse:** {adresse}\n- **Datum:** {datum}\n"
             f"- **Grundlage:** {grundlage}\n- **Herkunft:** {herkunft.strip()}\n\n---\n\n")
     ziel.write_text(kopf + text.strip() + "\n", encoding="utf-8")
-    index = ordner() / "INDEX.md"
-    rel = ziel.relative_to(ordner()).as_posix()
+    index = basis / "INDEX.md"
+    rel = ziel.relative_to(basis).as_posix()
     bestand = index.read_text(encoding="utf-8") if index.exists() else (
         "# Wissen — Index\n\nJe Zeile eine Zusammenfassung. Der Bot liest diese Datei bei Fragen.\n\n")
     if f"]({rel})" not in bestand:

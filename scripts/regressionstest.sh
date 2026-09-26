@@ -56,6 +56,10 @@ printf '{"quellen": []}' > "$ZUFLUSS_QUELLEN"
 # Block 3 Teil 2 (24.09.): Vermerke stiller Neustarts — ein Pruefer, der
 # vermerkt, soll nie in die echte Zaehlung des Tageschecks schreiben.
 export STILLE_NEUSTARTS="$PRUEFHEIM/stille-neustarts.jsonl"
+# 24.09.: Kurs-Videos — Eingang und Stand. Ohne Riegel laese ein Pruefer den
+# echten Eingang und schriebe in den echten Stand.
+export KURSE_EINGANG="$PRUEFHEIM/kurse-eingang"
+export KURSE_STAND="$PRUEFHEIM/kurse-stand.json"
 # `[NEU 2026-08-20]` Das Auftragsbuch fehlte hier — und der Riegel hat prompt
 # ein Loch gehabt, das sich am selben Tag zeigte: Der Zielumgebungs-Pruefer
 # startet den ECHTEN Tagescheck, und der legt seit A6.1 einen Sichtungs-Vermerk
@@ -333,6 +337,7 @@ run "Freigabe-Postfach 9.4"             "$PY" scripts/test_freigaben_9_4.py
 run "Hora (autonomer Laeufer)"          "$PY" scripts/test_hora.py
 run "Meldungen nur, was Adam betrifft (Block 3)" "$PY" scripts/test_meldungen_adressat.py
 run "Stille Neustarts und Stundenblumen-Pruefmoment (Block 3 Teil 2)" "$PY" scripts/test_stille_neustarts.py
+run "Kurs-Videos: Transkription, Ablage, Wache (24.09.)" "$PY" scripts/test_kurse.py
 run "Modellwaechter (Block 4)" "$PY" scripts/test_modellwaechter.py
 run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py
 run "Zustell-Waechter (erreicht uns TG?)" "$PY" scripts/test_zustellwaechter.py

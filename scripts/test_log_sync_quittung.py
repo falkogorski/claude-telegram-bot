@@ -253,6 +253,33 @@ def _der_rechnungszweig_kommt_nicht_mit():
         "ehrlich, lautlos ist die naechste Stille, die wie Ordnung aussieht"
 
 
+def _der_kurszweig_kommt_nicht_mit():
+    """`[NEU 24.09.2026]` Adams Kurs-Videos: Die Transkripte liegen unter
+    `wissen/kurse/`, dieses Repo geht nach GitHub — und Adams eigenes Material
+    geht nie ueber einen Fremddienst (Entscheid 24.09., 06:0x). Dieselben drei
+    Zusicherungen wie beim Rechnungszweig: nicht mitgenommen, nicht Datei fuer
+    Datei als Fehler gemeldet, und nicht lautlos."""
+    _vorbereiten()
+    (WORK / "wissen" / "kurse").mkdir(parents=True, exist_ok=True)
+    (WORK / "wissen" / "kurse" / "modul-1_2026-09-24_verkauf.md").write_text(
+        "[00:00:00] Adams Kurs\n", encoding="utf-8")
+    (WORK / "wissen" / "kurse" / "INDEX.md").write_text("- Kursindex\n", encoding="utf-8")
+    (WORK / "wissen" / "2026").mkdir(parents=True, exist_ok=True)
+    (WORK / "wissen" / "2026" / "fremd_2026-09-24_beitrag.md").write_text(
+        "kommt mit\n", encoding="utf-8")
+    _lauf()
+    angekommen = [p.as_posix() for p in (REPO / "ausarbeitungen").rglob("*") if p.is_file()]
+    assert not [a for a in angekommen if "/kurse/" in a], \
+        f"ein Kurs-Transkript ist im Log-Repo gelandet — auf dem Weg nach GitHub: {angekommen}"
+    assert any(a.endswith("fremd_2026-09-24_beitrag.md") for a in angekommen), \
+        "der Ausschluss hat auch die uebrige Wissensablage geschluckt"
+    _, _, rumpf = _quittung().partition("AUSGESCHLOSSEN")
+    assert "modul-1" not in rumpf, "jedes Transkript wird einzeln als Fehler gemeldet"
+    assert "wissen/kurse/" in rumpf, "der Kurszweig wird lautlos zurueckgehalten"
+
+
+check("der Kurszweig kommt nicht mit (Adams Material, 24.09.)",
+      _der_kurszweig_kommt_nicht_mit)
 check("nur Transportrelevantes gilt als ausgeschlossen",
       _nur_transportrelevantes_wird_als_ausgeschlossen_gemeldet)
 check("der Rechnungszweig kommt nicht mit (Befund 4)",

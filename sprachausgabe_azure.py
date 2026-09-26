@@ -44,6 +44,8 @@ import re
 import time
 from pathlib import Path
 
+import jahreszahl
+
 # ---- Einstellgrößen — Zahlen an einer Stelle (Register: ABHAENGIGKEITEN.md) --
 REGION = (os.environ.get("AZURE_SPEECH_REGION") or "germanywestcentral").strip()
 DECKEL_EUR = float(os.environ.get("TTS_AZURE_DECKEL_EUR") or 5)
@@ -192,6 +194,12 @@ def _ersetzen(m: "re.Match") -> str:
         return " Punkt ".join(m.group("fassung").split("."))
     if m.group("kennung"):
         return f'<say-as interpret-as="number_digit">{m.group("kennung")}</say-as>'
+    # `[26.09.2026]` Eine Menge ist kein Jahr mehr — dieselbe Erkennung wie bei
+    # edge-tts und Piper (`jahreszahl.art`): „(1500 Zeichen)" wird Zahl.
+    # Ohne jeden Hinweis bleibt es bei der bisherigen Lesart als Jahr (Adams
+    # Prueffall „2019", 26.09.).
+    if jahreszahl.art(m.string, m.start("jahr"), m.end("jahr")) == "menge":
+        return f'<say-as interpret-as="cardinal">{m.group("jahr")}</say-as>'
     return f'<say-as interpret-as="date" format="y">{m.group("jahr")}</say-as>'
 
 

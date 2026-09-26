@@ -353,6 +353,7 @@ run "Kurs-Videos: Transkription, Ablage, Wache (24.09.)" "$PY" scripts/test_kurs
 run "Mac-Weg: Auftrag hin und zurueck (Block 7)" "$PY" scripts/test_macweg.py
 run "Azure-Stimme: SSML, Riegel, Rueckfall (9.1)" "$PY" scripts/test_sprachausgabe_azure.py
 run "Lokale Stimme fuer Rotes (9.2)" "$PY" scripts/test_sprachausgabe_lokal.py
+run "Jahreszahlen: eine Erkennung, drei Sprechwege (26.09.)" "$PY" scripts/test_jahreszahl.py
 run "Modellwaechter (Block 4)" "$PY" scripts/test_modellwaechter.py
 run "Stundenblumen (Belegkette)"        "$PY" scripts/test_stundenblumen.py
 run "Zustell-Waechter (erreicht uns TG?)" "$PY" scripts/test_zustellwaechter.py

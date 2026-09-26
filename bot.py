@@ -100,6 +100,7 @@ import media
 import pending
 import presend
 import reactions
+import jahreszahl
 import empfang
 import zustellmarke
 
@@ -11928,6 +11929,15 @@ def run_self_check() -> tuple[bool, list[str]]:
         # Uhrzeit-Indikator: bleibt stehen, damit TTS '3.12 Uhr' als Zeit liest
         assert nv("um 3.12 Uhr") == "um 3.12 Uhr", \
             "Uhrzeit mit 'Uhr' fälschlich umgeschrieben"
+        # Jahreszahlen in Klammern (26.09., Claudias Tabelle): Struktur statt Wort.
+        nj = _normalize_jahreszahlen
+        assert nj("RL (1922)") == "RL (neunzehnhundertzweiundzwanzig)", \
+            "Jahr allein in Klammern als Menge gelesen"
+        assert nj("8C 2900 (1936, Kleinserie)") == \
+            "8C 2900 (neunzehnhundertsechsunddreißig, Kleinserie)", \
+            "Jahr am Klammeranfang vor Komma als Menge gelesen"
+        assert nj("Limit (1500 Zeichen)") == "Limit (1500 Zeichen)", \
+            "Menge mit Einheit in Klammern als Jahr gelesen"
     check("TTS-Cleanup", _c_tts)
 
     # 3. Neustart-Meldung — natürliche Sprache, keine technischen Labels
@@ -15872,30 +15882,11 @@ def _zahlwort(n: int, allein: bool = False) -> str:
     return _ZEHNER[z] if e == 0 else f"{_EINER[e]}und{_ZEHNER[z]}"
 
 
-# Wörter, die eine vierstellige Zahl als JAHR ausweisen. Ohne einen davon
-# bleibt sie unangetastet — „1985 Teilnehmer" ist eine Menge.
-#
-# **F-1: `im` ist ersatzlos gestrichen.** Es trug nie allein einen Jahresbezug
-# — „im Jahr 1985" wird schon von `jahr` erfasst, „im 1985" sagt niemand. Was
-# es tatsächlich erfasste, waren Mengen: „im 1500-Zeichen-Fenster".
-# `von`, `bis` und `ab` bleiben, weil sie in „von 1985 bis 1990" tragen — aber
-# nur noch zusammen mit der Einheiten-Gegenprobe unten.
-_JAHR_HINWEIS = re.compile(
-    r"(?:\b(?:jahr|jahre|jahren|seit|ab|bis|von|anno|baujahr|jahrgang|"
-    r"geboren|gegründet|gegruendet|damals|sommer|winter|frühjahr|fruehjahr|"
-    r"herbst)\b\W{0,3})$", re.IGNORECASE)
-
-# **Die Gegenprobe nach hinten (F-1).** Folgt der Zahl eine Maßeinheit, ist sie
-# eine Menge — und zwar auch dann, wenn davor ein Jahres-Wort steht:
-# „bis 1500 Zeichen" trägt beides. Bei Widerspruch gewinnt die Einheit, weil
-# sie die spezifischere Aussage ist.
-_MENGEN_EINHEIT = re.compile(
-    r"^\W{0,3}(zeichen|wörter|woerter|worte|zeilen|seiten|stück|stueck|"
-    r"euro|dollar|cent|meter|kilometer|km|kg|gramm|tonnen|liter|"
-    r"mb|gb|kb|tb|mib|gib|kib|byte|bytes|bit|pixel|punkte|"
-    r"teilnehmer|personen|leute|kunden|nutzer|mitglieder|besucher|"
-    r"sekunden|minuten|stunden|tage|wochen|monate|kalorien|grad|prozent)\b",
-    re.IGNORECASE)
+# `[26.09.2026]` Jahres-Woerter und Einheiten-Gegenprobe stehen seit
+# „Jahreszahlen in Klammern" in `jahreszahl.py` — EINE Erkennung fuer
+# edge-tts, Piper und Azure (Engywucks f4, Geschwister-Auflage).
+_JAHR_HINWEIS = jahreszahl.JAHR_HINWEIS
+_MENGEN_EINHEIT = jahreszahl.MENGEN_EINHEIT
 
 
 def _normalize_jahreszahlen(text: str) -> str:
@@ -15907,25 +15898,18 @@ def _normalize_jahreszahlen(text: str) -> str:
     Zahlform („eintausendneunhundertfünfundachtzig") klingt in einem
     Jahresbezug schlicht falsch.
 
-    **Es wird nur umgeschrieben, wenn ein Jahres-Wort davorsteht.** Eine bloße
-    Ziffernfolge ist mehrdeutig — „1985 Teilnehmer" ist eine Menge, und die
-    darf nicht zum Jahr werden.
+    **Es wird nur umgeschrieben, wenn ein Hinweis traegt** — ein Jahres-Wort
+    davor, ein Bereich, oder seit 26.09. die Klammerstellung `(1927)`. Eine
+    bloße Ziffernfolge ist mehrdeutig — „1985 Teilnehmer" ist eine Menge, und
+    die darf nicht zum Jahr werden. Die Erkennung selbst steht in
+    `jahreszahl.art`, die auch Azure ruft.
     """
     import re
 
     def _ersetze(m: "re.Match") -> str:
-        rest = text[m.end():m.end() + 30]
-        if not _JAHR_HINWEIS.search(text[max(0, m.start() - 30):m.start()]):
-            # **F-5, der Rest aus F-1: die Bereichsform.** In „1985 bis 1990"
-            # trägt nur die ZWEITE Zahl einen Hinweis davor — die erste wurde
-            # als Ziffernfolge gelesen, und der Satz klang halb übersetzt.
-            # Ein Bereich, auf den keine Maßeinheit folgt, ist ein Jahresbereich;
-            # bei „1500 bis 1800 Zeichen" greift die Einheit und beide bleiben.
-            bereich = re.match(r"\s*(?:bis|–|-)\s*1[1-9][0-9]{2}\b(.{0,20})", rest)
-            if not (bereich and not _MENGEN_EINHEIT.match(bereich.group(1))):
-                return m.group(0)
-        elif _MENGEN_EINHEIT.match(rest[:20]):
-            return m.group(0)      # F-1: „bis 1500 Zeichen" ist eine Menge
+        # Wortbezug, Bereich, Klammerstellung, Einheit: `jahreszahl.art`.
+        if jahreszahl.art(text, m.start(), m.end()) != "jahr":
+            return m.group(0)
         n = int(m.group(0))
         hundert, rest = divmod(n, 100)
         wort = f"{_EINER[hundert]}hundert"
@@ -15933,8 +15917,10 @@ def _normalize_jahreszahlen(text: str) -> str:
 
     # F-1: Ein Satzpunkt darf die Jahreszahl nicht verdecken — `gegründet
     # 1901.` ist die häufigste Stellung überhaupt. Punkt und Komma blocken
-    # nur noch, wenn eine ZIFFER folgt (dann ist es eine Dezimalzahl).
-    return re.sub(r"(?<![\d.,])1[1-9][0-9]{2}(?![\d,])(?!\.\d)", _ersetze, text)
+    # nur noch, wenn eine ZIFFER folgt (dann ist es eine Dezimalzahl) — seit
+    # 26.09. auch das Komma dahinter: `(1936, Kleinserie)` ist ein Jahr,
+    # `1936,5` bleibt eine Zahl.
+    return re.sub(r"(?<![\d.,])1[1-9][0-9]{2}(?!\d)(?![.,]\d)", _ersetze, text)
 
 
 # Wörter, nach denen eine lange Ziffernfolge eine KENNUNG ist, keine Menge.

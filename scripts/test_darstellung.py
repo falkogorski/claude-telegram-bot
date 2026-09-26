@@ -74,11 +74,13 @@ class _Telegram:
         self.lehnt_ab = lehnt_ab
         self.texte: list[dict] = []
         self.stimmen: list[dict] = []
+        self.folge: list[str] = []     # Reihenfolge der Sendungen
 
     async def send_message(self, **kw):
         if self.lehnt_ab and kw.get("entities"):
             raise BadRequest("Can't parse entities")
         self.texte.append(kw)
+        self.folge.append("text")
         return _Nachricht(100 + len(self.texte))
 
     async def send_voice(self, **kw):
@@ -86,6 +88,7 @@ class _Telegram:
             raise BadRequest("Can't parse caption entities")
         kw.pop("voice", None)
         self.stimmen.append(kw)
+        self.folge.append("stimme")
         return _Nachricht(500 + len(self.stimmen))
 
 
@@ -211,15 +214,38 @@ zeile("und steht nicht in der Bildunterschrift",
       tg.stimmen and all("vorschau" not in (s.get("caption") or "")
                          for s in tg.stimmen),
       gemessen=str([(s.get("caption") or "")[-40:] for s in tg.stimmen]))
-zeile("die Bildunterschrift ist ausgezeichnet",
+# Seit der Vorschau-Trennung (26.09.) traegt die Stimme bei gewollter Karte
+# nur noch eine kurze Unterschrift — die Auszeichnung der Unterschrift misst
+# deshalb der Fall OHNE Karte.
+ok, tg = _senden(drei, tts=True, vorschau=False)
+zeile("die Bildunterschrift ist ausgezeichnet (ohne Karte)",
       tg.stimmen and "text_link" in _arten(tg.stimmen[0]),
       gemessen=str(_arten(tg.stimmen[0]) if tg.stimmen else None))
 
-ok, tg = _senden(PROBE, tts=True, lehnt_ab=True)
+ok, tg = _senden(PROBE, tts=True, vorschau=False, lehnt_ab=True)
 zeile("lehnt Telegram die Bildunterschrift ab, kommt die Stimme mit Rohtext",
       ok and len(tg.stimmen) == 1 and tg.stimmen[0].get("caption") == PROBE
       and not tg.stimmen[0].get("caption_entities"),
       gemessen=str([(s.get("caption") or "")[:30] for s in tg.stimmen]))
+
+# ── B2. Vorschaukarte und Sprachausgabe getrennt (26.09.) ───────────────────
+# Engywucks Befund 1, Adams Entscheid 14:00: An einer Bildunterschrift zeigt
+# Telegram keine Karte. Mit Karte UND Stimme: der Text als eigene Nachricht mit
+# Karte, ZUERST (Fenster-Regel), die Stimme danach mit kurzer Unterschrift.
+print("== B2. Vorschau und Sprachausgabe ==")
+ok, tg = _senden(drei + f"\n<vorschau>{A2}</vorschau>", tts=True)
+zeile("mit Karte und Stimme: eine Textnachricht mit Karte und die Stimme",
+      ok and len(tg.texte) == 1 and _vorschau(tg.texte[0]) == (False, A2) and tg.stimmen,
+      gemessen=f"texte={len(tg.texte)} karte={_vorschau(tg.texte[0]) if tg.texte else None} "
+               f"stimmen={len(tg.stimmen)}")
+zeile("der Text kommt zuerst, dann die Stimme", tg.folge[:2] == ["text", "stimme"],
+      gemessen=str(tg.folge))
+zeile("die Stimme trägt keinen langen Untertext", all(not s.get("caption") for s in tg.stimmen),
+      gemessen=str([(s.get("caption") or "")[:30] for s in tg.stimmen]))
+ok, tg = _senden(drei, tts=True, vorschau=False)
+zeile("ohne Karte bleibt es bei einer Nachricht: Stimme mit Text als Unterschrift",
+      ok and not tg.texte and len(tg.stimmen) == 1 and tg.stimmen[0].get("caption"),
+      gemessen=f"texte={len(tg.texte)} stimmen={len(tg.stimmen)}")
 
 # ── C. Kopiertext ─────────────────────────────────────────────────────────
 print("== C. Kopiertext ==")

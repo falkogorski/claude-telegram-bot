@@ -16646,6 +16646,30 @@ async def send_answer_to_user(
 
     delivered = False
     last_sent_id: int | None = None
+    # `[NEU 26.09.2026, Engywucks Befund 1, Adams Entscheid 14:00]` Vorschaukarte
+    # und Sprachausgabe trennen: An einer Bildunterschrift zeigt Telegram keine
+    # Karte — gemessen auf Adams Fotos, obwohl `_vorschau_an` wahr und die
+    # Angabe gueltig war. Nur wenn eine Karte gewollt ist, geht der Text als
+    # eigene Nachricht mit Karte, und die Stimme folgt mit kurzer Unterschrift
+    # (wie bei force_tts). **Text zuerst** (Fenster-Regel): Die Antwort ist
+    # gesichert, bevor die langsamere Sprachausgabe laeuft.
+    getrennt = bool(vorschau_url) and not force_tts
+    if getrennt:
+        sent_text = await send_chunked(
+            sess.bot, chat_id, text, reply_markup=kb,
+            reply_to=reply_to if first_pending else None,
+            thread_id=thread_id, auszeichnen=True, vorschau_url=vorschau_url,
+        )
+        # Zustellnachweis am Ergebnis, nie hart gesetzt (Selbstcheck 5.2).
+        delivered = sent_text is not None
+        if sent_text is not None:
+            _remember_bot_msg(chat_id, sent_text.message_id, text)
+            last_sent_id = getattr(sent_text, "message_id", None)
+            first_pending = False
+        else:
+            # Scheitert der Text, bleibt es beim bisherigen Weg (Text als
+            # Unterschrift der Stimme) — sonst kaeme nur die Stimme an.
+            getrennt = False
     rest = text
     # **Der Quellenhinweis, genau einmal je Nachricht** (Adams Variante 1 vom
     # 27.08.). Seit die Adresse fliegt und der Linktext bleibt, hoert Adam den
@@ -16684,7 +16708,7 @@ async def send_answer_to_user(
         if tts_clean:
             # [Block 2] Die Bildunterschrift ausgezeichnet, wenn sie nach dem
             # Umwandeln in Telegrams Grenze passt — sonst roh wie bisher.
-            _roh_unterschrift = None if force_tts else chunk[:1024]
+            _roh_unterschrift = None if (force_tts or getrennt) else chunk[:1024]
             _unterschrift, _u_ents = _roh_unterschrift, None
             if _roh_unterschrift:
                 _au = auszeichnung(_roh_unterschrift)
@@ -16695,10 +16719,15 @@ async def send_answer_to_user(
                 caption=_unterschrift,
                 reply_to=reply_to if first_pending else None,
                 thread_id=thread_id,
-                reply_markup=None if force_tts else kb,
+                reply_markup=None if (force_tts or getrennt) else kb,
                 caption_entities=_u_ents, caption_roh=_roh_unterschrift,
             )
-        if sent is None:
+        if sent is None and getrennt and delivered:
+            # Der Text steht schon mit Karte im Chat — ein Ausfall der Stimme
+            # kostet hier nur die Stimme, keinen zweiten Text.
+            if tts_clean:
+                log.warning("TTS-Chunk fehlgeschlagen — Text liegt bereits (Vorschau-Trennung)")
+        elif sent is None:
             # Sprachausgabe ausgefallen (edge-tts nicht erreichbar o. ä.) ODER der
             # Chunk war nicht sprechbar: NIEMALS still verschlucken — als Text
             # zustellen. Eine gelesene Antwort ist unendlich viel besser als keine.

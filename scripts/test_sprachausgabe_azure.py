@@ -205,6 +205,20 @@ zeile("Azure fällt aus: edge-tts spricht, keine Stille", tg.stimmen == [b"ID3ed
       gemessen=f"stimmen={tg.stimmen}")
 zeile("und bekommt die Zahlen-Umschreiber nachgeholt", _EDGE and "800.000" not in _EDGE[0],
       gemessen=str(_EDGE))
+_ANTWORTEN[:] = [200]
+_zaehler(0)
+tg, r = _senden("Dein Passwort steht im Befund vom Arzt.")
+zeile("rot eingestuft: kein Text geht an Azure, edge-tts spricht wie bisher",
+      not _GESENDET and tg.stimmen == [b"ID3edge"] and az.stand()["zeichen"] == 0,
+      gemessen=f"an Azure: {len(_GESENDET)}, gebucht {az.stand()}")
+_alt_klass = bot.ampel.classify
+bot.ampel.classify = lambda t: (_ for _ in ()).throw(RuntimeError("Regeldatei kaputt"))
+try:
+    tg, r = _senden("Es kostet 800.000 Euro.")
+finally:
+    bot.ampel.classify = _alt_klass
+zeile("scheitert die Einstufung, gilt es als rot (nicht zu Azure)",
+      not _GESENDET and tg.stimmen == [b"ID3edge"], gemessen=f"an Azure: {len(_GESENDET)}")
 _azure(False)
 tg, r = _senden("Es kostet 800.000 Euro.")
 zeile("Schalter aus: kein Text geht an Azure", not _GESENDET and tg.stimmen == [b"ID3edge"],

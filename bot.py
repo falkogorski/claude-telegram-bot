@@ -16555,6 +16555,20 @@ async def _azure_ton(chunk: str) -> "bytes | None":
     nicht kosten, und ein Fehler bei Azure nicht die Meldung."""
     if not sprachausgabe_azure.bereit():
         return None
+    # `[NEU 26.09.2026]` **Rotes geht nie zu Azure** (Engywucks Einordnung c
+    # im Zettel 26.09.: eine Azure-Stimme fuer Rotes schickte es zu Microsoft;
+    # Rotes gehoert zur lokalen Stimme, 9.2). Bis 9.2 steht, spricht dort wie
+    # bisher edge-tts — nichts Neues nach draussen. Die Ampel steht noch in der
+    # Beobachtungsphase mit breiten Regeln; sie schlaegt also eher zu oft an,
+    # und das ist hier die richtige Fehlerrichtung. Scheitert die Einstufung,
+    # gilt es als rot.
+    try:
+        rot = ampel.classify(chunk).get("color") == "rot"
+    except Exception:
+        rot = True
+    if rot:
+        log.info("⚙️ Sprachausgabe: als rot eingestuft — nicht zu Azure, edge-tts spricht")
+        return None
     erlaubt, meldungen = sprachausgabe_azure.pruefen_und_buchen(len(chunk))
     try:
         import botenpost

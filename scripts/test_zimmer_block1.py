@@ -107,8 +107,15 @@ zeile("ein Zimmer schließen lässt das andere stehen (Gegenrichtung)",
 # `thread_id` laengst — sie kam nur nie beim Schluessel an.
 import inspect                                                  # noqa: E402
 _quelle = inspect.getsource(bot._run_job)
+# `[26.09.2026, Nebenfaden]` Der Schluessel kommt jetzt aus `_job_faden(job)`
+# (im Nebenzimmer weicht er vom Thema ab) — fuer jedes gewoehnliche Zimmer ist
+# er das Thema, und das wird hier AUSGEFUEHRT, nicht nur gelesen.
+_j7 = bot.QueuedJob(update=None, text="x", user_id=UID, thread_id=7)
+zeile("der Schluessel eines gewoehnlichen Auftrags ist sein Thema (_job_faden)",
+      bot._job_faden(_j7) == 7 and bot._job_faden(bot.QueuedJob(update=None, text="x")) is None,
+      gemessen=str(bot._job_faden(_j7)))
 zeile("der Auftrag holt die Sitzung SEINES Zimmers",
-      "ensure_session(user_id, thread_id=job.thread_id)" in _quelle,
+      "ensure_session(user_id, thread_id=_job_faden(job))" in _quelle,
       gemessen=[z.strip() for z in _quelle.splitlines()
                 if "ensure_session" in z][:1])
 

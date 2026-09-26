@@ -17,7 +17,7 @@ import socket
 import time
 import uuid
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as _dc_replace
 from pathlib import Path
 from typing import Any, Optional
 
@@ -1739,6 +1739,47 @@ def faden(user_id: int, thread_id: "int | None" = None) -> Faden:
 SESSIONS: dict[Faden, UserSession] = {}
 
 
+# ── Das Nebenzimmer  `[NEU 26.09.2026, Bauauftrag Nebenfaden f2, Teil 3]` ──
+#
+# Ein zweites Zimmer fuer DASSELBE Thema, das eine kurze, eigenstaendige Frage
+# beantwortet, waehrend das erste rechnet. Es braucht einen eigenen Schluessel
+# (eigene Warteschlange, eigener Worker, eigene Sitzung) — aber seine Ausgabe
+# geht ins echte Thema. **Schluessel und Ausgabe-Adresse sind hier zum ersten
+# Mal verschieden**; der Dirigent (Stufe 2) macht daraus die Regel.
+#
+# Der Schluessel ist eine negative Zahl: Telegram-Themen sind positiv, der
+# Hauptfaden ist None. `-1` ist das Nebenzimmer des Hauptfadens, `-1 - t` das
+# des Themas `t`. Kein Zeichenkettenschluessel — der Typ `Faden` bleibt.
+def neben_faden_thread(thread_id: "int | None") -> int:
+    """Der Schluessel-Teil des Nebenzimmers zu diesem Thema."""
+    return -1 - int(thread_id or 0)
+
+
+# Was das Nebenzimmer nicht darf. Bash ganz — „schreibendes Bash" laesst sich
+# nicht verlaesslich erkennen, und Lesen geht ueber Read/Grep/Glob.
+NEBEN_GESPERRT = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit", "Bash"})
+
+
+def ist_nebenzimmer(thread_id: "int | None") -> bool:
+    return isinstance(thread_id, int) and thread_id < 0
+
+
+def _job_faden(job) -> "int | None":
+    """Der Schluessel-Teil, unter dem DIESER Auftrag laeuft. `job.thread_id`
+    ist das Telegram-Thema; im Nebenzimmer weicht der Schluessel davon ab."""
+    if getattr(job, "neben_kennung", None):
+        return neben_faden_thread(job.thread_id)
+    return job.thread_id
+
+
+def ausgabe_thread(thread_id: "int | None") -> "int | None":
+    """Das Telegram-Thema zu einem Schluessel-Teil — fuer ALLES, was sendet."""
+    if not ist_nebenzimmer(thread_id):
+        return thread_id
+    t = -1 - thread_id
+    return t or None
+
+
 def _mb_opt(user_id: int, thread_id: "int | None" = None) -> "Mailbox | None":
     """Die Warteschlange dieses Zimmers, **ohne sie anzulegen**.
 
@@ -1880,6 +1921,8 @@ def leitstand(user_id: "int | None" = None) -> "list[dict]":
                      key=lambda f: (f[0], -1 if f[1] is None else f[1])):
         if user_id is not None and fd[0] != int(user_id):
             continue
+        if ist_nebenzimmer(fd[1]):
+            continue   # Nebenfaden: kurzlebig, kein Ziel fuer Zettel, nicht in /zimmer
         mb = MAILBOXES.get(fd)
         sess = SESSIONS.get(fd)
         job = mb.current_job if mb is not None else None
@@ -2034,6 +2077,10 @@ class QueuedJob:
     # `[NEU 24.09.2026, Block 6 Teil 2]` [mehr auswerten]: Kopfdaten für die
     # Wissensablage — abgelegt wird erst nach der Zustellung.
     wissen_meta: dict | None = None
+    # `[NEU 26.09.2026, Nebenfaden]` Gesetzt nur am Auftrag im Nebenzimmer:
+    # die Kennung der Entscheidung, deren Zwilling nach der Zustellung
+    # uebersprungen wird.
+    neben_kennung: str | None = None
 
 
 @dataclass
@@ -2209,6 +2256,8 @@ def arbeitende_zimmer(user_id: int, ausser: "int | None" = None) -> int:
     for fd, mb in list(MAILBOXES.items()):
         if fd[0] != int(user_id) or fd[1] == ausser or mb.current_job is None:
             continue
+        if ist_nebenzimmer(fd[1]):
+            continue   # Nebenfaden: eine kurze Antwort, bremst kein Zimmer
         # **[NEU 10.09.2026, Ultracode-Befund A-4] Wer auf Adams Freigabe
         # wartet, RECHNET NICHT.**
         #
@@ -2287,7 +2336,7 @@ def darf_starten(user_id: int, thread_id: "int | None" = None) -> bool:
     Die Grenze gilt **je Person**, nicht je Zimmer: Es ist ein Konto, aus dem
     alle Zimmer schöpfen.
     """
-    if ZIMMER_GLEICHZEITIG <= 0:
+    if ZIMMER_GLEICHZEITIG <= 0 or ist_nebenzimmer(thread_id):
         return True
     return arbeitende_zimmer(user_id, ausser=thread_id) < ZIMMER_GLEICHZEITIG
 
@@ -2356,7 +2405,7 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
                     try:
                         await bot_obj.send_message(
                             chat_id=(job0.chat_id or user_id),
-                            message_thread_id=thread_id,
+                            message_thread_id=ausgabe_thread(thread_id),
                             text=("🚦 Ich warte kurz — es rechnen schon "
                                   f"{ZIMMER_GLEICHZEITIG} Zimmer. Sobald eines "
                                   "fertig ist, geht es hier weiter."))
@@ -2376,6 +2425,14 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
             break
 
         job = mb.queue.popleft()
+        # `[NEU 26.09.2026, Nebenfaden]` Rechnet der Nebenfaden fuer DIESE
+        # Nachricht noch, wartet der Zwilling auf ihn — sonst kaeme die
+        # Antwort doppelt. Nach der Frist laeuft er trotzdem (nie Stille).
+        if not ist_nebenzimmer(thread_id) and zettel_schluessel(job) in _NEBEN_LAUFEND:
+            _frist = time.monotonic() + NEBEN_WARTEN_S
+            while (zettel_schluessel(job) in _NEBEN_LAUFEND
+                   and time.monotonic() < _frist):
+                await asyncio.sleep(1)
         # **[NEU 09.09.2026, Block 1b]** Der Nachtrag ist im vorigen Auftrag
         # angekommen UND dieser ist beantwortet -- eine zweite Antwort waere
         # dieselbe Auskunft ein zweites Mal. Nur DIESER eine Fall ueberspringt;
@@ -2421,6 +2478,14 @@ async def _session_worker(user_id: int, thread_id: "int | None" = None) -> None:
             # hineingeschafft hat, darf den NAECHSTEN Auftrag nicht erreichen.
             nachsteuer_aufraeumen(user_id, thread_id, _auftrag_kennung(job),
                                   beantwortet=(outcome == "beantwortet"))
+        # `[NEU 26.09.2026, Nebenfaden]` Buchung in eigener Klammer, dann
+        # endet die Sitzung des Nebenzimmers (kein Gedaechtnis ueber den Lauf).
+        if ist_nebenzimmer(thread_id):
+            _neben_buchen(user_id, job, outcome)
+            try:
+                await close_session(user_id, thread_id)
+            except Exception:
+                log.exception("Nebenfaden: Sitzung nicht geschlossen (nicht-fatal)")
         # S1/G6: Erst hier steht fest, ob wirklich etwas herauskam.
         if job.links_abhaken:
             await _links_nachtragen(job, outcome)
@@ -2490,7 +2555,7 @@ def _neuere_wartende(user_id: int, job: QueuedJob) -> "tuple[int, int]":
     das der Bot selbst bricht, ist schlimmer als gar keine Zeile.**
     """
     try:
-        mb = _mb_opt(user_id, job.thread_id)
+        mb = _mb_opt(user_id, _job_faden(job))
         if not mb or not mb.queue:
             return 0, 0
         neuer = [j for j in mb.queue if j.received_at > job.received_at]
@@ -2592,7 +2657,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
     # **[GEAENDERT 09.09.2026]** Die Sitzung gehoert dem Zimmer, aus dem die
     # Nachricht kam — sonst antworteten zwei Zimmer aus derselben Sitzung und
     # teilten sich einen Gespraechsfaden.
-    sess = await ensure_session(user_id, thread_id=job.thread_id)
+    sess = await ensure_session(user_id, thread_id=_job_faden(job))
     # 5.25 (a): Herkunfts-Menge PRO AUFGABE frisch aufsetzen — Adressen aus Adams
     # Nachricht; Suchtreffer der Aufgabe kommen in stream_response dazu. Nur
     # dorthin darf WebFetch ohne Rückfrage.
@@ -2690,7 +2755,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 # richtig; hier fehlte dieselbe Behandlung. **Ein Zugangsfehler
                 # ist kein Scheitern der Nachricht, sondern ein Zustand des
                 # Systems** — die Nachricht ist nur noch nicht dran.
-                mb = _get_mailbox(user_id, job.thread_id)
+                mb = _get_mailbox(user_id, _job_faden(job))
                 mb.queue.appendleft(job)
                 if job.pending_key:
                     pending.set_status(job.pending_key, pending.STATUS_OPEN)
@@ -2707,7 +2772,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                         parse_mode=ParseMode.MARKDOWN)
                 except Exception:
                     log.exception("failed to send auth-error message")
-                await close_session(user_id, job.thread_id)
+                await close_session(user_id, _job_faden(job))
                 return "zurueckgelegt"
             # **Block 4, Sicherung (2): die erste Nachricht ist die Probe.**
             # Adams Entscheid vom 23.09.: Der Waechter stellt von selbst um;
@@ -2716,11 +2781,11 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             # Nachricht damit. Nach dem Anmelde-Zweig, damit ein
             # Anmeldefehler nie als Modellfehler gelesen wird.
             if await _modellprobe_zurueck(sess, str(e)):
-                mb = _get_mailbox(user_id, job.thread_id)
+                mb = _get_mailbox(user_id, _job_faden(job))
                 mb.queue.appendleft(job)
                 if job.pending_key:
                     pending.set_status(job.pending_key, pending.STATUS_OPEN)
-                await close_session(user_id, job.thread_id)
+                await close_session(user_id, _job_faden(job))
                 return "offen"
             # H2 Ebene 1: Kontingent-Limit — die Nachricht ist NICHT gescheitert,
             # sie ist nur noch nicht dran. Sie geht unverändert zurück an den
@@ -2728,7 +2793,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             # Worker legt sich bis zum Reset schlafen und spielt danach alles
             # der Reihe nach nach. Nichts geht verloren.
             if is_session_limit(e):
-                mb = _get_mailbox(user_id, job.thread_id)
+                mb = _get_mailbox(user_id, _job_faden(job))
                 # **[RANG A, Stelle 6 — 29.08.] Die Rueckstellung ist jetzt eine
                 # eigene Funktion**, damit ein Pruefer sie AUFRUFEN kann.
                 # Vorher stand sie hier inline, und der Pruefer baute sie in
@@ -2762,7 +2827,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     )
                 except Exception:
                     log.exception("failed to send session-limit message")
-                await close_session(user_id, job.thread_id)
+                await close_session(user_id, _job_faden(job))
                 return "offen"
             # H1: Transportgrenze der Leitung — eigener Zweig mit ehrlicher,
             # verständlicher Meldung. Vorher fiel dieser Fall in den allgemeinen
@@ -2782,7 +2847,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     )
                 except Exception:
                     log.exception("failed to send transport-overflow message")
-                await close_session(user_id, job.thread_id)
+                await close_session(user_id, _job_faden(job))
                 return "aufgegeben"
             # Kontext-Überlauf: Session verwerfen, frisch starten und die
             # gescheiterte Nachricht AUTOMATISCH neu verarbeiten (kein Nutzer-Eingriff,
@@ -2790,9 +2855,9 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             if is_context_overflow(e):
                 if not job.context_retry:
                     log.warning("context overflow user_id=%s — rotiere Session + retry", user_id)
-                    await close_session(user_id, job.thread_id)
+                    await close_session(user_id, _job_faden(job))
                     job.context_retry = True
-                    mb = _get_mailbox(user_id, job.thread_id)
+                    mb = _get_mailbox(user_id, _job_faden(job))
                     mb.queue.appendleft(job)  # als Nächstes mit frischer Session
                     try:
                         # **[NEU 10.09.2026]** Diese Stelle stand in KEINER
@@ -2818,7 +2883,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                     )
                 except Exception:
                     log.exception("failed to send context-overflow message")
-                await close_session(user_id, job.thread_id)
+                await close_session(user_id, _job_faden(job))
                 return "aufgegeben"
             try:
                 await send_chunked(
@@ -2831,7 +2896,7 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
                 )
             except Exception:
                 log.exception("failed to send error message to user")
-            await close_session(user_id, job.thread_id)
+            await close_session(user_id, _job_faden(job))
             return "fehler"
 
     # **Block 6, /neues:** Claudias Vorschläge stehen als `<vorschlag>…</vorschlag>`
@@ -4885,6 +4950,14 @@ def make_permission_callback(user_id: int, thread_id: "int | None" = None):
         tool_input: dict[str, Any],
         context: ToolPermissionContext,
     ):
+        # `[NEU 26.09.2026, Nebenfaden Teil 3]` Das Nebenzimmer schreibt nicht:
+        # zwei Sitzungen an denselben Dateien sind das Risiko, das dieser Bau
+        # nicht eingeht. ZUERST, vor jeder anderen Weiche — auch ohne Sitzung.
+        if ist_nebenzimmer(thread_id) and tool_name in NEBEN_GESPERRT:
+            log.info("Nebenzimmer: %s abgelehnt (nur lesen, suchen, Netz)", tool_name)
+            return PermissionResultDeny(
+                message="Im Nebenfaden wird nichts geschrieben und kein Bash "
+                        "ausgefuehrt — nur lesen, suchen und im Netz nachsehen.")
         sess = _sess(user_id, thread_id)
         if sess is None or sess.bot is None or sess.chat_id is None:
             log.error("permission request with no active session for %s (thread=%s)",
@@ -6094,6 +6167,30 @@ def zettel_erledigt(schluessel) -> bool:
     return bool(eintrag and eintrag.get("erledigt"))
 
 
+def nachsteuer_zurueckziehen(user_id: int, thread_id: "int | None", schluessel) -> bool:
+    """`[NEU 26.09.2026, Nebenfaden]` Einen Zettel zuruecknehmen, solange er
+    ungelesen ist. Wirft nie.
+
+    True heisst: Er ist weg, der laufende Auftrag sieht ihn nicht mehr, und
+    der Zwilling ist allein zustaendig. Ist er schon gelesen, laesst sich
+    nichts mehr zuruecknehmen — dann False, und das Register bleibt, wie es
+    ist (der Zwilling wird wie heute uebersprungen, falls der Auftrag ihn
+    beantwortet).
+    """
+    eintrag = _ZETTEL.get(schluessel) if schluessel else None
+    if not eintrag or eintrag.get("gelesen"):
+        return False
+    try:
+        ordner = nachsteuer_ordner(user_id, thread_id)
+        datei = ordner / f"{eintrag.get('auftrag')}__{_zettel_dateiname(schluessel)}.txt"
+        datei.unlink(missing_ok=True)
+        _ZETTEL.pop(schluessel, None)
+        return True
+    except Exception:
+        log.exception("Nachsteuern: Zettel nicht zurueckziehbar (nicht-fatal)")
+        return False
+
+
 def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None,
                      auftrag: "str | None" = None) -> str:
     """Neue Zettel einsammeln und **verbrauchen** — oder leerer Text.
@@ -6207,6 +6304,9 @@ def hauptsitzungs_optionen(*, user_id: int, model_full: str, effort,
         cwd=str(WORKDIR),
         permission_mode="default",
         can_use_tool=make_permission_callback(user_id, thread_id),
+        # Nebenfaden: die Sperre zweimal — hier fuer die Oberflaeche, im
+        # Rueckruf fuer den Fall, dass sie hier nicht greift.
+        disallowed_tools=sorted(NEBEN_GESPERRT) if ist_nebenzimmer(thread_id) else [],
         model=model_full,
         effort=effort,
         add_dirs=add_dirs,
@@ -6290,7 +6390,7 @@ async def ensure_session(
         current_model=model_short,  # Kurzname für Anzeige und Vergleiche
         modell_voll=model_full,     # Block 4: die Kennung, mit der DIESE Sitzung läuft
         current_effort=effort,
-        logger=ConversationLogger(user_id, thread_id),
+        logger=ConversationLogger(user_id, ausgabe_thread(thread_id)),  # Nebenzimmer: dasselbe Protokoll
         always_allowed_tools=_cleaned_allow,
     )
     SESSIONS[faden(user_id, thread_id)] = sess
@@ -9900,7 +10000,7 @@ async def cmd_neues(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                              "message_date": job.received_at})
     except Exception:
         log.exception("/neues nicht persistierbar (nicht-fatal)")
-    mb = _get_mailbox(user_id, job.thread_id)
+    mb = _get_mailbox(user_id, _job_faden(job))
     mb.queue.append(job)
     _ensure_worker(user_id, job.thread_id)
     await update.message.reply_text(
@@ -10033,7 +10133,7 @@ async def on_mehr_knopf(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                             wissen_meta={"titel": eintrag.get("titel") or adresse,
                                          "quelle": eintrag.get("quelle", ""), "adresse": adresse,
                                          "datum": heute, "grundlage": grundlage})
-            mb = _get_mailbox(user_id, job.thread_id)
+            mb = _get_mailbox(user_id, _job_faden(job))
             mb.queue.append(job)
             _ensure_worker(user_id, job.thread_id)
             meldung = f"🔎 Werte aus: {eintrag.get('titel') or adresse}"
@@ -11483,7 +11583,7 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession |
             # General gelesen bezieht Adam sie auf den Hauptchat und sucht den
             # Fehler an der falschen Stelle. `thread_id` ist der Faden des
             # Waechter-Aufrufs, pflichtig seit Block 1b.
-            await bot.send_message(chat_id, msg, message_thread_id=thread_id)
+            await bot.send_message(chat_id, msg, message_thread_id=ausgabe_thread(thread_id))
         except Exception:
             log.exception("Stall: Meldung an Adam konnte nicht gesendet werden")
     else:
@@ -11550,7 +11650,7 @@ async def stall_watchdog(app: Application) -> None:
                 if bot_obj is not None and ziel is not None:
                     try:
                         await bot_obj.send_message(
-                            chat_id=ziel, message_thread_id=fd[1],
+                            chat_id=ziel, message_thread_id=ausgabe_thread(fd[1]),
                             text=(f"💤 {name} war {int(still // 60)} Minuten "
                                   "still — ich lege den Gespraechsfaden "
                                   "schlafen. Deine naechste Nachricht weckt "
@@ -13750,49 +13850,252 @@ async def process_user_text(
             # Sekunden, ohne zu stoppen. Der eingereihte Zwilling bleibt als
             # Sicherung liegen; hat der laufende Auftrag den Zettel bekommen
             # UND ist er beantwortet, wird der Zwilling uebersprungen.
-            gereicht = nachsteuer_schreiben(
-                user_id, _fd_thread, _auftrag_kennung(mb.current_job),
-                (chat_id, update.message.message_id), text)
-            # **[NEU 10.09.2026, Block 3] Regel 2 — eine Stimme statt einer
-            # Quittung.** Die Nachricht steht bereits in der Reihe; was hier
-            # dazukommt, ist eine Antwort in Sekunden, waehrend das Zimmer
-            # weiterrechnet.
-            #
-            # **Der Empfang darf hier NICHT weiterreichen** -- der Auftrag ist
-            # schon eingereiht, ein zweiter Zettel waere derselbe Auftrag ein
-            # zweites Mal. Das entscheidet der Code (`nur_antworten`), nicht
-            # das Modell: Engywucks Satz *die Einreihung des Zwillings bleibt
-            # Code*. Eine Anweisung im Prompt waere eine Bitte.
-            _zwischen = None
-            if empfang_an(user_id):
-                _zwischen = await sekretaerin_fragen(
-                    user_id,
-                    f"[Adams Nachricht ist bereits im Zimmer eingereiht "
-                    f"(Position {pos}); dort laeuft gerade „{running}“. "
-                    f"Antworte ihm kurz, reiche nichts weiter.]\n\n{text}",
-                    bot=update.get_bot(), chat_id=chat_id, nur_antworten=True)
-            if _zwischen:
-                await update.message.reply_text(
-                    _zwischen, reply_parameters=_reply_params(update.message.message_id))
-                _empfang_protokoll(user_id, text, _zwischen, thread_id=_fd_thread)
-            elif gereicht:
-                await update.message.reply_text(
-                    "📨 Notiert — ich reiche es dem laufenden Vorgang gleich "
-                    "hinein, ohne ihn zu stoppen.\n"
-                    f"Läuft gerade: „{running}“\n"
-                    "Falls es dort nicht mehr rechtzeitig ankommt, wird es "
-                    f"danach als eigene Aufgabe bearbeitet (Position {pos}).",
-                    reply_parameters=_reply_params(update.message.message_id),
-                )
-            else:
-                await update.message.reply_text(
-                    "📥 Notiert — reiht sich hinten ein (kommt der Reihe nach dran).\n"
-                    f"Läuft gerade: „{running}“\n"
-                    f"Warteschlange-Position: {pos}",
-                    reply_parameters=_reply_params(update.message.message_id),
-                )
+            # `[NEU 26.09.2026, Nebenfaden f2]` Vier Wege statt eines: Der
+            # Bot schaetzt ein (Empfang an) oder reicht hinein (wie bisher),
+            # und vier Knoepfe lassen Adam uebersteuern. Der Zwilling liegt
+            # in jedem Fall schon in der Reihe.
+            await nebenfaden_einordnen(update, user_id, chat_id, _fd_thread,
+                                       mb, job, text, running)
 
     _ensure_worker(user_id, _fd_thread)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DER NEBENFADEN  `[NEU 26.09.2026, Bauauftrag Nebenfaden f2, Teile 1–5]`
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Eine Nachricht, die kommt, waehrend im selben Zimmer ein Vorgang laeuft,
+# nimmt genau einen von vier Wegen (Adams Reihenfolge): Vorrang, Nebenbei,
+# Einarbeiten, Anreihen. Entschieden wird in `empfang.weg_entscheiden` (ohne
+# Bot-Zustand, ausfuehrbar); hier wird umgesetzt und gebucht.
+#
+# **Die Fenster-Regel traegt alles:** Der eingereihte Zwilling bleibt bis zur
+# Zustellung liegen — die Nachricht ist zu keinem Zeitpunkt nur im
+# Nebenfaden. Er wird erst uebersprungen, wenn der Nebenfaden BELEGT
+# geantwortet hat; laeuft er dann noch, wartet der Zwilling auf ihn.
+_NEBEN: dict[str, dict] = {}        # Kennung → Entscheidung
+_NEBEN_LAUFEND: set = set()         # Zwillings-Schluessel, deren Nebenfaden noch rechnet
+NEBEN_WARTEN_S = float(os.environ.get("NEBEN_WARTEN_S") or 300)
+
+
+def _bezug_auf_laufend(msg, mb, chat_id: int) -> bool:
+    """Gehoert die Nachricht deterministisch zum laufenden Vorgang?
+
+    Ja, wenn sie auf eine Bot-Nachricht antwortet, die NACH dessen Start kam,
+    oder wenn er seither eine offene Frage gestellt hat. Kein Modellurteil.
+    """
+    if not mb.current_started:
+        return False
+    seit = time.time() - (time.monotonic() - mb.current_started)
+    r = getattr(msg, "reply_to_message", None)
+    if r is not None and getattr(getattr(r, "from_user", None), "is_bot", False):
+        d = getattr(r, "date", None)
+        if d is not None and d.timestamp() >= seit - 1:
+            return True
+    try:
+        return reactions.offene_frage_seit(chat_id, seit)
+    except Exception:
+        return False
+
+
+def _neben_belegt(user_id: int, fd_thread: "int | None") -> bool:
+    nmb = _mb_opt(user_id, neben_faden_thread(fd_thread))
+    return bool(nmb is not None and (nmb.current_job is not None or nmb.queue))
+
+
+def _neben_knoepfe(kennung: str):
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(wort, callback_data=empfang.knopf_daten(kennung, weg))
+        for weg, wort, _ in empfang.WEGE]])
+
+
+def _neben_meldung(weg: str, running: str) -> str:
+    satz = {w: s for w, _, s in empfang.WEGE}[weg]
+    return f"📨 {satz}\nLäuft gerade: „{running}“"
+
+
+def _aus_schlange(q, job) -> bool:
+    """Genau DIESEN Auftrag aus der Schlange nehmen (Identitaet, nicht
+    Gleichheit — zwei gleichlautende Nachrichten sind zwei Auftraege)."""
+    for i, j in enumerate(q):
+        if j is job:
+            del q[i]
+            return True
+    return False
+
+
+def _nebenfaden_starten(e: dict) -> None:
+    uid, fd, job = e["user_id"], e["fd"], e["job"]
+    nfd = neben_faden_thread(fd)
+    # Der Zwilling traegt die Persistenz; der Nebenfaden-Auftrag nicht.
+    # Das Thema bleibt das echte (Ausgabe); nur der Schluessel ist abgeleitet
+    # (`_job_faden`). So bleiben alle Sendestellen unberuehrt richtig.
+    nj = _dc_replace(job, pending_key=None, links_abhaken=[],
+                     neben_kennung=e["kennung"])
+    e["neben_job"] = nj
+    _NEBEN_LAUFEND.add(e["schl"])
+    _get_mailbox(uid, nfd).queue.append(nj)
+    _ensure_worker(uid, nfd)
+
+
+async def _nebenfaden_abbrechen(e: dict) -> None:
+    uid, nfd, nj = e["user_id"], neben_faden_thread(e["fd"]), e.get("neben_job")
+    nmb = _mb_opt(uid, nfd)
+    if nj is not None and nmb is not None and not _aus_schlange(nmb.queue, nj) \
+            and nmb.current_job is nj:
+        e["neben_verworfen"] = True
+        s = _sess(uid, nfd)
+        if s is not None:
+            try:
+                await s.client.interrupt()
+            except Exception:
+                log.exception("Nebenfaden: Abbruch fehlgeschlagen (nicht-fatal)")
+    _NEBEN_LAUFEND.discard(e["schl"])
+    e["neben_job"] = None
+
+
+async def _weg_umsetzen(e: dict, neu: str) -> str:
+    """Den Weg setzen oder wechseln: `ok`, `beantwortet` oder `laeuft`.
+
+    Ein Weg laesst sich wechseln, solange nichts zugestellt ist und der
+    Zwilling noch in der Schlange liegt. Laeuft er schon, gilt er als
+    begonnen — dann aendert ein Knopf nichts mehr, und das sagt er auch.
+    """
+    if e.get("zugestellt"):
+        return "beantwortet"
+    uid, fd, job, schl = e["user_id"], e["fd"], e["job"], e["schl"]
+    mb = _get_mailbox(uid, fd)
+    alt = e.get("weg")
+    if alt == neu:
+        return "ok"
+    if alt is not None and not any(j is job for j in mb.queue):
+        return "laeuft"
+    if alt == empfang.EINARBEITEN:
+        nachsteuer_zurueckziehen(uid, fd, schl)
+    if alt == empfang.NEBENBEI:
+        await _nebenfaden_abbrechen(e)
+    if neu == empfang.EINARBEITEN:
+        gereicht = mb.current_job is not None and nachsteuer_schreiben(
+            uid, fd, _auftrag_kennung(mb.current_job), schl, e["text"])
+        if not gereicht:
+            neu = empfang.ANREIHEN      # ohne Zettel ist es ehrlich: angereiht
+    if neu in (empfang.VORRANG, empfang.ANREIHEN) and _aus_schlange(mb.queue, job):
+        # Vorrang OHNE Stopp (Adams Entscheid 2): der laufende Vorgang laeuft
+        # weiter, der Zwilling ist nur der naechste.
+        (mb.queue.appendleft if neu == empfang.VORRANG else mb.queue.append)(job)
+    if neu == empfang.NEBENBEI:
+        _nebenfaden_starten(e)
+    e["weg"] = neu
+    return "ok"
+
+
+def _neben_aufraeumen(jetzt: "float | None" = None) -> None:
+    """Entscheidungen aelter als ein Tag vergessen — der Knopf sagt dann
+    „schon beantwortet". Ohne das wuechse das Register mit jeder Nachricht."""
+    grenze = (jetzt or time.time()) - 86400
+    for k in [k for k, e in _NEBEN.items() if e.get("zeit", 0) < grenze]:
+        _NEBEN.pop(k, None)
+
+
+def _neben_vermerk(e: dict, text: str) -> None:
+    """Teil 5: je Entscheidung eine Zeile in der Empfangs-Ablage. Nur Ablage."""
+    try:
+        _empfang_protokoll(e["user_id"], e["text"], f"[Nebenfaden] {text}",
+                           thread_id=e["fd"])
+    except Exception:
+        log.debug("Nebenfaden: Vermerk fehlgeschlagen", exc_info=True)
+
+
+async def nebenfaden_einordnen(update, user_id: int, chat_id: int,
+                               fd_thread: "int | None", mb, job, text: str,
+                               running: str) -> "dict | None":
+    """Die neue Nachricht einordnen, umsetzen und melden — mit vier Knoepfen.
+
+    Laeuft nichts, gibt es nichts zu entscheiden: kein Modellaufruf, None.
+    """
+    if mb.current_job is None:
+        return None
+    msg = update.message
+    kennung = f"{abs(int(chat_id)) % 10**6}{msg.message_id}"
+    an = empfang_an(user_id)
+    bezug = _bezug_auf_laufend(msg, mb, chat_id)
+    urteil = None
+    if an and not bezug:
+        # Kein Modellaufruf, wenn nichts zu entscheiden ist: Wer hierher kommt,
+        # hat einen laufenden Vorgang und den Empfang eingeschaltet.
+        roh = await sekretaerin_fragen(
+            user_id, empfang.einschaetzung_frage(running, text),
+            bot=update.get_bot(), chat_id=chat_id, nur_antworten=True)
+        urteil = empfang.urteil_lesen(roh)
+    weg = empfang.weg_entscheiden(empfang_an=an, antwort_auf_laufend=bezug,
+                                  urteil=urteil,
+                                  neben_belegt=_neben_belegt(user_id, fd_thread))
+    _neben_aufraeumen()
+    e = {"kennung": kennung, "user_id": user_id, "fd": fd_thread, "job": job,
+         "schl": (chat_id, msg.message_id), "text": text, "weg": None,
+         "auto": weg, "zeit": time.time(), "running": running}
+    _NEBEN[kennung] = e
+    await _weg_umsetzen(e, weg)
+    _neben_vermerk(e, f"automatisch: {e['weg']}")
+    await msg.reply_text(_neben_meldung(e["weg"], running),
+                         reply_markup=_neben_knoepfe(kennung),
+                         reply_parameters=_reply_params(msg.message_id))
+    return e
+
+
+async def on_nebenfaden_knopf(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Adam uebersteuert den Weg. Deterministisch, kein Modellaufruf; jeder
+    Knopf tut etwas oder sagt, warum nicht mehr."""
+    query = update.callback_query
+    if (query.from_user.id if query.from_user else None) not in ALLOWED_USER_IDS:
+        await query.answer()
+        return
+    gelesen = empfang.knopf_lesen(query.data or "")
+    e = _NEBEN.get(gelesen[0]) if gelesen else None
+    if e is None:
+        await query.answer("Schon beantwortet.")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        return
+    alt = e.get("weg")
+    stand = await _weg_umsetzen(e, gelesen[1])
+    if stand != "ok":
+        await query.answer("Schon beantwortet." if stand == "beantwortet"
+                           else "Läuft schon — daran ändert der Knopf nichts mehr.")
+        return
+    if e["weg"] != alt:
+        _neben_vermerk(e, f"übersteuert: {alt} → {e['weg']}")
+    await query.answer({w: wort for w, wort, _ in empfang.WEGE}[e["weg"]])
+    try:
+        await query.edit_message_text(_neben_meldung(e["weg"], e["running"]),
+                                      reply_markup=_neben_knoepfe(e["kennung"]))
+    except Exception:
+        log.debug("Nebenfaden: Meldung nicht nachgezogen", exc_info=True)
+
+
+def _neben_buchen(user_id: int, job, outcome: str) -> None:
+    """Nach dem Lauf des Nebenfadens: Zwilling erledigt — oder Rueckfall.
+
+    **Eigene Klammer, hinter der Zustellung** (Regel vom 10.09.): Ein Fehler
+    hier darf nie die Antwort kosten, nur die Buchung; dann laeuft der
+    Zwilling, und Adam bekommt die Antwort doppelt statt gar nicht.
+    """
+    schl = zettel_schluessel(job)
+    try:
+        e = _NEBEN.get(getattr(job, "neben_kennung", None) or "")
+        if outcome == "beantwortet" and e is not None and not e.get("neben_verworfen"):
+            _ZETTEL[schl] = {"auftrag": "nebenfaden", "gelesen": True, "erledigt": True}
+            e["zugestellt"] = True
+            _neben_vermerk(e, "zugestellt")
+        else:
+            log.warning("⚙️ Nebenfaden ohne Antwort (%s) — die Nachricht laeuft "
+                        "auf dem gewohnten Weg", outcome)
+    except Exception:
+        log.exception("⚙️ Nebenfaden: Buchung fehlgeschlagen — der Zwilling laeuft")
+    finally:
+        _NEBEN_LAUFEND.discard(schl)
 
 
 def _extract_reply_context(update: Update) -> str:

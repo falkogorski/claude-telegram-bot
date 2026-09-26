@@ -162,6 +162,20 @@ zeile("scheitert die Probe an der neuen Kennung, geht der Bot von selbst zurück
 zeile("und sagt es Adam", s.bot.texte and "zurückgegangen" in s.bot.texte[0]["text"],
       gemessen=str(s.bot.texte)[:120])
 
+# `[NEU 26.09.2026]` Der WORTLAUT, den Adams Abo-Probe auf dem VPS gemessen hat:
+# Die CLI ist zu alt fuer die neue Kennung. Er nennt die Kennung nicht und sagt
+# „does not support" statt „not supported" — beides fing die Erkennung vorher
+# nicht, und der Rueckfall waere ausgeblieben.
+_neu()
+modellwaechter.lauf(text=FEED)
+s = _sitzung("claude-fable-5-1")
+ok = asyncio.run(bot._modellprobe_zurueck(
+    s, "API Error: 400 Claude Code 2.1.219 does not support this model; version "
+       "2.1.280 or newer is required. Run 'claude update', or update the Claude "
+       "desktop app, then try again."))
+zeile("gemessen 26.09.: CLI zu alt für die Kennung → der Bot geht von selbst zurück",
+      ok is True and modellwahl.kennung("fable") == "claude-fable-5", gemessen=str(modellwahl.lesen()))
+
 _neu()
 modellwaechter.lauf(text=FEED)
 alt = _sitzung("claude-fable-5")        # eine Sitzung, die noch mit der ALTEN läuft

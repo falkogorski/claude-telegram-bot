@@ -185,14 +185,21 @@ def probe_bestanden(stufe: str, voll: str) -> bool:
 
 _MODELL_WORTE = ("not_found", "not found", "invalid", "does not exist",
                  "not available", "unknown", "not allowed", "not supported",
-                 "permission")
+                 "permission",
+                 # `[NEU 26.09.2026]` GEMESSEN bei Adams Abo-Probe auf dem VPS:
+                 # "API Error: 400 Claude Code 2.1.219 does not support this
+                 # model; version 2.1.280 or newer is required." — die Form
+                 # „not supported" deckte das NICHT; jede Opus-Anfrage waere
+                 # nach dem Deploy mit 400 gescheitert, ohne Rueckfall.
+                 "does not support")
 
 
 def ist_modellfehler(text: str, voll: str) -> bool:
     """Sagt dieser Fehlertext, dass die KENNUNG nicht angenommen wurde?
 
-    ⚠️ **Nicht gemessen:** Wie die CLI einen unbekannten Modellnamen meldet, hat
-    niemand gesehen. Deshalb zwei Wege: Die Kennung selbst steht im Text, oder
+    ⚠️ **Nur teilweise gemessen:** Eine Form ist seit dem 26.09. bekannt — die
+    CLI ist zu alt fuer das Modell (`_MODELL_WORTE`, letzter Eintrag). Wie sie
+    einen unbekannten Namen meldet, hat niemand gesehen. Deshalb zwei Wege: Die Kennung selbst steht im Text, oder
     das Wort „model" steht neben einem der Ablehnungswörter. Ein Anmeldefehler
     kommt hier nicht an — der Anmelde-Zweig im Bot steht davor.
     """

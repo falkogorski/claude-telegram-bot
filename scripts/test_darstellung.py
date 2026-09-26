@@ -302,6 +302,40 @@ zeile("und die programmweite Voreinstellung ist unverändert aus",
       _d is not None and _d.link_preview_options.is_disabled is True,
       gemessen=str(getattr(_d, "link_preview_options", None)))
 
+# ── F. Textbloecke eines Zugs (26.09., Engywucks Befund 2) ─────────────────
+# Echter `stream_response`, Attrappe nur am Rand (der SDK-Client liefert zwei
+# Textbloecke mit einem Werkzeugaufruf dazwischen — so kam Claudias 13:47).
+print("== F. Absatz zwischen Textblöcken ==")
+from claude_agent_sdk import AssistantMessage, TextBlock, ToolUseBlock  # noqa: E402
+
+
+class _Client:
+    async def receive_response(self):
+        yield AssistantMessage(content=[TextBlock(text="Ich prüfe, ob es bearbeitet wurde.")],
+                               model="x")
+        yield AssistantMessage(content=[ToolUseBlock(id="t1", name="Read", input={})], model="x")
+        yield AssistantMessage(content=[TextBlock(text="**Neustart um 13:44 Uhr**")], model="x")
+
+
+_s = _sitzung(_Telegram())
+_s.client = _Client()
+_s.quiet = True
+try:
+    _text = asyncio.run(bot.stream_response(_s, 1)) or ""
+except Exception as e:
+    _text = f"(Pfad warf {type(e).__name__}: {e})"
+zeile("zwei Textblöcke kommen mit Absatz, nicht aneinandergeklebt",
+      "wurde.\n\n**Neustart" in _text, gemessen=repr(_text[:80]))
+import ast as _ast                                              # noqa: E402
+_baum = _ast.parse(Path(bot.__file__).read_text(encoding="utf-8"))
+_kleber = [n.lineno for n in _ast.walk(_baum)
+           if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+           and n.func.attr == "join" and isinstance(n.func.value, _ast.Constant)
+           and n.func.value.value == "" and n.args and isinstance(n.args[0], _ast.Name)
+           and n.args[0].id in ("parts", "teile")]
+zeile("keine Sammelstelle klebt Blöcke mehr mit leerem Trenner (alle Geschwister)",
+      not _kleber, gemessen=str(_kleber))
+
 import shutil                                                   # noqa: E402
 shutil.rmtree(_TMP, ignore_errors=True)
 print()

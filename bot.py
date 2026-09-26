@@ -7281,7 +7281,7 @@ async def sekretaerin_fragen(user_id: int, text: str, *, bot=None,
                             teile.append(block.text)
                 elif isinstance(msg, ResultMessage):
                     break
-            return "".join(teile).strip()
+            return textbloecke_verbinden(teile)
 
         try:
             antwort = await asyncio.wait_for(_lauf(), timeout=zeitgrenze)
@@ -14431,7 +14431,7 @@ async def mail_zusammenfassen(konto: str, kennung: str) -> str:
             await client.disconnect()
         except Exception:
             pass
-    bericht = "".join(teile).strip()
+    bericht = textbloecke_verbinden(teile)
     if not bericht:
         # Ehrlich scheitern — kein Ausweichweg (Befund C).
         raise RuntimeError("Der Lauf hat keinen Bericht geliefert.")
@@ -16386,7 +16386,7 @@ async def _summarize_pdf_direct(local_path: Path) -> str:
         except Exception:
             log.exception("disconnect of summary client failed")
 
-    summary = "".join(parts).strip()
+    summary = textbloecke_verbinden(parts)
     if not summary:
         raise RuntimeError("Zusammenfassung leer geblieben — bitte erneut versuchen.")
     return summary
@@ -16542,14 +16542,26 @@ async def stream_response(
                 # damit ist eine etwaige Marke erledigt. Die Entwarnung gehört
                 # an dieselbe Stelle wie der Alarm, sonst bleibt sie liegen.
                 authmarke.loeschen()
-                return "".join(parts).strip() or None
+                return textbloecke_verbinden(parts) or None
         # Fallback: kein ResultMessage (z.B. Abbruch) — trotzdem sauber abschließen.
         if sess.logger and claude_turn_started:
             sess.logger.end_turn()
-        return "".join(parts).strip() or None
+        return textbloecke_verbinden(parts) or None
     finally:
         if typing_task is not None:
             typing_task.cancel()
+
+
+def textbloecke_verbinden(teile: "list[str]") -> str:
+    """Die Textbloecke eines Modellzugs zu EINEM Text — mit Absatz dazwischen.
+
+    `[NEU 26.09.2026, Engywucks Befund 2]` Zwischen zwei Bloecken liegt meist
+    ein Werkzeugaufruf; jeder Block ist ein fertiger Gedanke. Mit `"".join`
+    klebte Claudias Zwischenstand an der Antwort: *„…ob es bearbeitet
+    wurde.Neustart um 13:44 Uhr"* (26.09., 13:47). Gilt fuer JEDE Stelle, die
+    Bloecke sammelt (Geschwister-Regel): Antwortweg, Sekretaerin,
+    Mail-Zusammenfassung, PDF-Zusammenfassung."""
+    return "\n\n".join(s for s in ((x or "").strip() for x in teile) if s)
 
 
 async def send_answer_to_user(

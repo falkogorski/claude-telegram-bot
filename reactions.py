@@ -167,3 +167,11 @@ def detect_numbered_options(text: str) -> int:
         if n == len(seen) + 1:
             seen.append(n)
     return len(seen) if len(seen) >= 2 else 0
+
+
+def offene_frage_seit(chat_id: int, seit: float) -> bool:
+    """`[NEU 26.09.2026, Nebenfaden]` Hat der Bot in diesem Chat seit `seit`
+    (Wanduhr) eine offene Frage gestellt? Dann ist eine Nachricht Adams
+    vermutlich die Antwort darauf — und gehoert in den laufenden Vorgang."""
+    return any(e.get("chat_id") == chat_id and float(e.get("created") or 0) >= seit
+               for e in _load().values())

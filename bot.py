@@ -2973,6 +2973,12 @@ def _find_safe_cut(text: str, limit: int) -> int:
     cut = text.rfind("\n", 0, limit)
     if cut <= 0:
         return limit
+    # `[NEU 26.09.2026, Nebenfaden f2 Teil 8]` Am Themenwechsel schneiden,
+    # wenn einer in der zweiten Fensterhaelfte liegt — sonst fiel der Schnitt
+    # mitten in die Passwort-Liste, und Adam sah zuerst ihre zweite Haelfte.
+    thema = _themen_schnitt(text, limit)
+    if thema is not None:
+        cut = thema
     # **Die Muster stehen in `_text_ends_with_heading`, nicht hier.**
     # Bis zum 28.08. trug diese Funktion eine eigene Kopie derselben zwei
     # Ausdruecke — und `_text_ends_with_heading` wurde **nirgends im Repo
@@ -2998,6 +3004,41 @@ def _find_safe_cut(text: str, limit: int) -> int:
             continue
         break
     return cut
+
+
+_TRENNLINIE = re.compile(r"^\s{0,3}([-*_─━—])(?:\s*\1){2,}\s*$")
+
+
+def _themen_schnitt(text: str, limit: int) -> "int | None":
+    """Schnittstelle am letzten Themenwechsel vor `limit` — oder None.
+
+    Themenwechsel sind eine **Trennlinie** (Schnitt dahinter: sie schliesst
+    das alte Thema ab) und eine **Ueberschrift** (Schnitt davor: sie eroeffnet
+    das neue). Nur in der zweiten Fensterhaelfte, sonst wuerden Nachrichten
+    unnoetig kurz; nie innerhalb eines Codeblocks (`---` in YAML).
+    Die Telegram-Grenze bleibt, bestimmt wird nur, WO geschnitten wird.
+    """
+    fenster = text[:limit]
+    best = None
+    im_code = False
+    start = 0
+    while start < len(fenster):
+        ende = fenster.find("\n", start)
+        zeile = fenster[start:] if ende < 0 else fenster[start:ende]
+        if zeile.lstrip().startswith("```"):
+            im_code = not im_code
+        elif not im_code:
+            kand = None
+            if ende >= 0 and _TRENNLINIE.match(zeile):
+                kand = ende
+            elif start > 0 and _text_ends_with_heading(zeile):
+                kand = start - 1
+            if kand is not None and kand > limit // 2:
+                best = kand
+        if ende < 0:
+            break
+        start = ende + 1
+    return best
 
 
 def _text_ends_with_heading(text: str) -> bool:

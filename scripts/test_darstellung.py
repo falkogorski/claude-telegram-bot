@@ -401,6 +401,37 @@ try:
 finally:
     bot.sprachausgabe_lokal.bereit, bot.TTS_STIMME_LOKAL = _bereit_vorher, _lokal_vorher
 
+# ── H. Schnitt am Themenwechsel (26.09., Nebenfaden f2 Teil 8) ─────────────
+# Adams Fotos 17:37: Der Laengenschnitt fiel mitten in die Passwort-Liste.
+# Gegenprobe: `_themen_schnitt` liefert None → Zeilen 1, 2 und 5 rot.
+print("== H. Schnitt am Themenwechsel ==")
+_fuell = "Eine Zeile ueber alte Rennwagen und ihre Motoren.\n"
+_vorn = _fuell * (3000 // len(_fuell))
+_hinten = "Zweites Thema: ein sicheres Passwort.\n" * (2000 // 38)
+t1 = _vorn + "\n---\n\n" + _hinten
+s1 = bot._find_safe_cut(t1, bot.TELEGRAM_MSG_LIMIT)
+zeile("Trennlinie bei 3000 von 5000 Zeichen: Schnitt direkt hinter der Trennlinie",
+      t1[:s1].rstrip().endswith("---") and t1[s1:].lstrip().startswith("Zweites Thema"),
+      gemessen=f"schnitt={s1} ende={t1[:s1][-20:]!r}")
+t2 = _vorn + "\n## Zweites Thema\n\n" + _hinten
+s2 = bot._find_safe_cut(t2, bot.TELEGRAM_MSG_LIMIT)
+zeile("Ueberschrift bei 3000: sie eroeffnet die naechste Nachricht",
+      t2[s2:].lstrip().startswith("## Zweites Thema"), gemessen=f"schnitt={s2}")
+t3 = _fuell * 30 + "\n---\n\n" + _fuell * 90
+s3 = bot._find_safe_cut(t3, bot.TELEGRAM_MSG_LIMIT)
+zeile("Trennlinie in der ersten Haelfte: kein vorgezogener Schnitt",
+      s3 > bot.TELEGRAM_MSG_LIMIT - 60, gemessen=f"schnitt={s3}")
+t4 = _vorn + "```yaml\n---\nname: x\n```\n" + _fuell * 60
+s4 = bot._find_safe_cut(t4, bot.TELEGRAM_MSG_LIMIT)
+zeile("Trennlinie im Codeblock zaehlt nicht als Themenwechsel",
+      s4 > 3200, gemessen=f"schnitt={s4}")
+ok, tg = _senden(t2, vorschau=False)
+_zweite = tg.texte[1].get("text", "") if len(tg.texte) > 1 else ""
+zeile("ausgefuehrt: zwei Nachrichten, das zweite Thema steht ganz in der zweiten",
+      ok and len(tg.texte) == 2 and "Zweites Thema" in _zweite
+      and "Passwort" not in tg.texte[0].get("text", ""),
+      gemessen=f"texte={len(tg.texte)} zweite beginnt {_zweite[:25]!r}")
+
 import shutil                                                   # noqa: E402
 shutil.rmtree(_TMP, ignore_errors=True)
 print()

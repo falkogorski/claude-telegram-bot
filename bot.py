@@ -2912,6 +2912,12 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
         answer, neues_vertiefen = neues_vertiefen_trennen(answer)
 
     # Senden erst JETZT — nach der Pre-Send-Prüfung (8.5), über den zentralen
+    # `[Nebenfaden, Widerlegung M1]` Hat Adam den Weg gewechselt, waehrend der
+    # Nebenfaden rechnete, wird dessen (Teil-)Ergebnis NIE gesendet — der
+    # Zwilling traegt die Antwort.
+    _ne = _NEBEN.get(job.neben_kennung) if getattr(job, "neben_kennung", None) else None
+    if _ne is not None and _ne.get("neben_verworfen"):
+        return "aufgegeben"
     # Sendepfad (Vorstufe 5.8; ersetzt den früheren toten _send_tts-Zweig).
     if answer and sess.bot:
         # Ab HIER kann etwas beim Nutzer ankommen (bei TTS in mehreren Häppchen).
@@ -2927,6 +2933,10 @@ async def _run_job(user_id: int, job: QueuedJob) -> str:
             )
         except Exception:
             log.exception("Senden der geprüften Antwort fehlgeschlagen")
+        # `[Nebenfaden, Widerlegung M2]` Erst eine BELEGTE Zustellung darf den
+        # Zwilling erledigen — „beantwortet" allein hiesse auch: leere Antwort.
+        if _ne is not None and delivered:
+            _ne["zustellung"] = True
         # Block 4: Die neue Kennung hat geantwortet — die Probe ist bestanden,
         # der automatische Rueckfall wird nicht mehr gebraucht. **Eigene
         # Klammer:** Buchfuehrung sitzt nie in der, die eine Entscheidung traegt.
@@ -3403,8 +3413,9 @@ _ROH_LINK = re.compile(r"https?://[^\s<>()\[\]]+")
 
 
 # ── Antwort auf einen Zettel als eigene Nachricht  `[NEU 26.09.2026, f2 Teil 8]`
-_ANTWORT_ANGABE = re.compile(r'<antwort\s+auf="(\d{1,12})"\s*>(.*?)</antwort\s*>', re.S)
-_ANTWORT_RESTE = re.compile(r"</?antwort\b[^>]*>")
+_ANTWORT_ANGABE = re.compile(r'<antwort\s+auf="(\d{1,12})"\s*>(.*?)</antwort\s*>', re.S | re.I)
+_ANTWORT_RESTE = re.compile(r"</?antwort\b[^>]*>", re.I)
+_CODEZAUN = re.compile(r"(```.*?```)", re.S)
 # Nur Kennungen, die ein gelesener Zettel dieser Sitzung genannt hat: Die
 # Angabe ist Modellausgabe — ohne Riegel koennte fremdes Material eine
 # Antwort an eine beliebige Nachricht haengen.
@@ -3423,8 +3434,14 @@ def antwort_angaben_trennen(text: str, chat_id: int) -> "tuple[str, list[tuple[i
             return ""
         return inhalt
 
-    rest = _ANTWORT_RESTE.sub("", _ANTWORT_ANGABE.sub(_ers, text or ""))
-    return re.sub(r"\n{3,}", "\n\n", rest).strip(), stuecke
+    # Widerlegung K2: Codebloecke bleiben woertlich (ein Beispiel darin ist
+    # Inhalt, keine Angabe); Grossschreibung zaehlt nicht.
+    # Wortgetreu wieder zusammengesetzt (kein Absatz dazwischen): Die
+    # Abschnitte sind Teile EINES Textes, keine Bloecke.
+    abschnitte = _CODEZAUN.split(text or "")
+    for i in range(0, len(abschnitte), 2):
+        abschnitte[i] = _ANTWORT_RESTE.sub("", _ANTWORT_ANGABE.sub(_ers, abschnitte[i]))
+    return re.sub(r"\n{3,}", "\n\n", "".join(abschnitte)).strip(), stuecke
 
 
 def vorschau_angabe_trennen(text: str) -> "tuple[str, str | None]":
@@ -6267,7 +6284,7 @@ def nachsteuer_lesen(user_id: int, thread_id: "int | None" = None,
             # Thema bekommt eine eigene Nachricht. Die Sitzung erfaehrt dafuer
             # die Kennung — und nur Kennungen, die hier genannt wurden, nimmt
             # der Sendeweg spaeter an (`_ANTWORT_ERLAUBT`).
-            if _schl and inhalt:
+            if _schl and inhalt and int(_schl[1]) > 0:   # K3: nur Telegram-Kennungen
                 _ANTWORT_ERLAUBT.add(_schl)
                 inhalt = (f"[Nachricht {_schl[1]}] {inhalt}\n(Ist das ein neues "
                           f"Thema, beantworte es als eigene Nachricht: "
@@ -11600,7 +11617,11 @@ async def _handle_stalled_session(user_id: int, mb: Mailbox, sess: UserSession |
 
     # 3. Die unbeantwortete Nachricht retten.
     retry = False
-    if job is not None and worker_dead:
+    if job is not None and worker_dead and getattr(job, "neben_kennung", None):
+        # `[Nebenfaden, Widerlegung M3]` Nie neu einlegen: Der Zwilling traegt
+        # die Antwort; ein zweiter Nebenfaden-Lauf waere eine Doppelantwort.
+        _neben_buchen(user_id, job, "aufgegeben")
+    elif job is not None and worker_dead:
         job.stall_retries += 1
         if job.stall_retries <= MAX_STALL_RETRIES:
             job.resumed = True          # Prompt-Vermerk „nachgeholt nach Unterbrechung"
@@ -14030,6 +14051,10 @@ async def _weg_umsetzen(e: dict, neu: str) -> str:
         return "ok"
     if alt is not None and not any(j is job for j in mb.queue):
         return "laeuft"
+    if alt == empfang.EINARBEITEN and (_ZETTEL.get(schl) or {}).get("gelesen"):
+        # Widerlegung S2: Der laufende Vorgang hat den Zettel schon — ein
+        # Wechsel jetzt hiesse eine zweite Antwort.
+        return "laeuft"
     if alt == empfang.EINARBEITEN:
         nachsteuer_zurueckziehen(uid, fd, schl)
     if alt == empfang.NEBENBEI:
@@ -14076,7 +14101,7 @@ async def nebenfaden_einordnen(update, user_id: int, chat_id: int,
     if mb.current_job is None:
         return None
     msg = update.message
-    kennung = f"{abs(int(chat_id)) % 10**6}{msg.message_id}"
+    kennung = f"{abs(int(chat_id)) % 10**6}-{msg.message_id}"   # K4: mit Trenner
     an = empfang_an(user_id)
     bezug = _bezug_auf_laufend(msg, mb, chat_id)
     urteil = None
@@ -14087,6 +14112,10 @@ async def nebenfaden_einordnen(update, user_id: int, chat_id: int,
             user_id, empfang.einschaetzung_frage(running, text),
             bot=update.get_bot(), chat_id=chat_id, nur_antworten=True)
         urteil = empfang.urteil_lesen(roh)
+    # Widerlegung S1: Die Einschaetzung darf dauern — laeuft der Zwilling
+    # inzwischen selbst (oder ist fertig), gibt es nichts mehr zu entscheiden.
+    if not any(j is job for j in mb.queue):
+        return None
     weg = empfang.weg_entscheiden(empfang_an=an, antwort_auf_laufend=bezug,
                                   urteil=urteil,
                                   neben_belegt=_neben_belegt(user_id, fd_thread))
@@ -14147,9 +14176,15 @@ def _neben_buchen(user_id: int, job, outcome: str) -> None:
     schl = zettel_schluessel(job)
     try:
         e = _NEBEN.get(getattr(job, "neben_kennung", None) or "")
-        if outcome == "beantwortet" and e is not None and not e.get("neben_verworfen"):
+        if (outcome == "beantwortet" and e is not None and e.get("zustellung")
+                and not e.get("neben_verworfen")):
             _ZETTEL[schl] = {"auftrag": "nebenfaden", "gelesen": True, "erledigt": True}
             e["zugestellt"] = True
+            # Widerlegung S3: Der Zwilling ist beantwortet — auch fuer den
+            # Neustart. Sonst spielte ein Deploy in diesem Fenster ihn nach.
+            _pk = getattr(e.get("job"), "pending_key", None)
+            if _pk:
+                pending.resolve(_pk)
             _neben_vermerk(e, "zugestellt")
             empfang.buch_schreiben("zugestellt")
         else:
@@ -15529,6 +15564,7 @@ def _media_eingang(update: Update, art: str, groesse_mb: float | None = None) ->
     msg = update.message
     if msg is None or msg.message_id is None:
         return None
+    _buendel_anmelden(update)   # Nebenfaden Teil 7, Widerlegung M4: VOR dem Download
     try:
         key = pending.make_key(msg.chat_id, msg.message_id)
         pending.record(key, {
@@ -15562,34 +15598,59 @@ def _media_eingang(update: Update, art: str, groesse_mb: float | None = None) ->
 # Album.
 _BUENDEL: dict[tuple, dict] = {}
 BUENDEL_WARTEN_S = float(os.environ.get("BUENDEL_WARTEN_S") or 1.5)
+# Hoechstens so lange wartet ein Album auf angemeldete, noch nicht fertige
+# Stuecke (ein Video braucht Zerlegung und Tonspur). Danach geht, was da ist.
+BUENDEL_HOECHSTENS_S = float(os.environ.get("BUENDEL_HOECHSTENS_S") or 180)
+
+
+def _buendel_schluessel(update) -> "tuple | None":
+    gruppe = getattr(getattr(update, "message", None), "media_group_id", None)
+    return (update.effective_chat.id, gruppe) if gruppe else None
+
+
+def _buendel_anmelden(update) -> None:
+    """Beim EINGANG, vor Download und Zerlegung (Widerlegung M4): Sonst
+    zerfiel ein Album, sobald ein Stueck laenger brauchte als die Stille."""
+    try:
+        s = _buendel_schluessel(update)
+        if s is not None:
+            b = _BUENDEL.setdefault(s, {"teile": [], "stand": 0, "angemeldet": 0})
+            b["angemeldet"] = b.get("angemeldet", 0) + 1
+    except Exception:
+        log.debug("Buendel: Anmeldung fehlgeschlagen", exc_info=True)
 
 
 async def _medien_weiter(update: Update, text: str, *, mkey: "str | None" = None,
-                         **kw) -> None:
+                         prefix: str = "", **kw) -> None:
     """Einzelstueck: wie bisher. Albumstueck: sammeln, der letzte reicht weiter."""
     msg = update.message
-    gruppe = getattr(msg, "media_group_id", None)
-    if not gruppe:
-        await process_user_text(update, text, **kw)
+    schluessel = _buendel_schluessel(update)
+    if schluessel is None:
+        await process_user_text(update, prefix + text, **kw)
         return
-    schluessel = (update.effective_chat.id, gruppe)
-    b = _BUENDEL.setdefault(schluessel, {"teile": [], "stand": 0})
+    b = _BUENDEL.setdefault(schluessel, {"teile": [], "stand": 0, "angemeldet": 0})
     b["teile"].append({"mid": msg.message_id, "update": update, "text": text,
-                       "kw": kw, "mkey": mkey})
+                       "prefix": prefix, "kw": kw, "mkey": mkey})
     b["stand"] += 1
     stand = b["stand"]
-    await asyncio.sleep(BUENDEL_WARTEN_S)
-    if b["stand"] != stand or _BUENDEL.get(schluessel) is not b:
-        return          # ein spaeteres Stueck reicht weiter
+    beginn = time.monotonic()
+    while True:
+        await asyncio.sleep(BUENDEL_WARTEN_S)
+        if b["stand"] != stand or _BUENDEL.get(schluessel) is not b:
+            return          # ein spaeteres Stueck reicht weiter
+        if (len(b["teile"]) >= b.get("angemeldet", 0)
+                or time.monotonic() - beginn >= BUENDEL_HOECHSTENS_S):
+            break
     _BUENDEL.pop(schluessel, None)
     teile = sorted(b["teile"], key=lambda x: x["mid"])
     erstes = teile[0]
     kw1 = dict(erstes["kw"])
     kw1["log_note"] = f"🗂️ Album: {len(teile)} Anhänge — " + " · ".join(
         (x["kw"].get("log_note") or "")[:60] for x in teile)
+    # Der Antwort-Vorspann einmal, nicht je Stueck (Widerlegung M4).
     await process_user_text(
         erstes["update"],
-        f"[Album mit {len(teile)} Anhängen, als EIN Auftrag]\n\n"
+        erstes["prefix"] + f"[Album mit {len(teile)} Anhängen, als EIN Auftrag]\n\n"
         + "\n\n".join(x["text"] for x in teile), **kw1)
     # Erst NACH dem Einreihen (das den ersten sichert) die Eingangs-Stufen der
     # uebrigen loesen — sonst laege das Album einen Moment nirgends (Fenster-Regel).
@@ -15692,7 +15753,7 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             "Fehler, und Adam soll nicht erst nachfragen müssen.")
     if caption:
         parts.append(f"Beschriftung: {caption}")
-    await _medien_weiter(update, prefix + "\n".join(parts), mkey=_mkey,
+    await _medien_weiter(update, "\n".join(parts), mkey=_mkey, prefix=prefix,
                          log_note=f"📷 Foto: {local_path.name}")
 
 
@@ -15804,8 +15865,9 @@ async def on_document(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    await msg.reply_text(f"{filename} ({groesse_lesbar(size_mb, ist_mb=True)}) empfangen — weiterleiten …")
-    await _medien_weiter(update, prefix + "\n".join(parts), mkey=_mkey,
+    if not getattr(msg, "media_group_id", None):   # im Album: eine Meldung, nicht je Datei
+        await msg.reply_text(f"{filename} ({groesse_lesbar(size_mb, ist_mb=True)}) empfangen — weiterleiten …")
+    await _medien_weiter(update, "\n".join(parts), mkey=_mkey, prefix=prefix,
                          log_note=f"📎 Datei: {filename} · {mime} · {groesse_lesbar(size_mb, ist_mb=True)}",
                          adam_anteil=_adam_anteil(update, caption))
 
@@ -15893,7 +15955,7 @@ async def on_video(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         # (e) Ehrlich melden statt still scheitern — das Original bleibt liegen.
         parts.append(f"Hinweis: Das Video konnte nicht zerlegt werden "
                      f"({teile['error']}). Die Datei liegt unter {local_path}.")
-    await _medien_weiter(update, prefix + "\n".join(parts), mkey=_mkey,
+    await _medien_weiter(update, "\n".join(parts), mkey=_mkey, prefix=prefix,
                          log_note=f"🎬 {label}: {filename} · {groesse_lesbar(size_mb, ist_mb=True)}")
 
 

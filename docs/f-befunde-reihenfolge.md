@@ -381,7 +381,7 @@ die Befunde 1 bis 6 sind geschlossen (Drehbuch (83)).
   Bezug zur Auszeichnung und protokolliert dann irreführend „Auszeichnung
   abgelehnt“.
 
-### F-25 · Drei Kleinigkeiten aus der Widerlegung vom 26.09. (Drehbuch (89)) `[offen, klein, 26.09.2026]`
+### F-25 · Kleinigkeiten aus den Widerlegungen vom 26.09. (Drehbuch (89) und (91)) `[offen, klein, 26.09.2026]`
 
 - **K1 Ein Nachrichtenrest beginnt mitten im Codeblock:** `_themen_schnitt`
   zählt die Zaunzeilen dann verkehrt herum; ein `# Kommentar` im Bash-Block
@@ -390,6 +390,15 @@ die Befunde 1 bis 6 sind geschlossen (Drehbuch (83)).
   Jahr (bekannte Grenze, im Prüfer dokumentiert).
 - **Azure bei „unklar“:** „(1920, 1080)“ bleibt bei Azure ein Jahr — seine
   bisherige Lesart ohne Hinweis. Erst mit Schlüssel hörbar; dann prüfen.
+- **Nebenfaden M1 ohne ausführende Prüfzeile:** Das verworfene Ergebnis wird
+  in `_run_job` nicht gesendet — der Prüfer ersetzt `_run_job` aber durch eine
+  Attrappe. Gebaut und gelesen, nicht ausgeführt.
+- **Nebenfaden K5:** `offene_frage_seit` zählt auch offene Fragen aus anderen
+  Themen und aus der Antwort des Nebenfadens; eine Antwort darauf geht in den
+  Hauptvorgang. Herleitung.
+- **Nebenfaden K6:** Einschätzungen bleiben im Verlauf der Empfangssitzung;
+  Nebenfaden und Hauptvorgang schreiben verschränkt in dasselbe Protokoll.
+  Herleitung.
 
 ---
 

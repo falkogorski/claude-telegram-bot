@@ -116,9 +116,19 @@ ERGEBNIS = {"neben": "beantwortet"}
 UNTERBROCHEN = []
 
 
+SPERRE: dict = {}
+
+
 async def _lauf_attrappe(user_id, job):
     LAEUFE.append((bot._job_faden(job), job.text))
-    return ERGEBNIS["neben"] if job.neben_kennung else "beantwortet"
+    if job.neben_kennung and SPERRE.get("ereignis") is not None:
+        await SPERRE["ereignis"].wait()          # der Nebenfaden rechnet noch
+    if job.neben_kennung:
+        # Wie der echte `_run_job`: Zustellung belegt nur, wenn etwas ankam.
+        if ERGEBNIS["neben"] == "beantwortet" and ERGEBNIS.get("zugestellt", True):
+            bot._NEBEN[job.neben_kennung]["zustellung"] = True
+        return ERGEBNIS["neben"]
+    return "beantwortet"
 
 
 async def _empfang_attrappe(user_id, text, **kw):
@@ -375,7 +385,7 @@ async def _ptu_attrappe(update, text, **kw):
 
 class _MedienMsg:
     def __init__(self, mid, gruppe):
-        self.message_id, self.media_group_id = mid, gruppe
+        self.message_id, self.media_group_id, self.chat_id = mid, gruppe, 1
 
 
 def _medien_update(mid, gruppe):
@@ -458,6 +468,154 @@ asyncio.run(bot.send_answer_to_user(_sess_tg(tg), 1,
 zeile("unbekannte Kennung: keine zweite Nachricht, Inhalt bleibt im Text, Angabe verschwindet",
       len(tg.texte) == 1 and "Fremd eingeschleust" in tg.texte[0].get("text", "")
       and "<antwort" not in tg.texte[0].get("text", ""), str([k.get("text") for k in tg.texte]))
+
+
+# ── G. Nachgezogen aus der Widerlegung vom 26.09. (S1–S3, M2–M5, K2, K3) ──
+print("== G. Widerlegung ==")
+
+
+async def _fall_s1():
+    mb, job, upd, msg = _szene()
+
+    async def _empfang_zieht(user_id, text, **kw):
+        bot._aus_schlange(mb.queue, job)        # der Worker hat den Zwilling gezogen
+        mb.current_job = job
+        return "👩‍💼 nebenbei"
+    bot.sekretaerin_fragen = _empfang_zieht
+    try:
+        return await _einordnen(mb, job, upd), msg
+    finally:
+        bot.sekretaerin_fragen = _empfang_attrappe
+
+
+e, msg = asyncio.run(_fall_s1())
+zeile("(S1) Zwilling laeuft schon, waehrend der Empfang einschaetzt → kein Nebenfaden, keine Meldung",
+      e is None and not bot._NEBEN_LAUFEND and not LAEUFE and not msg.antworten,
+      f"e={e} laeufe={LAEUFE}")
+
+
+async def _fall_s2():
+    mb, job, upd, msg = _szene(wort="einarbeiten")
+    e = await _einordnen(mb, job, upd)
+    bot._ZETTEL[e["schl"]]["gelesen"] = True     # der laufende Vorgang hat ihn
+    stand = await bot._weg_umsetzen(e, "nebenbei")
+    stand2 = await bot._weg_umsetzen(e, "anreihen")
+    return e, stand, stand2
+
+
+e, stand, stand2 = asyncio.run(_fall_s2())
+zeile("(S2/K1) Zettel schon gelesen: Nebenbei und Anreihen aendern nichts mehr („laeuft“)",
+      stand == "laeuft" and stand2 == "laeuft" and e["weg"] == "einarbeiten" and not bot._NEBEN_LAUFEND,
+      f"{stand}/{stand2} weg={e['weg']}")
+bot._ZETTEL.pop(e["schl"], None)
+
+
+async def _fall_s3():
+    mb, job, upd, msg = _szene()
+    job.pending_key = bot.pending.make_key(1, job.message_id)
+    bot.pending.record(job.pending_key, {"user_id": 1, "chat_id": 1, "text": job.text})
+    await _einordnen(mb, job, upd)
+    await _nebenzimmer_fertig()                 # zugestellt, Hauptvorgang laeuft noch
+    return job.pending_key
+
+
+pk = asyncio.run(_fall_s3())
+zeile("(S3) nach belegter Zustellung ist der Zwilling auch fuer den Neustart beantwortet",
+      not bot.pending._path(pk).exists(), f"datei={bot.pending._path(pk)}")
+
+
+async def _fall_m2():
+    mb, job, upd, msg = _szene()
+    ERGEBNIS["zugestellt"] = False              # „beantwortet", aber nichts kam an
+    try:
+        await _einordnen(mb, job, upd)
+        await _nebenzimmer_fertig()
+        await _hauptzimmer_abarbeiten(mb)
+    finally:
+        ERGEBNIS["zugestellt"] = True
+
+
+asyncio.run(_fall_m2())
+zeile("(M2) Nebenfaden ohne belegte Zustellung → der Zwilling antwortet (nichts geht verloren)",
+      LAEUFE == [(neben_key, "Wie baue ich ein sicheres Passwort?"),
+                 (None, "Wie baue ich ein sicheres Passwort?")], str(LAEUFE))
+
+
+async def _fall_warten():
+    """(M5/G1) Der Hauptvorgang endet, WAEHREND der Nebenfaden rechnet: Der
+    Zwilling muss warten und danach uebersprungen werden."""
+    mb, job, upd, msg = _szene()
+    SPERRE["ereignis"] = asyncio.Event()
+    await _einordnen(mb, job, upd)
+    await asyncio.sleep(0.05)                   # Nebenfaden laeuft und haengt
+    haupt = asyncio.create_task(_hauptzimmer_abarbeiten(mb))
+    await asyncio.sleep(0.3)
+    lief_vorzeitig = len(LAEUFE) > 1
+    SPERRE["ereignis"].set()
+    await _nebenzimmer_fertig()
+    await haupt
+    SPERRE.pop("ereignis", None)
+    return lief_vorzeitig
+
+
+vorzeitig = asyncio.run(_fall_warten())
+zeile("(M5/G1) Zwilling wartet auf den rechnenden Nebenfaden und wird danach uebersprungen",
+      not vorzeitig and LAEUFE == [(neben_key, "Wie baue ich ein sicheres Passwort?")],
+      f"vorzeitig={vorzeitig} laeufe={LAEUFE}")
+
+bot.MAILBOXES.clear()
+_nmb = bot._get_mailbox(1, neben_key)
+_nmb.current_job = bot.QueuedJob(update=None, text="Nebenfrage", user_id=1)
+_hmb = bot._get_mailbox(1, None)
+_hmb.current_job = bot.QueuedJob(update=None, text="Hauptvorgang", user_id=1)
+_grenze, bot.ZIMMER_GLEICHZEITIG = bot.ZIMMER_GLEICHZEITIG, 1
+try:
+    zeile("(M5/G2) ein WACHES Nebenzimmer steht nicht im Leitstand",
+          all(not bot.ist_nebenzimmer(z.get("thread_id")) for z in bot.leitstand(1))
+          and len(bot.leitstand(1)) == 1, str([z.get("thread_id") for z in bot.leitstand(1)]))
+    zeile("(M5/G4) Drossel: das Nebenzimmer darf starten und bremst kein anderes Zimmer",
+          bot.darf_starten(1, neben_key) and bot.arbeitende_zimmer(1, ausser=7) == 1,
+          f"{bot.darf_starten(1, neben_key)} {bot.arbeitende_zimmer(1, ausser=7)}")
+finally:
+    bot.ZIMMER_GLEICHZEITIG = _grenze
+    bot.MAILBOXES.clear()
+
+
+async def _fall_buendel_spaet():
+    bot.BUENDEL_WARTEN_S, bot.BUENDEL_HOECHSTENS_S = 0.2, 5
+    for i in range(3):
+        bot._media_eingang(_medien_update(3000 + i, "album-2"), "Datei")   # der echte Eingang
+
+    async def _stueck(i, verzug):
+        await asyncio.sleep(verzug)
+        await bot._medien_weiter(_medien_update(3000 + i, "album-2"), f"[Datei {i}]",
+                                 mkey=None, prefix="[Antwort auf X] ", log_note="📎")
+    await asyncio.gather(_stueck(0, 0), _stueck(1, 0.1), _stueck(2, 0.7))
+
+bot.process_user_text = _ptu_attrappe
+EINGEREIHT.clear()
+try:
+    asyncio.run(_fall_buendel_spaet())
+finally:
+    bot.process_user_text = _ptu_vorher
+zeile("(M4) Album mit spaetem Stueck (0 / 0,1 / 0,7 s bei 0,2 s Stille) bleibt EIN Auftrag",
+      len(EINGEREIHT) == 1 and all(f"[Datei {i}]" in EINGEREIHT[0] for i in range(3)),
+      f"auftraege={len(EINGEREIHT)}")
+zeile("(M4) der Antwort-Vorspann steht einmal, nicht je Stueck",
+      EINGEREIHT and EINGEREIHT[0].count("[Antwort auf X]") == 1, str(EINGEREIHT)[:100])
+
+bot._ANTWORT_ERLAUBT.clear()
+bot._ANTWORT_ERLAUBT.add((1, 77))
+r, st = bot.antwort_angaben_trennen('Text <Antwort auf="77">X</Antwort>', 1)
+zeile("(K2) grossgeschriebene Angabe wird erkannt, nichts bleibt sichtbar",
+      st == [(77, "X")] and "ntwort" not in r, f"{r!r} {st}")
+r, st = bot.antwort_angaben_trennen('Beispiel:\n```\n<antwort auf="77">so</antwort>\n```', 1)
+zeile("(K2) ein Beispiel im Codeblock bleibt woertlich stehen",
+      st == [] and '<antwort auf="77">so</antwort>' in r, f"{r!r} {st}")
+bot.nachsteuer_schreiben(1, None, "auftrag-z", (1, -555), "Empfangszettel")
+v = bot.nachsteuer_lesen(1, None, "auftrag-z")
+zeile("(K3) Zettel ohne Telegram-Kennung bekommt kein Antwort-Angebot",
+      "<antwort" not in v and (1, -555) not in bot._ANTWORT_ERLAUBT, v)
 
 # ── F. Wer merkt es: Buch, Tagescheck, /status (Teil 5 und 6) ─────────────
 print("== F. Buch und Tagescheck ==")

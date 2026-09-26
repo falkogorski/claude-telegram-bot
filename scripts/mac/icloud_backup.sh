@@ -96,8 +96,13 @@ if [ $rc -ne 0 ]; then
   exit $rc
 fi
 
-dateien="$(printf '%s' "$ausgabe" | grep -m1 'Number of files:' | tr -d ' ' | cut -d: -f2)"
-neu="$(printf '%s' "$ausgabe" | grep -m1 'files transferred:' | tr -d ' ' | cut -d: -f2)"
+# Die erste Zahl hinter dem Doppelpunkt, Tausenderzeichen heraus. Seit dem
+# 26.09.2026 liegt rsync 3 aus Homebrew vor openrsync im Pfad (Block 7 braucht
+# es); rsync 3 schreibt `Number of files: 1,234 (reg: …)`, openrsync `1234`.
+# Die alte Auswertung haette daraus `1,234(reg` gemacht.
+_zahl() { grep -m1 "$1" | sed -E 's/^[^:]*:[^0-9]*([0-9][0-9,.]*).*/\1/' | tr -d ',.'; }
+dateien="$(printf '%s' "$ausgabe" | _zahl 'Number of files:')"
+neu="$(printf '%s' "$ausgabe" | _zahl 'files transferred:')"
 sag "Lauf beendet: ${dateien:-?} Dateien im Bestand, ${neu:-0} neu oder geaendert."
 date '+%Y-%m-%d' > "$MARKE" 2>/dev/null
 exit 0
